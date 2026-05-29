@@ -22,7 +22,14 @@ type LeaderboardEntry = {
   gamesPlayed: number;
   winRate: number;
   currentStreak: number;
-  playerId: { _id: string; firstName: string; lastName: string } | null;
+  playerId: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    photoUrl?: string;
+    photoPublicId?: string;
+    personalQrCode?: string;
+  } | null;
 };
 
 export default async function LeaderboardPage({
@@ -97,6 +104,9 @@ export default async function LeaderboardPage({
             id: String(item._id),
             firstName: item.playerId?.firstName ?? "Unknown",
             lastName: item.playerId?.lastName ?? "Player",
+            photoUrl: item.playerId?.photoUrl,
+            photoPublicId: item.playerId?.photoPublicId,
+            personalQrCode: item.playerId?.personalQrCode,
             wins: item.wins,
             losses: item.losses,
             gamesPlayed: item.gamesPlayed,

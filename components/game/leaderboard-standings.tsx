@@ -1,12 +1,11 @@
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
+import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
-export type LeaderboardRow = {
+export type LeaderboardRow = PlayerPhotoRef & {
   id: string;
-  firstName: string;
-  lastName: string;
   wins: number;
   losses: number;
   gamesPlayed: number;
@@ -58,6 +57,19 @@ function StreakBadge({ streak }: { streak: number }) {
   );
 }
 
+function podiumAvatarClass(rank: 1 | 2 | 3, compact: boolean) {
+  if (compact) {
+    return cn(
+      "leaderboard-podium-avatar",
+      rank === 1 ? "leaderboard-podium-avatar--first-compact" : "leaderboard-podium-avatar--podium-compact",
+    );
+  }
+  return cn(
+    "leaderboard-podium-avatar",
+    rank === 1 ? "leaderboard-podium-avatar--first" : "leaderboard-podium-avatar--podium",
+  );
+}
+
 function PodiumCard({
   row,
   rank,
@@ -80,6 +92,10 @@ function PodiumCard({
       )}
     >
       <RankDisplay rank={rank} size={compact ? "sm" : "lg"} />
+      <PlayerAvatar
+        player={row}
+        className={cn("mt-1 shrink-0", !compact && "mt-2", podiumAvatarClass(rank, compact))}
+      />
       <p
         className={cn(
           "mt-1 line-clamp-2 font-semibold leading-tight",
@@ -124,6 +140,7 @@ function StandingRow({
       <div className={cn("flex items-center gap-2", compact ? "flex-col items-stretch" : "flex-wrap gap-3 sm:gap-4")}>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <RankDisplay rank={rank} size={compact ? "sm" : "md"} />
+          <PlayerAvatar player={row} size={compact ? "sm" : "default"} />
           <div className="min-w-0">
             <p className={cn("truncate font-semibold", compact ? "text-sm" : "body-lg")}>
               {displayLabel(row, rank)}

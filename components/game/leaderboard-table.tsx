@@ -1,3 +1,4 @@
+import { PlayerNameWithPhoto } from "@/components/game/player-avatar";
 import { formatPlayerTableName } from "@/lib/utils";
 import {
   Table,
@@ -32,7 +33,9 @@ export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
               <TableRow key={row.id}>
                 <TableCell className="font-semibold tabular-nums">#{rank}</TableCell>
                 <TableCell className="font-medium">
-                  {formatPlayerTableName(row.firstName, row.lastName)}
+                  <PlayerNameWithPhoto player={row}>
+                    {formatPlayerTableName(row.firstName, row.lastName)}
+                  </PlayerNameWithPhoto>
                 </TableCell>
                 <TableCell className="stat-num text-right text-emerald-600 dark:text-emerald-400">
                   {row.wins}

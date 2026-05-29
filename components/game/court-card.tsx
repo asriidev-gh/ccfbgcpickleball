@@ -1,12 +1,13 @@
 import { formatDistanceToNow } from "date-fns";
-import { CircleDot, Users } from "lucide-react";
+import { ArrowLeftRight, CircleDot, Users } from "lucide-react";
 
-import { formatPlayerDisplayName } from "@/lib/utils";
+import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import { capitalizeNameWords, formatPlayerDisplayName } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type PlayerRef = { _id?: string; firstName: string; lastName: string };
+type PlayerRef = PlayerPhotoRef & { _id?: string };
 
 export type CourtView = {
   _id: string;
@@ -24,17 +25,27 @@ function TeamPlayers({ players }: { players: PlayerRef[] }) {
 
   return (
     <ul className="court-team-players court-team-players-list">
-      {players.map((player, index) => (
-        <li
-          key={
-            player._id != null
-              ? `${String(player._id)}-${index}`
-              : `${player.firstName}-${player.lastName}-${index}`
-          }
-        >
-          {formatPlayerDisplayName(player.firstName, player.lastName)}
-        </li>
-      ))}
+      {players.map((player, index) => {
+        const firstName = capitalizeNameWords(player.firstName);
+        const fullName = formatPlayerDisplayName(player.firstName, player.lastName);
+
+        return (
+          <li
+            key={
+              player._id != null
+                ? `${String(player._id)}-${index}`
+                : `${player.firstName}-${player.lastName}-${index}`
+            }
+            className="court-player-row flex items-center gap-2"
+          >
+            <PlayerAvatar player={player} />
+            <span className="court-player-name min-w-0 truncate">
+              <span className="court-player-name--first">{firstName || fullName}</span>
+              <span className="court-player-name--full">{fullName}</span>
+            </span>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -42,10 +53,18 @@ function TeamPlayers({ players }: { players: PlayerRef[] }) {
 type CourtCardProps = {
   court: CourtView;
   onEndGame: () => void;
+  onSwapTeams?: () => void;
+  swapPending?: boolean;
   hideEndGame?: boolean;
 };
 
-export function CourtCard({ court, onEndGame, hideEndGame = false }: CourtCardProps) {
+export function CourtCard({
+  court,
+  onEndGame,
+  onSwapTeams,
+  swapPending = false,
+  hideEndGame = false,
+}: CourtCardProps) {
   const isActive = court.status === "active";
   const teamA = court.teamA?.playerIds ?? [];
   const teamB = court.teamB?.playerIds ?? [];
@@ -87,9 +106,25 @@ export function CourtCard({ court, onEndGame, hideEndGame = false }: CourtCardPr
                 <p className="court-team-label">Team A</p>
                 <TeamPlayers players={teamA} />
               </div>
-              <span className="court-vs" aria-hidden>
-                VS
-              </span>
+              <div className="court-vs-column flex flex-col items-center justify-center gap-1.5">
+                {!hideEndGame && onSwapTeams && teamA.length > 0 && teamB.length > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="court-swap-btn size-9 shrink-0"
+                    aria-label="Swap one player between Team A and Team B"
+                    title="Swap players across teams"
+                    disabled={swapPending}
+                    onClick={onSwapTeams}
+                  >
+                    <ArrowLeftRight className="h-4 w-4" />
+                  </Button>
+                ) : null}
+                <span className="court-vs" aria-hidden>
+                  VS
+                </span>
+              </div>
               <div className="court-team court-team-b">
                 <p className="court-team-label">Team B</p>
                 <TeamPlayers players={teamB} />

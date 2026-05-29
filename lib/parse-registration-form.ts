@@ -1,0 +1,60 @@
+import type { z } from "zod";
+
+import { newPlayerSchema } from "@/lib/validations";
+
+function formString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function formBoolean(formData: FormData, key: string) {
+  return formData.get(key) === "true";
+}
+
+function formStringArray(formData: FormData, key: string) {
+  const raw = formData.get(key);
+  if (typeof raw !== "string" || !raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function parseNewPlayerPayloadFromFormData(formData: FormData) {
+  const volunteerTypeRaw = formString(formData, "volunteerType");
+  const volunteerType =
+    volunteerTypeRaw === "Pickleball" ||
+    volunteerTypeRaw === "Running" ||
+    volunteerTypeRaw === "Badminton" ||
+    volunteerTypeRaw === "Other"
+      ? volunteerTypeRaw
+      : undefined;
+
+  const body = {
+    gameId: formString(formData, "gameId"),
+    firstName: formString(formData, "firstName"),
+    lastName: formString(formData, "lastName"),
+    mobileNumber: formString(formData, "mobileNumber"),
+    email: formString(formData, "email"),
+    firstTimeSportsMinistry: formBoolean(formData, "firstTimeSportsMinistry"),
+    isPartOfDgroup: formBoolean(formData, "isPartOfDgroup"),
+    attendedEvents: formStringArray(formData, "attendedEvents"),
+    attendedEventsOther: formString(formData, "attendedEventsOther"),
+    volunteerType,
+    volunteerTypeOther: formString(formData, "volunteerTypeOther"),
+  };
+
+  return newPlayerSchema.safeParse(body);
+}
+
+export type NewPlayerPayload = z.infer<typeof newPlayerSchema>;
+
+export function getRegistrationPhotoFromFormData(formData: FormData) {
+  const photo = formData.get("photo");
+  if (photo instanceof File && photo.size > 0) {
+    return photo;
+  }
+  return null;
+}

@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
+import { uploadRegistrationPhoto } from "@/lib/cloudinary";
+import {
+  GENERATED_AVATAR_PUBLIC_ID,
+  getGeneratedAvatarUrl,
+} from "@/lib/player-avatar-url";
 import { connectToDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
+import { capitalizeNameWords } from "@/lib/utils";
+import {
+  getRegistrationPhotoFromFormData,
+  parseNewPlayerPayloadFromFormData,
+} from "@/lib/parse-registration-form";
 import { newPlayerSchema } from "@/lib/validations";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
@@ -11,17 +21,44 @@ import { Volunteer } from "@/models/Volunteer";
 export async function POST(request: Request) {
   try {
     await connectToDatabase();
-    const body = await request.json();
-    const parsed = newPlayerSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
+
+    const contentType = request.headers.get("content-type") ?? "";
+    let payload: ReturnType<typeof newPlayerSchema.parse>;
+    let photoFile: File | null = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const parsed = parseNewPlayerPayloadFromFormData(formData);
+      if (!parsed.success) {
+        return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
+      }
+      payload = parsed.data;
+      photoFile = getRegistrationPhotoFromFormData(formData);
+    } else {
+      const body = await request.json();
+      const parsed = newPlayerSchema.safeParse(body);
+      if (!parsed.success) {
+        return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
+      }
+      payload = parsed.data;
     }
-    const payload = parsed.data;
 
     const personalQrCode = `P-${nanoid(10)}`;
+    let photoUrl = getGeneratedAvatarUrl(personalQrCode);
+    let photoPublicId = GENERATED_AVATAR_PUBLIC_ID;
+
+    if (photoFile) {
+      const uploaded = await uploadRegistrationPhoto(photoFile, {
+        gameId: payload.gameId,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+      });
+      photoUrl = uploaded.photoUrl;
+      photoPublicId = uploaded.photoPublicId;
+    }
     const player = await Player.create({
-      firstName: payload.firstName,
-      lastName: payload.lastName,
+      firstName: capitalizeNameWords(payload.firstName),
+      lastName: capitalizeNameWords(payload.lastName),
       mobileNumber: payload.mobileNumber,
       email: payload.email,
       personalQrCode,
@@ -29,6 +66,8 @@ export async function POST(request: Request) {
       isPartOfDgroup: payload.isPartOfDgroup,
       attendedEvents: payload.attendedEvents,
       attendedEventsOther: payload.attendedEventsOther,
+      photoUrl,
+      photoPublicId,
       lastAttendedAt: new Date(),
     });
 
@@ -55,7 +94,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { message: formatZodError(error) },
-      { status: 400 }
+      { status: 400 },
     );
   }
 }

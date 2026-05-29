@@ -665,8 +665,40 @@
     @apply h-9 w-9 text-xs;
   }
 
+  .leaderboard-podium-avatar {
+    @apply ring-2 ring-border ring-offset-2 ring-offset-background;
+  }
+
+  .leaderboard-podium-avatar--first {
+    @apply size-20 sm:size-24;
+  }
+
+  .leaderboard-podium-avatar--first [data-slot="avatar-fallback"] {
+    @apply text-base font-semibold sm:text-lg;
+  }
+
+  .leaderboard-podium-avatar--podium {
+    @apply size-16 sm:size-20;
+  }
+
+  .leaderboard-podium-avatar--podium [data-slot="avatar-fallback"] {
+    @apply text-sm font-semibold sm:text-base;
+  }
+
+  .leaderboard-podium-avatar--first-compact {
+    @apply size-14;
+  }
+
+  .leaderboard-podium-avatar--podium-compact {
+    @apply size-11;
+  }
+
   .leaderboard-podium-card-gold {
     @apply border-amber-400/40 shadow-md shadow-amber-500/15;
+  }
+
+  .leaderboard-podium-card-gold .leaderboard-podium-avatar {
+    @apply ring-amber-400/60;
   }
 
   .leaderboard-podium-card-silver {
@@ -1281,6 +1313,19 @@
     }
   }
 
+  /* Tiles: full name on mobile & desktop; first name only on tablet (md–lg) */
+  .court-grid--list .court-player-name--first {
+    @apply hidden;
+  }
+
+  .court-grid--tiles .court-player-name--full {
+    @apply inline md:hidden lg:inline;
+  }
+
+  .court-grid--tiles .court-player-name--first {
+    @apply hidden md:inline lg:hidden;
+  }
+
   /* —— Courts: empty vs in play —— */
   .court-card {
     @apply transition-[box-shadow,border-color,background-color] duration-300;
@@ -1344,6 +1389,44 @@
 
   .court-vs {
     @apply flex items-center justify-center self-center text-xs font-bold tracking-widest text-muted-foreground;
+  }
+
+  @media (max-width: 767px) {
+    .courts-panel .court-teams {
+      @apply items-center justify-items-center text-center;
+    }
+
+    .courts-panel .court-team {
+      @apply mx-auto flex w-full max-w-sm flex-col items-center;
+    }
+
+    .courts-panel .court-team-label {
+      @apply w-full text-center;
+    }
+
+    .courts-panel .court-team-players-list {
+      @apply list-none space-y-2 pl-0;
+    }
+
+    .courts-panel .court-team-players-list .court-player-row {
+      @apply justify-center;
+    }
+
+    .courts-panel .court-player-name {
+      @apply text-center;
+    }
+
+    .courts-panel .court-vs-column {
+      @apply items-center;
+    }
+
+    .courts-panel .court-vs {
+      @apply py-1;
+    }
+  }
+
+  .court-swap-btn {
+    @apply border-border bg-background shadow-sm;
   }
 
   .court-active .court-team {
@@ -3104,7 +3187,11 @@
   }
 
   .register-shell {
-    @apply w-full max-w-3xl;
+    @apply w-full max-w-3xl min-w-0;
+  }
+
+  .register-card {
+    @apply min-w-0 overflow-hidden;
   }
 
   .register-card [data-slot="card-header"].register-card-header {
@@ -3132,7 +3219,11 @@
   }
 
   .register-field-grid {
-    @apply grid grid-cols-1 gap-4 md:grid-cols-2;
+    @apply grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2;
+  }
+
+  .register-field {
+    @apply min-w-0;
   }
 
   .register-input {
@@ -3198,6 +3289,30 @@
 
   .register-submit {
     @apply mt-2 min-h-12 w-full;
+  }
+
+  .register-photo-block {
+    @apply w-full min-w-0 max-w-full;
+  }
+
+  .register-photo-placeholder {
+    @apply flex h-40 w-full max-w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30;
+  }
+
+  .register-photo-preview-wrap {
+    @apply flex w-full min-w-0 max-w-full flex-col gap-2;
+  }
+
+  .register-photo-preview-frame {
+    @apply relative flex h-40 w-full max-w-full items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30;
+  }
+
+  .register-photo-preview {
+    @apply block h-full w-full object-contain object-center;
+  }
+
+  .register-photo-btn {
+    @apply min-h-11;
   }
 
   [data-theme="neon"] .register-input,

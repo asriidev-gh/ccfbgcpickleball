@@ -43,3 +43,9 @@ export const endGameSchema = z.object({
   courtNumber: z.coerce.number().int().min(1),
   winnerTeam: z.enum(["A", "B"]),
 });
+
+export const swapCourtTeamsSchema = z.object({
+  gameId: z.string().min(4),
+  courtNumber: z.coerce.number().int().min(1),
+  slotIndex: z.coerce.number().int().min(0).max(1).optional(),
+});

@@ -17,6 +17,8 @@ const playerSchema = new Schema(
     currentStreak: { type: Number, default: 0 },
     bestStreak: { type: Number, default: 0 },
     lastAttendedAt: { type: Date },
+    photoUrl: { type: String, default: "" },
+    photoPublicId: { type: String, default: "" },
   },
   { timestamps: true }
 );

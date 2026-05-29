@@ -23,10 +23,14 @@ import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { MatchHistoryList, type MatchHistoryView } from "@/components/game/match-history-list";
 import {
   CourtsViewToggle,
-  loadCourtsView,
   saveCourtsView,
   type CourtsViewLayout,
 } from "@/components/game/courts-view-toggle";
+import {
+  COURTS_DESKTOP_MEDIA,
+  defaultCourtsView,
+  isCourtsDesktopViewport,
+} from "@/lib/courts-viewport";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,13 +100,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const gameId = params.id ?? "";
   const queryClient = useQueryClient();
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
-  const [courtsView, setCourtsView] = useState<CourtsViewLayout>("tiles");
+  const [courtsView, setCourtsView] = useState<CourtsViewLayout>("list");
+  const [showCourtsViewToggle, setShowCourtsViewToggle] = useState(false);
   const [showWaitingList, setShowWaitingList] = useState(true);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
 
   useEffect(() => {
-    setCourtsView(loadCourtsView());
+    const syncCourtsViewForViewport = () => {
+      const desktop = isCourtsDesktopViewport();
+      setShowCourtsViewToggle(desktop);
+      setCourtsView(desktop ? defaultCourtsView() : "list");
+    };
+
+    syncCourtsViewForViewport();
     setShowWaitingList(loadShowWaitingList());
+
+    const mq = window.matchMedia(COURTS_DESKTOP_MEDIA);
+    mq.addEventListener("change", syncCourtsViewForViewport);
+    return () => mq.removeEventListener("change", syncCourtsViewForViewport);
   }, []);
 
   const handleCourtsViewChange = (view: CourtsViewLayout) => {
@@ -145,6 +160,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     onSuccess: () => {
       setEndTargetCourt(null);
       toast.success("Game ended and queue updated.");
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const swapCourtMutation = useMutation({
+    mutationFn: async (courtNumber: number) => {
+      const response = await fetch(`/api/games/${gameId}/swap-court`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtNumber }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
     onError: (error) => toast.error(error.message),
@@ -441,7 +474,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <CardTitle>Courts</CardTitle>
                 <CourtsSummary courts={courts} />
               </div>
-              <CourtsViewToggle value={courtsView} onChange={handleCourtsViewChange} />
+              {showCourtsViewToggle ? (
+                <CourtsViewToggle value={courtsView} onChange={handleCourtsViewChange} />
+              ) : null}
             </CardHeader>
             <CardContent
               className={cn(
@@ -458,6 +493,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   hideEndGame={hideControls}
                   onEndGame={
                     hideControls ? () => {} : () => setEndTargetCourt(court.courtNumber)
+                  }
+                  onSwapTeams={
+                    hideControls ? undefined : () => swapCourtMutation.mutate(court.courtNumber)
+                  }
+                  swapPending={
+                    swapCourtMutation.isPending &&
+                    swapCourtMutation.variables === court.courtNumber
                   }
                 />
               ))}

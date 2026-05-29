@@ -20,13 +20,60 @@ export async function startGameOnFirstAvailableCourt(gameId: string) {
   const [p1, p2, p3, p4] = entries;
   await QueueEntry.updateMany(
     { _id: { $in: entries.map((entry) => entry._id) } },
-    { $set: { status: "on_court" } }
+    { $set: { status: "on_court" } },
   );
 
   court.status = "active";
   court.startedAt = new Date();
   court.teamA = { playerIds: [p1.playerId, p2.playerId], queueEntryIds: [p1._id, p2._id] };
   court.teamB = { playerIds: [p3.playerId, p4.playerId], queueEntryIds: [p3._id, p4._id] };
+  await court.save();
+
+  return court;
+}
+
+export async function swapPlayersBetweenCourtTeams(input: {
+  gameId: string;
+  courtNumber: number;
+  slotIndex?: number;
+}) {
+  const court = await Court.findOne({
+    gameId: input.gameId,
+    courtNumber: input.courtNumber,
+    status: "active",
+  });
+  if (!court) throw new Error("Active court not found.");
+
+  const slotIndex = input.slotIndex ?? 0;
+
+  const teamAPlayers = [...court.teamA.playerIds];
+  const teamBPlayers = [...court.teamB.playerIds];
+  const teamAEntries = [...court.teamA.queueEntryIds];
+  const teamBEntries = [...court.teamB.queueEntryIds];
+
+  if (
+    teamAPlayers.length <= slotIndex ||
+    teamBPlayers.length <= slotIndex ||
+    teamAEntries.length <= slotIndex ||
+    teamBEntries.length <= slotIndex
+  ) {
+    throw new Error("Both teams need a player in that position to swap.");
+  }
+
+  const playerA = teamAPlayers[slotIndex];
+  const playerB = teamBPlayers[slotIndex];
+  const entryA = teamAEntries[slotIndex];
+  const entryB = teamBEntries[slotIndex];
+
+  teamAPlayers[slotIndex] = playerB;
+  teamBPlayers[slotIndex] = playerA;
+  teamAEntries[slotIndex] = entryB;
+  teamBEntries[slotIndex] = entryA;
+
+  court.teamA = { playerIds: teamAPlayers, queueEntryIds: teamAEntries };
+  court.teamB = { playerIds: teamBPlayers, queueEntryIds: teamBEntries };
+  court.markModified("teamA");
+  court.markModified("teamB");
   await court.save();
 
   return court;
@@ -99,14 +146,14 @@ export async function endGameAndRequeue(input: {
             currentStreak: hasWon ? 1 : -1,
           },
         },
-        { upsert: true, new: true }
+        { upsert: true, new: true },
       );
-    })
+    }),
   );
 
   await QueueEntry.updateMany(
     { _id: { $in: [...court.teamA.queueEntryIds, ...court.teamB.queueEntryIds] } },
-    { $set: { status: "done" } }
+    { $set: { status: "done" } },
   );
 
   court.status = "empty";
@@ -120,7 +167,7 @@ export async function endGameAndRequeue(input: {
     allStats.map(async (stat) => {
       stat.winRate = stat.gamesPlayed > 0 ? Math.round((stat.wins / stat.gamesPlayed) * 100) : 0;
       await stat.save();
-    })
+    }),
   );
 
   return { ok: true };

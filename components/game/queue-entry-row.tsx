@@ -1,6 +1,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { ArrowLeftRight } from "lucide-react";
 
+import { PlayerNameWithPhoto, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatPlayerDisplayName } from "@/lib/utils";
@@ -8,7 +9,7 @@ import { formatPlayerDisplayName } from "@/lib/utils";
 export type QueueEntryView = {
   _id: string;
   queueType: "normal" | "winner" | "loser";
-  playerId: { firstName: string; lastName: string };
+  playerId: PlayerPhotoRef;
   registeredAt: string;
   lastMatchResult: "win" | "loss" | "none";
 };
@@ -62,14 +63,16 @@ export function QueueEntryRow({
             {slot}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="body-lg min-w-0 truncate">
-              <span className="queue-position-hash">#{slot} </span>
-              {formatPlayerDisplayName(
-                entry.playerId.firstName,
-                entry.playerId.lastName,
-                slot,
-              )}
-            </p>
+            <div className="body-lg min-w-0">
+              <PlayerNameWithPhoto player={entry.playerId}>
+                <span className="queue-position-hash">#{slot} </span>
+                {formatPlayerDisplayName(
+                  entry.playerId.firstName,
+                  entry.playerId.lastName,
+                  slot,
+                )}
+              </PlayerNameWithPhoto>
+            </div>
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center">

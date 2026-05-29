@@ -6,6 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 
+import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,6 +45,7 @@ export function RegistrationForm({
   const [volunteerType, setVolunteerType] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -118,17 +120,38 @@ export function RegistrationForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const buildNewPlayerPayload = () => ({
+    ...form,
+    gameId,
+    volunteerType: role === "volunteer" ? volunteerType || undefined : undefined,
+    volunteerTypeOther: form.volunteerTypeOther || "",
+  });
+
+  const appendNewPlayerFormData = (body: FormData, payload: ReturnType<typeof buildNewPlayerPayload>) => {
+    body.append("gameId", payload.gameId);
+    body.append("firstName", payload.firstName);
+    body.append("lastName", payload.lastName);
+    body.append("mobileNumber", payload.mobileNumber);
+    body.append("email", payload.email);
+    body.append("firstTimeSportsMinistry", String(payload.firstTimeSportsMinistry));
+    body.append("isPartOfDgroup", String(payload.isPartOfDgroup));
+    body.append("attendedEvents", JSON.stringify(payload.attendedEvents));
+    body.append("attendedEventsOther", payload.attendedEventsOther ?? "");
+    if (payload.volunteerType) {
+      body.append("volunteerType", payload.volunteerType);
+    }
+    body.append("volunteerTypeOther", payload.volunteerTypeOther ?? "");
+    if (photoFile) {
+      body.append("photo", photoFile);
+    }
+  };
+
   const submit = async () => {
     const isExisting =
       role === "existing-player" || (role === "volunteer" && !!form.personalQrCode.trim());
     const endpoint = isExisting ? "/api/register/existing" : "/api/register/new";
 
-    const payload = {
-      ...form,
-      gameId,
-      volunteerType: role === "volunteer" ? volunteerType || undefined : undefined,
-      volunteerTypeOther: form.volunteerTypeOther || "",
-    };
+    const payload = buildNewPlayerPayload();
 
     const validation = isExisting
       ? existingPlayerSchema.safeParse(payload)
@@ -142,11 +165,21 @@ export function RegistrationForm({
 
     try {
       setSubmitting(true);
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+
+      let requestInit: RequestInit;
+      if (isExisting) {
+        requestInit = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        };
+      } else {
+        const body = new FormData();
+        appendNewPlayerFormData(body, payload);
+        requestInit = { method: "POST", body };
+      }
+
+      const response = await fetch(endpoint, requestInit);
       const data = await response.json();
       if (!response.ok) {
         const message =
@@ -229,6 +262,7 @@ export function RegistrationForm({
                   onClick={() => {
                     setRole("");
                     setFieldErrors({});
+                    setPhotoFile(null);
                   }}
                   disabled={submitting}
                 >
@@ -292,6 +326,16 @@ export function RegistrationForm({
                         onChange={(event) => updateForm("email", event.target.value)}
                       />
                       {renderFieldError("email")}
+                    </div>
+                    <div className="register-field md:col-span-2">
+                      <RegistrationPhotoField
+                        disabled={submitting}
+                        error={fieldErrors.photo}
+                        onChange={(file) => {
+                          clearFieldError("photo");
+                          setPhotoFile(file);
+                        }}
+                      />
                     </div>
                   </div>
                 ) : (
