@@ -669,28 +669,63 @@
     @apply ring-2 ring-border ring-offset-2 ring-offset-background;
   }
 
-  .leaderboard-podium-avatar--first {
-    @apply size-20 sm:size-24;
+  .player-avatar.leaderboard-podium-avatar--first {
+    @apply !size-20 sm:!size-24;
   }
 
-  .leaderboard-podium-avatar--first [data-slot="avatar-fallback"] {
+  .player-avatar.leaderboard-podium-avatar--first [data-slot="avatar-fallback"] {
     @apply text-base font-semibold sm:text-lg;
   }
 
-  .leaderboard-podium-avatar--podium {
-    @apply size-16 sm:size-20;
+  .player-avatar.leaderboard-podium-avatar--podium {
+    @apply !size-16 sm:!size-20;
   }
 
-  .leaderboard-podium-avatar--podium [data-slot="avatar-fallback"] {
+  .player-avatar.leaderboard-podium-avatar--podium [data-slot="avatar-fallback"] {
     @apply text-sm font-semibold sm:text-base;
   }
 
-  .leaderboard-podium-avatar--first-compact {
-    @apply size-14;
+  .player-avatar.leaderboard-podium-avatar--first-compact {
+    @apply !size-14;
   }
 
-  .leaderboard-podium-avatar--podium-compact {
-    @apply size-11;
+  .player-avatar.leaderboard-podium-avatar--podium-compact {
+    @apply !size-11;
+  }
+
+  /* Tablet / iPad landscape (e.g. 1366×1024) — split layout uses compact podium classes */
+  @media (min-width: 768px) and (max-width: 1367px) {
+    .player-avatar.leaderboard-podium-avatar--first {
+      @apply !size-32;
+    }
+
+    .player-avatar.leaderboard-podium-avatar--first [data-slot="avatar-fallback"] {
+      @apply text-xl;
+    }
+
+    .player-avatar.leaderboard-podium-avatar--podium {
+      @apply !size-28;
+    }
+
+    .player-avatar.leaderboard-podium-avatar--podium [data-slot="avatar-fallback"] {
+      @apply text-lg;
+    }
+
+    .player-avatar.leaderboard-podium-avatar--first-compact {
+      @apply !size-28;
+    }
+
+    .player-avatar.leaderboard-podium-avatar--first-compact [data-slot="avatar-fallback"] {
+      @apply text-lg;
+    }
+
+    .player-avatar.leaderboard-podium-avatar--podium-compact {
+      @apply !size-24;
+    }
+
+    .player-avatar.leaderboard-podium-avatar--podium-compact [data-slot="avatar-fallback"] {
+      @apply text-base;
+    }
   }
 
   .leaderboard-podium-card-gold {
@@ -1425,8 +1460,32 @@
     }
   }
 
+  .courts-panel .player-avatar {
+    @apply border border-border;
+  }
+
+  .courts-panel .player-avatar::after {
+    @apply mix-blend-normal dark:mix-blend-normal;
+  }
+
   .court-swap-btn {
     @apply border-border bg-background shadow-sm;
+  }
+
+  .court-winner-dialog-actions [data-slot="button"].court-winner-btn {
+    @apply border-border bg-muted text-foreground shadow-none transition-colors duration-150;
+  }
+
+  .court-winner-dialog-actions [data-slot="button"].court-winner-btn:hover {
+    @apply !border-primary !bg-primary !text-primary-foreground;
+  }
+
+  .court-winner-dialog-actions [data-slot="button"].court-winner-btn:active {
+    @apply !border-primary !bg-primary/85 !text-primary-foreground;
+  }
+
+  .court-winner-dialog-actions [data-slot="button"].court-winner-btn:focus-visible {
+    @apply ring-3 ring-primary/35;
   }
 
   .court-active .court-team {
@@ -2209,6 +2268,20 @@
 
   [data-theme="cupertino"] .court-winner-dialog-actions [data-slot="button"] {
     @apply min-h-11 w-full justify-center rounded-[10px] text-[17px] font-semibold;
+  }
+
+  [data-theme="cupertino"] .court-winner-dialog-actions .court-winner-btn {
+    @apply border-border bg-muted text-foreground;
+    box-shadow: inset 0 0 0 1px var(--cupertino-slate-light);
+  }
+
+  [data-theme="cupertino"] .court-winner-dialog-actions [data-slot="button"].court-winner-btn:hover {
+    @apply !border-[var(--cupertino-blue)] !bg-[var(--cupertino-blue)] !text-white;
+    box-shadow: none;
+  }
+
+  [data-theme="cupertino"] .court-winner-dialog-actions [data-slot="button"].court-winner-btn:active {
+    @apply !bg-[color-mix(in_srgb,var(--cupertino-blue)_88%,black)] !text-white;
   }
 
   [data-theme="cupertino"] .court-winner-dialog [data-slot="dialog-close"] {

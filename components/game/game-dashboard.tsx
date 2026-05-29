@@ -537,13 +537,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               <DialogTitle>Who won on Court {endTargetCourt}?</DialogTitle>
             </DialogHeader>
             <div className="court-winner-dialog-actions grid grid-cols-2 gap-3">
-              <Button size="lg" className="cursor-pointer" onClick={() => endMutation.mutate("A")}>
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                className="court-winner-btn"
+                onClick={() => endMutation.mutate("A")}
+              >
                 Team A won
               </Button>
               <Button
+                type="button"
                 size="lg"
-                className="cursor-pointer"
                 variant="outline"
+                className="court-winner-btn"
                 onClick={() => endMutation.mutate("B")}
               >
                 Team B won

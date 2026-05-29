@@ -17,16 +17,32 @@ function displayLabel(row: LeaderboardRow, rank: number) {
   return formatPlayerDisplayName(row.firstName, row.lastName, rank);
 }
 
-function RankDisplay({ rank, size = "md" }: { rank: number; size?: "sm" | "md" | "lg" }) {
+function RankDisplay({
+  rank,
+  size = "md",
+  className,
+}: {
+  rank: number;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
   if (rank === 1 || rank === 2 || rank === 3) {
     return (
-      <span className="leaderboard-rank-medal inline-flex shrink-0 items-center justify-center">
+      <span
+        className={cn(
+          "leaderboard-rank-medal inline-flex shrink-0 items-center justify-center",
+          className,
+        )}
+      >
         <LeaderboardMedalIcon rank={rank as 1 | 2 | 3} size={size} />
       </span>
     );
   }
   return (
-    <span className="leaderboard-rank-badge leaderboard-rank-badge-default" aria-label={`Rank ${rank}`}>
+    <span
+      className={cn("leaderboard-rank-badge leaderboard-rank-badge-default", className)}
+      aria-label={`Rank ${rank}`}
+    >
       {rank}
     </span>
   );
@@ -91,19 +107,19 @@ function PodiumCard({
         rank === 1 && !compact && "md:-mt-2 md:pb-5",
       )}
     >
-      <RankDisplay rank={rank} size={compact ? "sm" : "lg"} />
       <PlayerAvatar
         player={row}
-        className={cn("mt-1 shrink-0", !compact && "mt-2", podiumAvatarClass(rank, compact))}
+        className={cn("shrink-0", podiumAvatarClass(rank, compact))}
       />
       <p
         className={cn(
-          "mt-1 line-clamp-2 font-semibold leading-tight",
-          compact ? "text-xs" : "body-lg mt-2",
+          "line-clamp-2 font-semibold leading-tight",
+          compact ? "mt-1 text-xs" : "body-lg mt-2",
         )}
       >
         {displayLabel(row, rank)}
       </p>
+      <RankDisplay rank={rank} size={compact ? "sm" : "lg"} className={compact ? "mt-1" : "mt-2"} />
       <p className={cn("stat-num font-bold tabular-nums", compact ? "mt-0.5 text-sm" : "mt-1 text-lg")}>
         {row.wins}
       </p>

@@ -31,7 +31,11 @@ type PlayerAvatarProps = {
   className?: string;
 };
 
-const PLAYER_AVATAR_CLASS = "player-avatar size-12 shrink-0 sm:size-14";
+const PLAYER_AVATAR_SIZE_CLASS = "size-12 sm:size-14";
+
+function isPodiumAvatar(className?: string) {
+  return Boolean(className?.includes("leaderboard-podium-avatar"));
+}
 
 function PlayerAvatarImage({
   player,
@@ -42,9 +46,17 @@ function PlayerAvatarImage({
   const initials = getInitials(player.firstName, player.lastName);
   const displayName =
     `${capitalizeNameWords(player.firstName)} ${capitalizeNameWords(player.lastName)}`.trim();
+  const podium = isPodiumAvatar(className);
 
   return (
-    <Avatar size={size} className={cn(PLAYER_AVATAR_CLASS, className)}>
+    <Avatar
+      size={podium ? "default" : size}
+      className={cn(
+        "player-avatar shrink-0",
+        !podium && PLAYER_AVATAR_SIZE_CLASS,
+        className,
+      )}
+    >
       <AvatarImage src={photoUrl} alt={displayName ? `${displayName} photo` : "Player photo"} />
       <AvatarFallback className="text-sm font-medium">{initials}</AvatarFallback>
     </Avatar>
