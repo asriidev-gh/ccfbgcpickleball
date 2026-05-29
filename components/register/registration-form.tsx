@@ -203,19 +203,11 @@ export function RegistrationForm({
                 <Button
                   type="button"
                   size="lg"
-                  className="register-role-btn"
-                  onClick={() => setRole("existing-player")}
-                >
-                  Existing Player
-                </Button>
-                <Button
-                  type="button"
-                  size="lg"
                   variant="outline"
                   className="register-role-btn"
                   onClick={() => setRole("new-player")}
                 >
-                  New Player
+                  Player
                 </Button>
                 <Button
                   type="button"
