@@ -11,11 +11,12 @@ import {
   Zap,
   ChevronDown,
   ChevronUp,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
@@ -99,6 +100,7 @@ type GameDashboardProps = {
 export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const isSpectator = mode === "spectator";
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const gameId = params.id ?? "";
   const queryClient = useQueryClient();
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
@@ -221,9 +223,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onSuccess: (payload) => {
+    onSuccess: async (payload) => {
       toast.success(payload.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      await queryClient.invalidateQueries({ queryKey: ["games"] });
+      router.replace("/");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -268,10 +271,22 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   return (
     <main
       className={cn(
-        "min-h-screen p-4 md:p-6",
+        "relative min-h-screen p-4 md:p-6",
         isSpectator && "game-dashboard--spectator",
       )}
     >
+      {endOpenPlayMutation.isPending ? (
+        <div
+          className="game-end-open-play-overlay fixed inset-0 z-[100] flex flex-col items-center justify-center gap-3 bg-background/90 px-6 text-center backdrop-blur-sm"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
+          <p className="text-base font-medium text-foreground">Ending open play…</p>
+          <p className="caption text-muted-foreground">Returning to your game list.</p>
+        </div>
+      ) : null}
       <section className="mx-auto flex max-w-[1600px] flex-col gap-4">
         <Card className="glass-panel game-dashboard-header">
           <CardContent className="game-dashboard-header-content p-4">

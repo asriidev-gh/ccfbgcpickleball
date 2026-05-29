@@ -468,8 +468,6 @@ function HomeInner() {
   const games = data?.games ?? [];
   const activeGames = games.filter((game) => game.status !== "ended");
   const pastGames = games.filter((game) => game.status === "ended");
-  const leaderboardGameId = activeGames[0]?.gameId ?? pastGames[0]?.gameId;
-
   return (
     <main className="min-h-screen px-6 py-6 lg:px-10">
       <section className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -477,16 +475,8 @@ function HomeInner() {
           <CardContent className="flex flex-wrap gap-4 p-6">
             <Button size="lg" className="min-w-44" onClick={() => setCreateGameWizardOpen(true)}>
               <Plus className="mr-2 h-5 w-5" />
-              Create Pickleball Game
+              Create Open Play Session
             </Button>
-            {leaderboardGameId ? (
-              <Link href={`/leaderboard/${leaderboardGameId}`}>
-                <Button size="lg" variant="outline" className="min-w-44">
-                  <Trophy className="mr-2 h-5 w-5" />
-                  View Leaderboard
-                </Button>
-              </Link>
-            ) : null}
           </CardContent>
         </Card>
 

@@ -39,25 +39,25 @@ export function GameQrDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="game-qr-dialog max-w-md">
-        <DialogHeader>
+      <DialogContent className="game-qr-dialog max-w-md justify-items-center text-center sm:max-w-md">
+        <DialogHeader className="w-full items-center text-center sm:text-center">
           <DialogTitle>Player registration QR</DialogTitle>
-          <DialogDescription>
-            Scan with a phone camera to open CCF player registration for{" "}
+          <DialogDescription className="text-center">
+            Scan with a phone camera to open player registration for{" "}
             <span className="font-medium text-foreground">{gameTitle}</span>.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col items-center gap-4">
-          <div className="game-qr-frame rounded-xl bg-white p-3">
+        <div className="flex w-full max-w-sm flex-col items-center gap-4">
+          <div className="game-qr-frame mx-auto flex w-fit items-center justify-center rounded-xl bg-white p-3 shadow-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qrCodeDataUrl}
               alt={`QR code for ${gameTitle} registration`}
-              className="game-qr-image h-auto w-[min(100%,280px)]"
+              className="game-qr-image mx-auto block size-64 max-w-[min(280px,calc(100vw-4rem))] object-contain"
             />
           </div>
           <p className="w-full break-all text-center text-sm text-muted-foreground">{registerUrl}</p>
-          <div className="flex w-full flex-wrap gap-2">
+          <div className="flex w-full max-w-sm flex-wrap justify-center gap-2">
             <Button type="button" variant="outline" className="flex-1" onClick={copyLink}>
               <Copy className="mr-2 h-4 w-4" />
               Copy link

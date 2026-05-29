@@ -58,7 +58,7 @@ export function CreateGameWizard() {
     <Dialog open={createGameWizardOpen} onOpenChange={setCreateGameWizardOpen}>
       <DialogContent className="flex max-h-[min(92dvh,52rem)] w-[calc(100%-1.5rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl">
         <DialogHeader className="border-b px-6 py-5">
-          <DialogTitle className="text-xl">Create Pickleball Game</DialogTitle>
+          <DialogTitle className="text-xl">Create Open Play Session</DialogTitle>
           <p className="text-sm text-muted-foreground">Step {step} of 4</p>
         </DialogHeader>
 
