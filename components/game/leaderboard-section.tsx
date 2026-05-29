@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { LeaderboardStandings, type LeaderboardRow } from "@/components/game/leaderboard-standings";
 import { LeaderboardTable } from "@/components/game/leaderboard-table";
 import {
+  LEADERBOARD_VIEW_STORAGE_KEY,
   LeaderboardViewToggle,
   loadLeaderboardView,
   saveLeaderboardView,

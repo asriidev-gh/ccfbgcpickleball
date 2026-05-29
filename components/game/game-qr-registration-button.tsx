@@ -1,16 +1,16 @@
 "use client";
 
 import { QrCode } from "lucide-react";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 import { toast } from "sonner";
 
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
-import { Button, type ButtonProps } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 type GameQrRegistrationButtonProps = {
   gameId: string;
   gameTitle: string;
-} & Pick<ButtonProps, "variant" | "size" | "className">;
+} & Partial<Pick<ComponentProps<typeof Button>, "variant" | "size" | "className">>;
 
 export function GameQrRegistrationButton({
   gameId,
