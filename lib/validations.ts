@@ -16,6 +16,21 @@ export const updateGameSchema = z.object({
   strictPlayerCount: z.boolean(),
 });
 
+export const genericPlayerSchema = z.object({
+  gameId: z.string().min(4),
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
+  mobileNumber: z
+    .string()
+    .trim()
+    .min(1, "Mobile number is required.")
+    .min(7, "Enter a valid mobile number (at least 7 digits)."),
+  email: z.string().min(1, "Email is required.").email("Enter a valid email address."),
+  waiverAccepted: z.literal(true, {
+    error: "You must accept the liability waiver.",
+  }),
+});
+
 export const newPlayerSchema = z.object({
   gameId: z.string().min(4),
   firstName: z.string().min(1, "First name is required."),

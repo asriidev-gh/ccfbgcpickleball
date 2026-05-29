@@ -15,9 +15,11 @@ import { formatZodError } from "@/lib/format-zod-error";
 import { capitalizeNameWords } from "@/lib/utils";
 import {
   getRegistrationPhotoFromFormData,
+  parseGenericPlayerPayloadFromFormData,
   parseNewPlayerPayloadFromFormData,
 } from "@/lib/parse-registration-form";
-import { newPlayerSchema } from "@/lib/validations";
+import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
+import { genericPlayerSchema, newPlayerSchema } from "@/lib/validations";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 import { Volunteer } from "@/models/Volunteer";
@@ -27,20 +29,41 @@ export async function POST(request: Request) {
     await connectToDatabase();
 
     const contentType = request.headers.get("content-type") ?? "";
-    let payload: ReturnType<typeof newPlayerSchema.parse>;
-    let photoFile: File | null = null;
+    const isMultipart = contentType.includes("multipart/form-data");
+    const formData = isMultipart ? await request.formData() : null;
+    const jsonBody = !isMultipart ? await request.json() : null;
 
-    if (contentType.includes("multipart/form-data")) {
-      const formData = await request.formData();
-      const parsed = parseNewPlayerPayloadFromFormData(formData);
+    const gameId = isMultipart
+      ? String(formData?.get("gameId") ?? "").trim()
+      : String(jsonBody?.gameId ?? "").trim();
+
+    if (!gameId) {
+      return NextResponse.json({ message: "Game ID is required." }, { status: 400 });
+    }
+
+    const formVariant = await resolveGameRegistrationFormVariant(gameId);
+    if (!formVariant) {
+      return NextResponse.json({ message: "Game not found." }, { status: 404 });
+    }
+
+    const photoFile = formData ? getRegistrationPhotoFromFormData(formData) : null;
+
+    let payload: ReturnType<typeof newPlayerSchema.parse> | ReturnType<typeof genericPlayerSchema.parse>;
+
+    if (isMultipart && formData) {
+      const parsed =
+        formVariant === "generic"
+          ? parseGenericPlayerPayloadFromFormData(formData)
+          : parseNewPlayerPayloadFromFormData(formData, formVariant);
       if (!parsed.success) {
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
       }
       payload = parsed.data;
-      photoFile = getRegistrationPhotoFromFormData(formData);
     } else {
-      const body = await request.json();
-      const parsed = newPlayerSchema.safeParse(body);
+      const parsed =
+        formVariant === "generic"
+          ? genericPlayerSchema.safeParse(jsonBody)
+          : newPlayerSchema.safeParse(jsonBody);
       if (!parsed.success) {
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
       }
@@ -62,20 +85,33 @@ export async function POST(request: Request) {
       photoUrl = uploaded.photoUrl;
       photoPublicId = uploaded.photoPublicId;
     }
-    const player = await Player.create({
+    const playerFields = {
       firstName: capitalizeNameWords(payload.firstName),
       lastName: capitalizeNameWords(payload.lastName),
       mobileNumber: payload.mobileNumber,
       email: payload.email,
       personalQrCode,
-      firstTimeSportsMinistry: payload.firstTimeSportsMinistry,
-      isPartOfDgroup: payload.isPartOfDgroup,
-      attendedEvents: payload.attendedEvents,
-      attendedEventsOther: payload.attendedEventsOther,
       photoUrl,
       photoPublicId,
       lastAttendedAt: new Date(),
-    });
+    };
+
+    const player =
+      formVariant === "generic"
+        ? await Player.create({
+            ...playerFields,
+            firstTimeSportsMinistry: false,
+            isPartOfDgroup: false,
+            attendedEvents: [],
+            attendedEventsOther: "",
+          })
+        : await Player.create({
+            ...playerFields,
+            firstTimeSportsMinistry: payload.firstTimeSportsMinistry,
+            isPartOfDgroup: payload.isPartOfDgroup,
+            attendedEvents: payload.attendedEvents,
+            attendedEventsOther: payload.attendedEventsOther ?? "",
+          });
 
     await QueueEntry.create({
       gameId: payload.gameId,
@@ -84,7 +120,7 @@ export async function POST(request: Request) {
       queueType: "normal",
     });
 
-    if (payload.volunteerType) {
+    if (formVariant === "ccf" && payload.volunteerType) {
       await Volunteer.create({
         playerId: player._id,
         gameId: payload.gameId,

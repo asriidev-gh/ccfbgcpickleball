@@ -19,12 +19,14 @@ import { cn } from "@/lib/utils";
 type RegistrationPhotoFieldProps = {
   disabled?: boolean;
   error?: string;
+  optional?: boolean;
   onChange: (file: File | null) => void;
 };
 
 export function RegistrationPhotoField({
   disabled = false,
   error,
+  optional = false,
   onChange,
 }: RegistrationPhotoFieldProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -104,10 +106,12 @@ export function RegistrationPhotoField({
       )}
     >
       <div>
-        <Label className="register-label">Your photo</Label>
+        <Label className="register-label">
+          Your photo{optional ? " (optional)" : ""}
+        </Label>
         <p className="caption mt-1 text-muted-foreground">
-          Take a selfie or upload a picture (optional). Large camera photos are resized
-          automatically. If you skip this, a random avatar is assigned.
+          Take a selfie or upload a picture{optional ? "" : " (optional)"}. Large camera photos are
+          resized automatically. If you skip this, a random avatar is assigned.
         </p>
       </div>
 

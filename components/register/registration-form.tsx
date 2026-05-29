@@ -12,8 +12,10 @@ import {
   getRegistrationBlockedMessage,
   promptIfRegistrationFull,
 } from "@/components/game/registration-capacity-prompt";
+import { RegistrationLiabilityWaiver } from "@/components/register/registration-liability-waiver";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
 import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
+import type { RegistrationFormVariant } from "@/lib/registration-variant";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,7 +26,8 @@ import {
   getFirstZodErrorField,
   getZodFieldErrors,
 } from "@/lib/format-zod-error";
-import { existingPlayerSchema, newPlayerSchema } from "@/lib/validations";
+import { REGISTRATION_RESET_EVENT } from "@/lib/registration-reset";
+import { existingPlayerSchema, genericPlayerSchema, newPlayerSchema } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 
 const events = [
@@ -43,16 +46,20 @@ type FieldErrors = Record<string, string>;
 export function RegistrationForm({
   gameId,
   gameTitle,
+  formVariant,
 }: {
   gameId: string;
   gameTitle?: string;
+  formVariant: RegistrationFormVariant;
 }) {
   const router = useRouter();
+  const isGenericForm = formVariant === "generic";
   const [role, setRole] = useState<"existing-player" | "new-player" | "volunteer" | "">("");
   const [volunteerType, setVolunteerType] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [waiverAccepted, setWaiverAccepted] = useState(false);
   const [registrationStatus, setRegistrationStatus] = useState<GameRegistrationStatus | null>(
     null,
   );
@@ -81,6 +88,21 @@ export function RegistrationForm({
   const registrationBlockedMessage = registrationStatus
     ? getRegistrationBlockedMessage(registrationStatus)
     : null;
+
+  const resetToRoleSelection = () => {
+    setRole("");
+    setVolunteerType("");
+    setFieldErrors({});
+    setPhotoFile(null);
+    setWaiverAccepted(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    const onRegistrationReset = () => resetToRoleSelection();
+    window.addEventListener(REGISTRATION_RESET_EVENT, onRegistrationReset);
+    return () => window.removeEventListener(REGISTRATION_RESET_EVENT, onRegistrationReset);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -172,27 +194,57 @@ export function RegistrationForm({
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const buildNewPlayerPayload = () => ({
-    ...form,
-    gameId,
-    volunteerType: role === "volunteer" ? volunteerType || undefined : undefined,
-    volunteerTypeOther: form.volunteerTypeOther || "",
-  });
+  const buildNewPlayerPayload = () => {
+    if (isGenericForm) {
+      return {
+        gameId,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        mobileNumber: form.mobileNumber,
+        email: form.email,
+        waiverAccepted: waiverAccepted ? (true as const) : (false as const),
+      };
+    }
 
-  const appendNewPlayerFormData = (body: FormData, payload: ReturnType<typeof buildNewPlayerPayload>) => {
+    return {
+      ...form,
+      gameId,
+      volunteerType: role === "volunteer" ? volunteerType || undefined : undefined,
+      volunteerTypeOther: form.volunteerTypeOther || "",
+    };
+  };
+
+  const appendNewPlayerFormData = (
+    body: FormData,
+    payload: ReturnType<typeof buildNewPlayerPayload>,
+  ) => {
     body.append("gameId", payload.gameId);
     body.append("firstName", payload.firstName);
     body.append("lastName", payload.lastName);
     body.append("mobileNumber", payload.mobileNumber);
     body.append("email", payload.email);
-    body.append("firstTimeSportsMinistry", String(payload.firstTimeSportsMinistry));
-    body.append("isPartOfDgroup", String(payload.isPartOfDgroup));
-    body.append("attendedEvents", JSON.stringify(payload.attendedEvents));
-    body.append("attendedEventsOther", payload.attendedEventsOther ?? "");
-    if (payload.volunteerType) {
-      body.append("volunteerType", payload.volunteerType);
+
+    if (isGenericForm && "waiverAccepted" in payload) {
+      body.append("waiverAccepted", String(payload.waiverAccepted === true));
+    } else if (!isGenericForm) {
+      const ccfPayload = payload as ReturnType<typeof buildNewPlayerPayload> & {
+        firstTimeSportsMinistry: boolean;
+        isPartOfDgroup: boolean;
+        attendedEvents: string[];
+        attendedEventsOther?: string;
+        volunteerType?: string;
+        volunteerTypeOther?: string;
+      };
+      body.append("firstTimeSportsMinistry", String(ccfPayload.firstTimeSportsMinistry));
+      body.append("isPartOfDgroup", String(ccfPayload.isPartOfDgroup));
+      body.append("attendedEvents", JSON.stringify(ccfPayload.attendedEvents));
+      body.append("attendedEventsOther", ccfPayload.attendedEventsOther ?? "");
+      if (ccfPayload.volunteerType) {
+        body.append("volunteerType", ccfPayload.volunteerType);
+      }
+      body.append("volunteerTypeOther", ccfPayload.volunteerTypeOther ?? "");
     }
-    body.append("volunteerTypeOther", payload.volunteerTypeOther ?? "");
+
     if (photoFile) {
       body.append("photo", photoFile);
     }
@@ -209,7 +261,9 @@ export function RegistrationForm({
 
     const validation = isExisting
       ? existingPlayerSchema.safeParse(payload)
-      : newPlayerSchema.safeParse(payload);
+      : isGenericForm
+        ? genericPlayerSchema.safeParse(payload)
+        : newPlayerSchema.safeParse(payload);
     if (!validation.success) {
       showValidationErrors(validation.error);
       return;
@@ -289,7 +343,7 @@ export function RegistrationForm({
           <CardHeader className="register-card-header">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <CardTitle className="section-title">CCF Player Registration</CardTitle>
+                <CardTitle className="section-title">Player Registration</CardTitle>
                 {gameTitle ? (
                   <p className="caption mt-1 text-muted-foreground">{gameTitle}</p>
                 ) : null}
@@ -318,7 +372,12 @@ export function RegistrationForm({
               </div>
             ) : null}
             {!role ? (
-              <div className="register-role-grid">
+              <div
+                className={cn(
+                  "register-role-grid",
+                  isGenericForm && "register-role-grid--single",
+                )}
+              >
                 <Button
                   type="button"
                   size="lg"
@@ -327,38 +386,41 @@ export function RegistrationForm({
                   disabled={statusLoading || submitting}
                   onClick={() => void selectRole("new-player")}
                 >
-                  Player
+                  {isGenericForm ? "Proceed" : "Player"}
                 </Button>
-                <Button
-                  type="button"
-                  size="lg"
-                  variant="outline"
-                  className="register-role-btn"
-                  disabled={statusLoading || submitting}
-                  onClick={() => void selectRole("volunteer")}
-                >
-                  Volunteer
-                </Button>
+                {!isGenericForm ? (
+                  <Button
+                    type="button"
+                    size="lg"
+                    variant="outline"
+                    className="register-role-btn"
+                    disabled={statusLoading || submitting}
+                    onClick={() => void selectRole("volunteer")}
+                  >
+                    Volunteer
+                  </Button>
+                ) : null}
               </div>
             ) : (
               <>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="register-back h-9 px-2"
-                  onClick={() => {
-                    setRole("");
-                    setFieldErrors({});
-                    setPhotoFile(null);
-                  }}
+                  className="register-back"
+                  onClick={resetToRoleSelection}
                   disabled={submitting}
                 >
                   ← Back
                 </Button>
 
                 {role === "new-player" || role === "volunteer" ? (
-                  <div className="register-field-grid">
+                  <div
+                    className={cn(
+                      "register-field-grid",
+                      isGenericForm && "register-field-grid--generic",
+                    )}
+                  >
                     <div className="register-field space-y-1.5">
                       <Input
                         ref={setFieldRef("firstName")}
@@ -419,6 +481,7 @@ export function RegistrationForm({
                       <RegistrationPhotoField
                         disabled={submitting}
                         error={fieldErrors.photo}
+                        optional={isGenericForm}
                         onChange={(file) => {
                           clearFieldError("photo");
                           setPhotoFile(file);
@@ -426,7 +489,7 @@ export function RegistrationForm({
                       />
                     </div>
                   </div>
-                ) : (
+                ) : isGenericForm ? null : (
                   <div className="register-field space-y-1.5">
                     <Input
                       ref={setFieldRef("personalQrCode")}
@@ -443,7 +506,19 @@ export function RegistrationForm({
                   </div>
                 )}
 
-                {role === "volunteer" ? (
+                {isGenericForm ? (
+                  <RegistrationLiabilityWaiver
+                    checked={waiverAccepted}
+                    disabled={submitting}
+                    error={fieldErrors.waiverAccepted}
+                    onCheckedChange={(checked) => {
+                      clearFieldError("waiverAccepted");
+                      setWaiverAccepted(checked);
+                    }}
+                  />
+                ) : null}
+
+                {!isGenericForm && role === "volunteer" ? (
                   <div className="register-block">
                     <Label className="register-label">Volunteer Type</Label>
                     <div className="register-choice-grid">
@@ -474,99 +549,105 @@ export function RegistrationForm({
                   </div>
                 ) : null}
 
-                <div className="register-toggle-row">
-                  <Button
-                    type="button"
-                    variant={form.isPartOfDgroup ? "default" : "outline"}
-                    className="register-toggle-btn"
-                    onClick={() => setForm({ ...form, isPartOfDgroup: true })}
-                    disabled={submitting}
-                  >
-                    In a D-Group: Yes
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={!form.isPartOfDgroup ? "default" : "outline"}
-                    className="register-toggle-btn"
-                    onClick={() => setForm({ ...form, isPartOfDgroup: false })}
-                    disabled={submitting}
-                  >
-                    In a D-Group: No
-                  </Button>
-                </div>
+                {!isGenericForm ? (
+                  <>
+                    <div className="register-toggle-row">
+                      <Button
+                        type="button"
+                        variant={form.isPartOfDgroup ? "default" : "outline"}
+                        className="register-toggle-btn"
+                        onClick={() => setForm({ ...form, isPartOfDgroup: true })}
+                        disabled={submitting}
+                      >
+                        In a D-Group: Yes
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={!form.isPartOfDgroup ? "default" : "outline"}
+                        className="register-toggle-btn"
+                        onClick={() => setForm({ ...form, isPartOfDgroup: false })}
+                        disabled={submitting}
+                      >
+                        In a D-Group: No
+                      </Button>
+                    </div>
 
-                {role !== "existing-player" ? (
-                  <div className="register-toggle-row">
-                    <Button
-                      type="button"
-                      variant={form.firstTimeSportsMinistry ? "default" : "outline"}
-                      className="register-toggle-btn"
-                      onClick={() => setForm({ ...form, firstTimeSportsMinistry: true })}
-                      disabled={submitting}
-                    >
-                      First time at CCF Sports Ministry: Yes
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={!form.firstTimeSportsMinistry ? "default" : "outline"}
-                      className="register-toggle-btn"
-                      onClick={() => setForm({ ...form, firstTimeSportsMinistry: false })}
-                      disabled={submitting}
-                    >
-                      First time at CCF Sports Ministry: No
-                    </Button>
-                  </div>
-                ) : null}
-
-                <div
-                  ref={eventsBlockRef}
-                  tabIndex={-1}
-                  className={cn(
-                    "register-block rounded-lg outline-none",
-                    fieldErrors.attendedEvents && "ring-2 ring-destructive/40",
-                  )}
-                >
-                  <Label className="register-label">
-                    Have you attended any other CCF events before?
-                  </Label>
-                  <div className="register-checklist">
-                    {events.map((item) => {
-                      const checked = form.attendedEvents.includes(item);
-                      return (
-                        <label
-                          key={item}
-                          className={cn("register-checklist-item", checked && "is-checked")}
+                    {role !== "existing-player" ? (
+                      <div className="register-toggle-row">
+                        <Button
+                          type="button"
+                          variant={form.firstTimeSportsMinistry ? "default" : "outline"}
+                          className="register-toggle-btn"
+                          onClick={() => setForm({ ...form, firstTimeSportsMinistry: true })}
+                          disabled={submitting}
                         >
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={(value) => toggleEvent(item, Boolean(value))}
-                            disabled={submitting}
-                          />
-                          <span>{item}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {renderFieldError("attendedEvents")}
-                  {isOtherSelected ? (
-                    <Input
-                      className="register-input"
-                      placeholder="Please specify the other event"
-                      value={form.attendedEventsOther}
-                      onChange={(event) =>
-                        updateForm("attendedEventsOther", event.target.value)
-                      }
-                      disabled={submitting}
-                    />
-                  ) : null}
-                </div>
+                          First time at CCF Sports Ministry: Yes
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={!form.firstTimeSportsMinistry ? "default" : "outline"}
+                          className="register-toggle-btn"
+                          onClick={() => setForm({ ...form, firstTimeSportsMinistry: false })}
+                          disabled={submitting}
+                        >
+                          First time at CCF Sports Ministry: No
+                        </Button>
+                      </div>
+                    ) : null}
+
+                    <div
+                      ref={eventsBlockRef}
+                      tabIndex={-1}
+                      className={cn(
+                        "register-block rounded-lg outline-none",
+                        fieldErrors.attendedEvents && "ring-2 ring-destructive/40",
+                      )}
+                    >
+                      <Label className="register-label">
+                        Have you attended any other CCF events before?
+                      </Label>
+                      <div className="register-checklist">
+                        {events.map((item) => {
+                          const checked = form.attendedEvents.includes(item);
+                          return (
+                            <label
+                              key={item}
+                              className={cn("register-checklist-item", checked && "is-checked")}
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(value) => toggleEvent(item, Boolean(value))}
+                                disabled={submitting}
+                              />
+                              <span>{item}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {renderFieldError("attendedEvents")}
+                      {isOtherSelected ? (
+                        <Input
+                          className="register-input"
+                          placeholder="Please specify the other event"
+                          value={form.attendedEventsOther}
+                          onChange={(event) =>
+                            updateForm("attendedEventsOther", event.target.value)
+                          }
+                          disabled={submitting}
+                        />
+                      ) : null}
+                    </div>
+                  </>
+                ) : null}
 
                 <Button
                   type="button"
                   size="lg"
                   className="register-submit w-full"
                   onClick={() => void submit()}
-                  disabled={submitting || statusLoading}
+                  disabled={
+                    submitting || statusLoading || (isGenericForm && !waiverAccepted)
+                  }
                 >
                   {submitting ? "Submitting…" : "Submit Registration"}
                 </Button>

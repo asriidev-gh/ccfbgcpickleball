@@ -1,3 +1,5 @@
+import type { RegistrationFormVariant } from "@/lib/registration-variant";
+import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
 
@@ -18,6 +20,7 @@ export async function getGameRegistrationCount(gameId: string) {
 
 export type GameRegistrationStatus = {
   gameId: string;
+  formVariant: RegistrationFormVariant;
   strictPlayerCount: boolean;
   expectedPlayers: number;
   registeredCount: number;
@@ -34,6 +37,9 @@ export async function getGameRegistrationStatus(
   );
   if (!game) return null;
 
+  const formVariant = await resolveGameRegistrationFormVariant(gameId);
+  if (!formVariant) return null;
+
   const registeredCount = await getGameRegistrationCount(gameId);
   const strict = game.strictPlayerCount === true;
   const isFull =
@@ -42,6 +48,7 @@ export async function getGameRegistrationStatus(
 
   return {
     gameId: game.gameId,
+    formVariant,
     strictPlayerCount: strict,
     expectedPlayers: game.expectedPlayers,
     registeredCount,

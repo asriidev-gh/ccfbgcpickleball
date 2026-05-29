@@ -31,6 +31,7 @@ async function seed() {
       name: "Demo Admin",
       email: demoEmail,
       passwordHash: await bcrypt.hash("password123", 10),
+      userType: "ccf",
     });
   }
 

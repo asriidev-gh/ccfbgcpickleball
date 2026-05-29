@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
+import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
 import { User } from "@/models/User";
 import { getAuthCookieName, signAuthToken } from "@/lib/auth";
 
@@ -24,7 +25,12 @@ export async function POST(request: Request) {
     if (exists) return NextResponse.json({ message: "Email is already registered." }, { status: 400 });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, passwordHash });
+    const user = await User.create({
+      name,
+      email,
+      passwordHash,
+      userType: USER_TYPE_DEFAULT,
+    });
     const token = signAuthToken({ userId: user._id.toString(), email: user.email, name: user.name });
 
     const response = NextResponse.json({ user: { id: user._id, email: user.email, name: user.name } });

@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
-import { newPlayerSchema } from "@/lib/validations";
+import type { RegistrationFormVariant } from "@/lib/registration-variant";
+import { genericPlayerSchema, newPlayerSchema } from "@/lib/validations";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -22,7 +23,27 @@ function formStringArray(formData: FormData, key: string) {
   }
 }
 
-export function parseNewPlayerPayloadFromFormData(formData: FormData) {
+export function parseGenericPlayerPayloadFromFormData(formData: FormData) {
+  const body = {
+    gameId: formString(formData, "gameId"),
+    firstName: formString(formData, "firstName"),
+    lastName: formString(formData, "lastName"),
+    mobileNumber: formString(formData, "mobileNumber"),
+    email: formString(formData, "email"),
+    waiverAccepted: formBoolean(formData, "waiverAccepted") ? (true as const) : (false as const),
+  };
+
+  return genericPlayerSchema.safeParse(body);
+}
+
+export function parseNewPlayerPayloadFromFormData(
+  formData: FormData,
+  variant: RegistrationFormVariant = "ccf",
+) {
+  if (variant === "generic") {
+    return parseGenericPlayerPayloadFromFormData(formData);
+  }
+
   const volunteerTypeRaw = formString(formData, "volunteerType");
   const volunteerType =
     volunteerTypeRaw === "Pickleball" ||
@@ -50,6 +71,7 @@ export function parseNewPlayerPayloadFromFormData(formData: FormData) {
 }
 
 export type NewPlayerPayload = z.infer<typeof newPlayerSchema>;
+export type GenericPlayerPayload = z.infer<typeof genericPlayerSchema>;
 
 export function getRegistrationPhotoFromFormData(formData: FormData) {
   const photo = formData.get("photo");
