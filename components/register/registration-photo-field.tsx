@@ -1,15 +1,20 @@
 "use client";
 
-import { Camera, ImagePlus, X } from "lucide-react";
+import { Camera, ImagePlus, Loader2, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  compressRegistrationPhoto,
+  shouldCompressRegistrationPhoto,
+} from "@/lib/compress-registration-photo";
+import {
+  isAcceptedRegistrationPhotoType,
+  MAX_REGISTRATION_PHOTO_BYTES,
+} from "@/lib/registration-photo";
 import { cn } from "@/lib/utils";
-
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 type RegistrationPhotoFieldProps = {
   disabled?: boolean;
@@ -26,6 +31,7 @@ export function RegistrationPhotoField({
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -43,34 +49,43 @@ export function RegistrationPhotoField({
       return;
     }
 
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      onChange(null);
-      return;
-    }
-
     setPreviewUrl(URL.createObjectURL(file));
     setFileName(file.name);
     onChange(file);
   };
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) return;
 
-    if (!ACCEPTED_TYPES.includes(file.type)) {
+    if (!isAcceptedRegistrationPhotoType(file.type)) {
       toast.error("Please use a JPG, PNG, WebP, or GIF photo.");
-      event.target.value = "";
       return;
     }
 
-    if (file.size > MAX_PHOTO_BYTES) {
-      toast.error("Photo must be 5 MB or smaller.");
-      event.target.value = "";
-      return;
-    }
+    setProcessing(true);
+    try {
+      let processed = file;
+      if (shouldCompressRegistrationPhoto(file)) {
+        processed = await compressRegistrationPhoto(file);
+      }
 
-    applyFile(file);
-    event.target.value = "";
+      if (processed.size > MAX_REGISTRATION_PHOTO_BYTES) {
+        toast.error("Photo is too large. Try a different picture.");
+        return;
+      }
+
+      applyFile(processed);
+    } catch (compressError) {
+      toast.error(
+        compressError instanceof Error
+          ? compressError.message
+          : "Could not process this photo.",
+      );
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const clearPhoto = () => {
@@ -78,6 +93,8 @@ export function RegistrationPhotoField({
     if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (galleryInputRef.current) galleryInputRef.current.value = "";
   };
+
+  const inputsDisabled = disabled || processing;
 
   return (
     <div
@@ -89,7 +106,8 @@ export function RegistrationPhotoField({
       <div>
         <Label className="register-label">Your photo</Label>
         <p className="caption mt-1 text-muted-foreground">
-          Take a selfie or upload a picture (optional, max 5 MB). If you skip this, a random avatar is assigned.
+          Take a selfie or upload a picture (optional). Large camera photos are resized
+          automatically. If you skip this, a random avatar is assigned.
         </p>
       </div>
 
@@ -105,8 +123,14 @@ export function RegistrationPhotoField({
         </div>
       ) : (
         <div className="register-photo-placeholder" aria-hidden>
-          <Camera className="h-8 w-8 text-muted-foreground" />
-          <span className="caption text-muted-foreground">No photo selected</span>
+          {processing ? (
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          ) : (
+            <Camera className="h-8 w-8 text-muted-foreground" />
+          )}
+          <span className="caption text-muted-foreground">
+            {processing ? "Preparing photo…" : "No photo selected"}
+          </span>
         </div>
       )}
 
@@ -115,7 +139,7 @@ export function RegistrationPhotoField({
           type="button"
           variant="outline"
           className="register-photo-btn flex-1"
-          disabled={disabled}
+          disabled={inputsDisabled}
           onClick={() => cameraInputRef.current?.click()}
         >
           <Camera className="mr-2 h-4 w-4" />
@@ -125,7 +149,7 @@ export function RegistrationPhotoField({
           type="button"
           variant="outline"
           className="register-photo-btn flex-1"
-          disabled={disabled}
+          disabled={inputsDisabled}
           onClick={() => galleryInputRef.current?.click()}
         >
           <ImagePlus className="mr-2 h-4 w-4" />
@@ -137,7 +161,7 @@ export function RegistrationPhotoField({
             variant="ghost"
             size="icon"
             className="shrink-0"
-            disabled={disabled}
+            disabled={inputsDisabled}
             aria-label="Remove photo"
             onClick={clearPhoto}
           >
@@ -153,7 +177,7 @@ export function RegistrationPhotoField({
         capture="user"
         className="sr-only"
         tabIndex={-1}
-        disabled={disabled}
+        disabled={inputsDisabled}
         onChange={handleFileChange}
       />
       <input
@@ -162,7 +186,7 @@ export function RegistrationPhotoField({
         accept="image/jpeg,image/png,image/webp,image/gif"
         className="sr-only"
         tabIndex={-1}
-        disabled={disabled}
+        disabled={inputsDisabled}
         onChange={handleFileChange}
       />
 

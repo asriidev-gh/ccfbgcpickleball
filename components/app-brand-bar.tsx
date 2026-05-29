@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/theme-menu";
 import { UserMenu } from "@/components/user-menu";
 import { APP_NAME } from "@/lib/app-config";
-import { getBrandShellClasses, isPublicAppPath } from "@/lib/app-shell";
+import { getBrandShellClasses, isPublicAppPath, shouldHideAppBrandBar } from "@/lib/app-shell";
 import { cn } from "@/lib/utils";
 
 export function AppBrandBar() {
@@ -15,6 +15,10 @@ export function AppBrandBar() {
   const { pad, container } = getBrandShellClasses(pathname);
   const showThemeOnly = isPublicAppPath(pathname, fromParam);
 
+  if (shouldHideAppBrandBar(pathname)) {
+    return null;
+  }
+
   return (
     <header className="app-brand-bar">
       <div className={pad}>
@@ -23,18 +27,6 @@ export function AppBrandBar() {
           <div className="app-brand-actions shrink-0">
             {showThemeOnly ? <ThemeMenu /> : <UserMenu />}
           </div>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-export function AppBrandBarFallback() {
-  return (
-    <header className="app-brand-bar">
-      <div className="px-6">
-        <div className="app-brand-bar__inner mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
-          <span className="app-brand">{APP_NAME}</span>
         </div>
       </div>
     </header>

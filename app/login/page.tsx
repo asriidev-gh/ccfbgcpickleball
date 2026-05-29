@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { APP_NAME } from "@/lib/app-config";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,9 +37,10 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
+    <main className="login-page flex min-h-screen flex-col items-center justify-center gap-6 p-6">
+      <h1 className="app-brand login-brand text-center text-5xl sm:text-6xl md:text-7xl lg:text-8xl">{APP_NAME}</h1>
       <Card className="glass-panel w-full max-w-md">
-        <CardHeader>
+        <CardHeader className="text-center">
           <CardTitle className="section-title">
             {mode === "login" ? "Login" : "Create Account"}
           </CardTitle>

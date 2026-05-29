@@ -5,6 +5,15 @@ export const createGameSchema = z.object({
   openPlayType: z.enum(["Beginner", "Intermediate", "Advanced"]),
   courtCount: z.coerce.number().int().min(1).max(20),
   expectedPlayers: z.coerce.number().int().min(4).max(300),
+  strictPlayerCount: z.boolean().default(false),
+});
+
+export const updateGameSchema = z.object({
+  title: z.string().min(2, "Game title is required.").max(80),
+  openPlayType: z.enum(["Beginner", "Intermediate", "Advanced"]),
+  courtCount: z.coerce.number().int().min(1).max(20),
+  expectedPlayers: z.coerce.number().int().min(4).max(300),
+  strictPlayerCount: z.boolean(),
 });
 
 export const newPlayerSchema = z.object({

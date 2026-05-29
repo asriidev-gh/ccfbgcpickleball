@@ -1,13 +1,20 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 
+import {
+  fetchGameRegistrationStatus,
+  getRegistrationBlockedMessage,
+  promptIfRegistrationFull,
+} from "@/components/game/registration-capacity-prompt";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
-import { Button } from "@/components/ui/button";
+import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -46,6 +53,10 @@ export function RegistrationForm({
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [registrationStatus, setRegistrationStatus] = useState<GameRegistrationStatus | null>(
+    null,
+  );
+  const [statusLoading, setStatusLoading] = useState(true);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -66,6 +77,47 @@ export function RegistrationForm({
     () => form.attendedEvents.includes("Other"),
     [form.attendedEvents]
   );
+
+  const registrationBlockedMessage = registrationStatus
+    ? getRegistrationBlockedMessage(registrationStatus)
+    : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadStatus = async () => {
+      setStatusLoading(true);
+      try {
+        const status = await fetchGameRegistrationStatus(gameId);
+        if (!cancelled) setRegistrationStatus(status);
+      } catch {
+        if (!cancelled) setRegistrationStatus(null);
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    };
+    void loadStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [gameId]);
+
+  const ensureCanRegister = async () => {
+    const canProceed = await promptIfRegistrationFull(gameId);
+    if (canProceed) {
+      try {
+        const status = await fetchGameRegistrationStatus(gameId);
+        setRegistrationStatus(status);
+      } catch {
+        /* keep previous banner */
+      }
+    }
+    return canProceed;
+  };
+
+  const selectRole = async (nextRole: "new-player" | "volunteer") => {
+    if (!(await ensureCanRegister())) return;
+    setRole(nextRole);
+  };
 
   const setFieldRef =
     (name: string) =>
@@ -147,6 +199,8 @@ export function RegistrationForm({
   };
 
   const submit = async () => {
+    if (!(await ensureCanRegister())) return;
+
     const isExisting =
       role === "existing-player" || (role === "volunteer" && !!form.personalQrCode.trim());
     const endpoint = isExisting ? "/api/register/existing" : "/api/register/new";
@@ -187,6 +241,14 @@ export function RegistrationForm({
             ? formatZodError(data.message)
             : "Registration failed.";
         toast.error(message);
+        if (response.status === 403 || response.status === 409) {
+          try {
+            const status = await fetchGameRegistrationStatus(gameId);
+            setRegistrationStatus(status);
+          } catch {
+            /* ignore */
+          }
+        }
         setSubmitting(false);
         return;
       }
@@ -225,12 +287,36 @@ export function RegistrationForm({
           ) : null}
 
           <CardHeader className="register-card-header">
-            <CardTitle className="section-title">CCF Player Registration</CardTitle>
-            {gameTitle ? (
-              <p className="caption mt-1 text-muted-foreground">{gameTitle}</p>
-            ) : null}
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <CardTitle className="section-title">CCF Player Registration</CardTitle>
+                {gameTitle ? (
+                  <p className="caption mt-1 text-muted-foreground">{gameTitle}</p>
+                ) : null}
+              </div>
+              <Link
+                href={`/games/${gameId}/spectate`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
+              >
+                Go to Open play
+              </Link>
+            </div>
           </CardHeader>
           <CardContent className="register-form-compact">
+            {statusLoading ? (
+              <p className="caption flex items-center gap-2 text-muted-foreground" role="status">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Checking session availability…
+              </p>
+            ) : null}
+            {registrationBlockedMessage ? (
+              <div
+                className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
+                role="alert"
+              >
+                {registrationBlockedMessage}
+              </div>
+            ) : null}
             {!role ? (
               <div className="register-role-grid">
                 <Button
@@ -238,7 +324,8 @@ export function RegistrationForm({
                   size="lg"
                   variant="outline"
                   className="register-role-btn"
-                  onClick={() => setRole("new-player")}
+                  disabled={statusLoading || submitting}
+                  onClick={() => void selectRole("new-player")}
                 >
                   Player
                 </Button>
@@ -247,7 +334,8 @@ export function RegistrationForm({
                   size="lg"
                   variant="outline"
                   className="register-role-btn"
-                  onClick={() => setRole("volunteer")}
+                  disabled={statusLoading || submitting}
+                  onClick={() => void selectRole("volunteer")}
                 >
                   Volunteer
                 </Button>
@@ -477,8 +565,8 @@ export function RegistrationForm({
                   type="button"
                   size="lg"
                   className="register-submit w-full"
-                  onClick={submit}
-                  disabled={submitting}
+                  onClick={() => void submit()}
+                  disabled={submitting || statusLoading}
                 >
                   {submitting ? "Submitting…" : "Submit Registration"}
                 </Button>

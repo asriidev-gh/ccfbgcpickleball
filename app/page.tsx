@@ -3,18 +3,40 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
-import { Eye, Plus, Trash2, Trophy } from "lucide-react";
-import { useState } from "react";
+import {
+  CalendarDays,
+  Clock,
+  Gauge,
+  LayoutDashboard,
+  LayoutGrid,
+  Pencil,
+  Plus,
+  Trash2,
+  Trophy,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
 
 import { CreateGameWizard } from "@/components/game/create-game-wizard";
+import { EditGameDialog, type EditGameDialogGame } from "@/components/game/edit-game-dialog";
+import { GameExportButton } from "@/components/game/game-export-button";
+import {
+  GameListViewToggle,
+  loadGameListView,
+  saveGameListView,
+  type GameListViewMode,
+} from "@/components/game/game-list-view-toggle";
 import { GameQrRegistrationButton } from "@/components/game/game-qr-registration-button";
+import { GameQrRegistrationSlot } from "@/components/game/game-qr-registration-slot";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUiStore } from "@/store/ui-store";
+import { cn } from "@/lib/utils";
 
 const deleteAlertOptions = {
   background: "#0f172a",
@@ -30,20 +52,271 @@ type GameCard = {
   openPlayType: string;
   courtCount: number;
   expectedPlayers: number;
+  strictPlayerCount?: boolean;
   status: "draft" | "active" | "ended";
   updatedAt?: string;
 };
+
+function GameMetaRow({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <li className="flex items-center gap-2">
+      <Icon
+        className="h-3.5 w-3.5 shrink-0 text-muted-foreground/75 md:h-4 md:w-4"
+        aria-hidden
+      />
+      <span>{children}</span>
+    </li>
+  );
+}
+
+function GameMeta({
+  game,
+  variant,
+}: {
+  game: GameCard;
+  variant: "active" | "past";
+}) {
+  return (
+    <ul className="list-none space-y-0.5 text-xs leading-relaxed text-muted-foreground md:text-sm">
+      <GameMetaRow icon={Gauge}>{game.openPlayType}</GameMetaRow>
+      <GameMetaRow icon={LayoutGrid}>Courts: {game.courtCount}</GameMetaRow>
+      <GameMetaRow icon={Users}>
+        Expected: {game.expectedPlayers}
+        {game.strictPlayerCount === true ? " (strict)" : ""}
+      </GameMetaRow>
+      {variant === "past" && game.updatedAt ? (
+        <GameMetaRow icon={Clock}>
+          Ended{" "}
+          <span suppressHydrationWarning>
+            {formatDistanceToNow(new Date(game.updatedAt), { addSuffix: true })}
+          </span>
+        </GameMetaRow>
+      ) : null}
+    </ul>
+  );
+}
+
+function GameTitle({ title, className }: { title: string; className?: string }) {
+  return (
+    <div className={cn("flex min-w-0 items-start gap-2", className)}>
+      <CalendarDays
+        className="mt-0.5 h-5 w-5 shrink-0 text-primary/70 md:h-5 md:w-5"
+        aria-hidden
+      />
+      <span className="min-w-0 leading-snug">{title}</span>
+    </div>
+  );
+}
+
+const metaIconClass = "h-3.5 w-3.5 shrink-0 text-muted-foreground/75 md:h-4 md:w-4";
+
+function GameListInfoGrouped({
+  game,
+  variant,
+}: {
+  game: GameCard;
+  variant: "active" | "past";
+}) {
+  return (
+    <div className="game-list-info-grouped grid min-w-0 grid-cols-[1.25rem_1fr] gap-x-2.5 gap-y-1">
+      <CalendarDays
+        className={cn(metaIconClass, "col-start-1 row-start-1 mt-0.5 text-primary/70")}
+        aria-hidden
+      />
+      <div className="col-start-2 row-start-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-lg font-semibold leading-snug md:text-xl">{game.title}</span>
+          {variant === "past" ? (
+            <Badge variant="outline" className="shrink-0">
+              Ended
+            </Badge>
+          ) : null}
+        </div>
+      </div>
+      <Gauge className={cn(metaIconClass, "col-start-1 row-start-2 self-center")} aria-hidden />
+      <span className="col-start-2 row-start-2 text-xs text-muted-foreground md:text-sm">
+        {game.openPlayType}
+      </span>
+      <LayoutGrid
+        className={cn(metaIconClass, "col-start-1 row-start-3 self-center")}
+        aria-hidden
+      />
+      <span className="col-start-2 row-start-3 text-xs text-muted-foreground md:text-sm">
+        Courts: {game.courtCount}
+      </span>
+      <Users className={cn(metaIconClass, "col-start-1 row-start-4 self-center")} aria-hidden />
+      <span className="col-start-2 row-start-4 text-xs text-muted-foreground md:text-sm">
+        Expected: {game.expectedPlayers}
+        {game.strictPlayerCount === true ? " (strict)" : ""}
+      </span>
+      {variant === "past" && game.updatedAt ? (
+        <>
+          <Clock
+            className={cn(metaIconClass, "col-start-1 row-start-5 self-center")}
+            aria-hidden
+          />
+          <span className="col-start-2 row-start-5 text-xs text-muted-foreground md:text-sm">
+            Ended{" "}
+            <span suppressHydrationWarning>
+              {formatDistanceToNow(new Date(game.updatedAt), { addSuffix: true })}
+            </span>
+          </span>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function GameListIconToolbar({
+  game,
+  onEdit,
+  onDelete,
+  deletingGameId,
+  includeQr = false,
+}: {
+  game: GameCard;
+  onEdit: (game: GameCard) => void;
+  onDelete: (game: GameCard) => void;
+  deletingGameId: string | null;
+  includeQr?: boolean;
+}) {
+  return (
+    <div
+      className="game-list-card-toolbar inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5"
+      role="toolbar"
+      aria-label={`Quick actions for ${game.title}`}
+    >
+      {includeQr ? (
+        <span className="md:max-[1366px]:hidden">
+          <GameQrRegistrationButton gameId={game.gameId} gameTitle={game.title} iconOnly />
+        </span>
+      ) : null}
+      <GameExportButton gameId={game.gameId} gameTitle={game.title} iconOnly />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-9 shrink-0"
+        aria-label={`Edit ${game.title}`}
+        onClick={() => onEdit(game)}
+      >
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-9 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+        aria-label={`Delete ${game.title}`}
+        disabled={deletingGameId === game.gameId}
+        onClick={() => onDelete(game)}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+function GameListActions({
+  game,
+  variant,
+  onEdit,
+  onDelete,
+  deletingGameId,
+  compact = false,
+}: {
+  game: GameCard;
+  variant: "active" | "past";
+  onEdit: (game: GameCard) => void;
+  onDelete: (game: GameCard) => void;
+  deletingGameId: string | null;
+  compact?: boolean;
+}) {
+  if (compact) {
+    return (
+      <div className="flex w-full flex-col gap-2.5">
+        {variant === "active" ? (
+          <Link href={`/games/${game.gameId}`} className="mb-2 w-full">
+            <Button className="w-full">
+              <LayoutDashboard className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+              Open Dashboard
+            </Button>
+          </Link>
+        ) : (
+          <Link href={`/games/${game.gameId}`} className="mb-2 w-full">
+            <Button variant="outline" className="w-full">
+              <LayoutDashboard className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+              View Dashboard
+            </Button>
+          </Link>
+        )}
+        <div className="flex items-stretch gap-2">
+          <Link href={`/leaderboard/${game.gameId}`} className="min-w-0 flex-1">
+            <Button variant="outline" className="w-full">
+              <Trophy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+              Leaderboard
+            </Button>
+          </Link>
+          <GameListIconToolbar
+            game={game}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            deletingGameId={deletingGameId}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-[17rem] flex-col items-center gap-2">
+      {variant === "active" ? (
+        <Link href={`/games/${game.gameId}`} className="w-full">
+          <Button className="w-full">
+            <LayoutDashboard className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+            Open Dashboard
+          </Button>
+        </Link>
+      ) : (
+        <Link href={`/games/${game.gameId}`} className="w-full">
+          <Button variant="outline" className="w-full">
+            <LayoutDashboard className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+            View Dashboard
+          </Button>
+        </Link>
+      )}
+      <div className="flex items-stretch gap-2">
+        <Link href={`/leaderboard/${game.gameId}`} className="min-w-0 flex-1">
+          <Button variant="outline" className="w-full">
+            <Trophy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+            Leaderboard
+          </Button>
+        </Link>
+        <GameListIconToolbar
+          game={game}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          deletingGameId={deletingGameId}
+        />
+      </div>
+    </div>
+  );
+}
 
 function GameList({
   games,
   emptyMessage,
   variant,
+  view,
+  onEdit,
   onDelete,
   deletingGameId,
 }: {
   games: GameCard[];
   emptyMessage: string;
   variant: "active" | "past";
+  view: GameListViewMode;
+  onEdit: (game: GameCard) => void;
   onDelete: (game: GameCard) => void;
   deletingGameId: string | null;
 }) {
@@ -51,69 +324,82 @@ function GameList({
     return <p className="text-muted-foreground">{emptyMessage}</p>;
   }
 
+  if (view === "cards") {
+    return (
+      <div className="game-list-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {games.map((game) => (
+          <Card
+            key={game._id}
+            className="game-list-card flex h-full flex-col border-border/80 bg-card/80 shadow-sm transition-shadow hover:shadow-md"
+          >
+            <CardHeader className="flex-1 gap-2 pb-3">
+              <div className="grid grid-cols-[minmax(0,7fr)_minmax(0,3fr)] items-start gap-3">
+                <div className="game-list-card-details min-w-0 space-y-2">
+                  <div className="flex flex-wrap items-start gap-2">
+                    <CardTitle className="min-w-0 flex-1 text-lg font-semibold md:text-xl">
+                      <GameTitle title={game.title} />
+                    </CardTitle>
+                    {variant === "past" ? (
+                      <Badge variant="outline" className="shrink-0">
+                        Ended
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <GameMeta game={game} variant={variant} />
+                </div>
+                <div className="game-list-card-register flex w-full min-w-0 justify-center">
+                  <GameQrRegistrationSlot
+                    gameId={game.gameId}
+                    gameTitle={game.title}
+                    compact
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardFooter className="mt-auto border-t border-border/60 bg-muted/20 px-4 py-3">
+              <GameListActions
+                game={game}
+                variant={variant}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                deletingGameId={deletingGameId}
+                compact
+              />
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="game-list-rows space-y-3">
       {games.map((game) => (
         <div
           key={game._id}
-          className="surface-muted flex flex-wrap items-center justify-between gap-3 rounded-xl p-3"
+          className="game-list-row surface-muted grid grid-cols-1 items-center gap-4 rounded-xl p-4 md:grid-cols-[minmax(0,4fr)_minmax(0,3fr)_minmax(0,3fr)] md:gap-5 lg:gap-6"
         >
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="body-lg">{game.title}</p>
-              {variant === "past" ? (
-                <Badge variant="outline" className="shrink-0">
-                  Ended
-                </Badge>
-              ) : null}
-            </div>
-            <p className="caption">
-              {game.openPlayType} | Courts: {game.courtCount} | Expected: {game.expectedPlayers}
-              {variant === "past" && game.updatedAt ? (
-                <>
-                  {" "}
-                  | Ended{" "}
-                  <span suppressHydrationWarning>
-                    {formatDistanceToNow(new Date(game.updatedAt), { addSuffix: true })}
-                  </span>
-                </>
-              ) : null}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {variant === "active" ? (
-              <>
-                <Link href={`/games/${game.gameId}`}>
-                  <Button>Open Dashboard</Button>
-                </Link>
-                <Link href={`/games/${game.gameId}/spectate`}>
-                  <Button variant="outline">
-                    <Eye className="mr-2 h-4 w-4" />
-                    Spectator View
-                  </Button>
-                </Link>
-              </>
-            ) : (
-              <Link href={`/games/${game.gameId}`}>
-                <Button variant="outline">View Dashboard</Button>
-              </Link>
-            )}
-            <GameQrRegistrationButton gameId={game.gameId} gameTitle={game.title} />
-            <Link href={`/leaderboard/${game.gameId}`}>
-              <Button variant="outline">Leaderboard</Button>
-            </Link>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              aria-label={`Delete ${game.title}`}
-              disabled={deletingGameId === game.gameId}
-              onClick={() => onDelete(game)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          <section className="game-list-col-details min-w-0" aria-label={`Details for ${game.title}`}>
+            <GameListInfoGrouped game={game} variant={variant} />
+          </section>
+          <section
+            className="game-list-col-actions flex flex-col items-center justify-center"
+            aria-label={`Actions for ${game.title}`}
+          >
+            <GameListActions
+              game={game}
+              variant={variant}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              deletingGameId={deletingGameId}
+            />
+          </section>
+          <section
+            className="game-list-col-register flex min-w-0 justify-center md:justify-end"
+            aria-label={`Registration for ${game.title}`}
+          >
+            <GameQrRegistrationSlot gameId={game.gameId} gameTitle={game.title} compact />
+          </section>
         </div>
       ))}
     </div>
@@ -124,6 +410,18 @@ function HomeInner() {
   const queryClient = useQueryClient();
   const setCreateGameWizardOpen = useUiStore((state) => state.setCreateGameWizardOpen);
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
+  const [editingGame, setEditingGame] = useState<EditGameDialogGame | null>(null);
+  const [listView, setListView] = useState<GameListViewMode>("list");
+
+  useEffect(() => {
+    setListView(loadGameListView());
+  }, []);
+
+  const handleListViewChange = (view: GameListViewMode) => {
+    setListView(view);
+    saveGameListView(view);
+  };
+
   const { data } = useQuery({
     queryKey: ["games"],
     queryFn: async () => {
@@ -193,8 +491,9 @@ function HomeInner() {
         </Card>
 
         <Card className="glass-panel">
-          <CardHeader>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="section-title">Games</CardTitle>
+            <GameListViewToggle value={listView} onChange={handleListViewChange} />
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="active" className="gap-4">
@@ -220,7 +519,9 @@ function HomeInner() {
                 <GameList
                   games={activeGames}
                   variant="active"
+                  view={listView}
                   emptyMessage="No active games. Create one to start queuing."
+                  onEdit={setEditingGame}
                   onDelete={handleDeleteGame}
                   deletingGameId={deletingGameId}
                 />
@@ -229,7 +530,9 @@ function HomeInner() {
                 <GameList
                   games={pastGames}
                   variant="past"
+                  view={listView}
                   emptyMessage="No past games yet. Ended open play sessions will appear here."
+                  onEdit={setEditingGame}
                   onDelete={handleDeleteGame}
                   deletingGameId={deletingGameId}
                 />
@@ -239,6 +542,14 @@ function HomeInner() {
         </Card>
       </section>
       <CreateGameWizard />
+      <EditGameDialog
+        game={editingGame}
+        open={Boolean(editingGame)}
+        onOpenChange={(open) => {
+          if (!open) setEditingGame(null);
+        }}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ["games"] })}
+      />
     </main>
   );
 }

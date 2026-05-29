@@ -7,6 +7,10 @@ import {
   getGeneratedAvatarUrl,
 } from "@/lib/player-avatar-url";
 import { connectToDatabase } from "@/lib/db";
+import {
+  assertGameRegistrationAllowed,
+  RegistrationLimitError,
+} from "@/lib/game-registration-limit";
 import { formatZodError } from "@/lib/format-zod-error";
 import { capitalizeNameWords } from "@/lib/utils";
 import {
@@ -42,6 +46,8 @@ export async function POST(request: Request) {
       }
       payload = parsed.data;
     }
+
+    await assertGameRegistrationAllowed(payload.gameId);
 
     const personalQrCode = `P-${nanoid(10)}`;
     let photoUrl = getGeneratedAvatarUrl(personalQrCode);
@@ -92,6 +98,9 @@ export async function POST(request: Request) {
       message: `Registration complete. QR email queued to ${player.email}.`,
     });
   } catch (error) {
+    if (error instanceof RegistrationLimitError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     return NextResponse.json(
       { message: formatZodError(error) },
       { status: 400 },

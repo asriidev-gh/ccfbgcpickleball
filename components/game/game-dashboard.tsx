@@ -20,6 +20,7 @@ import Swal from "sweetalert2";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
+import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import { MatchHistoryList, type MatchHistoryView } from "@/components/game/match-history-list";
 import {
   CourtsViewToggle,
@@ -36,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { isGameResetEnabled } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
 
 export type GameDashboardMode = "operator" | "spectator";
@@ -104,6 +106,21 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [showCourtsViewToggle, setShowCourtsViewToggle] = useState(false);
   const [showWaitingList, setShowWaitingList] = useState(true);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [qrDialogLoading, setQrDialogLoading] = useState(false);
+
+  const openQrRegistrationDialog = async () => {
+    setQrDialogLoading(true);
+    try {
+      const canProceed = await promptIfRegistrationFull(gameId);
+      if (canProceed) {
+        setQrDialogOpen(true);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not check registration status.");
+    } finally {
+      setQrDialogLoading(false);
+    }
+  };
 
   useEffect(() => {
     const syncCourtsViewForViewport = () => {
@@ -290,8 +307,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 </Link>
               ) : null}
               {!readOnly && !isPastGame && game.publicQrCodeDataUrl && game.registerUrl ? (
-                <Button size="lg" variant="outline" onClick={() => setQrDialogOpen(true)}>
-                  <QrCode className="mr-2 h-4 w-4" /> QR Registration
+                <Button
+                  size="lg"
+                  variant="outline"
+                  disabled={qrDialogLoading}
+                  onClick={openQrRegistrationDialog}
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  {qrDialogLoading ? "Checking…" : "QR Registration"}
                 </Button>
               ) : null}
               <Link
@@ -328,7 +351,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   {endOpenPlayMutation.isPending ? "Ending..." : "End Open Play"}
                 </Button>
               ) : null}
-              {!readOnly ? (
+              {!readOnly && isGameResetEnabled() ? (
                 <Button
                   size="lg"
                   variant="destructive"

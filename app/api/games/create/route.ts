@@ -20,7 +20,11 @@ export async function POST(request: Request) {
     const { registerUrl, publicQrCodeDataUrl } = await buildGameRegistrationQr(gameId);
 
     const game = await PickleGame.create({
-      ...payload,
+      title: payload.title,
+      openPlayType: payload.openPlayType,
+      courtCount: payload.courtCount,
+      expectedPlayers: payload.expectedPlayers,
+      strictPlayerCount: payload.strictPlayerCount,
       gameId,
       ownerId: authUser.userId,
       registerUrl,

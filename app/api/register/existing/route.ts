@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
+import {
+  assertGameRegistrationAllowed,
+  RegistrationLimitError,
+} from "@/lib/game-registration-limit";
 import { formatZodError } from "@/lib/format-zod-error";
 import { existingPlayerSchema } from "@/lib/validations";
 import { Player } from "@/models/Player";
@@ -21,6 +25,10 @@ export async function POST(request: Request) {
     if (!player) {
       return NextResponse.json({ message: "Player QR not found." }, { status: 404 });
     }
+
+    await assertGameRegistrationAllowed(payload.gameId, {
+      playerId: String(player._id),
+    });
 
     player.isPartOfDgroup = payload.isPartOfDgroup;
     player.attendedEvents = payload.attendedEvents;
@@ -50,6 +58,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ player, message: "Welcome back! Added to queue." });
   } catch (error) {
+    if (error instanceof RegistrationLimitError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     return NextResponse.json(
       { message: formatZodError(error) },
       { status: 400 }

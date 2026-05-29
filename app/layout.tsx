@@ -9,7 +9,7 @@ import {
   Roboto,
 } from "next/font/google";
 import "./globals.css";
-import { AppBrandBar, AppBrandBarFallback } from "@/components/app-brand-bar";
+import { AppBrandBar } from "@/components/app-brand-bar";
 import { Providers } from "@/components/providers";
 import { APP_NAME } from "@/lib/app-config";
 
@@ -76,7 +76,7 @@ export default function RootLayout({
         className="min-h-full flex flex-col bg-background font-sans text-foreground antialiased"
       >
         <Providers>
-          <Suspense fallback={<AppBrandBarFallback />}>
+          <Suspense fallback={null}>
             <AppBrandBar />
           </Suspense>
           {children}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Eye } from "lucide-react";
 
+import { RegisterAnotherPlayerButton } from "@/components/register/register-another-player-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -28,11 +29,7 @@ export default async function RegisterSuccessPage({
                   Proceed to the Game Queue!
                 </Button>
               </Link>
-              <Link href={`/register/${gameId}`}>
-                <Button size="lg" variant="outline" className="w-full">
-                  Register another player
-                </Button>
-              </Link>
+              <RegisterAnotherPlayerButton gameId={gameId} />
             </div>
           </CardContent>
         </Card>

@@ -13,7 +13,9 @@ export async function GET() {
     const games = await PickleGame.find({ ownerId: authUser.userId })
       .sort({ createdAt: -1 })
       .limit(20)
-      .select("title gameId openPlayType courtCount expectedPlayers status createdAt updatedAt");
+      .select(
+        "title gameId openPlayType courtCount expectedPlayers strictPlayerCount status createdAt updatedAt",
+      );
 
     return NextResponse.json({ games });
   } catch (error) {

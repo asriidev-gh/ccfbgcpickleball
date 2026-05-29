@@ -25,10 +25,14 @@ export function isSpectatorPath(pathname: string, fromParam: string | null) {
   return false;
 }
 
+/** Auth screens use a minimal shell with no top brand bar. */
+export function shouldHideAppBrandBar(pathname: string) {
+  return pathname.startsWith("/login");
+}
+
 /** Public pages: theme picker only (no account / logout). */
 export function isPublicAppPath(pathname: string, fromParam: string | null) {
   if (isSpectatorPath(pathname, fromParam)) return true;
-  if (pathname.startsWith("/login")) return true;
   if (pathname.startsWith("/register")) return true;
   return false;
 }

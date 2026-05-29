@@ -1,12 +1,11 @@
 import { v2 as cloudinary } from "cloudinary";
 
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-]);
+import {
+  MAX_REGISTRATION_PHOTO_BYTES,
+  REGISTRATION_PHOTO_ACCEPT_TYPES,
+} from "@/lib/registration-photo";
+
+const ALLOWED_MIME_TYPES = new Set<string>(REGISTRATION_PHOTO_ACCEPT_TYPES);
 
 function getCloudinaryConfig() {
   const cloud_name = process.env.CLOUDINARY_CLOUD_NAME?.trim();
@@ -49,7 +48,7 @@ export async function uploadRegistrationPhoto(
     throw new Error("Please use a JPG, PNG, WebP, or GIF photo.");
   }
 
-  if (file.size > MAX_PHOTO_BYTES) {
+  if (file.size > MAX_REGISTRATION_PHOTO_BYTES) {
     throw new Error("Photo must be 5 MB or smaller.");
   }
 

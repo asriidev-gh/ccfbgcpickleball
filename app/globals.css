@@ -3312,15 +3312,15 @@
   }
 
   .register-role-grid {
-    @apply grid grid-cols-1 gap-3 md:grid-cols-3;
+    @apply mx-auto grid w-full max-w-md grid-cols-1 justify-items-stretch gap-3 sm:grid-cols-2;
   }
 
   .register-role-btn {
-    @apply min-h-12 w-full py-3 text-base;
+    @apply min-h-12 w-full py-3 text-center text-base;
   }
 
   .register-choice-grid {
-    @apply grid grid-cols-2 gap-3 md:grid-cols-4;
+    @apply mx-auto grid w-full max-w-lg grid-cols-2 justify-items-stretch gap-3 sm:grid-cols-4;
   }
 
   .register-choice-btn {
@@ -3328,11 +3328,11 @@
   }
 
   .register-toggle-row {
-    @apply mt-1 flex flex-col gap-3 sm:flex-row;
+    @apply mx-auto mt-1 flex w-full max-w-2xl flex-col justify-center gap-3 sm:flex-row;
   }
 
   .register-toggle-btn {
-    @apply min-h-11 w-full flex-1 justify-center px-3 text-center text-sm leading-snug;
+    @apply min-h-11 w-full flex-1 justify-center px-3 text-center text-sm leading-snug sm:max-w-none;
   }
 
   .register-checklist {

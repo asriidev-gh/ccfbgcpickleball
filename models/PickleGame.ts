@@ -1,4 +1,4 @@
-import { Schema, model, models } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const pickleGameSchema = new Schema(
   {
@@ -12,6 +12,7 @@ const pickleGameSchema = new Schema(
     },
     courtCount: { type: Number, required: true, min: 1 },
     expectedPlayers: { type: Number, required: true, min: 4 },
+    strictPlayerCount: { type: Boolean, required: true, default: false },
     registerUrl: { type: String, required: false },
     publicQrCodeDataUrl: { type: String, required: true },
     status: {
@@ -23,4 +24,8 @@ const pickleGameSchema = new Schema(
   { timestamps: true }
 );
 
-export const PickleGame = models.PickleGame || model("PickleGame", pickleGameSchema);
+if (mongoose.models.PickleGame) {
+  mongoose.deleteModel("PickleGame");
+}
+
+export const PickleGame = mongoose.model("PickleGame", pickleGameSchema);

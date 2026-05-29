@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberStepper } from "@/components/ui/number-stepper";
@@ -27,6 +28,7 @@ export function CreateGameWizard() {
     openPlayType: "Beginner",
     courtCount: 2,
     expectedPlayers: 24,
+    strictPlayerCount: false,
   });
 
   const submit = async () => {
@@ -69,8 +71,8 @@ export function CreateGameWizard() {
                   <Button
                     key={type}
                     variant={form.openPlayType === type ? "default" : "outline"}
-                    size="lg"
-                    className="min-h-16 w-full text-base"
+                    size="sm"
+                    className="min-h-12 w-full px-2 py-2.5 text-center text-sm leading-snug"
                     onClick={() => setForm((prev) => ({ ...prev, openPlayType: type }))}
                   >
                     {type}
@@ -94,19 +96,40 @@ export function CreateGameWizard() {
             </div>
           ) : null}
           {step === 3 ? (
-            <div className="mx-auto w-full max-w-md space-y-3">
-              <Label htmlFor="expectedPlayers" className="text-base">
-                How many players do you expect?
-              </Label>
-              <NumberStepper
-                id="expectedPlayers"
-                min={4}
-                max={300}
-                value={form.expectedPlayers}
-                onChange={(expectedPlayers) =>
-                  setForm((prev) => ({ ...prev, expectedPlayers }))
-                }
-              />
+            <div className="mx-auto w-full max-w-md space-y-4">
+              <div className="space-y-3">
+                <Label htmlFor="expectedPlayers" className="text-base">
+                  How many players do you expect?
+                </Label>
+                <NumberStepper
+                  id="expectedPlayers"
+                  min={4}
+                  max={300}
+                  value={form.expectedPlayers}
+                  onChange={(expectedPlayers) =>
+                    setForm((prev) => ({ ...prev, expectedPlayers }))
+                  }
+                />
+              </div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <Checkbox
+                  id="strictPlayerCount"
+                  checked={form.strictPlayerCount}
+                  onCheckedChange={(checked) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      strictPlayerCount: checked === true,
+                    }))
+                  }
+                />
+                <span className="space-y-1 leading-snug">
+                  <span className="block text-base font-medium">Strict Player Count</span>
+                  <span className="block text-sm text-muted-foreground">
+                    When enabled, registration stops at {form.expectedPlayers} players. When
+                    disabled, more players can still register.
+                  </span>
+                </span>
+              </label>
             </div>
           ) : null}
           {step === 4 ? (
