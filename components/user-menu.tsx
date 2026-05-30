@@ -24,10 +24,18 @@ export function UserMenu() {
     queryKey: ["auth-me"],
     queryFn: async () => {
       const response = await fetch("/api/auth/me");
+      const payload = (await response.json()) as {
+        user: { name: string; email: string; isSuperAdmin?: boolean } | null;
+        message?: string;
+      };
+      if (response.status === 403) {
+        toast.error(payload.message ?? "Your account has been blocked.");
+        router.push("/login");
+        router.refresh();
+        return null;
+      }
       if (!response.ok) return null;
-      return response.json() as Promise<{
-        user: { name: string; email: string; isSuperAdmin?: boolean };
-      }>;
+      return payload;
     },
   });
 

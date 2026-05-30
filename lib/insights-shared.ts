@@ -43,6 +43,7 @@ export type UserListItem = {
   registeredDevice: string | null;
   lastLoginAt: string | null;
   lastLoginDevice: string | null;
+  isBlocked: boolean;
 };
 
 export type UserOpenPlay = {

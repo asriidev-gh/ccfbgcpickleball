@@ -7,7 +7,9 @@ import {
   Gamepad2,
   LayoutGrid,
   Loader2,
+  Ban,
   ShieldCheck,
+  ShieldOff,
   Trash2,
   TrendingUp,
   Trophy,
@@ -350,6 +352,44 @@ function UserListPanel({ selection, onSelectFilter }: {
     },
   });
 
+  const blockMutation = useMutation({
+    mutationFn: async ({ id, blocked }: { id: string; blocked: boolean }) => {
+      const response = await fetch(`/api/insights/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blocked }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message);
+      return payload as { message: string };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+      queryClient.invalidateQueries({ queryKey: ["insights-users"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to update user.");
+    },
+  });
+
+  const handleBlockToggle = async (user: UserListItem) => {
+    const blocking = !user.isBlocked;
+    const result = await Swal.fire({
+      ...deleteAlertOptions,
+      title: blocking ? "Block user?" : "Unblock user?",
+      html: blocking
+        ? `<strong>${user.name}</strong> (${user.email}) will no longer be able to sign in.`
+        : `<strong>${user.name}</strong> (${user.email}) will be allowed to sign in again.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: blocking ? "Yes, block" : "Yes, unblock",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: blocking ? "#ef4444" : "#22c55e",
+    });
+    if (!result.isConfirmed) return;
+    blockMutation.mutate({ id: user.id, blocked: blocking });
+  };
+
   const handleDelete = async (user: UserListItem) => {
     const result = await Swal.fire({
       ...deleteAlertOptions,
@@ -425,8 +465,17 @@ function UserListPanel({ selection, onSelectFilter }: {
             </TableHeader>
             <TableBody>
               {data.users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
+                <TableRow key={user.id} className={user.isBlocked ? "opacity-70" : undefined}>
+                  <TableCell className="font-medium">
+                    <span className="inline-flex items-center gap-2">
+                      {user.name}
+                      {user.isBlocked ? (
+                        <Badge variant="destructive" className="text-[10px] uppercase">
+                          Blocked
+                        </Badge>
+                      ) : null}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{user.email}</TableCell>
                   <TableCell>
                     <Badge variant={user.userType === "ccf" ? "default" : "secondary"}>
@@ -465,21 +514,47 @@ function UserListPanel({ selection, onSelectFilter }: {
                     {formatDate(user.createdAt)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      aria-label={`Delete ${user.name}`}
-                      disabled={deleteMutation.isPending && deleteMutation.variables === user.id}
-                      onClick={() => handleDelete(user)}
-                    >
-                      {deleteMutation.isPending && deleteMutation.variables === user.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                      ) : (
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      )}
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "size-8",
+                          user.isBlocked
+                            ? "text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600"
+                            : "text-amber-600 hover:bg-amber-500/10 hover:text-amber-600",
+                        )}
+                        aria-label={user.isBlocked ? `Unblock ${user.name}` : `Block ${user.name}`}
+                        disabled={
+                          blockMutation.isPending && blockMutation.variables?.id === user.id
+                        }
+                        onClick={() => handleBlockToggle(user)}
+                      >
+                        {blockMutation.isPending && blockMutation.variables?.id === user.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        ) : user.isBlocked ? (
+                          <ShieldOff className="h-4 w-4" aria-hidden />
+                        ) : (
+                          <Ban className="h-4 w-4" aria-hidden />
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        aria-label={`Delete ${user.name}`}
+                        disabled={deleteMutation.isPending && deleteMutation.variables === user.id}
+                        onClick={() => handleDelete(user)}
+                      >
+                        {deleteMutation.isPending && deleteMutation.variables === user.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        ) : (
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        )}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

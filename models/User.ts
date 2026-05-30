@@ -16,6 +16,7 @@ const userSchema = new Schema(
     registeredDevice: { type: String, trim: true },
     lastLoginAt: { type: Date },
     lastLoginDevice: { type: String, trim: true },
+    isBlocked: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

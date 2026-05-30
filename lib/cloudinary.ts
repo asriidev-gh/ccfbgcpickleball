@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 
+import { GENERATED_AVATAR_PUBLIC_ID } from "@/lib/player-avatar-url";
 import {
   MAX_REGISTRATION_PHOTO_BYTES,
   REGISTRATION_PHOTO_ACCEPT_TYPES,
@@ -89,4 +90,34 @@ export async function uploadRegistrationPhoto(
     photoUrl: result.secure_url,
     photoPublicId: result.public_id,
   };
+}
+
+/** Removes uploaded registration images from Cloudinary (no-op if not configured). */
+export async function deleteRegistrationPhotos(publicIds: Iterable<string>) {
+  const config = getCloudinaryConfig();
+  if (!config) return;
+
+  const unique = [
+    ...new Set(
+      [...publicIds]
+        .map((id) => id.trim())
+        .filter((id) => id && id !== GENERATED_AVATAR_PUBLIC_ID),
+    ),
+  ];
+  if (unique.length === 0) return;
+
+  cloudinary.config(config);
+  await Promise.all(
+    unique.map(
+      (publicId) =>
+        new Promise<void>((resolve) => {
+          cloudinary.uploader.destroy(publicId, { resource_type: "image" }, (error) => {
+            if (error) {
+              console.error(`Cloudinary delete failed for ${publicId}:`, error);
+            }
+            resolve();
+          });
+        }),
+    ),
+  );
 }

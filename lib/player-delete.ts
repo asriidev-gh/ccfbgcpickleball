@@ -1,6 +1,8 @@
 import { Types } from "mongoose";
 
+import { deleteRegistrationPhotos } from "@/lib/cloudinary";
 import { connectToDatabase } from "@/lib/db";
+import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -32,6 +34,14 @@ export async function deletePlayerAndRelatedData(playerId: string): Promise<bool
   const playerObjectIds = await getSiblingPlayerIds(playerId);
   if (!playerObjectIds || playerObjectIds.length === 0) return false;
 
+  const siblingDocs = await Player.find({ _id: { $in: playerObjectIds } })
+    .select("photoUrl photoPublicId")
+    .lean<Array<{ photoUrl?: string; photoPublicId?: string }>>();
+
+  const cloudinaryPublicIds = siblingDocs
+    .filter((doc) => isUploadedPlayerPhoto(doc))
+    .map((doc) => doc.photoPublicId!.trim());
+
   const queueEntries = await QueueEntry.find({ playerId: { $in: playerObjectIds } }).select("_id");
   const queueEntryIds = queueEntries.map((entry) => entry._id);
 
@@ -58,6 +68,8 @@ export async function deletePlayerAndRelatedData(playerId: string): Promise<bool
     ),
     Player.deleteMany({ _id: { $in: playerObjectIds } }),
   ]);
+
+  await deleteRegistrationPhotos(cloudinaryPublicIds);
 
   return true;
 }

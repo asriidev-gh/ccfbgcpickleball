@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
+import { BLOCKED_LOGIN_MESSAGE, isUserBlocked } from "@/lib/user-block";
 import { recordUserLogin } from "@/lib/user-auth-audit";
 import { User } from "@/models/User";
 import { getAuthCookieName, signAuthToken } from "@/lib/auth";
@@ -15,6 +16,10 @@ export async function POST(request: Request) {
 
     const user = await User.findOne({ email });
     if (!user) return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
+
+    if (isUserBlocked(user)) {
+      return NextResponse.json({ message: BLOCKED_LOGIN_MESSAGE }, { status: 403 });
+    }
 
     if (!user.passwordHash) {
       return NextResponse.json(

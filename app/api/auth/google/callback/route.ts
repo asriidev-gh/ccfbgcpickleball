@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
 import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
+import { BLOCKED_LOGIN_MESSAGE, isUserBlocked } from "@/lib/user-block";
 import { getRegistrationDevice } from "@/lib/user-auth-audit";
 import { User } from "@/models/User";
 import {
@@ -85,6 +86,10 @@ export async function GET(request: Request) {
     const now = new Date();
 
     let user = await User.findOne({ $or: [{ googleId: profile.sub }, { email }] });
+    if (user && isUserBlocked(user)) {
+      return loginRedirect(BLOCKED_LOGIN_MESSAGE);
+    }
+
     if (!user) {
       user = await User.create({
         name: profile.name || email.split("@")[0],

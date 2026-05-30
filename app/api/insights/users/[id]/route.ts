@@ -27,6 +27,45 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   }
 }
 
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const authUser = await getAuthUserFromCookie();
+    if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+    if (!isSuperAdmin(authUser.email)) {
+      return NextResponse.json({ message: "Forbidden." }, { status: 403 });
+    }
+
+    const { id } = await params;
+    if (id === authUser.userId) {
+      return NextResponse.json({ message: "You can't block your own account." }, { status: 400 });
+    }
+
+    const body = await request.json();
+    if (typeof body?.blocked !== "boolean") {
+      return NextResponse.json({ message: "blocked (boolean) is required." }, { status: 400 });
+    }
+
+    await connectToDatabase();
+    const user = await User.findByIdAndUpdate(
+      id,
+      { $set: { isBlocked: body.blocked } },
+      { new: true },
+    ).select("name isBlocked");
+
+    if (!user) return NextResponse.json({ message: "User not found." }, { status: 404 });
+
+    return NextResponse.json({
+      message: body.blocked ? "User blocked." : "User unblocked.",
+      user: { id: user._id.toString(), name: user.name, isBlocked: user.isBlocked },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Failed to update user." },
+      { status: 400 },
+    );
+  }
+}
+
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authUser = await getAuthUserFromCookie();

@@ -1,6 +1,10 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 
+import { connectToDatabase } from "@/lib/db";
+import { isUserBlocked } from "@/lib/user-block";
+import { User } from "@/models/User";
+
 const AUTH_COOKIE = "ccf_auth";
 
 type AuthPayload = {
@@ -28,7 +32,11 @@ export async function getAuthUserFromCookie() {
   const token = cookieStore.get(AUTH_COOKIE)?.value;
   if (!token) return null;
   try {
-    return verifyAuthToken(token);
+    const payload = verifyAuthToken(token);
+    await connectToDatabase();
+    const user = await User.findById(payload.userId).select("isBlocked").lean();
+    if (!user || isUserBlocked(user)) return null;
+    return payload;
   } catch {
     return null;
   }
