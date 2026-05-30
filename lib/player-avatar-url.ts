@@ -42,7 +42,12 @@ export function getGeneratedAvatarUrl(seed: string, size = 256) {
 
 export const GENERATED_AVATAR_PUBLIC_ID = "generated";
 
-export function isUploadedPlayerPhoto(player: PlayerAvatarSeed) {
+export type PlayerPhotoSource = {
+  photoUrl?: string | null;
+  photoPublicId?: string | null;
+};
+
+export function isUploadedPlayerPhoto(player: PlayerPhotoSource) {
   const publicId = player.photoPublicId?.trim();
   if (!publicId || publicId === GENERATED_AVATAR_PUBLIC_ID) return false;
   return Boolean(player.photoUrl?.trim());
