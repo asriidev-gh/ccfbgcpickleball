@@ -15,6 +15,13 @@ export async function POST(request: Request) {
     const user = await User.findOne({ email });
     if (!user) return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
 
+    if (!user.passwordHash) {
+      return NextResponse.json(
+        { message: "This account uses Google sign-in. Please continue with Google." },
+        { status: 401 }
+      );
+    }
+
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
 
