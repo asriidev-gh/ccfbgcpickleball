@@ -1,7 +1,11 @@
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeftRight, CircleDot, Users } from "lucide-react";
+import { CircleDot, Shuffle, Users } from "lucide-react";
 
-import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import {
+  PlayerAvatar,
+  PlayerPhotoTrigger,
+  type PlayerPhotoRef,
+} from "@/components/game/player-avatar";
 import { capitalizeNameWords, formatPlayerDisplayName } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,10 +43,10 @@ function TeamPlayers({ players }: { players: PlayerRef[] }) {
             className="court-player-row flex items-center gap-2"
           >
             <PlayerAvatar player={player} />
-            <span className="court-player-name min-w-0 truncate">
+            <PlayerPhotoTrigger player={player} className="court-player-name min-w-0 truncate">
               <span className="court-player-name--first">{firstName || fullName}</span>
               <span className="court-player-name--full">{fullName}</span>
-            </span>
+            </PlayerPhotoTrigger>
           </li>
         );
       })}
@@ -113,12 +117,12 @@ export function CourtCard({
                     variant="outline"
                     size="icon"
                     className="court-swap-btn size-9 shrink-0"
-                    aria-label="Swap one player between Team A and Team B"
-                    title="Swap players across teams"
+                    aria-label="Shuffle players into new teams"
+                    title="Shuffle teams (re-roll until it looks right)"
                     disabled={swapPending}
                     onClick={onSwapTeams}
                   >
-                    <ArrowLeftRight className="h-4 w-4" />
+                    <Shuffle className="h-4 w-4" />
                   </Button>
                 ) : null}
                 <span className="court-vs" aria-hidden>

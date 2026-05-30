@@ -25,7 +25,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const payload = swapCourtTeamsSchema.parse({ ...body, gameId: id });
     await swapPlayersBetweenCourtTeams(payload);
 
-    return NextResponse.json({ message: "Swapped players between Team A and Team B." });
+    return NextResponse.json({ message: "Shuffled players into new teams." });
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to swap court players." },

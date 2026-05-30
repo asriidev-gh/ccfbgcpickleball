@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { isGameResetEnabled } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +95,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const gameId = params.id ?? "";
   const queryClient = useQueryClient();
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
+  const [pendingWinner, setPendingWinner] = useState<"A" | "B" | null>(null);
+  const [teamAScore, setTeamAScore] = useState("");
+  const [teamBScore, setTeamBScore] = useState("");
   const [showWaitingList, setShowWaitingList] = useState(true);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
@@ -137,19 +141,30 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     onError: (error) => toast.error(error.message),
   });
 
+  const closeEndDialog = () => {
+    setEndTargetCourt(null);
+    setPendingWinner(null);
+    setTeamAScore("");
+    setTeamBScore("");
+  };
+
   const endMutation = useMutation({
-    mutationFn: async (winnerTeam: "A" | "B") => {
+    mutationFn: async (input: {
+      winnerTeam: "A" | "B";
+      teamAScore?: number;
+      teamBScore?: number;
+    }) => {
       const response = await fetch(`/api/games/${gameId}/end`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courtNumber: endTargetCourt, winnerTeam }),
+        body: JSON.stringify({ courtNumber: endTargetCourt, ...input }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
       return data;
     },
     onSuccess: () => {
-      setEndTargetCourt(null);
+      closeEndDialog();
       toast.success("Game ended and queue updated.");
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
@@ -492,7 +507,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   court={court}
                   hideEndGame={hideControls}
                   onEndGame={
-                    hideControls ? () => {} : () => setEndTargetCourt(court.courtNumber)
+                    hideControls
+                      ? () => {}
+                      : () => {
+                          setPendingWinner(null);
+                          setTeamAScore("");
+                          setTeamBScore("");
+                          setEndTargetCourt(court.courtNumber);
+                        }
                   }
                   onSwapTeams={
                     hideControls ? undefined : () => swapCourtMutation.mutate(court.courtNumber)
@@ -515,7 +537,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             </p>
           </CardHeader>
           <CardContent>
-            <MatchHistoryList matches={matches} />
+            <MatchHistoryList matches={matches} gameId={gameId} editable={!hideControls} />
           </CardContent>
         </Card>
       </section>
@@ -531,31 +553,124 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       ) : null}
 
       {!readOnly ? (
-        <Dialog open={endTargetCourt !== null} onOpenChange={() => setEndTargetCourt(null)}>
+        <Dialog open={endTargetCourt !== null} onOpenChange={(open) => (!open ? closeEndDialog() : undefined)}>
           <DialogContent className="court-winner-dialog">
             <DialogHeader>
-              <DialogTitle>Who won on Court {endTargetCourt}?</DialogTitle>
+              <DialogTitle>
+                {pendingWinner
+                  ? `Team ${pendingWinner} won — add the score?`
+                  : `Who won on Court ${endTargetCourt}?`}
+              </DialogTitle>
             </DialogHeader>
-            <div className="court-winner-dialog-actions grid grid-cols-2 gap-3">
-              <Button
-                type="button"
-                size="lg"
-                variant="outline"
-                className="court-winner-btn"
-                onClick={() => endMutation.mutate("A")}
-              >
-                Team A won
-              </Button>
-              <Button
-                type="button"
-                size="lg"
-                variant="outline"
-                className="court-winner-btn"
-                onClick={() => endMutation.mutate("B")}
-              >
-                Team B won
-              </Button>
-            </div>
+
+            {pendingWinner === null ? (
+              <div className="court-winner-dialog-actions grid grid-cols-2 gap-3">
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  className="court-winner-btn"
+                  onClick={() => {
+                    setPendingWinner("A");
+                    setTeamAScore("11");
+                    setTeamBScore("0");
+                  }}
+                >
+                  Team A won
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  className="court-winner-btn"
+                  onClick={() => {
+                    setPendingWinner("B");
+                    setTeamBScore("11");
+                    setTeamAScore("0");
+                  }}
+                >
+                  Team B won
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <p className="text-sm text-muted-foreground">
+                  Scores are optional. Leave them blank to just record the win.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="team-a-score"
+                      className={cn(
+                        "text-sm font-medium",
+                        pendingWinner === "A" && "text-primary",
+                      )}
+                    >
+                      Team A{pendingWinner === "A" ? " (winner)" : ""}
+                    </label>
+                    <Input
+                      id="team-a-score"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      placeholder="—"
+                      value={teamAScore}
+                      onChange={(event) => setTeamAScore(event.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="team-b-score"
+                      className={cn(
+                        "text-sm font-medium",
+                        pendingWinner === "B" && "text-primary",
+                      )}
+                    >
+                      Team B{pendingWinner === "B" ? " (winner)" : ""}
+                    </label>
+                    <Input
+                      id="team-b-score"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      placeholder="—"
+                      value={teamBScore}
+                      onChange={(event) => setTeamBScore(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={endMutation.isPending}
+                    onClick={() => {
+                      setPendingWinner(null);
+                      setTeamAScore("");
+                      setTeamBScore("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={endMutation.isPending}
+                    onClick={() => {
+                      const a = teamAScore.trim();
+                      const b = teamBScore.trim();
+                      const hasAnyScore = a !== "" || b !== "";
+                      endMutation.mutate({
+                        winnerTeam: pendingWinner,
+                        teamAScore: hasAnyScore ? (a === "" ? 0 : Number(a)) : undefined,
+                        teamBScore: hasAnyScore ? (b === "" ? 0 : Number(b)) : undefined,
+                      });
+                    }}
+                  >
+                    {endMutation.isPending ? "Saving…" : "Confirm"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       ) : null}

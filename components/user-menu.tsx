@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CircleUser, LogOut } from "lucide-react";
+import { CircleUser, LogOut, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -25,7 +25,9 @@ export function UserMenu() {
     queryFn: async () => {
       const response = await fetch("/api/auth/me");
       if (!response.ok) return null;
-      return response.json() as Promise<{ user: { name: string; email: string } }>;
+      return response.json() as Promise<{
+        user: { name: string; email: string; isSuperAdmin?: boolean };
+      }>;
     },
   });
 
@@ -59,6 +61,16 @@ export function UserMenu() {
             </DropdownMenuLabel>
           </DropdownMenuGroup>
         ) : null}
+        {data?.user?.isSuperAdmin ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/insights")}>
+              <TrendingUp />
+              Insights
+            </DropdownMenuItem>
+          </>
+        ) : null}
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>
           <LogOut />
           Logout

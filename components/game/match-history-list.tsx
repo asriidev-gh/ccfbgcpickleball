@@ -1,30 +1,52 @@
 "use client";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, Trophy } from "lucide-react";
+import { ChevronDown, Clock, MapPin, Trophy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
-import { formatPlayerDisplayName } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { PlayerPhotoTrigger } from "@/components/game/player-avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { SimpleTooltip } from "@/components/ui/tooltip";
+import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
+import { cn, formatPlayerDisplayName } from "@/lib/utils";
+
+export type MatchHistoryPlayer = {
+  _id?: string;
+  firstName: string;
+  lastName: string;
+  photoUrl?: string | null;
+  photoPublicId?: string | null;
+  personalQrCode?: string;
+};
 
 export type MatchHistoryView = {
   _id: string;
   courtNumber: number;
-  teamAPlayerIds: { firstName: string; lastName: string }[];
-  teamBPlayerIds: { firstName: string; lastName: string }[];
+  teamAPlayerIds: MatchHistoryPlayer[];
+  teamBPlayerIds: MatchHistoryPlayer[];
   winnerTeam: "A" | "B";
+  teamAScore?: number | null;
+  teamBScore?: number | null;
   durationSeconds: number;
   endedAt: string;
 };
 
 const MATCH_HISTORY_PAGE_SIZE = 5;
 
-function formatPlayerNames(players: MatchHistoryView["teamAPlayerIds"]) {
-  if (!players.length) return "—";
-  return players
-    .map((p) => formatPlayerDisplayName(p.firstName, p.lastName))
-    .join(", ");
+function getInitials(firstName: string, lastName: string) {
+  const first = firstName.trim()[0] ?? "";
+  const last = lastName.trim()[0] ?? "";
+  return (first + last).toUpperCase() || "?";
 }
 
 function formatDuration(seconds: number) {
@@ -35,9 +57,139 @@ function formatDuration(seconds: number) {
   return remainder > 0 ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
 
-export function MatchHistoryList({ matches }: { matches: MatchHistoryView[] }) {
+function TeamPanel({
+  label,
+  players,
+  won,
+}: {
+  label: string;
+  players: MatchHistoryPlayer[];
+  won: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "match-history-team rounded-lg border p-2.5 transition-colors",
+        won ? "border-primary/40 bg-primary/5" : "border-border/60 bg-background/40",
+      )}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
+        {won ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
+            <Trophy className="h-3 w-3" aria-hidden />
+            Winner
+          </span>
+        ) : null}
+      </div>
+      <ul className="flex flex-col gap-1.5">
+        {players.length === 0 ? (
+          <li className="text-sm text-muted-foreground">—</li>
+        ) : (
+          players.map((player, index) => {
+            const name = formatPlayerDisplayName(player.firstName, player.lastName);
+            return (
+              <li key={player._id ?? `${name}-${index}`} className="flex items-center gap-2">
+                <PlayerPhotoTrigger player={player} className="shrink-0 rounded-full">
+                  <Avatar size="sm">
+                    <AvatarImage src={resolvePlayerPhotoUrl(player)} alt={`${name} avatar`} />
+                    <AvatarFallback>
+                      {getInitials(player.firstName, player.lastName)}
+                    </AvatarFallback>
+                  </Avatar>
+                </PlayerPhotoTrigger>
+                <PlayerPhotoTrigger player={player} className="min-w-0 flex-1">
+                  <span className="min-w-0 truncate text-sm font-medium">{name}</span>
+                </PlayerPhotoTrigger>
+              </li>
+            );
+          })
+        )}
+      </ul>
+    </div>
+  );
+}
+
+function ScoreContent({
+  match,
+  teamAWon,
+  hasScore,
+}: {
+  match: MatchHistoryView;
+  teamAWon: boolean;
+  hasScore: boolean;
+}) {
+  return (
+    <>
+      {hasScore ? (
+        <span className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-sm font-semibold tabular-nums">
+          <span className={cn(teamAWon && "text-primary")}>{match.teamAScore ?? 0}</span>
+          <span className="text-muted-foreground">–</span>
+          <span className={cn(!teamAWon && "text-primary")}>{match.teamBScore ?? 0}</span>
+        </span>
+      ) : null}
+      <span className="rounded-full border bg-background px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+        VS
+      </span>
+    </>
+  );
+}
+
+export function MatchHistoryList({
+  matches,
+  gameId,
+  editable = false,
+}: {
+  matches: MatchHistoryView[];
+  gameId?: string;
+  editable?: boolean;
+}) {
   const [visibleCount, setVisibleCount] = useState(MATCH_HISTORY_PAGE_SIZE);
   const prevMatchCount = useRef(matches.length);
+  const queryClient = useQueryClient();
+
+  const [editingMatch, setEditingMatch] = useState<MatchHistoryView | null>(null);
+  const [editTeamAScore, setEditTeamAScore] = useState("");
+  const [editTeamBScore, setEditTeamBScore] = useState("");
+
+  const canEdit = editable && Boolean(gameId);
+
+  const openEditScore = (match: MatchHistoryView) => {
+    setEditingMatch(match);
+    setEditTeamAScore(match.teamAScore != null ? String(match.teamAScore) : "0");
+    setEditTeamBScore(match.teamBScore != null ? String(match.teamBScore) : "0");
+  };
+
+  const closeEditScore = () => {
+    setEditingMatch(null);
+    setEditTeamAScore("");
+    setEditTeamBScore("");
+  };
+
+  const editScoreMutation = useMutation({
+    mutationFn: async (input: { matchId: string; teamAScore: number; teamBScore: number }) => {
+      const response = await fetch(`/api/games/${gameId}/matches/${input.matchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teamAScore: input.teamAScore,
+          teamBScore: input.teamBScore,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+      if (gameId) queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      closeEditScore();
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Failed to update score."),
+  });
 
   useEffect(() => {
     if (matches.length < prevMatchCount.current) {
@@ -59,56 +211,47 @@ export function MatchHistoryList({ matches }: { matches: MatchHistoryView[] }) {
   const hasMore = remaining > 0;
 
   return (
-    <div className="match-history-list space-y-2">
+    <div className="match-history-list space-y-2.5">
       {visibleMatches.map((match) => {
         const teamAWon = match.winnerTeam === "A";
+        const hasScore = match.teamAScore != null || match.teamBScore != null;
         return (
           <article
             key={match._id}
             className="match-history-item surface-muted rounded-xl border p-3"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="body-lg font-medium">Court {match.courtNumber}</span>
-                <Badge variant={teamAWon ? "default" : "outline"} className="match-history-winner-a">
-                  {teamAWon ? (
-                    <>
-                      <Trophy className="mr-1 h-3 w-3" />
-                      Team A won
-                    </>
-                  ) : (
-                    "Team A"
-                  )}
-                </Badge>
-                <span className="text-muted-foreground">vs</span>
-                <Badge variant={!teamAWon ? "default" : "outline"} className="match-history-winner-b">
-                  {!teamAWon ? (
-                    <>
-                      <Trophy className="mr-1 h-3 w-3" />
-                      Team B won
-                    </>
-                  ) : (
-                    "Team B"
-                  )}
-                </Badge>
-              </div>
-              <p className="caption shrink-0">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-sm font-semibold">
+                <MapPin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                Court {match.courtNumber}
+              </span>
+              <p className="caption flex shrink-0 items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                 {formatDuration(match.durationSeconds)}
-                <span className="mx-1.5 text-muted-foreground">·</span>
+                <span className="text-muted-foreground">·</span>
                 <span suppressHydrationWarning>
                   {formatDistanceToNow(new Date(match.endedAt), { addSuffix: true })}
                 </span>
               </p>
             </div>
-            <div className="mt-2 grid gap-1 sm:grid-cols-2">
-              <p className="caption">
-                <span className="font-medium text-foreground">Team A:</span>{" "}
-                {formatPlayerNames(match.teamAPlayerIds)}
-              </p>
-              <p className="caption">
-                <span className="font-medium text-foreground">Team B:</span>{" "}
-                {formatPlayerNames(match.teamBPlayerIds)}
-              </p>
+            <div className="mt-2.5 grid items-stretch gap-2 sm:grid-cols-[1fr_auto_1fr]">
+              <TeamPanel label="Team A" players={match.teamAPlayerIds} won={teamAWon} />
+              {canEdit ? (
+                <SimpleTooltip label="Click to edit the score">
+                  <button
+                    type="button"
+                    className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-1 outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => openEditScore(match)}
+                  >
+                    <ScoreContent match={match} teamAWon={teamAWon} hasScore={hasScore} />
+                  </button>
+                </SimpleTooltip>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <ScoreContent match={match} teamAWon={teamAWon} hasScore={hasScore} />
+                </div>
+              )}
+              <TeamPanel label="Team B" players={match.teamBPlayerIds} won={!teamAWon} />
             </div>
           </article>
         );
@@ -131,6 +274,86 @@ export function MatchHistoryList({ matches }: { matches: MatchHistoryView[] }) {
           </span>
         </Button>
       ) : null}
+
+      <Dialog
+        open={editingMatch !== null}
+        onOpenChange={(open) => (!open ? closeEditScore() : undefined)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingMatch ? `Edit score · Court ${editingMatch.courtNumber}` : "Edit score"}
+            </DialogTitle>
+          </DialogHeader>
+          {editingMatch ? (
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="edit-team-a-score"
+                    className={cn(
+                      "text-sm font-medium",
+                      editingMatch.winnerTeam === "A" && "text-primary",
+                    )}
+                  >
+                    Team A{editingMatch.winnerTeam === "A" ? " (winner)" : ""}
+                  </label>
+                  <Input
+                    id="edit-team-a-score"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={editTeamAScore}
+                    onChange={(event) => setEditTeamAScore(event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label
+                    htmlFor="edit-team-b-score"
+                    className={cn(
+                      "text-sm font-medium",
+                      editingMatch.winnerTeam === "B" && "text-primary",
+                    )}
+                  >
+                    Team B{editingMatch.winnerTeam === "B" ? " (winner)" : ""}
+                  </label>
+                  <Input
+                    id="edit-team-b-score"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={editTeamBScore}
+                    onChange={(event) => setEditTeamBScore(event.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={editScoreMutation.isPending}
+                  onClick={closeEditScore}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={editScoreMutation.isPending}
+                  onClick={() =>
+                    editScoreMutation.mutate({
+                      matchId: editingMatch._id,
+                      teamAScore: editTeamAScore.trim() === "" ? 0 : Number(editTeamAScore),
+                      teamBScore: editTeamBScore.trim() === "" ? 0 : Number(editTeamBScore),
+                    })
+                  }
+                >
+                  {editScoreMutation.isPending ? "Saving…" : "Save score"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

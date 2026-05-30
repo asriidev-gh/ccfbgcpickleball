@@ -13,7 +13,11 @@ import { cn } from "@/lib/utils";
 function RegisterBrandTitle({ pathname }: { pathname: string }) {
   const match = pathname.match(/^\/register\/([^/]+)(?:\/success)?\/?$/);
   if (!match) {
-    return <span className="app-brand">{APP_NAME}</span>;
+    return (
+      <Link href="/" className="app-brand app-brand--action">
+        {APP_NAME}
+      </Link>
+    );
   }
 
   const gameId = match[1];

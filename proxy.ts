@@ -9,7 +9,10 @@ export function proxy(request: NextRequest) {
   const isSpectatorLeaderboard =
     pathname.startsWith("/leaderboard/") && searchParams.get("from") === "spectator";
   const isProtectedRoute =
-    (pathname === "/" || pathname.startsWith("/games") || pathname.startsWith("/leaderboard")) &&
+    (pathname === "/" ||
+      pathname.startsWith("/games") ||
+      pathname.startsWith("/leaderboard") ||
+      pathname.startsWith("/insights")) &&
     !isSpectatorGameRoute &&
     !isSpectatorLeaderboard;
   const isAuthRoute = pathname.startsWith("/login");
@@ -27,5 +30,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/games/:path*", "/leaderboard/:path*", "/login"],
+  matcher: ["/", "/games/:path*", "/leaderboard/:path*", "/insights/:path*", "/login"],
 };

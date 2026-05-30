@@ -32,6 +32,29 @@ export async function startGameOnFirstAvailableCourt(gameId: string) {
   return court;
 }
 
+type CourtSlot = { playerId: Types.ObjectId; queueEntryId: Types.ObjectId };
+
+function shuffleSlots<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function teamKey(slots: CourtSlot[]): string {
+  return slots
+    .map((slot) => slot.playerId.toString())
+    .sort()
+    .join(",");
+}
+
+/**
+ * Randomly re-pairs everyone on a court into two new teams. Each call produces
+ * a different team composition than the current one (when possible), so the
+ * operator can keep re-rolling until the matchup looks right.
+ */
 export async function swapPlayersBetweenCourtTeams(input: {
   gameId: string;
   courtNumber: number;
@@ -44,34 +67,42 @@ export async function swapPlayersBetweenCourtTeams(input: {
   });
   if (!court) throw new Error("Active court not found.");
 
-  const slotIndex = input.slotIndex ?? 0;
+  const slots: CourtSlot[] = [
+    ...court.teamA.playerIds.map((playerId: Types.ObjectId, index: number) => ({
+      playerId,
+      queueEntryId: court.teamA.queueEntryIds[index],
+    })),
+    ...court.teamB.playerIds.map((playerId: Types.ObjectId, index: number) => ({
+      playerId,
+      queueEntryId: court.teamB.queueEntryIds[index],
+    })),
+  ];
 
-  const teamAPlayers = [...court.teamA.playerIds];
-  const teamBPlayers = [...court.teamB.playerIds];
-  const teamAEntries = [...court.teamA.queueEntryIds];
-  const teamBEntries = [...court.teamB.queueEntryIds];
-
-  if (
-    teamAPlayers.length <= slotIndex ||
-    teamBPlayers.length <= slotIndex ||
-    teamAEntries.length <= slotIndex ||
-    teamBEntries.length <= slotIndex
-  ) {
-    throw new Error("Both teams need a player in that position to swap.");
+  if (slots.length < 2) {
+    throw new Error("Not enough players on this court to shuffle.");
   }
 
-  const playerA = teamAPlayers[slotIndex];
-  const playerB = teamBPlayers[slotIndex];
-  const entryA = teamAEntries[slotIndex];
-  const entryB = teamBEntries[slotIndex];
+  const half = Math.floor(slots.length / 2);
+  const currentKey = teamKey(slots.slice(0, half));
 
-  teamAPlayers[slotIndex] = playerB;
-  teamBPlayers[slotIndex] = playerA;
-  teamAEntries[slotIndex] = entryB;
-  teamBEntries[slotIndex] = entryA;
+  // Re-roll until Team A's lineup actually changes (cap attempts as a safety net).
+  let shuffled = slots;
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    shuffled = shuffleSlots(slots);
+    if (teamKey(shuffled.slice(0, half)) !== currentKey) break;
+  }
 
-  court.teamA = { playerIds: teamAPlayers, queueEntryIds: teamAEntries };
-  court.teamB = { playerIds: teamBPlayers, queueEntryIds: teamBEntries };
+  const nextA = shuffled.slice(0, half);
+  const nextB = shuffled.slice(half);
+
+  court.teamA = {
+    playerIds: nextA.map((slot) => slot.playerId),
+    queueEntryIds: nextA.map((slot) => slot.queueEntryId),
+  };
+  court.teamB = {
+    playerIds: nextB.map((slot) => slot.playerId),
+    queueEntryIds: nextB.map((slot) => slot.queueEntryId),
+  };
   court.markModified("teamA");
   court.markModified("teamB");
   await court.save();
@@ -83,6 +114,8 @@ export async function endGameAndRequeue(input: {
   gameId: string;
   courtNumber: number;
   winnerTeam: "A" | "B";
+  teamAScore?: number;
+  teamBScore?: number;
 }) {
   const court = await Court.findOne({
     gameId: input.gameId,
@@ -128,6 +161,8 @@ export async function endGameAndRequeue(input: {
     teamBPlayerIds: court.teamB.playerIds,
     winnerTeam: input.winnerTeam,
     loserTeam: input.winnerTeam === "A" ? "B" : "A",
+    teamAScore: input.teamAScore ?? null,
+    teamBScore: input.teamBScore ?? null,
     durationSeconds: court.startedAt
       ? Math.floor((Date.now() - new Date(court.startedAt).getTime()) / 1000)
       : 0,

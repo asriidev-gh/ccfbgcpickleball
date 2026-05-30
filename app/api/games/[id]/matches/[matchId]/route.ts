@@ -1,0 +1,39 @@
+import { NextResponse } from "next/server";
+
+import { getAuthUserFromCookie } from "@/lib/auth";
+import { connectToDatabase } from "@/lib/db";
+import { editMatchScoreSchema } from "@/lib/validations";
+import { MatchHistory } from "@/models/MatchHistory";
+import { PickleGame } from "@/models/PickleGame";
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string; matchId: string }> },
+) {
+  try {
+    await connectToDatabase();
+    const authUser = await getAuthUserFromCookie();
+    if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+
+    const { id, matchId } = await params;
+    const game = await PickleGame.findOne({ gameId: id, ownerId: authUser.userId }).select("_id");
+    if (!game) return NextResponse.json({ message: "Game not found." }, { status: 404 });
+
+    const body = await request.json();
+    const { teamAScore, teamBScore } = editMatchScoreSchema.parse(body);
+
+    const match = await MatchHistory.findOneAndUpdate(
+      { _id: matchId, gameId: id },
+      { $set: { teamAScore, teamBScore } },
+      { new: true },
+    );
+    if (!match) return NextResponse.json({ message: "Match not found." }, { status: 404 });
+
+    return NextResponse.json({ message: "Score updated." });
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "Failed to update score." },
+      { status: 400 },
+    );
+  }
+}

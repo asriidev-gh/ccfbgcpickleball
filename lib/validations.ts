@@ -65,10 +65,17 @@ export const existingPlayerSchema = z.object({
   volunteerTypeOther: z.string().optional().default(""),
 });
 
+export const editMatchScoreSchema = z.object({
+  teamAScore: z.coerce.number().int().min(0).max(999),
+  teamBScore: z.coerce.number().int().min(0).max(999),
+});
+
 export const endGameSchema = z.object({
   gameId: z.string().min(4),
   courtNumber: z.coerce.number().int().min(1),
   winnerTeam: z.enum(["A", "B"]),
+  teamAScore: z.coerce.number().int().min(0).max(999).optional(),
+  teamBScore: z.coerce.number().int().min(0).max(999).optional(),
 });
 
 export const swapCourtTeamsSchema = z.object({

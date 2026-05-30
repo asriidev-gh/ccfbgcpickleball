@@ -1,0 +1,362 @@
+import { connectToDatabase } from "@/lib/db";
+import type {
+  PlayerListItem,
+  UserInsights,
+  UserListFilter,
+  UserListItem,
+  UserOpenPlays,
+} from "@/lib/insights-shared";
+import { PickleGame } from "@/models/PickleGame";
+import { Player } from "@/models/Player";
+import { QueueEntry } from "@/models/QueueEntry";
+import { User } from "@/models/User";
+
+export type { PlayerListItem, UserInsights, UserListFilter, UserListItem, UserOpenPlays };
+export { USER_FILTERS } from "@/lib/insights-shared";
+
+// Demo/test open plays generated in-app ("Test Open Play N") or by the seed
+// ("Demo Open Play") should be excluded from the user's "real" open play count.
+const DEMO_OPEN_PLAY_TITLE = /^(test|demo) open play/i;
+
+async function getOpenPlayCounts(
+  ownerIds: Array<{ toString(): string }>,
+): Promise<Map<string, number>> {
+  if (ownerIds.length === 0) return new Map();
+  const agg = (await PickleGame.aggregate([
+    {
+      $match: {
+        ownerId: { $in: ownerIds },
+        title: { $not: { $regex: DEMO_OPEN_PLAY_TITLE } },
+      },
+    },
+    { $group: { _id: "$ownerId", count: { $sum: 1 } } },
+  ])) as Array<{ _id: { toString(): string }; count: number }>;
+  return new Map(agg.map((row) => [row._id.toString(), row.count]));
+}
+
+function startOfDayDaysAgo(days: number): Date {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - days);
+  return date;
+}
+
+function buildLastSixMonths(): { key: string; label: string }[] {
+  const months: { key: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i -= 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const label = date.toLocaleString("en-US", { month: "short", year: "2-digit" });
+    months.push({ key, label });
+  }
+  return months;
+}
+
+function buildUserFilterQuery(filter: UserListFilter): Record<string, unknown> {
+  switch (filter) {
+    case "ccf":
+      return { userType: "ccf" };
+    case "default":
+      return { userType: "default" };
+    case "google":
+      return { googleId: { $exists: true, $ne: null } };
+    case "password":
+      return {
+        passwordHash: { $exists: true, $ne: null },
+        $or: [{ googleId: { $exists: false } }, { googleId: null }],
+      };
+    case "new7":
+      return { createdAt: { $gte: startOfDayDaysAgo(7) } };
+    case "new30":
+      return { createdAt: { $gte: startOfDayDaysAgo(30) } };
+    case "all":
+    default:
+      return {};
+  }
+}
+
+export async function getUsersList(
+  filter: UserListFilter = "all",
+  limit = 500,
+): Promise<UserListItem[]> {
+  await connectToDatabase();
+
+  const docs = await User.find(buildUserFilterQuery(filter))
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .select("name email userType googleId createdAt")
+    .lean();
+
+  return mapUserDocs(docs);
+}
+
+/** Maps Mongo user docs to the client-safe shape, including open play counts. */
+async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
+  const rows = docs as Array<{
+    _id: { toString(): string };
+    name: string;
+    email: string;
+    userType?: string;
+    googleId?: string | null;
+    createdAt?: Date;
+  }>;
+
+  const counts = await getOpenPlayCounts(rows.map((doc) => doc._id));
+
+  return rows.map((doc) => ({
+    id: doc._id.toString(),
+    name: doc.name,
+    email: doc.email,
+    userType: doc.userType ?? "default",
+    hasGoogle: Boolean(doc.googleId),
+    openPlayCount: counts.get(doc._id.toString()) ?? 0,
+    createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
+  }));
+}
+
+/** Returns users created within the given month (key formatted as YYYY-MM). */
+export async function getUsersByMonth(monthKey: string, limit = 500): Promise<UserListItem[]> {
+  await connectToDatabase();
+
+  const match = /^(\d{4})-(\d{2})$/.exec(monthKey);
+  if (!match) return [];
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const start = new Date(year, month, 1, 0, 0, 0, 0);
+  const end = new Date(year, month + 1, 1, 0, 0, 0, 0);
+
+  const docs = await User.find({ createdAt: { $gte: start, $lt: end } })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .select("name email userType googleId createdAt")
+    .lean();
+
+  return mapUserDocs(docs);
+}
+
+/** Lists the real (non-demo) open plays a user created, with player counts. */
+export async function getUserOpenPlays(userId: string): Promise<UserOpenPlays | null> {
+  await connectToDatabase();
+
+  const user = await User.findById(userId).select("name").lean<{ name?: string } | null>();
+  if (!user) return null;
+
+  const games = (await PickleGame.find({
+    ownerId: userId,
+    title: { $not: DEMO_OPEN_PLAY_TITLE },
+  })
+    .sort({ createdAt: -1 })
+    .select("gameId title status openPlayType courtCount createdAt")
+    .lean()) as Array<{
+    gameId: string;
+    title: string;
+    status?: string;
+    openPlayType?: string;
+    courtCount?: number;
+    createdAt?: Date;
+  }>;
+
+  const gameIds = games.map((g) => g.gameId);
+  const playerAgg = (await QueueEntry.aggregate([
+    { $match: { gameId: { $in: gameIds } } },
+    { $group: { _id: "$gameId", players: { $addToSet: "$playerId" } } },
+  ])) as Array<{ _id: string; players: unknown[] }>;
+  const playersByGame = new Map(playerAgg.map((row) => [row._id, row.players.length]));
+
+  return {
+    user: { id: userId, name: user.name ?? "Unknown" },
+    count: games.length,
+    games: games.map((g) => ({
+      gameId: g.gameId,
+      title: g.title,
+      status: g.status ?? "unknown",
+      openPlayType: g.openPlayType ?? "—",
+      courtCount: g.courtCount ?? 0,
+      playerCount: playersByGame.get(g.gameId) ?? 0,
+      createdAt: g.createdAt ? new Date(g.createdAt).toISOString() : null,
+    })),
+  };
+}
+
+export async function getPlayersList(limit = 500): Promise<PlayerListItem[]> {
+  await connectToDatabase();
+
+  // Same real person can have multiple Player docs (one per open play). Fetch
+  // all of them, then collapse by name + email so each person is one row.
+  const docs = (await Player.find({})
+    .sort({ createdAt: -1 })
+    .select("firstName lastName email mobileNumber createdAt")
+    .lean()) as Array<{
+    _id: { toString(): string };
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    mobileNumber?: string;
+    createdAt?: Date;
+  }>;
+
+  // Player.gamesPlayed is not maintained; derive the distinct open plays each
+  // Player doc joined from their queue entries.
+  const joinedAgg = (await QueueEntry.aggregate([
+    { $group: { _id: "$playerId", games: { $addToSet: "$gameId" } } },
+  ])) as Array<{ _id: { toString(): string }; games: string[] }>;
+
+  const gamesByPlayer = new Map(
+    joinedAgg.map((row) => [row._id?.toString(), row.games ?? []]),
+  );
+
+  type Group = {
+    id: string;
+    name: string;
+    email: string;
+    mobileNumber: string;
+    createdAt: Date | null;
+    games: Set<string>;
+  };
+  const groups = new Map<string, Group>();
+
+  for (const doc of docs) {
+    const name = `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim() || "—";
+    const email = doc.email ?? "—";
+    const key = `${name.toLowerCase()}|${email.toLowerCase()}`;
+
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        id: doc._id.toString(),
+        name,
+        email,
+        mobileNumber: doc.mobileNumber ?? "—",
+        createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
+        games: new Set<string>(),
+      };
+      groups.set(key, group);
+    }
+
+    for (const gameId of gamesByPlayer.get(doc._id.toString()) ?? []) {
+      group.games.add(gameId);
+    }
+    const created = doc.createdAt ? new Date(doc.createdAt) : null;
+    if (created && (!group.createdAt || created < group.createdAt)) {
+      group.createdAt = created;
+    }
+  }
+
+  return [...groups.values()]
+    .sort((a, b) => {
+      const at = a.createdAt ? a.createdAt.getTime() : 0;
+      const bt = b.createdAt ? b.createdAt.getTime() : 0;
+      return bt - at;
+    })
+    .slice(0, limit)
+    .map((group) => ({
+      id: group.id,
+      name: group.name,
+      email: group.email,
+      mobileNumber: group.mobileNumber,
+      gamesPlayed: group.games.size,
+      createdAt: group.createdAt ? group.createdAt.toISOString() : null,
+    }));
+}
+
+export async function getUserInsights(): Promise<UserInsights> {
+  await connectToDatabase();
+
+  const last7 = startOfDayDaysAgo(7);
+  const last30 = startOfDayDaysAgo(30);
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+  sixMonthsAgo.setDate(1);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
+
+  const [
+    totalUsers,
+    ccfUsers,
+    defaultUsers,
+    googleLinked,
+    passwordOnly,
+    newLast7Days,
+    newLast30Days,
+    totalGames,
+    activeGames,
+    endedGames,
+    playersRegistered,
+    queueEntries,
+    signupAgg,
+    topOwnersAgg,
+  ] = await Promise.all([
+    User.countDocuments({}),
+    User.countDocuments({ userType: "ccf" }),
+    User.countDocuments({ userType: "default" }),
+    User.countDocuments({ googleId: { $exists: true, $ne: null } }),
+    User.countDocuments({
+      passwordHash: { $exists: true, $ne: null },
+      $or: [{ googleId: { $exists: false } }, { googleId: null }],
+    }),
+    User.countDocuments({ createdAt: { $gte: last7 } }),
+    User.countDocuments({ createdAt: { $gte: last30 } }),
+    PickleGame.countDocuments({}),
+    PickleGame.countDocuments({ status: { $ne: "ended" } }),
+    PickleGame.countDocuments({ status: "ended" }),
+    Player.countDocuments({}),
+    QueueEntry.countDocuments({}),
+    User.aggregate([
+      { $match: { createdAt: { $gte: sixMonthsAgo } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    PickleGame.aggregate([
+      { $group: { _id: "$ownerId", games: { $sum: 1 } } },
+      { $sort: { games: -1 } },
+      { $limit: 5 },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "owner",
+        },
+      },
+      { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          games: 1,
+          name: { $ifNull: ["$owner.name", "Unknown"] },
+          email: { $ifNull: ["$owner.email", "—"] },
+        },
+      },
+    ]),
+  ]);
+
+  const signupCounts = new Map<string, number>(
+    (signupAgg as { _id: string; count: number }[]).map((row) => [row._id, row.count]),
+  );
+  const signupsByMonth = buildLastSixMonths().map((month) => ({
+    key: month.key,
+    label: month.label,
+    count: signupCounts.get(month.key) ?? 0,
+  }));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    users: {
+      total: totalUsers,
+      ccf: ccfUsers,
+      default: defaultUsers,
+      googleLinked,
+      passwordOnly,
+      newLast7Days,
+      newLast30Days,
+    },
+    signupsByMonth,
+    games: { total: totalGames, active: activeGames, ended: endedGames },
+    activity: { playersRegistered, queueEntries },
+    topOwners: topOwnersAgg as { name: string; email: string; games: number }[],
+  };
+}
