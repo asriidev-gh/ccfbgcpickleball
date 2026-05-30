@@ -4,7 +4,10 @@ const userSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    passwordHash: { type: String, required: true },
+    // Optional: Google-only accounts won't have a local password.
+    passwordHash: { type: String },
+    googleId: { type: String, index: true, sparse: true },
+    image: { type: String },
     userType: {
       type: String,
       enum: ["default", "ccf"],

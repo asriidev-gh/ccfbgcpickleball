@@ -37,3 +37,31 @@ export async function getAuthUserFromCookie() {
 export function getAuthCookieName() {
   return AUTH_COOKIE;
 }
+
+export const GOOGLE_OAUTH_STATE_COOKIE = "ccf_google_state";
+
+export function getGoogleOAuthConfig() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      "Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your environment."
+    );
+  }
+  return { clientId, clientSecret };
+}
+
+export function isGoogleOAuthConfigured() {
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+}
+
+/**
+ * Builds the OAuth callback URL from the incoming request origin so it stays
+ * consistent across the start and callback routes. An explicit
+ * GOOGLE_REDIRECT_URI env var takes precedence when set.
+ */
+export function getGoogleRedirectUri(requestUrl: string) {
+  if (process.env.GOOGLE_REDIRECT_URI) return process.env.GOOGLE_REDIRECT_URI;
+  const origin = new URL(requestUrl).origin;
+  return `${origin}/api/auth/google/callback`;
+}
