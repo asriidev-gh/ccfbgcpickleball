@@ -10,6 +10,7 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import { AppBrandBar } from "@/components/app-brand-bar";
+import { AppFooter } from "@/components/app-footer";
 import { Providers } from "@/components/providers";
 import { APP_NAME } from "@/lib/app-config";
 
@@ -79,7 +80,8 @@ export default function RootLayout({
           <Suspense fallback={null}>
             <AppBrandBar />
           </Suspense>
-          {children}
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+          <AppFooter />
         </Providers>
       </body>
     </html>

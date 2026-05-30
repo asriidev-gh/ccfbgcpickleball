@@ -14,12 +14,13 @@ import {
   Trash2,
   TrendingUp,
   Trophy,
+  Search,
   UserPlus,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
 
@@ -35,6 +36,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -227,6 +229,15 @@ function SignupsBarGraph({
   );
 }
 
+function matchesInsightsNameFilter(
+  query: string,
+  ...values: (string | null | undefined)[]
+) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return values.some((value) => value?.toLowerCase().includes(normalized));
+}
+
 function formatDate(value: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleString("en-US", {
@@ -335,6 +346,7 @@ function UserListPanel({ selection, onSelectFilter }: {
 }) {
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<UserOpenPlaysSelection | null>(null);
+  const [nameFilter, setNameFilter] = useState("");
 
   const queryUrl =
     selection.type === "month"
@@ -423,14 +435,40 @@ function UserListPanel({ selection, onSelectFilter }: {
     deleteMutation.mutate(user.id);
   };
 
+  const users = data?.users ?? [];
+  const filteredUsers = useMemo(
+    () =>
+      users.filter((user) => matchesInsightsNameFilter(nameFilter, user.name, user.email)),
+    [users, nameFilter],
+  );
+  const nameQuery = nameFilter.trim();
+  const userCountLabel =
+    nameQuery && users.length > 0
+      ? `${filteredUsers.length} of ${users.length}`
+      : String(users.length);
+
   return (
     <Card className="glass-panel">
       <CardHeader className="gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle className="section-title text-xl">User List</CardTitle>
           <Badge variant="secondary" className="tabular-nums">
-            {data?.count ?? 0} {data?.count === 1 ? "user" : "users"}
+            {userCountLabel} {filteredUsers.length === 1 ? "user" : "users"}
           </Badge>
+        </div>
+        <div className="relative max-w-md">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            value={nameFilter}
+            onChange={(event) => setNameFilter(event.target.value)}
+            placeholder="Filter by name or email…"
+            className="pl-9"
+            aria-label="Filter users by name or email"
+          />
         </div>
         <div className="flex flex-wrap gap-2">
           {USER_FILTERS.map((option) => (
@@ -464,8 +502,10 @@ function UserListPanel({ selection, onSelectFilter }: {
           </p>
         ) : isError ? (
           <p className="py-6 text-destructive">Failed to load users.</p>
-        ) : !data || data.users.length === 0 ? (
+        ) : users.length === 0 ? (
           <p className="py-6 text-muted-foreground">No users match this filter.</p>
+        ) : filteredUsers.length === 0 ? (
+          <p className="py-6 text-muted-foreground">No users match your search.</p>
         ) : (
           <Table className="text-sm">
             <TableHeader>
@@ -488,7 +528,7 @@ function UserListPanel({ selection, onSelectFilter }: {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.users.map((user) => (
+              {filteredUsers.map((user) => (
                 <TableRow key={user.id} className={user.isBlocked ? "opacity-70" : undefined}>
                   <TableCell className="font-medium">
                     <span className="inline-flex items-center gap-2">
@@ -711,6 +751,7 @@ function PlayersPanel() {
   const queryClient = useQueryClient();
   const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; name: string } | null>(null);
   const [realPlayersOnly, setRealPlayersOnly] = useState(true);
+  const [nameFilter, setNameFilter] = useState("");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["insights-players", realPlayersOnly],
@@ -754,16 +795,50 @@ function PlayersPanel() {
     deleteMutation.mutate(player.id);
   };
 
+  const players = data?.players ?? [];
+  const filteredPlayers = useMemo(
+    () =>
+      players.filter((player) =>
+        matchesInsightsNameFilter(
+          nameFilter,
+          player.name,
+          player.firstName,
+          player.lastName,
+          player.email,
+        ),
+      ),
+    [players, nameFilter],
+  );
+  const nameQuery = nameFilter.trim();
+  const playerCountLabel =
+    nameQuery && players.length > 0
+      ? `${filteredPlayers.length} of ${players.length}`
+      : String(players.length);
+
   return (
     <Card className="glass-panel">
-      <CardHeader>
+      <CardHeader className="gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle className="section-title text-xl">Players Registered</CardTitle>
           <Badge variant="secondary" className="tabular-nums">
-            {data?.count ?? 0} {data?.count === 1 ? "player" : "players"}
+            {playerCountLabel} {filteredPlayers.length === 1 ? "player" : "players"}
           </Badge>
         </div>
-        <label className="flex cursor-pointer items-center gap-2.5 pt-1">
+        <div className="relative max-w-md">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            value={nameFilter}
+            onChange={(event) => setNameFilter(event.target.value)}
+            placeholder="Filter by name or email…"
+            className="pl-9"
+            aria-label="Filter players by name or email"
+          />
+        </div>
+        <label className="flex cursor-pointer items-center gap-2.5">
           <Checkbox
             checked={realPlayersOnly}
             onCheckedChange={(checked) => setRealPlayersOnly(checked === true)}
@@ -779,12 +854,14 @@ function PlayersPanel() {
           </p>
         ) : isError ? (
           <p className="py-6 text-destructive">Failed to load players.</p>
-        ) : !data || data.players.length === 0 ? (
+        ) : players.length === 0 ? (
           <p className="py-6 text-muted-foreground">
             {realPlayersOnly
               ? "No real players registered yet (demo players are hidden)."
               : "No players registered yet."}
           </p>
+        ) : filteredPlayers.length === 0 ? (
+          <p className="py-6 text-muted-foreground">No players match your search.</p>
         ) : (
           <Table className="text-sm">
             <TableHeader>
@@ -798,7 +875,7 @@ function PlayersPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.players.map((player) => (
+              {filteredPlayers.map((player) => (
                 <TableRow key={player.id}>
                   <TableCell>
                     <div className="flex items-center gap-2.5">
