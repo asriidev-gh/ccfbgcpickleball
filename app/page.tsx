@@ -440,10 +440,12 @@ function HomeInner() {
       const response = await fetch("/api/games");
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message);
-      return payload as { games: GameCard[] };
+      return payload as { games: GameCard[]; hasDemoOpenPlay: boolean };
     },
     refetchInterval: 5000,
   });
+
+  const hasDemoOpenPlay = Boolean(data?.hasDemoOpenPlay);
 
   const generateTestGameMutation = useMutation({
     mutationFn: async () => {
@@ -519,25 +521,27 @@ function HomeInner() {
               <Plus className="mr-2 h-5 w-5" />
               Create Open Play Session
             </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="min-w-44"
-              disabled={generateTestGameMutation.isPending}
-              onClick={handleGenerateDemo}
-            >
-              {generateTestGameMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Creating…
-                </>
-              ) : (
-                <>
-                  <FlaskConical className="mr-2 h-5 w-5" />
-                  Create Demo Open Play
-                </>
-              )}
-            </Button>
+            {!hasDemoOpenPlay ? (
+              <Button
+                size="lg"
+                variant="outline"
+                className="min-w-44"
+                disabled={generateTestGameMutation.isPending}
+                onClick={handleGenerateDemo}
+              >
+                {generateTestGameMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Creating…
+                  </>
+                ) : (
+                  <>
+                    <FlaskConical className="mr-2 h-5 w-5" />
+                    Create Demo Open Play
+                  </>
+                )}
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
 

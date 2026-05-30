@@ -1,3 +1,4 @@
+import { DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
 import { connectToDatabase } from "@/lib/db";
 import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import type {
@@ -15,10 +16,6 @@ import { User } from "@/models/User";
 export type { PlayerListItem, UserInsights, UserListFilter, UserListItem, UserOpenPlays };
 export { USER_FILTERS } from "@/lib/insights-shared";
 
-// Demo/test open plays generated in-app ("Test Open Play N") or by the seed
-// ("Demo Open Play") should be excluded from the user's "real" open play count.
-const DEMO_OPEN_PLAY_TITLE = /^(test|demo) open play/i;
-
 // Players created for demo open plays use these QR code prefixes.
 const DEMO_PLAYER_QR_PREFIX = /^P-(test|demo)-/i;
 
@@ -31,13 +28,17 @@ async function getDemoGameIds(): Promise<Set<string>> {
 
 async function getOpenPlayCounts(
   ownerIds: Array<{ toString(): string }>,
+  demoOnly: boolean,
 ): Promise<Map<string, number>> {
   if (ownerIds.length === 0) return new Map();
+  const titleMatch = demoOnly
+    ? { title: { $regex: DEMO_OPEN_PLAY_TITLE } }
+    : { title: { $not: { $regex: DEMO_OPEN_PLAY_TITLE } } };
   const agg = (await PickleGame.aggregate([
     {
       $match: {
         ownerId: { $in: ownerIds },
-        title: { $not: { $regex: DEMO_OPEN_PLAY_TITLE } },
+        ...titleMatch,
       },
     },
     { $group: { _id: "$ownerId", count: { $sum: 1 } } },
@@ -119,7 +120,11 @@ async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
     isBlocked?: boolean;
   }>;
 
-  const counts = await getOpenPlayCounts(rows.map((doc) => doc._id));
+  const ownerIds = rows.map((doc) => doc._id);
+  const [counts, demoCounts] = await Promise.all([
+    getOpenPlayCounts(ownerIds, false),
+    getOpenPlayCounts(ownerIds, true),
+  ]);
 
   return rows.map((doc) => ({
     id: doc._id.toString(),
@@ -128,6 +133,7 @@ async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
     userType: doc.userType ?? "default",
     hasGoogle: Boolean(doc.googleId),
     openPlayCount: counts.get(doc._id.toString()) ?? 0,
+    demoOpenPlayCount: demoCounts.get(doc._id.toString()) ?? 0,
     createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
     registeredDevice: doc.registeredDevice?.trim() || null,
     lastLoginAt: doc.lastLoginAt ? new Date(doc.lastLoginAt).toISOString() : null,
@@ -158,17 +164,16 @@ export async function getUsersByMonth(monthKey: string, limit = 500): Promise<Us
   return mapUserDocs(docs);
 }
 
-/** Lists the real (non-demo) open plays a user created, with player counts. */
-export async function getUserOpenPlays(userId: string): Promise<UserOpenPlays | null> {
-  await connectToDatabase();
+async function buildUserOpenPlaysList(
+  userId: string,
+  userName: string,
+  demoOnly: boolean,
+): Promise<UserOpenPlays> {
+  const titleFilter = demoOnly
+    ? { title: { $regex: DEMO_OPEN_PLAY_TITLE } }
+    : { title: { $not: DEMO_OPEN_PLAY_TITLE } };
 
-  const user = await User.findById(userId).select("name").lean<{ name?: string } | null>();
-  if (!user) return null;
-
-  const games = (await PickleGame.find({
-    ownerId: userId,
-    title: { $not: DEMO_OPEN_PLAY_TITLE },
-  })
+  const games = (await PickleGame.find({ ownerId: userId, ...titleFilter })
     .sort({ createdAt: -1 })
     .select("gameId title status openPlayType courtCount createdAt")
     .lean()) as Array<{
@@ -181,14 +186,17 @@ export async function getUserOpenPlays(userId: string): Promise<UserOpenPlays | 
   }>;
 
   const gameIds = games.map((g) => g.gameId);
-  const playerAgg = (await QueueEntry.aggregate([
-    { $match: { gameId: { $in: gameIds } } },
-    { $group: { _id: "$gameId", players: { $addToSet: "$playerId" } } },
-  ])) as Array<{ _id: string; players: unknown[] }>;
+  const playerAgg =
+    gameIds.length === 0
+      ? []
+      : ((await QueueEntry.aggregate([
+          { $match: { gameId: { $in: gameIds } } },
+          { $group: { _id: "$gameId", players: { $addToSet: "$playerId" } } },
+        ])) as Array<{ _id: string; players: unknown[] }>);
   const playersByGame = new Map(playerAgg.map((row) => [row._id, row.players.length]));
 
   return {
-    user: { id: userId, name: user.name ?? "Unknown" },
+    user: { id: userId, name: userName },
     count: games.length,
     games: games.map((g) => ({
       gameId: g.gameId,
@@ -200,6 +208,26 @@ export async function getUserOpenPlays(userId: string): Promise<UserOpenPlays | 
       createdAt: g.createdAt ? new Date(g.createdAt).toISOString() : null,
     })),
   };
+}
+
+/** Lists the real (non-demo) open plays a user created, with player counts. */
+export async function getUserOpenPlays(userId: string): Promise<UserOpenPlays | null> {
+  await connectToDatabase();
+
+  const user = await User.findById(userId).select("name").lean<{ name?: string } | null>();
+  if (!user) return null;
+
+  return buildUserOpenPlaysList(userId, user.name ?? "Unknown", false);
+}
+
+/** Lists demo/test open plays a user created, with player counts. */
+export async function getUserDemoOpenPlays(userId: string): Promise<UserOpenPlays | null> {
+  await connectToDatabase();
+
+  const user = await User.findById(userId).select("name").lean<{ name?: string } | null>();
+  if (!user) return null;
+
+  return buildUserOpenPlaysList(userId, user.name ?? "Unknown", true);
 }
 
 /** Distinct real players (grouped by name + email), excluding demo-generated records. */

@@ -39,6 +39,7 @@ export type UserListItem = {
   userType: string;
   hasGoogle: boolean;
   openPlayCount: number;
+  demoOpenPlayCount: number;
   createdAt: string | null;
   registeredDevice: string | null;
   lastLoginAt: string | null;

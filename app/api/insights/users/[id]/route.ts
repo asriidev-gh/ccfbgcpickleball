@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
-import { getUserOpenPlays } from "@/lib/insights";
+import { getUserDemoOpenPlays, getUserOpenPlays } from "@/lib/insights";
 import { isSuperAdmin } from "@/lib/superadmin";
 import { User } from "@/models/User";
 
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
@@ -15,7 +15,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     }
 
     const { id } = await params;
-    const openPlays = await getUserOpenPlays(id);
+    const demoOnly =
+      new URL(request.url).searchParams.get("demo") === "1" ||
+      new URL(request.url).searchParams.get("demo") === "true";
+    const openPlays = demoOnly ? await getUserDemoOpenPlays(id) : await getUserOpenPlays(id);
     if (!openPlays) return NextResponse.json({ message: "User not found." }, { status: 404 });
 
     return NextResponse.json(openPlays);

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Award,
   CalendarPlus,
+  FlaskConical,
   Gamepad2,
   LayoutGrid,
   Loader2,
@@ -237,18 +238,28 @@ function formatDate(value: string | null) {
   });
 }
 
+type UserOpenPlaysSelection = {
+  id: string;
+  name: string;
+  variant: "real" | "demo";
+};
+
 function UserOpenPlaysDialog({
   user,
   onClose,
 }: {
-  user: { id: string; name: string } | null;
+  user: UserOpenPlaysSelection | null;
   onClose: () => void;
 }) {
+  const isDemo = user?.variant === "demo";
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["user-open-plays", user?.id],
+    queryKey: ["user-open-plays", user?.id, user?.variant],
     enabled: Boolean(user),
     queryFn: async () => {
-      const response = await fetch(`/api/insights/users/${user!.id}`);
+      const url = isDemo
+        ? `/api/insights/users/${user!.id}?demo=1`
+        : `/api/insights/users/${user!.id}`;
+      const response = await fetch(url);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message);
       return payload as UserOpenPlays;
@@ -259,9 +270,13 @@ function UserOpenPlaysDialog({
     <Dialog open={Boolean(user)} onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{user?.name ?? "User"} · Open plays created</DialogTitle>
+          <DialogTitle>
+            {user?.name ?? "User"} · {isDemo ? "Demo open plays" : "Open plays created"}
+          </DialogTitle>
           <DialogDescription>
-            Open plays this user created (demo open plays excluded).
+            {isDemo
+              ? 'Test and demo open plays (titles like "Test Open Play" or "Demo Open Play").'
+              : "Open plays this user created (demo open plays excluded)."}
           </DialogDescription>
         </DialogHeader>
 
@@ -274,7 +289,11 @@ function UserOpenPlaysDialog({
           ) : isError ? (
             <p className="py-6 text-destructive">Failed to load open plays.</p>
           ) : !data || data.games.length === 0 ? (
-            <p className="py-6 text-muted-foreground">This user hasn&apos;t created any open plays yet.</p>
+            <p className="py-6 text-muted-foreground">
+              {isDemo
+                ? "This user hasn&apos;t created any demo open plays yet."
+                : "This user hasn&apos;t created any open plays yet."}
+            </p>
           ) : (
             <ul className="flex flex-col gap-3">
               {data.games.map((game) => (
@@ -315,7 +334,7 @@ function UserListPanel({ selection, onSelectFilter }: {
   onSelectFilter: (filter: UserListFilter) => void;
 }) {
   const queryClient = useQueryClient();
-  const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserOpenPlaysSelection | null>(null);
 
   const queryUrl =
     selection.type === "month"
@@ -458,7 +477,12 @@ function UserListPanel({ selection, onSelectFilter }: {
                 <TableHead>Registered on</TableHead>
                 <TableHead>Last login</TableHead>
                 <TableHead>Last device</TableHead>
-                <TableHead className="text-right">Open Play Count</TableHead>
+                <TableHead className="text-right">
+                  <span className="block">Open Plays</span>
+                  <span className="block text-[10px] font-normal normal-case text-muted-foreground">
+                    real · demo
+                  </span>
+                </TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -495,20 +519,49 @@ function UserListPanel({ selection, onSelectFilter }: {
                     {user.lastLoginDevice ?? "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {user.openPlayCount > 0 ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="ml-auto h-8 gap-1.5 px-2 font-medium text-primary hover:text-primary"
-                        onClick={() => setSelectedUser({ id: user.id, name: user.name })}
-                      >
-                        <Gamepad2 className="h-3.5 w-3.5" aria-hidden />
-                        {user.openPlayCount}
-                      </Button>
-                    ) : (
-                      <span className="text-muted-foreground">0</span>
-                    )}
+                    <div className="ml-auto flex items-center justify-end gap-1.5">
+                      {user.openPlayCount > 0 ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 gap-1.5 px-2 font-medium text-primary hover:text-primary"
+                          title="Real open plays"
+                          onClick={() =>
+                            setSelectedUser({ id: user.id, name: user.name, variant: "real" })
+                          }
+                        >
+                          <Gamepad2 className="h-3.5 w-3.5" aria-hidden />
+                          {user.openPlayCount}
+                        </Button>
+                      ) : (
+                        <span className="min-w-[1.25rem] text-muted-foreground" title="Real open plays">
+                          0
+                        </span>
+                      )}
+                      <span className="text-muted-foreground/60" aria-hidden>
+                        ·
+                      </span>
+                      {user.demoOpenPlayCount > 0 ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 gap-1.5 px-2 font-medium text-amber-600 hover:text-amber-600"
+                          title="Demo open plays"
+                          onClick={() =>
+                            setSelectedUser({ id: user.id, name: user.name, variant: "demo" })
+                          }
+                        >
+                          <FlaskConical className="h-3.5 w-3.5" aria-hidden />
+                          {user.demoOpenPlayCount}
+                        </Button>
+                      ) : (
+                        <span className="min-w-[1.25rem] text-muted-foreground" title="Demo open plays">
+                          0
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground" suppressHydrationWarning>
                     {formatDate(user.createdAt)}

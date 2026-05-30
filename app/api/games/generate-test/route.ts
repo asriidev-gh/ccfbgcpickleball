@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
+import { DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { createTestGame } from "@/lib/test-game";
 import { PickleGame } from "@/models/PickleGame";
 
-const TEST_GAME_TITLE_BASE = "Test Open Play";
+const DEMO_OPEN_PLAY_TITLE_LABEL = "Test Open Play 1";
 
 export async function POST() {
   try {
@@ -13,20 +14,24 @@ export async function POST() {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
-    const existing = await PickleGame.find({
+    const existingDemo = await PickleGame.findOne({
       ownerId: authUser.userId,
-      title: { $regex: `^${TEST_GAME_TITLE_BASE} \\d+$` },
-    }).select("title");
+      title: { $regex: DEMO_OPEN_PLAY_TITLE },
+    }).select("gameId title");
 
-    const highest = existing.reduce((max: number, doc: { title: string }) => {
-      const match = doc.title.match(/(\d+)$/);
-      const value = match ? Number(match[1]) : 0;
-      return value > max ? value : max;
-    }, 0);
+    if (existingDemo) {
+      return NextResponse.json(
+        {
+          message:
+            "You already have a demo open play. Delete it from your games list before creating another.",
+        },
+        { status: 400 },
+      );
+    }
 
     const { game, playerCount } = await createTestGame({
       ownerId: authUser.userId,
-      title: `${TEST_GAME_TITLE_BASE} ${highest + 1}`,
+      title: DEMO_OPEN_PLAY_TITLE_LABEL,
       courtCount: 2,
       playerCount: 18,
     });
