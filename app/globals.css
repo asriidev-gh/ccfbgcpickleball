@@ -785,11 +785,21 @@
   }
 
   .login-page {
-    @apply bg-background;
+    background-image: url("/assets/images/login_logo.jpeg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
   }
 
-  .login-logo {
-    @apply drop-shadow-[0_4px_24px_rgba(0,0,0,0.35)];
+  .login-page::before {
+    content: "";
+    @apply pointer-events-none absolute inset-0 z-0 bg-black/45;
+  }
+
+  .login-page .glass-panel {
+    @apply border-white/20 backdrop-blur-md;
+    background-color: rgb(0 0 0 / 0.5) !important;
+    box-shadow: 0 8px 32px rgb(0 0 0 / 0.2);
   }
 
   .login-video-intro {

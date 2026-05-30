@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -10,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { APP_NAME } from "@/lib/app-config";
 import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
@@ -69,19 +67,11 @@ function LoginForm() {
         className={cn(
           "relative z-10 flex w-full max-w-md flex-col items-center gap-6 transition-all duration-700 ease-out",
           introDone
-            ? "translate-y-0 opacity-100"
+            ? "-translate-y-[60px] opacity-100"
             : "pointer-events-none translate-y-4 opacity-0",
         )}
         aria-hidden={!introDone}
       >
-        <Image
-          src="/assets/images/login_logo.jpeg"
-          alt={APP_NAME}
-          width={2752}
-          height={1536}
-          priority
-          className="login-logo h-auto w-full max-w-xs object-contain sm:max-w-sm md:max-w-md"
-        />
         <Card className="glass-panel w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="section-title">
