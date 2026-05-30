@@ -5,6 +5,7 @@ import { type ComponentProps, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 type GameExportButtonProps = {
@@ -60,23 +61,25 @@ export function GameExportButton({
 
   if (iconOnly) {
     return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className={cn("size-9 shrink-0", className)}
-        disabled={loading}
-        aria-label={
-          loading ? `Exporting ${gameTitle} registrations` : `Export ${gameTitle} registrations`
-        }
-        onClick={handleExport}
-      >
-        {loading ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-        ) : (
-          <Download className="h-4 w-4" aria-hidden />
-        )}
-      </Button>
+      <SimpleTooltip label="Download Player List">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={cn("size-9 shrink-0", className)}
+          disabled={loading}
+          aria-label={
+            loading ? `Exporting ${gameTitle} registrations` : `Export ${gameTitle} registrations`
+          }
+          onClick={handleExport}
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Download className="h-4 w-4" aria-hidden />
+          )}
+        </Button>
+      </SimpleTooltip>
     );
   }
 

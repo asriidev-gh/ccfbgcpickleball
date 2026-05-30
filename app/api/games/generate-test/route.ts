@@ -27,6 +27,8 @@ export async function POST() {
     const { game, playerCount } = await createTestGame({
       ownerId: authUser.userId,
       title: `${TEST_GAME_TITLE_BASE} ${highest + 1}`,
+      courtCount: 2,
+      playerCount: 18,
     });
 
     return NextResponse.json({

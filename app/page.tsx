@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useUiStore } from "@/store/ui-store";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,13 @@ const deleteAlertOptions = {
   background: "#0f172a",
   color: "#e2e8f0",
   confirmButtonColor: "#ef4444",
+  cancelButtonColor: "#64748b",
+};
+
+const confirmAlertOptions = {
+  background: "#0f172a",
+  color: "#e2e8f0",
+  confirmButtonColor: "#22c55e",
   cancelButtonColor: "#64748b",
 };
 
@@ -194,16 +202,18 @@ function GameListIconToolbar({
         </span>
       ) : null}
       <GameExportButton gameId={game.gameId} gameTitle={game.title} iconOnly />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="size-9 shrink-0"
-        aria-label={`Edit ${game.title}`}
-        onClick={() => onEdit(game)}
-      >
-        <Pencil className="h-4 w-4" />
-      </Button>
+      <SimpleTooltip label="Edit Open Session">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-9 shrink-0"
+          aria-label={`Edit ${game.title}`}
+          onClick={() => onEdit(game)}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </SimpleTooltip>
       <Button
         type="button"
         variant="ghost"
@@ -468,6 +478,20 @@ function HomeInner() {
     onSettled: () => setDeletingGameId(null),
   });
 
+  const handleGenerateDemo = async () => {
+    const result = await Swal.fire({
+      ...confirmAlertOptions,
+      title: "Create Demo Open Play?",
+      text: "This open play is for demo purposes only and it will generate 18 players and 2 courts only.",
+      icon: "info",
+      showCancelButton: true,
+      confirmButtonText: "Confirm",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+    generateTestGameMutation.mutate();
+  };
+
   const handleDeleteGame = async (game: GameCard) => {
     const result = await Swal.fire({
       ...deleteAlertOptions,
@@ -500,7 +524,7 @@ function HomeInner() {
               variant="outline"
               className="min-w-44"
               disabled={generateTestGameMutation.isPending}
-              onClick={() => generateTestGameMutation.mutate()}
+              onClick={handleGenerateDemo}
             >
               {generateTestGameMutation.isPending ? (
                 <>

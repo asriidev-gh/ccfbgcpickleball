@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { ThemeManager } from "@/components/theme/theme-manager";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -12,7 +13,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeManager />
-      {children}
+      <TooltipProvider>{children}</TooltipProvider>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );
