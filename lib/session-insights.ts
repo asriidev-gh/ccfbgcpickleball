@@ -1,8 +1,23 @@
+import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import { formatPlayerTableName } from "@/lib/utils";
 
 export type InsightPlayer = {
   playerId: string;
   name: string;
+  firstName: string;
+  lastName: string;
+  photoUrl?: string | null;
+  photoPublicId?: string | null;
+  personalQrCode?: string;
+};
+
+type SessionPlayerRef = {
+  _id?: { toString(): string } | string;
+  firstName?: string;
+  lastName?: string;
+  photoUrl?: string | null;
+  photoPublicId?: string | null;
+  personalQrCode?: string;
 };
 
 export type SessionInsight = {
@@ -16,8 +31,8 @@ export type SessionInsight = {
 export type SessionMatch = {
   endedAt: Date | string;
   courtNumber?: number;
-  teamAPlayerIds: { _id?: { toString(): string } | string; firstName?: string; lastName?: string }[];
-  teamBPlayerIds: { _id?: { toString(): string } | string; firstName?: string; lastName?: string }[];
+  teamAPlayerIds: SessionPlayerRef[];
+  teamBPlayerIds: SessionPlayerRef[];
   winnerTeam: "A" | "B";
   durationSeconds: number;
 };
@@ -25,6 +40,11 @@ export type SessionMatch = {
 export type SessionStatRow = {
   playerId: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
+  photoUrl?: string | null;
+  photoPublicId?: string | null;
+  personalQrCode?: string;
   gamesPlayed: number;
   wins: number;
   losses: number;
@@ -138,8 +158,48 @@ function splitImprovement(sequence: ("W" | "L")[]) {
   return rate(second) - rate(first);
 }
 
-function toInsightPlayer(id: string, name: string): InsightPlayer {
-  return { playerId: id, name };
+function profileFromRef(ref: SessionPlayerRef, id: string): InsightPlayer {
+  const firstName = ref.firstName ?? "";
+  const lastName = ref.lastName ?? "";
+  return {
+    playerId: id,
+    name: formatPlayerTableName(firstName, lastName) || playerName(ref, id),
+    firstName,
+    lastName,
+    photoUrl: ref.photoUrl,
+    photoPublicId: ref.photoPublicId,
+    personalQrCode: ref.personalQrCode,
+  };
+}
+
+function registerPlayerProfile(
+  players: Map<string, InsightPlayer>,
+  profile: InsightPlayer,
+) {
+  const existing = players.get(profile.playerId);
+  if (!existing) {
+    players.set(profile.playerId, profile);
+    return;
+  }
+  if (
+    profile.photoUrl?.trim() &&
+    (!existing.photoUrl || (isUploadedPlayerPhoto(profile) && !isUploadedPlayerPhoto(existing)))
+  ) {
+    existing.photoUrl = profile.photoUrl;
+    existing.photoPublicId = profile.photoPublicId;
+    existing.personalQrCode = profile.personalQrCode;
+  }
+}
+
+function getInsightPlayer(players: Map<string, InsightPlayer>, id: string): InsightPlayer {
+  return (
+    players.get(id) ?? {
+      playerId: id,
+      name: `Player ${id.slice(-4)}`,
+      firstName: "",
+      lastName: "",
+    }
+  );
 }
 
 export function computeSessionInsights(
@@ -150,19 +210,27 @@ export function computeSessionInsights(
 
   const insights: SessionInsight[] = [];
   const { sorted, results } = buildResultsTimeline(matches);
-  const names = new Map<string, string>();
+  const players = new Map<string, InsightPlayer>();
 
   for (const row of stats) {
-    names.set(row.playerId, row.name);
+    registerPlayerProfile(players, {
+      playerId: row.playerId,
+      name: row.name,
+      firstName: row.firstName ?? "",
+      lastName: row.lastName ?? "",
+      photoUrl: row.photoUrl,
+      photoPublicId: row.photoPublicId,
+      personalQrCode: row.personalQrCode,
+    });
   }
   for (const match of matches) {
     for (const p of [...match.teamAPlayerIds, ...match.teamBPlayerIds]) {
       const id = playerIdOf(p);
-      if (!names.has(id)) names.set(id, playerName(p, id));
+      registerPlayerProfile(players, profileFromRef(p, id));
     }
   }
 
-  const getName = (id: string) => names.get(id) ?? `Player ${id.slice(-4)}`;
+  const insightPlayer = (id: string) => getInsightPlayer(players, id);
 
   // Iron Player — most games
   if (stats.length > 0) {
@@ -172,7 +240,7 @@ export function computeSessionInsights(
         id: "iron-player",
         title: "Iron Player",
         description: "Most matches played this session.",
-        players: [toInsightPlayer(iron.playerId, iron.name)],
+        players: [insightPlayer(iron.playerId)],
         stat: `${iron.gamesPlayed} games`,
       });
     }
@@ -189,7 +257,7 @@ export function computeSessionInsights(
       id: "mvp",
       title: "MVP of the Session",
       description: "Top wins with strong win rate (min. 2 games).",
-      players: [toInsightPlayer(mvp.playerId, mvp.name)],
+      players: [insightPlayer(mvp.playerId)],
       stat: `${mvp.wins}W · ${mvp.winRate}%`,
     });
   }
@@ -209,7 +277,7 @@ export function computeSessionInsights(
       id: "hot-hand",
       title: "Hot Hand",
       description: "On a heater right now — active win streak.",
-      players: [toInsightPlayer(hotHandId, getName(hotHandId))],
+      players: [insightPlayer(hotHandId)],
       stat: `${hotHandStreak} in a row`,
     });
   }
@@ -229,7 +297,7 @@ export function computeSessionInsights(
       id: "hot-streak",
       title: "Hot Streak",
       description: "Longest consecutive wins this session.",
-      players: [toInsightPlayer(hotStreakId, getName(hotStreakId))],
+      players: [insightPlayer(hotStreakId)],
       stat: `${hotStreakCount} wins straight`,
     });
   }
@@ -264,7 +332,7 @@ export function computeSessionInsights(
       id: "dream-team",
       title: "Dream Team",
       description: "Top duo by wins as teammates.",
-      players: dreamPair.ids.map((id) => toInsightPlayer(id, getName(id))),
+      players: dreamPair.ids.map((id) => insightPlayer(id)),
       stat: `${dreamPair.wins} wins together`,
     });
   }
@@ -295,7 +363,7 @@ export function computeSessionInsights(
       id: "social-butterfly",
       title: "Social Butterfly",
       description: "Played with the most different partners.",
-      players: [toInsightPlayer(butterflyId, getName(butterflyId))],
+      players: [insightPlayer(butterflyId)],
       stat: `${butterflyCount} partners`,
     });
   }
@@ -315,7 +383,7 @@ export function computeSessionInsights(
       id: "most-improved",
       title: "Most Improved",
       description: "Biggest win-rate jump from early to late session.",
-      players: [toInsightPlayer(improvedId, getName(improvedId))],
+      players: [insightPlayer(improvedId)],
       stat: `+${Math.round(improvedDelta * 100)}% late`,
     });
   }
@@ -335,7 +403,7 @@ export function computeSessionInsights(
       id: "comeback-kid",
       title: "Comeback Kid",
       description: "Bounced back after 2+ losses with a long win run.",
-      players: [toInsightPlayer(comebackId, getName(comebackId))],
+      players: [insightPlayer(comebackId)],
       stat: `${comebackWins} wins after slump`,
     });
   }
@@ -348,7 +416,7 @@ export function computeSessionInsights(
       id: "undefeated",
       title: "The Undefeated",
       description: "Perfect record with at least 3 matches.",
-      players: [toInsightPlayer(u.playerId, u.name)],
+      players: [insightPlayer(u.playerId)],
       stat: `${u.wins}-${u.losses}`,
     });
   }
@@ -359,7 +427,7 @@ export function computeSessionInsights(
     if (longest.durationSeconds >= 60) {
       const players = [...longest.teamAPlayerIds, ...longest.teamBPlayerIds].map((p) => {
         const id = playerIdOf(p);
-        return toInsightPlayer(id, getName(id));
+        return insightPlayer(id);
       });
       const mins = Math.floor(longest.durationSeconds / 60);
       const secs = longest.durationSeconds % 60;
@@ -393,7 +461,7 @@ export function computeSessionInsights(
       id: "rivalry",
       title: "Rivalry",
       description: "Faced each other across the net most often.",
-      players: [toInsightPlayer(id1, getName(id1)), toInsightPlayer(id2, getName(id2))],
+      players: [insightPlayer(id1), insightPlayer(id2)],
       stat: `${topRivalry[1]} matchups`,
     });
   }
@@ -421,7 +489,7 @@ export function computeSessionInsights(
       id: "court-hopper",
       title: "Court Hopper",
       description: "Played on the most different courts.",
-      players: [toInsightPlayer(hopperId, getName(hopperId))],
+      players: [insightPlayer(hopperId)],
       stat: `${hopperCourts} courts`,
     });
   }

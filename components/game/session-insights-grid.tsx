@@ -19,9 +19,12 @@ import {
   Zap,
 } from "lucide-react";
 
-import type { SessionInsight } from "@/lib/session-insights";
+import type { InsightPlayer, SessionInsight } from "@/lib/session-insights";
+import { PlayerPhotoTrigger } from "@/components/game/player-avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
 import { cn } from "@/lib/utils";
 
 const INSIGHT_ICONS: Record<string, LucideIcon> = {
@@ -48,6 +51,45 @@ function loadSessionAwardsOpen() {
 
 function saveSessionAwardsOpen(open: boolean) {
   localStorage.setItem(SESSION_AWARDS_OPEN_KEY, open ? "true" : "false");
+}
+
+function getInitials(firstName: string, lastName: string) {
+  const first = firstName.trim()[0] ?? "";
+  const last = lastName.trim()[0] ?? "";
+  return (first + last).toUpperCase() || "?";
+}
+
+function AwardPlayers({ players }: { players: InsightPlayer[] }) {
+  return (
+    <ul className="mt-2 flex flex-col gap-2">
+      {players.map((player) => (
+        <li key={player.playerId}>
+          <PlayerPhotoTrigger
+            player={{
+              _id: player.playerId,
+              firstName: player.firstName,
+              lastName: player.lastName,
+              photoUrl: player.photoUrl,
+              photoPublicId: player.photoPublicId,
+              personalQrCode: player.personalQrCode,
+            }}
+            className="flex w-full items-center gap-2 rounded-md"
+          >
+            <Avatar size="sm" className="!size-8 shrink-0 sm:!size-8">
+              <AvatarImage
+                src={resolvePlayerPhotoUrl(player)}
+                alt={`${player.name} avatar`}
+              />
+              <AvatarFallback className="text-xs">
+                {getInitials(player.firstName, player.lastName)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="min-w-0 truncate text-sm font-medium">{player.name}</span>
+          </PlayerPhotoTrigger>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 type SessionInsightsGridProps = {
@@ -149,9 +191,7 @@ export function SessionInsightsGrid({ insights, compact = false }: SessionInsigh
                         </p>
                       ) : null}
                       <p className="caption mt-1 leading-snug">{insight.description}</p>
-                      <p className="mt-2 text-sm font-medium text-foreground">
-                        {insight.players.map((p) => p.name).join(" · ")}
-                      </p>
+                      <AwardPlayers players={insight.players} />
                     </div>
                   </div>
                 </li>

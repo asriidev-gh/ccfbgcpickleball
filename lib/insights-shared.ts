@@ -19,7 +19,6 @@ export type UserInsights = {
   };
   activity: {
     playersRegistered: number;
-    queueEntries: number;
   };
   topOwners: { name: string; email: string; games: number }[];
 };
@@ -41,6 +40,9 @@ export type UserListItem = {
   hasGoogle: boolean;
   openPlayCount: number;
   createdAt: string | null;
+  registeredDevice: string | null;
+  lastLoginAt: string | null;
+  lastLoginDevice: string | null;
 };
 
 export type UserOpenPlay = {
@@ -62,8 +64,13 @@ export type UserOpenPlays = {
 export type PlayerListItem = {
   id: string;
   name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   mobileNumber: string;
+  photoUrl?: string | null;
+  photoPublicId?: string | null;
+  personalQrCode?: string;
   gamesPlayed: number;
   createdAt: string | null;
 };

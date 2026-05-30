@@ -20,6 +20,7 @@ import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
+import { PlayerAvatar } from "@/components/game/player-avatar";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import { MatchHistoryList, type MatchHistoryView } from "@/components/game/match-history-list";
@@ -30,7 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { isGameResetEnabled } from "@/lib/feature-flags";
-import { cn } from "@/lib/utils";
+import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type GameDashboardMode = "operator" | "spectator";
 
@@ -254,6 +255,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const { game, queue, courts, matches } = data;
   const isPastGame = game.status === "ended";
   const hideControls = readOnly || isPastGame;
+  const endCourt =
+    endTargetCourt != null ? courts.find((c) => c.courtNumber === endTargetCourt) : undefined;
+  const winningPlayers =
+    pendingWinner === "A"
+      ? (endCourt?.teamA.playerIds ?? [])
+      : pendingWinner === "B"
+        ? (endCourt?.teamB.playerIds ?? [])
+        : [];
 
   return (
     <main
@@ -594,6 +603,34 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               </div>
             ) : (
               <div className="flex flex-col gap-4">
+                {winningPlayers.length > 0 ? (
+                  <div className="surface-muted flex flex-col gap-2 rounded-xl border p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Winners · Team {pendingWinner}
+                    </p>
+                    <ul className="flex flex-col gap-2">
+                      {winningPlayers.map((player, index) => (
+                        <li
+                          key={
+                            player._id != null
+                              ? `${String(player._id)}-${index}`
+                              : `${player.firstName}-${player.lastName}-${index}`
+                          }
+                          className="flex items-center gap-2.5"
+                        >
+                          <PlayerAvatar
+                            player={player}
+                            size="sm"
+                            className="!size-9 sm:!size-9"
+                          />
+                          <span className="font-medium">
+                            {formatPlayerDisplayName(player.firstName, player.lastName)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 <p className="text-sm text-muted-foreground">
                   Scores are optional. Leave them blank to just record the win.
                 </p>

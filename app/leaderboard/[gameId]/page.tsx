@@ -78,6 +78,11 @@ export default async function LeaderboardPage({
     safeStats.map((row) => ({
       playerId: String(row.playerId!._id),
       name: formatPlayerTableName(row.playerId!.firstName, row.playerId!.lastName),
+      firstName: row.playerId!.firstName,
+      lastName: row.playerId!.lastName,
+      photoUrl: row.playerId!.photoUrl,
+      photoPublicId: row.playerId!.photoPublicId,
+      personalQrCode: row.playerId!.personalQrCode,
       gamesPlayed: row.gamesPlayed,
       wins: row.wins,
       losses: row.losses,

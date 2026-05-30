@@ -1,4 +1,5 @@
 import { connectToDatabase } from "@/lib/db";
+import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import type {
   PlayerListItem,
   UserInsights,
@@ -17,6 +18,16 @@ export { USER_FILTERS } from "@/lib/insights-shared";
 // Demo/test open plays generated in-app ("Test Open Play N") or by the seed
 // ("Demo Open Play") should be excluded from the user's "real" open play count.
 const DEMO_OPEN_PLAY_TITLE = /^(test|demo) open play/i;
+
+// Players created for demo open plays use these QR code prefixes.
+const DEMO_PLAYER_QR_PREFIX = /^P-(test|demo)-/i;
+
+async function getDemoGameIds(): Promise<Set<string>> {
+  const games = await PickleGame.find({ title: { $regex: DEMO_OPEN_PLAY_TITLE } })
+    .select("gameId")
+    .lean<Array<{ gameId: string }>>();
+  return new Set(games.map((g) => g.gameId));
+}
 
 async function getOpenPlayCounts(
   ownerIds: Array<{ toString(): string }>,
@@ -85,7 +96,9 @@ export async function getUsersList(
   const docs = await User.find(buildUserFilterQuery(filter))
     .sort({ createdAt: -1 })
     .limit(limit)
-    .select("name email userType googleId createdAt")
+    .select(
+      "name email userType googleId createdAt registeredDevice lastLoginAt lastLoginDevice",
+    )
     .lean();
 
   return mapUserDocs(docs);
@@ -100,6 +113,9 @@ async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
     userType?: string;
     googleId?: string | null;
     createdAt?: Date;
+    registeredDevice?: string | null;
+    lastLoginAt?: Date | null;
+    lastLoginDevice?: string | null;
   }>;
 
   const counts = await getOpenPlayCounts(rows.map((doc) => doc._id));
@@ -112,6 +128,9 @@ async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
     hasGoogle: Boolean(doc.googleId),
     openPlayCount: counts.get(doc._id.toString()) ?? 0,
     createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
+    registeredDevice: doc.registeredDevice?.trim() || null,
+    lastLoginAt: doc.lastLoginAt ? new Date(doc.lastLoginAt).toISOString() : null,
+    lastLoginDevice: doc.lastLoginDevice?.trim() || null,
   }));
 }
 
@@ -129,7 +148,9 @@ export async function getUsersByMonth(monthKey: string, limit = 500): Promise<Us
   const docs = await User.find({ createdAt: { $gte: start, $lt: end } })
     .sort({ createdAt: -1 })
     .limit(limit)
-    .select("name email userType googleId createdAt")
+    .select(
+      "name email userType googleId createdAt registeredDevice lastLoginAt lastLoginDevice",
+    )
     .lean();
 
   return mapUserDocs(docs);
@@ -179,20 +200,36 @@ export async function getUserOpenPlays(userId: string): Promise<UserOpenPlays | 
   };
 }
 
-export async function getPlayersList(limit = 500): Promise<PlayerListItem[]> {
+/** Distinct real players (grouped by name + email), excluding demo-generated records. */
+export async function countRealPlayersRegistered(): Promise<number> {
+  const players = await getPlayersList(10_000, true);
+  return players.length;
+}
+
+export async function getPlayersList(
+  limit = 500,
+  realPlayersOnly = false,
+): Promise<PlayerListItem[]> {
   await connectToDatabase();
+
+  const demoGameIds = realPlayersOnly ? await getDemoGameIds() : new Set<string>();
 
   // Same real person can have multiple Player docs (one per open play). Fetch
   // all of them, then collapse by name + email so each person is one row.
   const docs = (await Player.find({})
     .sort({ createdAt: -1 })
-    .select("firstName lastName email mobileNumber createdAt")
+    .select(
+      "firstName lastName email mobileNumber personalQrCode photoUrl photoPublicId createdAt",
+    )
     .lean()) as Array<{
     _id: { toString(): string };
     firstName?: string;
     lastName?: string;
     email?: string;
     mobileNumber?: string;
+    personalQrCode?: string;
+    photoUrl?: string | null;
+    photoPublicId?: string | null;
     createdAt?: Date;
   }>;
 
@@ -209,10 +246,16 @@ export async function getPlayersList(limit = 500): Promise<PlayerListItem[]> {
   type Group = {
     id: string;
     name: string;
+    firstName: string;
+    lastName: string;
     email: string;
     mobileNumber: string;
+    photoUrl?: string | null;
+    photoPublicId?: string | null;
+    personalQrCode?: string;
     createdAt: Date | null;
     games: Set<string>;
+    hasNonDemoDoc: boolean;
   };
   const groups = new Map<string, Group>();
 
@@ -220,21 +263,43 @@ export async function getPlayersList(limit = 500): Promise<PlayerListItem[]> {
     const name = `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim() || "—";
     const email = doc.email ?? "—";
     const key = `${name.toLowerCase()}|${email.toLowerCase()}`;
+    const isDemoPlayer = DEMO_PLAYER_QR_PREFIX.test(doc.personalQrCode ?? "");
 
     let group = groups.get(key);
     if (!group) {
       group = {
         id: doc._id.toString(),
         name,
+        firstName: doc.firstName ?? "",
+        lastName: doc.lastName ?? "",
         email,
         mobileNumber: doc.mobileNumber ?? "—",
+        photoUrl: doc.photoUrl,
+        photoPublicId: doc.photoPublicId,
+        personalQrCode: doc.personalQrCode,
         createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
         games: new Set<string>(),
+        hasNonDemoDoc: false,
       };
       groups.set(key, group);
     }
 
+    if (!isDemoPlayer) group.hasNonDemoDoc = true;
+
+    if (doc.photoUrl?.trim()) {
+      const current = {
+        photoUrl: group.photoUrl,
+        photoPublicId: group.photoPublicId,
+      };
+      if (!group.photoUrl || isUploadedPlayerPhoto(doc) && !isUploadedPlayerPhoto(current)) {
+        group.photoUrl = doc.photoUrl;
+        group.photoPublicId = doc.photoPublicId;
+        group.personalQrCode = doc.personalQrCode;
+      }
+    }
+
     for (const gameId of gamesByPlayer.get(doc._id.toString()) ?? []) {
+      if (realPlayersOnly && demoGameIds.has(gameId)) continue;
       group.games.add(gameId);
     }
     const created = doc.createdAt ? new Date(doc.createdAt) : null;
@@ -243,7 +308,11 @@ export async function getPlayersList(limit = 500): Promise<PlayerListItem[]> {
     }
   }
 
-  return [...groups.values()]
+  const filtered = realPlayersOnly
+    ? [...groups.values()].filter((group) => group.hasNonDemoDoc)
+    : [...groups.values()];
+
+  return filtered
     .sort((a, b) => {
       const at = a.createdAt ? a.createdAt.getTime() : 0;
       const bt = b.createdAt ? b.createdAt.getTime() : 0;
@@ -253,8 +322,13 @@ export async function getPlayersList(limit = 500): Promise<PlayerListItem[]> {
     .map((group) => ({
       id: group.id,
       name: group.name,
+      firstName: group.firstName,
+      lastName: group.lastName,
       email: group.email,
       mobileNumber: group.mobileNumber,
+      photoUrl: group.photoUrl,
+      photoPublicId: group.photoPublicId,
+      personalQrCode: group.personalQrCode,
       gamesPlayed: group.games.size,
       createdAt: group.createdAt ? group.createdAt.toISOString() : null,
     }));
@@ -282,7 +356,6 @@ export async function getUserInsights(): Promise<UserInsights> {
     activeGames,
     endedGames,
     playersRegistered,
-    queueEntries,
     signupAgg,
     topOwnersAgg,
   ] = await Promise.all([
@@ -299,8 +372,7 @@ export async function getUserInsights(): Promise<UserInsights> {
     PickleGame.countDocuments({}),
     PickleGame.countDocuments({ status: { $ne: "ended" } }),
     PickleGame.countDocuments({ status: "ended" }),
-    Player.countDocuments({}),
-    QueueEntry.countDocuments({}),
+    countRealPlayersRegistered(),
     User.aggregate([
       { $match: { createdAt: { $gte: sixMonthsAgo } } },
       {
@@ -356,7 +428,7 @@ export async function getUserInsights(): Promise<UserInsights> {
     },
     signupsByMonth,
     games: { total: totalGames, active: activeGames, ended: endedGames },
-    activity: { playersRegistered, queueEntries },
+    activity: { playersRegistered },
     topOwners: topOwnersAgg as { name: string; email: string; games: number }[],
   };
 }

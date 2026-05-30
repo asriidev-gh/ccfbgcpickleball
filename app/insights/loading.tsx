@@ -18,8 +18,8 @@ export default function InsightsLoading() {
           <Skeleton className="h-6 w-28 rounded-full" />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, index) => (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => (
             <Card key={index} className="glass-panel">
               <CardContent className="flex items-center gap-4 p-5">
                 <Skeleton className="size-11 shrink-0 rounded-xl" />

@@ -976,12 +976,21 @@
     @apply bg-yellow-700/75 text-white;
   }
 
-  .queue-next-up .queue-position-hash {
+  .queue-position-hash {
     @apply hidden;
   }
 
   .queue-item:not(.queue-next-up) .queue-rank {
-    @apply hidden;
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums ring-1 ring-primary/30;
+    @apply bg-primary/15 text-primary;
+  }
+
+  .queue-winner .queue-rank {
+    @apply bg-emerald-500/20 text-emerald-700 ring-emerald-500/30 dark:text-emerald-400;
+  }
+
+  .queue-loser .queue-rank {
+    @apply bg-rose-500/20 text-rose-700 ring-rose-500/30 dark:text-rose-400;
   }
 
   .queue-slot-label {

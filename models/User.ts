@@ -13,6 +13,9 @@ const userSchema = new Schema(
       enum: ["default", "ccf"],
       default: "default",
     },
+    registeredDevice: { type: String, trim: true },
+    lastLoginAt: { type: Date },
+    lastLoginDevice: { type: String, trim: true },
   },
   { timestamps: true }
 );

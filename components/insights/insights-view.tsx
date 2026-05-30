@@ -6,7 +6,6 @@ import {
   CalendarPlus,
   Gamepad2,
   LayoutGrid,
-  ListOrdered,
   Loader2,
   ShieldCheck,
   Trash2,
@@ -21,6 +20,7 @@ import { useState } from "react";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
 
+import { PlayerAvatar } from "@/components/game/player-avatar";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -414,6 +415,9 @@ function UserListPanel({ selection, onSelectFilter }: {
                 <TableHead>Email</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Sign-in</TableHead>
+                <TableHead>Registered on</TableHead>
+                <TableHead>Last login</TableHead>
+                <TableHead>Last device</TableHead>
                 <TableHead className="text-right">Open Play Count</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -431,6 +435,15 @@ function UserListPanel({ selection, onSelectFilter }: {
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {user.hasGoogle ? "Google" : "Password"}
+                  </TableCell>
+                  <TableCell className="max-w-[12rem] truncate text-muted-foreground" title={user.registeredDevice ?? undefined}>
+                    {user.registeredDevice ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground" suppressHydrationWarning>
+                    {formatDate(user.lastLoginAt)}
+                  </TableCell>
+                  <TableCell className="max-w-[12rem] truncate text-muted-foreground" title={user.lastLoginDevice ?? undefined}>
+                    {user.lastLoginDevice ?? "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {user.openPlayCount > 0 ? (
@@ -567,17 +580,51 @@ function PlayerGamesDialog({
 }
 
 function PlayersPanel() {
+  const queryClient = useQueryClient();
   const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; name: string } | null>(null);
+  const [realPlayersOnly, setRealPlayersOnly] = useState(true);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["insights-players"],
+    queryKey: ["insights-players", realPlayersOnly],
     queryFn: async () => {
-      const response = await fetch("/api/insights/players");
+      const response = await fetch(
+        `/api/insights/players?realOnly=${realPlayersOnly ? "true" : "false"}`,
+      );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message);
       return payload as { count: number; players: PlayerListItem[] };
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/insights/players/${id}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message);
+      return payload as { message: string };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+      queryClient.invalidateQueries({ queryKey: ["insights-players"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to delete player.");
+    },
+  });
+
+  const handleDelete = async (player: PlayerListItem) => {
+    const result = await Swal.fire({
+      ...deleteAlertOptions,
+      title: "Delete player?",
+      html: `<strong>${player.name}</strong> (${player.email}) and all related queue, court, match, and leaderboard records will be permanently removed.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+    deleteMutation.mutate(player.id);
+  };
 
   return (
     <Card className="glass-panel">
@@ -588,6 +635,13 @@ function PlayersPanel() {
             {data?.count ?? 0} {data?.count === 1 ? "player" : "players"}
           </Badge>
         </div>
+        <label className="flex cursor-pointer items-center gap-2.5 pt-1">
+          <Checkbox
+            checked={realPlayersOnly}
+            onCheckedChange={(checked) => setRealPlayersOnly(checked === true)}
+          />
+          <span className="text-sm text-muted-foreground">Real players only</span>
+        </label>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -598,7 +652,11 @@ function PlayersPanel() {
         ) : isError ? (
           <p className="py-6 text-destructive">Failed to load players.</p>
         ) : !data || data.players.length === 0 ? (
-          <p className="py-6 text-muted-foreground">No players registered yet.</p>
+          <p className="py-6 text-muted-foreground">
+            {realPlayersOnly
+              ? "No real players registered yet (demo players are hidden)."
+              : "No players registered yet."}
+          </p>
         ) : (
           <Table className="text-sm">
             <TableHeader>
@@ -608,12 +666,29 @@ function PlayersPanel() {
                 <TableHead>Mobile</TableHead>
                 <TableHead className="text-right">Games Played Count</TableHead>
                 <TableHead>Registered</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.players.map((player) => (
                 <TableRow key={player.id}>
-                  <TableCell className="font-medium">{player.name}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <PlayerAvatar
+                        player={{
+                          _id: player.id,
+                          firstName: player.firstName,
+                          lastName: player.lastName,
+                          photoUrl: player.photoUrl,
+                          photoPublicId: player.photoPublicId,
+                          personalQrCode: player.personalQrCode,
+                        }}
+                        size="sm"
+                        className="!size-8 sm:!size-8"
+                      />
+                      <span className="font-medium">{player.name}</span>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{player.email}</TableCell>
                   <TableCell className="text-muted-foreground">{player.mobileNumber}</TableCell>
                   <TableCell className="text-right tabular-nums">
@@ -630,6 +705,23 @@ function PlayersPanel() {
                   </TableCell>
                   <TableCell className="text-muted-foreground" suppressHydrationWarning>
                     {formatDate(player.createdAt)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`Delete ${player.name}`}
+                      disabled={deleteMutation.isPending && deleteMutation.variables === player.id}
+                      onClick={() => handleDelete(player)}
+                    >
+                      {deleteMutation.isPending && deleteMutation.variables === player.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <Trash2 className="h-4 w-4" aria-hidden />
+                      )}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -693,13 +785,12 @@ export function InsightsView({ insights }: { insights: UserInsights }) {
           </TabsList>
 
           <TabsContent value="overview" className="flex flex-col gap-6">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <StatCard icon={Users} label="Total users" value={users.total} onClick={() => showUsers("all")} />
               <StatCard icon={UserPlus} label="New (7 days)" value={users.newLast7Days} onClick={() => showUsers("new7")} />
               <StatCard icon={CalendarPlus} label="New (30 days)" value={users.newLast30Days} onClick={() => showUsers("new30")} />
               <StatCard icon={Gamepad2} label="Total games" value={games.total} hint={`${games.active} active · ${games.ended} ended`} />
               <StatCard icon={LayoutGrid} label="Players registered" value={activity.playersRegistered} onClick={() => setTab("players")} />
-              <StatCard icon={ListOrdered} label="Queue entries" value={activity.queueEntries} />
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">

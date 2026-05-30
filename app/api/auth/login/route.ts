@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
+import { recordUserLogin } from "@/lib/user-auth-audit";
 import { User } from "@/models/User";
 import { getAuthCookieName, signAuthToken } from "@/lib/auth";
 
@@ -24,6 +25,8 @@ export async function POST(request: Request) {
 
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) return NextResponse.json({ message: "Invalid credentials." }, { status: 401 });
+
+    await recordUserLogin(user._id.toString(), request);
 
     const token = signAuthToken({ userId: user._id.toString(), email: user.email, name: user.name });
     const response = NextResponse.json({ user: { id: user._id, email: user.email, name: user.name } });

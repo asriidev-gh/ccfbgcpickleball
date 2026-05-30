@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
 import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
+import { getRegistrationDevice } from "@/lib/user-auth-audit";
 import { User } from "@/models/User";
 import { getAuthCookieName, signAuthToken } from "@/lib/auth";
 
@@ -25,11 +26,16 @@ export async function POST(request: Request) {
     if (exists) return NextResponse.json({ message: "Email is already registered." }, { status: 400 });
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const device = getRegistrationDevice(request);
+    const now = new Date();
     const user = await User.create({
       name,
       email,
       passwordHash,
       userType: USER_TYPE_DEFAULT,
+      registeredDevice: device,
+      lastLoginAt: now,
+      lastLoginDevice: device,
     });
     const token = signAuthToken({ userId: user._id.toString(), email: user.email, name: user.name });
 

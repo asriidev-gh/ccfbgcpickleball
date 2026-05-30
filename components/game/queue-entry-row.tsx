@@ -65,7 +65,6 @@ export function QueueEntryRow({
           <div className="min-w-0 flex-1">
             <div className="body-lg min-w-0">
               <PlayerNameWithPhoto player={entry.playerId}>
-                <span className="queue-position-hash">#{slot} </span>
                 {formatPlayerDisplayName(
                   entry.playerId.firstName,
                   entry.playerId.lastName,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
 import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
+import { getRegistrationDevice } from "@/lib/user-auth-audit";
 import { User } from "@/models/User";
 import {
   GOOGLE_OAUTH_STATE_COOKIE,
@@ -80,6 +81,9 @@ export async function GET(request: Request) {
 
     await connectToDatabase();
 
+    const device = getRegistrationDevice(request);
+    const now = new Date();
+
     let user = await User.findOne({ $or: [{ googleId: profile.sub }, { email }] });
     if (!user) {
       user = await User.create({
@@ -88,11 +92,18 @@ export async function GET(request: Request) {
         googleId: profile.sub,
         image: profile.picture,
         userType: USER_TYPE_DEFAULT,
+        registeredDevice: device,
+        lastLoginAt: now,
+        lastLoginDevice: device,
       });
-    } else if (!user.googleId) {
-      // Link Google to an existing local account on first Google sign-in.
-      user.googleId = profile.sub;
-      if (!user.image && profile.picture) user.image = profile.picture;
+    } else {
+      if (!user.googleId) {
+        // Link Google to an existing local account on first Google sign-in.
+        user.googleId = profile.sub;
+        if (!user.image && profile.picture) user.image = profile.picture;
+      }
+      user.lastLoginAt = now;
+      user.lastLoginDevice = device;
       await user.save();
     }
 

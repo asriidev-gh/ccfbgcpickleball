@@ -15,7 +15,14 @@ type PopulatedStat = {
   losses: number;
   winRate: number;
   currentStreak: number;
-  playerId: { _id: { toString(): string }; firstName?: string; lastName?: string } | null;
+  playerId: {
+    _id: { toString(): string };
+    firstName?: string;
+    lastName?: string;
+    photoUrl?: string | null;
+    photoPublicId?: string | null;
+    personalQrCode?: string;
+  } | null;
 };
 
 async function computeGameAwardsForPlayer(gameId: string, playerIds: Set<string>) {
@@ -40,6 +47,11 @@ async function computeGameAwardsForPlayer(gameId: string, playerIds: Set<string>
     safeStats.map((row) => ({
       playerId: String(row.playerId!._id),
       name: formatPlayerTableName(row.playerId!.firstName ?? "", row.playerId!.lastName ?? ""),
+      firstName: row.playerId!.firstName ?? "",
+      lastName: row.playerId!.lastName ?? "",
+      photoUrl: row.playerId!.photoUrl,
+      photoPublicId: row.playerId!.photoPublicId,
+      personalQrCode: row.playerId!.personalQrCode,
       gamesPlayed: row.gamesPlayed,
       wins: row.wins,
       losses: row.losses,
