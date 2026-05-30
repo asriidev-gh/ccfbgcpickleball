@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 
 import { createGameSchema } from "@/lib/validations";
 import { connectToDatabase } from "@/lib/db";
+import { createPreRegisteredPlayers } from "@/lib/create-game-players";
 import { buildGameRegistrationQr } from "@/lib/game-qr";
 import { PickleGame } from "@/models/PickleGame";
 import { Court } from "@/models/Court";
@@ -16,6 +17,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const payload = createGameSchema.parse(body);
 
+    const preRegisteredNames =
+      payload.registrationMode === "owner" ? (payload.preRegisteredPlayerNames ?? []) : [];
+    const expectedPlayers =
+      preRegisteredNames.length > 0 ? preRegisteredNames.length : payload.expectedPlayers;
+    const strictPlayerCount =
+      preRegisteredNames.length > 0
+        ? payload.allowQrRegistration !== true
+        : payload.strictPlayerCount;
+
     const gameId = nanoid(10);
     const { registerUrl, publicQrCodeDataUrl } = await buildGameRegistrationQr(gameId);
 
@@ -23,8 +33,8 @@ export async function POST(request: Request) {
       title: payload.title,
       openPlayType: payload.openPlayType,
       courtCount: payload.courtCount,
-      expectedPlayers: payload.expectedPlayers,
-      strictPlayerCount: payload.strictPlayerCount,
+      expectedPlayers,
+      strictPlayerCount,
       gameId,
       ownerId: authUser.userId,
       registerUrl,
@@ -38,7 +48,15 @@ export async function POST(request: Request) {
       })),
     );
 
-    return NextResponse.json({ game });
+    let preRegisteredCount = 0;
+    if (preRegisteredNames.length > 0) {
+      preRegisteredCount = await createPreRegisteredPlayers({
+        gameId,
+        names: preRegisteredNames,
+      });
+    }
+
+    return NextResponse.json({ game, preRegisteredCount });
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Unable to create game." },

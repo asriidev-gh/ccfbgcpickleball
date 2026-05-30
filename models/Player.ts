@@ -1,9 +1,9 @@
-import { Schema, model, models } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const playerSchema = new Schema(
   {
     firstName: { type: String, required: true, trim: true },
-    lastName: { type: String, required: true, trim: true },
+    lastName: { type: String, trim: true, default: "" },
     mobileNumber: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true, lowercase: true },
     personalQrCode: { type: String, required: true, unique: true },
@@ -23,4 +23,8 @@ const playerSchema = new Schema(
   { timestamps: true }
 );
 
-export const Player = models.Player || model("Player", playerSchema);
+if (mongoose.models.Player) {
+  mongoose.deleteModel("Player");
+}
+
+export const Player = mongoose.model("Player", playerSchema);

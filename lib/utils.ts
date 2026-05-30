@@ -21,6 +21,12 @@ export function capitalizeNameWords(value: string) {
     .join(" ");
 }
 
+/** True when a stored last name should be shown in the UI. */
+export function hasMeaningfulLastName(lastName: string | null | undefined) {
+  const last = (lastName ?? "").trim();
+  return last.length > 0 && last !== "-";
+}
+
 /** Demo/seed players use rank labels instead of fake names (Player1 CCF, etc.). */
 export function isRankPlaceholderPlayer(firstName: string, lastName: string) {
   const first = firstName.trim();
@@ -41,7 +47,9 @@ export function formatPlayerDisplayName(
     if (legacy) return `Rank ${legacy[1]}`;
     if (lastName.trim()) return `Rank ${lastName.trim()}`;
   }
-  return `${capitalizeNameWords(firstName)} ${capitalizeNameWords(lastName)}`.trim();
+  const first = capitalizeNameWords(firstName);
+  if (!hasMeaningfulLastName(lastName)) return first;
+  return `${first} ${capitalizeNameWords(lastName)}`.trim();
 }
 
 /** Table view: rank is its own column — never repeat "Rank N" in the player cell. */
@@ -51,5 +59,7 @@ export function formatPlayerTableName(firstName: string, lastName: string) {
     const num = legacy ? legacy[1] : lastName.trim();
     return num ? `Player ${num}` : "Unknown player";
   }
-  return `${capitalizeNameWords(firstName)} ${capitalizeNameWords(lastName)}`.trim();
+  const first = capitalizeNameWords(firstName);
+  if (!hasMeaningfulLastName(lastName)) return first;
+  return `${first} ${capitalizeNameWords(lastName)}`.trim();
 }

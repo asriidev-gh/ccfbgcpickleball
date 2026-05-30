@@ -11,21 +11,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { resolvePlayerPhotoUrl, type PlayerAvatarSeed } from "@/lib/player-avatar-url";
-import { capitalizeNameWords, cn } from "@/lib/utils";
+import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type PlayerPhotoRef = PlayerAvatarSeed;
 
 function getInitials(firstName: string, lastName: string) {
-  const first = firstName.trim()[0] ?? "";
-  const last = lastName.trim()[0] ?? "";
-  return (first + last).toUpperCase() || "?";
+  const display = formatPlayerDisplayName(firstName, lastName);
+  const parts = display.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
 function getDisplayName(player: PlayerPhotoRef) {
-  return (
-    `${capitalizeNameWords(player.firstName)} ${capitalizeNameWords(player.lastName)}`.trim() ||
-    "Player"
-  );
+  return formatPlayerDisplayName(player.firstName, player.lastName) || "Player";
 }
 
 type PlayerAvatarProps = {

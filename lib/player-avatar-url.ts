@@ -1,3 +1,5 @@
+import { hasMeaningfulLastName } from "@/lib/utils";
+
 /** Dice Bear styles — picked deterministically per player so the avatar stays stable. */
 const AVATAR_STYLES = [
   "avataaars",
@@ -28,11 +30,10 @@ function hashCode(value: string) {
 }
 
 export function getAvatarSeed(player: PlayerAvatarSeed) {
-  return (
-    player.personalQrCode?.trim() ||
-    (player._id != null ? String(player._id) : "") ||
-    `${player.firstName.trim()}-${player.lastName.trim()}`
-  );
+  const first = player.firstName.trim();
+  const last = player.lastName.trim();
+  const nameSeed = hasMeaningfulLastName(last) ? `${first}-${last}` : first;
+  return player.personalQrCode?.trim() || (player._id != null ? String(player._id) : "") || nameSeed;
 }
 
 export function getGeneratedAvatarUrl(seed: string, size = 256) {

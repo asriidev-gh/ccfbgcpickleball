@@ -1,5 +1,6 @@
 import { DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
 import { connectToDatabase } from "@/lib/db";
+import { formatPlayerTableName } from "@/lib/utils";
 import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import type {
   PlayerListItem,
@@ -290,7 +291,7 @@ export async function getPlayersList(
   const groups = new Map<string, Group>();
 
   for (const doc of docs) {
-    const name = `${doc.firstName ?? ""} ${doc.lastName ?? ""}`.trim() || "—";
+    const name = formatPlayerTableName(doc.firstName ?? "", doc.lastName ?? "") || "—";
     const email = doc.email ?? "—";
     const key = `${name.toLowerCase()}|${email.toLowerCase()}`;
     const isDemoPlayer = DEMO_PLAYER_QR_PREFIX.test(doc.personalQrCode ?? "");
