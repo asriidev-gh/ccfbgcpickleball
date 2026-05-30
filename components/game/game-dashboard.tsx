@@ -23,16 +23,6 @@ import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/cour
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import { MatchHistoryList, type MatchHistoryView } from "@/components/game/match-history-list";
-import {
-  CourtsViewToggle,
-  saveCourtsView,
-  type CourtsViewLayout,
-} from "@/components/game/courts-view-toggle";
-import {
-  COURTS_DESKTOP_MEDIA,
-  defaultCourtsView,
-  isCourtsDesktopViewport,
-} from "@/lib/courts-viewport";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -104,8 +94,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const gameId = params.id ?? "";
   const queryClient = useQueryClient();
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
-  const [courtsView, setCourtsView] = useState<CourtsViewLayout>("list");
-  const [showCourtsViewToggle, setShowCourtsViewToggle] = useState(false);
   const [showWaitingList, setShowWaitingList] = useState(true);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
@@ -125,24 +113,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   };
 
   useEffect(() => {
-    const syncCourtsViewForViewport = () => {
-      const desktop = isCourtsDesktopViewport();
-      setShowCourtsViewToggle(desktop);
-      setCourtsView(desktop ? defaultCourtsView() : "list");
-    };
-
-    syncCourtsViewForViewport();
     setShowWaitingList(loadShowWaitingList());
-
-    const mq = window.matchMedia(COURTS_DESKTOP_MEDIA);
-    mq.addEventListener("change", syncCourtsViewForViewport);
-    return () => mq.removeEventListener("change", syncCourtsViewForViewport);
   }, []);
-
-  const handleCourtsViewChange = (view: CourtsViewLayout) => {
-    setCourtsView(view);
-    saveCourtsView(view);
-  };
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["game", gameId, isSpectator ? "spectator" : "operator"],
@@ -512,18 +484,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <CardTitle>Courts</CardTitle>
                 <CourtsSummary courts={courts} />
               </div>
-              {showCourtsViewToggle ? (
-                <CourtsViewToggle value={courtsView} onChange={handleCourtsViewChange} />
-              ) : null}
             </CardHeader>
-            <CardContent
-              className={cn(
-                "court-grid grid gap-3",
-                courtsView === "list"
-                  ? "court-grid--list grid-cols-1"
-                  : "court-grid--tiles grid-cols-1 md:grid-cols-2",
-              )}
-            >
+            <CardContent className="court-grid court-grid--list grid grid-cols-1 gap-3">
               {courts.map((court) => (
                 <CourtCard
                   key={court._id}

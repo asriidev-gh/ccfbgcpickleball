@@ -55,6 +55,7 @@ export function RegistrationForm({
   const router = useRouter();
   const isGenericForm = formVariant === "generic";
   const [role, setRole] = useState<"existing-player" | "new-player" | "volunteer" | "">("");
+  const [pendingRole, setPendingRole] = useState<"new-player" | "volunteer" | null>(null);
   const [volunteerType, setVolunteerType] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -137,8 +138,14 @@ export function RegistrationForm({
   };
 
   const selectRole = async (nextRole: "new-player" | "volunteer") => {
-    if (!(await ensureCanRegister())) return;
-    setRole(nextRole);
+    if (pendingRole) return;
+    setPendingRole(nextRole);
+    try {
+      if (!(await ensureCanRegister())) return;
+      setRole(nextRole);
+    } finally {
+      setPendingRole(null);
+    }
   };
 
   const setFieldRef =
@@ -383,10 +390,19 @@ export function RegistrationForm({
                   size="lg"
                   variant="outline"
                   className="register-role-btn"
-                  disabled={statusLoading || submitting}
+                  disabled={statusLoading || submitting || pendingRole !== null}
                   onClick={() => void selectRole("new-player")}
                 >
-                  {isGenericForm ? "Proceed" : "Player"}
+                  {pendingRole === "new-player" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      Loading…
+                    </>
+                  ) : isGenericForm ? (
+                    "Proceed"
+                  ) : (
+                    "Player"
+                  )}
                 </Button>
                 {!isGenericForm ? (
                   <Button
@@ -394,10 +410,17 @@ export function RegistrationForm({
                     size="lg"
                     variant="outline"
                     className="register-role-btn"
-                    disabled={statusLoading || submitting}
+                    disabled={statusLoading || submitting || pendingRole !== null}
                     onClick={() => void selectRole("volunteer")}
                   >
-                    Volunteer
+                    {pendingRole === "volunteer" ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        Loading…
+                      </>
+                    ) : (
+                      "Volunteer"
+                    )}
                   </Button>
                 ) : null}
               </div>

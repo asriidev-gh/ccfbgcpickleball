@@ -6,9 +6,11 @@ import Link from "next/link";
 import {
   CalendarDays,
   Clock,
+  FlaskConical,
   Gauge,
   LayoutDashboard,
   LayoutGrid,
+  Loader2,
   Pencil,
   Plus,
   Trash2,
@@ -433,6 +435,22 @@ function HomeInner() {
     refetchInterval: 5000,
   });
 
+  const generateTestGameMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/games/generate-test", { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message);
+      return payload as { message: string; game: { gameId: string; title: string } };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+      queryClient.invalidateQueries({ queryKey: ["games"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to generate test game.");
+    },
+  });
+
   const deleteGameMutation = useMutation({
     mutationFn: async (gameId: string) => {
       const response = await fetch(`/api/games/${gameId}`, { method: "DELETE" });
@@ -476,6 +494,25 @@ function HomeInner() {
             <Button size="lg" className="min-w-44" onClick={() => setCreateGameWizardOpen(true)}>
               <Plus className="mr-2 h-5 w-5" />
               Create Open Play Session
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="min-w-44"
+              disabled={generateTestGameMutation.isPending}
+              onClick={() => generateTestGameMutation.mutate()}
+            >
+              {generateTestGameMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                <>
+                  <FlaskConical className="mr-2 h-5 w-5" />
+                  Create Demo Open Play
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
