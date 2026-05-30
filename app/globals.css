@@ -785,15 +785,16 @@
   }
 
   .login-page {
-    background-image: url("/assets/images/login_logo.jpeg");
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    @apply bg-transparent;
   }
 
-  .login-page::before {
+  .login-page__bg {
+    @apply pointer-events-none fixed inset-0 z-0 overflow-hidden;
+  }
+
+  .login-page__bg::after {
     content: "";
-    @apply pointer-events-none absolute inset-0 z-0 bg-black/45;
+    @apply pointer-events-none absolute inset-0 bg-black/45;
   }
 
   .login-page .glass-panel {

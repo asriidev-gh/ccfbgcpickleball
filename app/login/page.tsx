@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -60,8 +61,20 @@ function LoginForm() {
   };
 
   return (
-    <main className="login-page relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden p-6">
-      {!introDone ? <LoginVideoIntro onComplete={handleIntroComplete} /> : null}
+    <>
+      <div className="login-page__bg" aria-hidden="true">
+        <Image
+          src="/assets/images/login_logo.jpeg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+      </div>
+
+      <main className="login-page relative isolate z-10 flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden p-6">
+        {!introDone ? <LoginVideoIntro onComplete={handleIntroComplete} /> : null}
 
       <div
         className={cn(
@@ -136,6 +149,7 @@ function LoginForm() {
         </Card>
       </div>
     </main>
+    </>
   );
 }
 
