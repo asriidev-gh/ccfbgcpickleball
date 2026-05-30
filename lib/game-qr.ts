@@ -10,8 +10,8 @@ import { PickleGame } from "@/models/PickleGame";
 type GameQrFields = {
   _id: unknown;
   gameId: string;
-  registerUrl?: string;
-  publicQrCodeDataUrl?: string;
+  registerUrl?: string | null;
+  publicQrCodeDataUrl?: string | null;
 };
 
 export async function buildGameRegistrationQr(gameId: string) {
@@ -24,7 +24,10 @@ export async function buildGameRegistrationQr(gameId: string) {
   return { registerUrl, publicQrCodeDataUrl };
 }
 
-export function shouldRefreshGameQr(storedRegisterUrl: string | undefined, expectedRegisterUrl: string) {
+export function shouldRefreshGameQr(
+  storedRegisterUrl: string | null | undefined,
+  expectedRegisterUrl: string,
+) {
   if (!storedRegisterUrl) return true;
   if (storedRegisterUrl !== expectedRegisterUrl) return true;
   if (isLocalhostAppUrl(storedRegisterUrl) && !isLocalhostAppUrl(expectedRegisterUrl)) return true;

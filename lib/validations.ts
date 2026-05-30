@@ -49,6 +49,9 @@ export const newPlayerSchema = z.object({
   volunteerTypeOther: z.string().optional().default(""),
 });
 
+export type NewPlayerInput = z.infer<typeof newPlayerSchema>;
+export type GenericPlayerInput = z.infer<typeof genericPlayerSchema>;
+
 export const existingPlayerSchema = z.object({
   gameId: z.string().min(4),
   personalQrCode: z

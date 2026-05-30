@@ -19,7 +19,7 @@ import {
   parseNewPlayerPayloadFromFormData,
 } from "@/lib/parse-registration-form";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
-import { genericPlayerSchema, newPlayerSchema } from "@/lib/validations";
+import { genericPlayerSchema, newPlayerSchema, type NewPlayerInput } from "@/lib/validations";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 import { Volunteer } from "@/models/Volunteer";
@@ -96,22 +96,25 @@ export async function POST(request: Request) {
       lastAttendedAt: new Date(),
     };
 
-    const player =
-      formVariant === "generic"
-        ? await Player.create({
-            ...playerFields,
-            firstTimeSportsMinistry: false,
-            isPartOfDgroup: false,
-            attendedEvents: [],
-            attendedEventsOther: "",
-          })
-        : await Player.create({
-            ...playerFields,
-            firstTimeSportsMinistry: payload.firstTimeSportsMinistry,
-            isPartOfDgroup: payload.isPartOfDgroup,
-            attendedEvents: payload.attendedEvents,
-            attendedEventsOther: payload.attendedEventsOther ?? "",
-          });
+    let player;
+    if (formVariant === "generic") {
+      player = await Player.create({
+        ...playerFields,
+        firstTimeSportsMinistry: false,
+        isPartOfDgroup: false,
+        attendedEvents: [],
+        attendedEventsOther: "",
+      });
+    } else {
+      const ccfPayload = payload as NewPlayerInput;
+      player = await Player.create({
+        ...playerFields,
+        firstTimeSportsMinistry: ccfPayload.firstTimeSportsMinistry,
+        isPartOfDgroup: ccfPayload.isPartOfDgroup,
+        attendedEvents: ccfPayload.attendedEvents,
+        attendedEventsOther: ccfPayload.attendedEventsOther ?? "",
+      });
+    }
 
     await QueueEntry.create({
       gameId: payload.gameId,
@@ -120,13 +123,16 @@ export async function POST(request: Request) {
       queueType: "normal",
     });
 
-    if (formVariant === "ccf" && payload.volunteerType) {
-      await Volunteer.create({
-        playerId: player._id,
-        gameId: payload.gameId,
-        volunteerType: payload.volunteerType,
-        volunteerTypeOther: payload.volunteerTypeOther,
-      });
+    if (formVariant !== "generic") {
+      const ccfPayload = payload as NewPlayerInput;
+      if (ccfPayload.volunteerType) {
+        await Volunteer.create({
+          playerId: player._id,
+          gameId: ccfPayload.gameId,
+          volunteerType: ccfPayload.volunteerType,
+          volunteerTypeOther: ccfPayload.volunteerTypeOther,
+        });
+      }
     }
 
     return NextResponse.json({

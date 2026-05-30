@@ -151,7 +151,7 @@ export async function buildSessionExportWorkbook(gameId: string, ownerId: string
   }
 
   const seenNames = new Set<string>();
-  const rows: Record<(typeof exportColumns)[number], string | number>[] = [];
+  const rows: Record<string, string | number>[] = [];
 
   for (const entry of entries) {
     const player = entry.playerId as PopulatedPlayer | null;
