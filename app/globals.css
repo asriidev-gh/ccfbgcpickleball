@@ -784,6 +784,26 @@
     @apply bg-muted text-muted-foreground;
   }
 
+  .login-page {
+    @apply bg-background;
+  }
+
+  .login-logo {
+    @apply drop-shadow-[0_4px_24px_rgba(0,0,0,0.35)];
+  }
+
+  .login-video-intro {
+    @apply fixed inset-0 z-20 flex items-center justify-center bg-black;
+  }
+
+  .login-video-intro__video {
+    @apply h-full w-full object-contain sm:object-cover;
+  }
+
+  .login-video-intro__skip {
+    @apply absolute right-4 bottom-4 z-30 text-white/80 hover:bg-white/10 hover:text-white;
+  }
+
   .glass-panel {
     @apply border border-border bg-card text-card-foreground shadow-sm;
   }

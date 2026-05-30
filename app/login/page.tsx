@@ -1,14 +1,17 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { LoginVideoIntro } from "@/components/login/login-video-intro";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { APP_NAME } from "@/lib/app-config";
+import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   return (
@@ -24,6 +27,11 @@ function LoginForm() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [introDone, setIntroDone] = useState(false);
+
+  const handleIntroComplete = useCallback(() => {
+    setIntroDone(true);
+  }, []);
 
   useEffect(() => {
     const error = searchParams.get("error");
@@ -54,69 +62,89 @@ function LoginForm() {
   };
 
   return (
-    <main className="login-page flex min-h-screen flex-col items-center justify-center gap-6 p-6">
-      <h1 className="app-brand login-brand text-center text-5xl sm:text-6xl md:text-7xl lg:text-8xl">{APP_NAME}</h1>
-      <Card className="glass-panel w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="section-title">
-            {mode === "login" ? "Login" : "Create Account"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {mode === "register" ? (
+    <main className="login-page relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden p-6">
+      {!introDone ? <LoginVideoIntro onComplete={handleIntroComplete} /> : null}
+
+      <div
+        className={cn(
+          "relative z-10 flex w-full max-w-md flex-col items-center gap-6 transition-all duration-700 ease-out",
+          introDone
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-4 opacity-0",
+        )}
+        aria-hidden={!introDone}
+      >
+        <Image
+          src="/assets/images/login_logo.jpeg"
+          alt={APP_NAME}
+          width={2752}
+          height={1536}
+          priority
+          className="login-logo h-auto w-full max-w-xs object-contain sm:max-w-sm md:max-w-md"
+        />
+        <Card className="glass-panel w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="section-title">
+              {mode === "login" ? "Login" : "Create Account"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {mode === "register" ? (
+              <div className="space-y-2">
+                <Label>Name</Label>
+                <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+              </div>
+            ) : null}
             <div className="space-y-2">
-              <Label>Name</Label>
-              <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(event) => setForm({ ...form, email: event.target.value })}
+              />
             </div>
-          ) : null}
-          <div className="space-y-2">
-            <Label>Email</Label>
-            <Input
-              type="email"
-              value={form.email}
-              onChange={(event) => setForm({ ...form, email: event.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Password</Label>
-            <Input
-              type="password"
-              value={form.password}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
-            />
-          </div>
-          <Button className="w-full" onClick={submit} disabled={loading}>
-            {loading ? "Please wait..." : mode === "login" ? "Login" : "Create Account"}
-          </Button>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(event) => setForm({ ...form, password: event.target.value })}
+              />
+            </div>
+            <Button className="w-full" onClick={submit} disabled={loading || !introDone}>
+              {loading ? "Please wait..." : mode === "login" ? "Login" : "Create Account"}
+            </Button>
 
-          <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">or</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground">or</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={loading}
-            onClick={() => {
-              window.location.href = "/api/auth/google";
-            }}
-          >
-            <GoogleIcon />
-            Continue with Google
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={loading || !introDone}
+              onClick={() => {
+                window.location.href = "/api/auth/google";
+              }}
+            >
+              <GoogleIcon />
+              Continue with Google
+            </Button>
 
-          <Button
-            variant="ghost"
-            className="w-full"
-            onClick={() => setMode((prev) => (prev === "login" ? "register" : "login"))}
-          >
-            {mode === "login" ? "Need an account? Sign up" : "Already have an account? Log in"}
-          </Button>
-        </CardContent>
-      </Card>
+            <Button
+              variant="ghost"
+              className="w-full"
+              disabled={!introDone}
+              onClick={() => setMode((prev) => (prev === "login" ? "register" : "login"))}
+            >
+              {mode === "login" ? "Need an account? Sign up" : "Already have an account? Log in"}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }
