@@ -9,10 +9,25 @@ export type GameListViewMode = "list" | "cards";
 
 export const GAME_LIST_VIEW_STORAGE_KEY = "ccf-game-list-view";
 
+/** Matches Tailwind `md` — list row layout uses this breakpoint. */
+export const GAME_LIST_DESKTOP_MEDIA = "(min-width: 768px)";
+
+export function isGameListDesktopViewport(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia(GAME_LIST_DESKTOP_MEDIA).matches;
+}
+
+export function defaultGameListView(): GameListViewMode {
+  return isGameListDesktopViewport() ? "list" : "cards";
+}
+
 export function loadGameListView(): GameListViewMode {
-  if (typeof window === "undefined") return "list";
+  if (typeof window === "undefined") return "cards";
   const stored = localStorage.getItem(GAME_LIST_VIEW_STORAGE_KEY);
-  return stored === "list" || stored === "cards" ? stored : "list";
+  if (!stored) return defaultGameListView();
+  if (stored === "cards") return "cards";
+  // Saved "list" on desktop only; mobile defaults to cards.
+  return isGameListDesktopViewport() ? "list" : "cards";
 }
 
 export function saveGameListView(view: GameListViewMode) {

@@ -30,7 +30,6 @@ export function parseGenericPlayerPayloadFromFormData(formData: FormData) {
     lastName: formString(formData, "lastName"),
     mobileNumber: formString(formData, "mobileNumber"),
     email: formString(formData, "email"),
-    waiverAccepted: formBoolean(formData, "waiverAccepted") ? (true as const) : (false as const),
   };
 
   return genericPlayerSchema.safeParse(body);

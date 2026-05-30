@@ -26,7 +26,10 @@ import { CreateGameWizard } from "@/components/game/create-game-wizard";
 import { EditGameDialog, type EditGameDialogGame } from "@/components/game/edit-game-dialog";
 import { GameExportButton } from "@/components/game/game-export-button";
 import {
+  GAME_LIST_DESKTOP_MEDIA,
+  GAME_LIST_VIEW_STORAGE_KEY,
   GameListViewToggle,
+  defaultGameListView,
   loadGameListView,
   saveGameListView,
   type GameListViewMode,
@@ -423,14 +426,32 @@ function HomeInner() {
   const setCreateGameWizardOpen = useUiStore((state) => state.setCreateGameWizardOpen);
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
   const [editingGame, setEditingGame] = useState<EditGameDialogGame | null>(null);
-  const [listView, setListView] = useState<GameListViewMode>("list");
+  // Mobile-first placeholder until client resolves viewport + saved preference.
+  const [listView, setListView] = useState<GameListViewMode>("cards");
+  const [viewReady, setViewReady] = useState(false);
 
   useEffect(() => {
-    setListView(loadGameListView());
+    const mq = window.matchMedia(GAME_LIST_DESKTOP_MEDIA);
+    const syncView = () => {
+      setListView(loadGameListView());
+      setViewReady(true);
+    };
+    syncView();
+
+    const onViewportChange = () => {
+      if (!localStorage.getItem(GAME_LIST_VIEW_STORAGE_KEY)) {
+        setListView(defaultGameListView());
+      }
+    };
+    mq.addEventListener("change", onViewportChange);
+    return () => mq.removeEventListener("change", onViewportChange);
   }, []);
+
+  const displayView: GameListViewMode = viewReady ? listView : "cards";
 
   const handleListViewChange = (view: GameListViewMode) => {
     setListView(view);
+    setViewReady(true);
     saveGameListView(view);
   };
 
@@ -548,7 +569,7 @@ function HomeInner() {
         <Card className="glass-panel">
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="section-title">Games</CardTitle>
-            <GameListViewToggle value={listView} onChange={handleListViewChange} />
+            <GameListViewToggle value={displayView} onChange={handleListViewChange} />
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="active" className="gap-4">
@@ -572,9 +593,10 @@ function HomeInner() {
               </TabsList>
               <TabsContent value="active">
                 <GameList
+                  key={`active-${displayView}`}
                   games={activeGames}
                   variant="active"
-                  view={listView}
+                  view={displayView}
                   emptyMessage="No active games. Create one to start queuing."
                   onEdit={setEditingGame}
                   onDelete={handleDeleteGame}
@@ -583,9 +605,10 @@ function HomeInner() {
               </TabsContent>
               <TabsContent value="past">
                 <GameList
+                  key={`past-${displayView}`}
                   games={pastGames}
                   variant="past"
-                  view={listView}
+                  view={displayView}
                   emptyMessage="No past games yet. Ended open play sessions will appear here."
                   onEdit={setEditingGame}
                   onDelete={handleDeleteGame}

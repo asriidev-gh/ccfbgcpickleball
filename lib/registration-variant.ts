@@ -5,7 +5,7 @@ export type RegistrationFormVariant = "generic" | "ccf";
 
 /**
  * Registration UI for a game follows the game owner's `userType`:
- * - `default` → generic form (Player only, waiver, basic fields)
+ * - `default` → generic form (Player only, basic fields)
  * - `ccf` → full CCF questionnaires (Player + Volunteer, ministry questions)
  */
 export function getRegistrationFormVariant(

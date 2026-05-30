@@ -12,7 +12,6 @@ import {
   getRegistrationBlockedMessage,
   promptIfRegistrationFull,
 } from "@/components/game/registration-capacity-prompt";
-import { RegistrationLiabilityWaiver } from "@/components/register/registration-liability-waiver";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
 import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
 import type { RegistrationFormVariant } from "@/lib/registration-variant";
@@ -60,7 +59,6 @@ export function RegistrationForm({
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [waiverAccepted, setWaiverAccepted] = useState(false);
   const [registrationStatus, setRegistrationStatus] = useState<GameRegistrationStatus | null>(
     null,
   );
@@ -95,7 +93,6 @@ export function RegistrationForm({
     setVolunteerType("");
     setFieldErrors({});
     setPhotoFile(null);
-    setWaiverAccepted(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -209,7 +206,6 @@ export function RegistrationForm({
         lastName: form.lastName,
         mobileNumber: form.mobileNumber,
         email: form.email,
-        waiverAccepted: waiverAccepted ? (true as const) : (false as const),
       };
     }
 
@@ -231,9 +227,7 @@ export function RegistrationForm({
     body.append("mobileNumber", payload.mobileNumber);
     body.append("email", payload.email);
 
-    if (isGenericForm && "waiverAccepted" in payload) {
-      body.append("waiverAccepted", String(payload.waiverAccepted === true));
-    } else if (!isGenericForm) {
+    if (!isGenericForm) {
       const ccfPayload = payload as ReturnType<typeof buildNewPlayerPayload> & {
         firstTimeSportsMinistry: boolean;
         isPartOfDgroup: boolean;
@@ -529,18 +523,6 @@ export function RegistrationForm({
                   </div>
                 )}
 
-                {isGenericForm ? (
-                  <RegistrationLiabilityWaiver
-                    checked={waiverAccepted}
-                    disabled={submitting}
-                    error={fieldErrors.waiverAccepted}
-                    onCheckedChange={(checked) => {
-                      clearFieldError("waiverAccepted");
-                      setWaiverAccepted(checked);
-                    }}
-                  />
-                ) : null}
-
                 {!isGenericForm && role === "volunteer" ? (
                   <div className="register-block">
                     <Label className="register-label">Volunteer Type</Label>
@@ -668,9 +650,7 @@ export function RegistrationForm({
                   size="lg"
                   className="register-submit w-full"
                   onClick={() => void submit()}
-                  disabled={
-                    submitting || statusLoading || (isGenericForm && !waiverAccepted)
-                  }
+                  disabled={submitting || statusLoading}
                 >
                   {submitting ? "Submitting…" : "Submit Registration"}
                 </Button>
