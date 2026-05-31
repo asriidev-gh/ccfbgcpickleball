@@ -2,6 +2,7 @@ import QRCode from "qrcode";
 
 import {
   getGameRegisterUrl,
+  getGameSpectatorUrl,
   getPublicAppBaseUrl,
   isLocalhostAppUrl,
 } from "@/lib/app-url";
@@ -10,12 +11,23 @@ import { PickleGame } from "@/models/PickleGame";
 type GameQrFields = {
   _id: unknown;
   gameId: string;
+  allowQrRegistration?: boolean | null;
   registerUrl?: string | null;
   publicQrCodeDataUrl?: string | null;
 };
 
-export async function buildGameRegistrationQr(gameId: string) {
-  const registerUrl = getGameRegisterUrl(getPublicAppBaseUrl(), gameId);
+export function getGamePublicUrl(baseUrl: string, gameId: string, allowQrRegistration = true) {
+  return allowQrRegistration
+    ? getGameRegisterUrl(baseUrl, gameId)
+    : getGameSpectatorUrl(baseUrl, gameId);
+}
+
+export async function buildGameRegistrationQr(
+  gameId: string,
+  options?: { allowQrRegistration?: boolean },
+) {
+  const allowQrRegistration = options?.allowQrRegistration !== false;
+  const registerUrl = getGamePublicUrl(getPublicAppBaseUrl(), gameId, allowQrRegistration);
   const publicQrCodeDataUrl = await QRCode.toDataURL(registerUrl, {
     margin: 1,
     width: 360,
@@ -35,12 +47,17 @@ export function shouldRefreshGameQr(
 }
 
 export async function ensureGameRegistrationQr(game: GameQrFields) {
-  const expectedRegisterUrl = getGameRegisterUrl(getPublicAppBaseUrl(), game.gameId);
+  const allowQrRegistration = game.allowQrRegistration !== false;
+  const expectedRegisterUrl = getGamePublicUrl(
+    getPublicAppBaseUrl(),
+    game.gameId,
+    allowQrRegistration,
+  );
   let registerUrl = game.registerUrl ?? expectedRegisterUrl;
   let publicQrCodeDataUrl = game.publicQrCodeDataUrl;
 
   if (shouldRefreshGameQr(registerUrl, expectedRegisterUrl) || !publicQrCodeDataUrl) {
-    const qr = await buildGameRegistrationQr(game.gameId);
+    const qr = await buildGameRegistrationQr(game.gameId, { allowQrRegistration });
     registerUrl = qr.registerUrl;
     publicQrCodeDataUrl = qr.publicQrCodeDataUrl;
     await PickleGame.updateOne(

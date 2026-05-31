@@ -19,7 +19,13 @@ type GameQrDialogProps = {
   gameTitle: string;
   registerUrl: string;
   qrCodeDataUrl: string;
+  mode?: "registration" | "spectator";
 };
+
+function resolveQrDialogMode(registerUrl: string, mode?: GameQrDialogProps["mode"]) {
+  if (mode) return mode;
+  return registerUrl.includes("/spectate") ? "spectator" : "registration";
+}
 
 export function GameQrDialog({
   open,
@@ -27,11 +33,15 @@ export function GameQrDialog({
   gameTitle,
   registerUrl,
   qrCodeDataUrl,
+  mode,
 }: GameQrDialogProps) {
+  const dialogMode = resolveQrDialogMode(registerUrl, mode);
+  const isSpectator = dialogMode === "spectator";
+
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(registerUrl);
-      toast.success("Registration link copied.");
+      toast.success(isSpectator ? "Spectator link copied." : "Registration link copied.");
     } catch {
       toast.error("Could not copy link.");
     }
@@ -41,10 +51,19 @@ export function GameQrDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="game-qr-dialog max-w-md justify-items-center text-center sm:max-w-md">
         <DialogHeader className="w-full items-center text-center sm:text-center">
-          <DialogTitle>Player registration QR</DialogTitle>
+          <DialogTitle>{isSpectator ? "Spectator view QR" : "Player registration QR"}</DialogTitle>
           <DialogDescription className="text-center">
-            Scan with a phone camera to open player registration for{" "}
-            <span className="font-medium text-foreground">{gameTitle}</span>.
+            {isSpectator ? (
+              <>
+                Scan with a phone camera to open the live spectator view for{" "}
+                <span className="font-medium text-foreground">{gameTitle}</span>.
+              </>
+            ) : (
+              <>
+                Scan with a phone camera to open player registration for{" "}
+                <span className="font-medium text-foreground">{gameTitle}</span>.
+              </>
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="flex w-full max-w-sm flex-col items-center gap-4">
@@ -52,7 +71,11 @@ export function GameQrDialog({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qrCodeDataUrl}
-              alt={`QR code for ${gameTitle} registration`}
+              alt={
+                isSpectator
+                  ? `QR code for ${gameTitle} spectator view`
+                  : `QR code for ${gameTitle} registration`
+              }
               className="game-qr-image mx-auto block size-64 max-w-[min(280px,calc(100vw-4rem))] object-contain"
             />
           </div>

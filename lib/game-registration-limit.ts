@@ -23,6 +23,7 @@ export type GameRegistrationStatus = {
   gameId: string;
   formVariant: RegistrationFormVariant;
   strictPlayerCount: boolean;
+  allowQrRegistration: boolean;
   expectedPlayers: number;
   registeredCount: number;
   isFull: boolean;
@@ -36,7 +37,7 @@ export async function getGameRegistrationStatus(
   await connectToDatabase();
 
   const game = await PickleGame.findOne({ gameId }).select(
-    "gameId expectedPlayers strictPlayerCount status",
+    "gameId expectedPlayers strictPlayerCount allowQrRegistration status",
   );
   if (!game) return null;
 
@@ -45,6 +46,7 @@ export async function getGameRegistrationStatus(
 
   const registeredCount = await getGameRegistrationCount(gameId);
   const strict = game.strictPlayerCount === true;
+  const allowQrRegistration = game.allowQrRegistration !== false;
   const isFull =
     game.status === "ended" ||
     (strict && registeredCount >= game.expectedPlayers);
@@ -53,6 +55,7 @@ export async function getGameRegistrationStatus(
     gameId: game.gameId,
     formVariant,
     strictPlayerCount: strict,
+    allowQrRegistration,
     expectedPlayers: game.expectedPlayers,
     registeredCount,
     isFull,

@@ -5,7 +5,10 @@ import { type ComponentProps, useState } from "react";
 import { toast } from "sonner";
 
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
-import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
+import {
+  fetchGameRegistrationStatus,
+  promptIfRegistrationFull,
+} from "@/components/game/registration-capacity-prompt";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -28,12 +31,17 @@ export function GameQrRegistrationButton({
 }: GameQrRegistrationButtonProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isSpectatorQr, setIsSpectatorQr] = useState(false);
   const [registerUrl, setRegisterUrl] = useState<string | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
 
   const openQrDialog = async () => {
     setLoading(true);
     try {
+      const status = await fetchGameRegistrationStatus(gameId);
+      const spectatorQr = status.allowQrRegistration === false;
+      setIsSpectatorQr(spectatorQr);
+
       const canProceed = await promptIfRegistrationFull(gameId);
       if (!canProceed) return;
 
@@ -46,6 +54,7 @@ export function GameQrRegistrationButton({
       if (!response.ok) throw new Error(payload.message);
       setRegisterUrl(payload.registerUrl);
       setQrCodeDataUrl(payload.publicQrCodeDataUrl);
+      setIsSpectatorQr(spectatorQr || payload.registerUrl?.includes("/spectate"));
       setOpen(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load registration QR.");
@@ -118,6 +127,7 @@ export function GameQrRegistrationButton({
           gameTitle={gameTitle}
           registerUrl={registerUrl}
           qrCodeDataUrl={qrCodeDataUrl}
+          mode={isSpectatorQr ? "spectator" : "registration"}
         />
       ) : null}
     </>

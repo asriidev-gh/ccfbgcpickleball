@@ -25,9 +25,13 @@ export async function POST(request: Request) {
       preRegisteredNames.length > 0
         ? payload.allowQrRegistration !== true
         : payload.strictPlayerCount;
+    const allowQrRegistration =
+      payload.registrationMode === "owner" ? payload.allowQrRegistration === true : true;
 
     const gameId = nanoid(10);
-    const { registerUrl, publicQrCodeDataUrl } = await buildGameRegistrationQr(gameId);
+    const { registerUrl, publicQrCodeDataUrl } = await buildGameRegistrationQr(gameId, {
+      allowQrRegistration,
+    });
 
     const game = await PickleGame.create({
       title: payload.title,
@@ -35,6 +39,8 @@ export async function POST(request: Request) {
       courtCount: payload.courtCount,
       expectedPlayers,
       strictPlayerCount,
+      allowQrRegistration,
+      registrationMode: payload.registrationMode === "owner" ? "owner" : "self",
       gameId,
       ownerId: authUser.userId,
       registerUrl,

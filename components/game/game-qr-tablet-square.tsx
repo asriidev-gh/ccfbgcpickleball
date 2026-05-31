@@ -28,6 +28,7 @@ export function GameQrTabletSquare({
 }: GameQrTabletSquareProps) {
   const [loading, setLoading] = useState(true);
   const [registrationFull, setRegistrationFull] = useState(false);
+  const [isSpectatorQr, setIsSpectatorQr] = useState(false);
   const [registerUrl, setRegisterUrl] = useState<string | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -41,7 +42,10 @@ export function GameQrTabletSquare({
         const status = await fetchGameRegistrationStatus(gameId);
         if (cancelled) return;
 
-        if (status.isFull) {
+        const spectatorQr = status.allowQrRegistration === false;
+        setIsSpectatorQr(spectatorQr);
+
+        if (status.isFull && !spectatorQr) {
           setRegistrationFull(true);
           setRegisterUrl(null);
           setQrCodeDataUrl(null);
@@ -56,6 +60,9 @@ export function GameQrTabletSquare({
           setRegisterUrl(payload.registerUrl);
           setQrCodeDataUrl(payload.publicQrCodeDataUrl);
           setRegistrationFull(false);
+          setIsSpectatorQr(
+            spectatorQr || Boolean(payload.registerUrl?.includes("/spectate")),
+          );
         }
       } catch (error) {
         if (!cancelled) {
@@ -93,6 +100,7 @@ export function GameQrTabletSquare({
       if (!response.ok) throw new Error(payload.message);
       setRegisterUrl(payload.registerUrl);
       setQrCodeDataUrl(payload.publicQrCodeDataUrl);
+      setIsSpectatorQr(Boolean(payload.registerUrl?.includes("/spectate")));
       setDialogOpen(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load registration QR.");
@@ -129,7 +137,9 @@ export function GameQrTabletSquare({
           aria-label={
             registrationFull
               ? `Registration full for ${gameTitle}`
-              : `Open registration QR for ${gameTitle}`
+              : isSpectatorQr
+                ? `Open spectator QR for ${gameTitle}`
+                : `Open registration QR for ${gameTitle}`
           }
           onClick={() => void handleClick()}
         >
@@ -159,7 +169,7 @@ export function GameQrTabletSquare({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={qrCodeDataUrl}
-                alt={`Registration QR for ${gameTitle}`}
+                alt={isSpectatorQr ? `Spectator QR for ${gameTitle}` : `Registration QR for ${gameTitle}`}
                 className="size-full object-contain"
               />
             </div>
@@ -176,7 +186,7 @@ export function GameQrTabletSquare({
             compact ? "text-[0.625rem] leading-none" : "text-xs",
           )}
         >
-          Register
+          {isSpectatorQr ? "Spectate" : "Register"}
         </span>
       </div>
 
@@ -187,6 +197,7 @@ export function GameQrTabletSquare({
           gameTitle={gameTitle}
           registerUrl={registerUrl}
           qrCodeDataUrl={qrCodeDataUrl}
+          mode={isSpectatorQr ? "spectator" : "registration"}
         />
       ) : null}
     </>

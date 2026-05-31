@@ -13,6 +13,12 @@ const pickleGameSchema = new Schema(
     courtCount: { type: Number, required: true, min: 1 },
     expectedPlayers: { type: Number, required: true, min: 4 },
     strictPlayerCount: { type: Boolean, required: true, default: false },
+    allowQrRegistration: { type: Boolean, required: true, default: true },
+    registrationMode: {
+      type: String,
+      enum: ["self", "owner"],
+      default: "self",
+    },
     registerUrl: { type: String, required: false },
     publicQrCodeDataUrl: { type: String, required: true },
     status: {

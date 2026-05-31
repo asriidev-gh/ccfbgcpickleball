@@ -27,6 +27,10 @@ export function getGameRegisterUrl(baseUrl: string, gameId: string) {
   return `${baseUrl}/register/${gameId}`;
 }
 
+export function getGameSpectatorUrl(baseUrl: string, gameId: string) {
+  return `${baseUrl}/games/${gameId}/spectate`;
+}
+
 export function isLocalhostAppUrl(url: string) {
   try {
     const { hostname } = new URL(url);

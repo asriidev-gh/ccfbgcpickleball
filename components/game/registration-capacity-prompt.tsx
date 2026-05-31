@@ -33,6 +33,10 @@ export function getRegistrationBlockedMessage(status: GameRegistrationStatus) {
 export async function promptIfRegistrationFull(gameId: string) {
   const status = await fetchGameRegistrationStatus(gameId);
 
+  if (status.allowQrRegistration === false) {
+    return true;
+  }
+
   if (!status.isFull) {
     return true;
   }

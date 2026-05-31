@@ -30,13 +30,47 @@ export const createGameSchema = z
     }
   });
 
-export const updateGameSchema = z.object({
-  title: z.string().min(2, "Game title is required.").max(80),
-  openPlayType: z.enum(["Beginner", "Intermediate", "Advanced"]),
-  courtCount: z.coerce.number().int().min(1).max(20),
-  expectedPlayers: z.coerce.number().int().min(4).max(300),
-  strictPlayerCount: z.boolean(),
-});
+export const updateGameSchema = z
+  .object({
+    title: z.string().min(2, "Game title is required.").max(80),
+    openPlayType: z.enum(["Beginner", "Intermediate", "Advanced"]),
+    courtCount: z.coerce.number().int().min(1).max(20),
+    expectedPlayers: z.coerce.number().int().min(1).max(300).optional(),
+    strictPlayerCount: z.boolean().optional(),
+    allowQrRegistration: z.boolean().optional(),
+    ownerPlayers: z
+      .array(
+        z.object({
+          playerId: z.string().optional(),
+          displayName: z.string().trim().min(1, "Player name is required."),
+          remove: z.boolean().optional(),
+        }),
+      )
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.ownerPlayers) {
+      const activeCount = data.ownerPlayers.filter(
+        (player) => player.displayName.trim().length > 0 && player.remove !== true,
+      ).length;
+      if (activeCount < 1) {
+        ctx.addIssue({
+          code: "custom",
+          message: "At least one player name is required.",
+          path: ["ownerPlayers"],
+        });
+      }
+      return;
+    }
+
+    if ((data.expectedPlayers ?? 0) < 4) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Expected players must be at least 4.",
+        path: ["expectedPlayers"],
+      });
+    }
+  });
 
 export const genericPlayerSchema = z.object({
   gameId: z.string().min(4),

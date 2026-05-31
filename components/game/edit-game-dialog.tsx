@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,23 @@ export type EditGameDialogGame = {
   strictPlayerCount?: boolean;
 };
 
+type OwnerPlayerRow = {
+  playerId?: string;
+  displayName: string;
+  canRemove: boolean;
+};
+
+type EditFormState = {
+  title: string;
+  openPlayType: (typeof types)[number];
+  courtCount: number;
+  expectedPlayers: number;
+  strictPlayerCount: boolean;
+  allowQrRegistration: boolean;
+  registrationMode: "self" | "owner";
+  ownerPlayers: OwnerPlayerRow[];
+};
+
 type EditGameDialogProps = {
   game: EditGameDialogGame | null;
   open: boolean;
@@ -28,36 +46,132 @@ type EditGameDialogProps = {
   onSaved: () => void;
 };
 
+const INITIAL_FORM: EditFormState = {
+  title: "",
+  openPlayType: "Beginner",
+  courtCount: 2,
+  expectedPlayers: 24,
+  strictPlayerCount: false,
+  allowQrRegistration: true,
+  registrationMode: "self",
+  ownerPlayers: [],
+};
+
 export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDialogProps) {
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    openPlayType: "Beginner" as (typeof types)[number],
-    courtCount: 2,
-    expectedPlayers: 24,
-    strictPlayerCount: false,
-  });
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [removedPlayerIds, setRemovedPlayerIds] = useState<string[]>([]);
+  const [form, setForm] = useState<EditFormState>(INITIAL_FORM);
+
+  const isOwnerRegistration = form.registrationMode === "owner";
 
   useEffect(() => {
     if (!game || !open) return;
-    setForm({
-      title: game.title,
-      openPlayType:
-        types.find((type) => type === game.openPlayType) ?? "Beginner",
-      courtCount: game.courtCount,
-      expectedPlayers: game.expectedPlayers,
-      strictPlayerCount: game.strictPlayerCount === true,
-    });
+
+    let cancelled = false;
+
+    const load = async () => {
+      setLoadingDetails(true);
+      setRemovedPlayerIds([]);
+      try {
+        const response = await fetch(`/api/games/${game.gameId}/edit`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+
+        if (cancelled) return;
+
+        setForm({
+          title: data.game.title,
+          openPlayType:
+            types.find((type) => type === data.game.openPlayType) ?? "Beginner",
+          courtCount: data.game.courtCount,
+          expectedPlayers: data.game.expectedPlayers,
+          strictPlayerCount: data.game.strictPlayerCount === true,
+          allowQrRegistration: data.game.allowQrRegistration !== false,
+          registrationMode: data.game.registrationMode === "owner" ? "owner" : "self",
+          ownerPlayers: (data.ownerPlayers ?? []).map(
+            (player: {
+              playerId: string;
+              displayName: string;
+              canRemove: boolean;
+            }) => ({
+              playerId: player.playerId,
+              displayName: player.displayName,
+              canRemove: player.canRemove,
+            }),
+          ),
+        });
+      } catch (error) {
+        if (!cancelled) {
+          toast.error(error instanceof Error ? error.message : "Failed to load game details.");
+          setForm({
+            ...INITIAL_FORM,
+            title: game.title,
+            openPlayType:
+              types.find((type) => type === game.openPlayType) ?? "Beginner",
+            courtCount: game.courtCount,
+            expectedPlayers: game.expectedPlayers,
+            strictPlayerCount: game.strictPlayerCount === true,
+          });
+        }
+      } finally {
+        if (!cancelled) setLoadingDetails(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [game, open]);
+
+  const activeOwnerPlayerCount = useMemo(
+    () => form.ownerPlayers.filter((player) => player.displayName.trim().length > 0).length,
+    [form.ownerPlayers],
+  );
 
   const submit = async () => {
     if (!game) return;
+
+    if (isOwnerRegistration && activeOwnerPlayerCount < 1) {
+      toast.error("Enter at least one player name.");
+      return;
+    }
+
     try {
       setLoading(true);
+
+      const body: Record<string, unknown> = {
+        title: form.title.trim(),
+        openPlayType: form.openPlayType,
+        courtCount: form.courtCount,
+      };
+
+      if (isOwnerRegistration) {
+        body.allowQrRegistration = form.allowQrRegistration;
+        body.ownerPlayers = [
+          ...form.ownerPlayers
+            .filter((player) => player.displayName.trim().length > 0)
+            .map((player) => ({
+              playerId: player.playerId,
+              displayName: player.displayName.trim(),
+            })),
+          ...removedPlayerIds.map((playerId) => ({
+            playerId,
+            displayName: "Removed",
+            remove: true,
+          })),
+        ];
+      } else {
+        body.expectedPlayers = form.expectedPlayers;
+        body.strictPlayerCount = form.strictPlayerCount;
+      }
+
       const response = await fetch(`/api/games/${game.gameId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
@@ -71,6 +185,21 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
     }
   };
 
+  const removeOwnerPlayer = (index: number) => {
+    const row = form.ownerPlayers[index];
+    if (row?.playerId && row.canRemove === false) {
+      toast.error("Players on court or who have finished a match cannot be removed here.");
+      return;
+    }
+    if (row?.playerId) {
+      setRemovedPlayerIds((prev) => [...prev, row.playerId!]);
+    }
+    setForm((prev) => ({
+      ...prev,
+      ownerPlayers: prev.ownerPlayers.filter((_, rowIndex) => rowIndex !== index),
+    }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92dvh,52rem)] w-[calc(100%-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden p-0">
@@ -82,89 +211,183 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
         </DialogHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
-          <div className="space-y-3">
-            <Label htmlFor="edit-game-title" className="text-base">
-              Game title
-            </Label>
-            <Input
-              id="edit-game-title"
-              className="h-11 text-base"
-              value={form.title}
-              onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-3">
-            <Label className="text-base">Open play type</Label>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {types.map((type) => (
-                <Button
-                  key={type}
-                  type="button"
-                  size="sm"
-                  variant={form.openPlayType === type ? "default" : "outline"}
-                  className="min-h-11 px-2 py-2 text-center text-sm leading-snug"
-                  onClick={() => setForm((prev) => ({ ...prev, openPlayType: type }))}
-                >
-                  {type}
-                </Button>
-              ))}
+          {loadingDetails ? (
+            <div className="flex min-h-40 items-center justify-center text-muted-foreground">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
+              Loading game details…
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="space-y-3">
+                <Label htmlFor="edit-game-title" className="text-base">
+                  Game title
+                </Label>
+                <Input
+                  id="edit-game-title"
+                  className="h-11 text-base"
+                  value={form.title}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, title: event.target.value }))
+                  }
+                />
+              </div>
 
-          <div className="space-y-3">
-            <Label htmlFor="edit-court-count" className="text-base">
-              How many courts?
-            </Label>
-            <NumberStepper
-              id="edit-court-count"
-              min={1}
-              max={20}
-              value={form.courtCount}
-              onChange={(courtCount) => setForm((prev) => ({ ...prev, courtCount }))}
-            />
-          </div>
+              <div className="space-y-3">
+                <Label className="text-base">Open play type</Label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {types.map((type) => (
+                    <Button
+                      key={type}
+                      type="button"
+                      size="sm"
+                      variant={form.openPlayType === type ? "default" : "outline"}
+                      className="min-h-11 px-2 py-2 text-center text-sm leading-snug"
+                      onClick={() => setForm((prev) => ({ ...prev, openPlayType: type }))}
+                    >
+                      {type}
+                    </Button>
+                  ))}
+                </div>
+              </div>
 
-          <div className="space-y-3">
-            <Label htmlFor="edit-expected-players" className="text-base">
-              Expected players
-            </Label>
-            <NumberStepper
-              id="edit-expected-players"
-              min={4}
-              max={300}
-              value={form.expectedPlayers}
-              onChange={(expectedPlayers) =>
-                setForm((prev) => ({ ...prev, expectedPlayers }))
-              }
-            />
-          </div>
+              <div className="space-y-3">
+                <Label htmlFor="edit-court-count" className="text-base">
+                  How many courts?
+                </Label>
+                <NumberStepper
+                  id="edit-court-count"
+                  min={1}
+                  max={20}
+                  value={form.courtCount}
+                  onChange={(courtCount) => setForm((prev) => ({ ...prev, courtCount }))}
+                />
+              </div>
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <Checkbox
-              id="edit-strict-player-count"
-              checked={form.strictPlayerCount}
-              onCheckedChange={(checked) =>
-                setForm((prev) => ({
-                  ...prev,
-                  strictPlayerCount: checked === true,
-                }))
-              }
-            />
-            <span className="space-y-1 leading-snug">
-              <span className="block text-base font-medium">Strict player count</span>
-              <span className="block text-sm text-muted-foreground">
-                When enabled, registration stops at {form.expectedPlayers} players.
-              </span>
-            </span>
-          </label>
+              {isOwnerRegistration ? (
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <Label className="text-base">Registered players</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Rename players or remove anyone still waiting in the queue. Players on court
+                      cannot be removed until their match ends.
+                    </p>
+                  </div>
+                  <ul className="space-y-3">
+                    {form.ownerPlayers.map((player, index) => (
+                      <li key={player.playerId ?? `new-${index}`} className="flex items-center gap-2">
+                        <Input
+                          className="h-11 flex-1 text-base"
+                          placeholder={`Player ${index + 1} name`}
+                          value={player.displayName}
+                          onChange={(event) => {
+                            const next = [...form.ownerPlayers];
+                            next[index] = { ...next[index], displayName: event.target.value };
+                            setForm((prev) => ({ ...prev, ownerPlayers: next }));
+                          }}
+                        />
+                        {form.ownerPlayers.length > 1 ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-11 shrink-0 text-muted-foreground hover:text-destructive"
+                            aria-label={`Remove player ${index + 1}`}
+                            onClick={() => removeOwnerPlayer(index)}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden />
+                          </Button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        ownerPlayers: [
+                          ...prev.ownerPlayers,
+                          { displayName: "", canRemove: true },
+                        ],
+                      }))
+                    }
+                  >
+                    <Plus className="mr-2 h-4 w-4" aria-hidden />
+                    Add more player
+                  </Button>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                    <Checkbox
+                      id="edit-allow-qr-registration"
+                      checked={form.allowQrRegistration}
+                      onCheckedChange={(checked) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          allowQrRegistration: checked === true,
+                        }))
+                      }
+                    />
+                    <span className="space-y-1 leading-snug">
+                      <span className="block text-sm font-medium">
+                        Allow new users to join via QR code
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        When off, the QR opens the spectator view instead.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <Label htmlFor="edit-expected-players" className="text-base">
+                      Expected players
+                    </Label>
+                    <NumberStepper
+                      id="edit-expected-players"
+                      min={4}
+                      max={300}
+                      value={form.expectedPlayers}
+                      onChange={(expectedPlayers) =>
+                        setForm((prev) => ({ ...prev, expectedPlayers }))
+                      }
+                    />
+                  </div>
+
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                    <Checkbox
+                      id="edit-strict-player-count"
+                      checked={form.strictPlayerCount}
+                      onCheckedChange={(checked) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          strictPlayerCount: checked === true,
+                        }))
+                      }
+                    />
+                    <span className="space-y-1 leading-snug">
+                      <span className="block text-base font-medium">Strict player count</span>
+                      <span className="block text-sm text-muted-foreground">
+                        When enabled, registration stops at {form.expectedPlayers} players.
+                      </span>
+                    </span>
+                  </label>
+                </>
+              )}
+            </>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 border-t bg-muted/40 px-6 py-4">
           <Button variant="outline" size="lg" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button size="lg" onClick={submit} disabled={loading || !game}>
+          <Button
+            size="lg"
+            onClick={submit}
+            disabled={loading || loadingDetails || !game}
+          >
             {loading ? "Saving…" : "Save changes"}
           </Button>
         </div>

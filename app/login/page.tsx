@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { Eye, EyeOff } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ function LoginForm() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const [introDone, setIntroDone] = useState(false);
 
   const handleIntroComplete = useCallback(() => {
@@ -108,11 +110,25 @@ function LoginForm() {
             </div>
             <div className="space-y-2">
               <Label>Password</Label>
-              <Input
-                type="password"
-                value={form.password}
-                onChange={(event) => setForm({ ...form, password: event.target.value })}
-              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={form.password}
+                  onChange={(event) => setForm({ ...form, password: event.target.value })}
+                  className="pr-9"
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             <Button className="w-full" onClick={submit} disabled={loading || !introDone}>
               {loading ? "Please wait..." : mode === "login" ? "Login" : "Create Account"}

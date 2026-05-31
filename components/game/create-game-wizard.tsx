@@ -262,8 +262,7 @@ export function CreateGameWizard() {
                   </span>
                   <span className="block text-xs text-muted-foreground">
                     When enabled, others can scan the registration QR and join the queue after your
-                    list is added. When off, registration closes once all listed players are in the
-                    queue.
+                    list is added. When off, the QR opens the spectator view instead.
                   </span>
                 </span>
               </label>

@@ -16,7 +16,7 @@ export async function GET() {
         .sort({ createdAt: -1 })
         .limit(20)
         .select(
-          "title gameId openPlayType courtCount expectedPlayers strictPlayerCount status createdAt updatedAt",
+          "title gameId openPlayType courtCount expectedPlayers strictPlayerCount allowQrRegistration status createdAt updatedAt",
         ),
       PickleGame.exists({
         ownerId: authUser.userId,

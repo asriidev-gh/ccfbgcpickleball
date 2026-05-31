@@ -66,6 +66,7 @@ type GameCard = {
   courtCount: number;
   expectedPlayers: number;
   strictPlayerCount?: boolean;
+  allowQrRegistration?: boolean;
   status: "draft" | "active" | "ended";
   updatedAt?: string;
 };
@@ -364,6 +365,7 @@ function GameList({
                 </div>
                 <div className="game-list-card-register flex w-full min-w-0 justify-center">
                   <GameQrRegistrationSlot
+                    key={`${game.gameId}-${game.updatedAt ?? ""}-${game.allowQrRegistration ?? true}`}
                     gameId={game.gameId}
                     gameTitle={game.title}
                     compact
@@ -413,7 +415,12 @@ function GameList({
             className="game-list-col-register flex min-w-0 justify-center md:justify-end"
             aria-label={`Registration for ${game.title}`}
           >
-            <GameQrRegistrationSlot gameId={game.gameId} gameTitle={game.title} compact />
+            <GameQrRegistrationSlot
+              key={`${game.gameId}-${game.updatedAt ?? ""}-${game.allowQrRegistration ?? true}`}
+              gameId={game.gameId}
+              gameTitle={game.title}
+              compact
+            />
           </section>
         </div>
       ))}

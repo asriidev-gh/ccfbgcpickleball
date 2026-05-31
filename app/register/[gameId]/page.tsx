@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { RegistrationForm } from "@/components/register/registration-form";
 import { connectToDatabase } from "@/lib/db";
@@ -14,8 +14,14 @@ export default async function RegisterPage({
 }) {
   await connectToDatabase();
   const { gameId } = await params;
-  const game = await PickleGame.findOne({ gameId }).select("gameId title status");
+  const game = await PickleGame.findOne({ gameId }).select(
+    "gameId title status allowQrRegistration",
+  );
   if (!game) notFound();
+
+  if (game.allowQrRegistration === false) {
+    redirect(`/games/${gameId}/spectate`);
+  }
 
   const formVariant = await resolveGameRegistrationFormVariant(gameId);
   if (!formVariant) notFound();

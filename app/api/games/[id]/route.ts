@@ -2,16 +2,20 @@ import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
+import { ensureGameRegistrationQr } from "@/lib/game-qr";
 import { getGameRegistrationCount } from "@/lib/game-registration-limit";
+import {
+  gameUsesOwnerRegistration,
+  syncOwnerPreRegisteredPlayers,
+} from "@/lib/owner-pre-registered-players";
 import { updateGameSchema } from "@/lib/validations";
-import { PickleGame } from "@/models/PickleGame";
-import { QueueEntry } from "@/models/QueueEntry";
+import { getAuthUserFromCookie } from "@/lib/auth";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
+import { PickleGame } from "@/models/PickleGame";
+import { QueueEntry } from "@/models/QueueEntry";
 import "@/models/Player";
-import { getAuthUserFromCookie } from "@/lib/auth";
-import { ensureGameRegistrationQr } from "@/lib/game-qr";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -70,9 +74,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const game = await PickleGame.findOne({ gameId, ownerId: authUser.userId });
     if (!game) return NextResponse.json({ message: "Game not found." }, { status: 404 });
 
-    if (parsed.data.strictPlayerCount) {
+    const usesOwnerRegistration =
+      parsed.data.ownerPlayers != null || (await gameUsesOwnerRegistration(game));
+
+    let expectedPlayers = parsed.data.expectedPlayers ?? game.expectedPlayers;
+    let strictPlayerCount = parsed.data.strictPlayerCount ?? game.strictPlayerCount === true;
+    let allowQrRegistration =
+      parsed.data.allowQrRegistration ?? game.allowQrRegistration !== false;
+
+    if (usesOwnerRegistration) {
+      if (parsed.data.allowQrRegistration != null) {
+        allowQrRegistration = parsed.data.allowQrRegistration;
+        strictPlayerCount = !allowQrRegistration;
+      }
+
+      if (parsed.data.ownerPlayers) {
+        expectedPlayers = await syncOwnerPreRegisteredPlayers({
+          gameId,
+          ownerPlayers: parsed.data.ownerPlayers,
+        });
+        game.registrationMode = "owner";
+      }
+    }
+
+    if (strictPlayerCount) {
       const registeredCount = await getGameRegistrationCount(gameId);
-      if (parsed.data.expectedPlayers < registeredCount) {
+      if (expectedPlayers < registeredCount) {
         return NextResponse.json(
           {
             message: `Expected players cannot be below current registrations (${registeredCount}).`,
@@ -127,8 +154,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           title: parsed.data.title,
           openPlayType: parsed.data.openPlayType,
           courtCount: parsed.data.courtCount,
-          expectedPlayers: parsed.data.expectedPlayers,
-          strictPlayerCount: parsed.data.strictPlayerCount,
+          expectedPlayers,
+          strictPlayerCount,
+          allowQrRegistration,
+          ...(usesOwnerRegistration ? { registrationMode: "owner" as const } : {}),
         },
       },
       { new: true },
@@ -136,6 +165,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (!updatedGame) {
       return NextResponse.json({ message: "Game not found." }, { status: 404 });
+    }
+
+    if (parsed.data.allowQrRegistration != null) {
+      await ensureGameRegistrationQr(updatedGame);
     }
 
     return NextResponse.json({ game: updatedGame, message: "Game updated." });
