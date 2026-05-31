@@ -42,6 +42,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useUiStore } from "@/store/ui-store";
+import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
 import { cn } from "@/lib/utils";
 
 const deleteAlertOptions = {
@@ -110,14 +111,30 @@ function GameMeta({
   );
 }
 
+function DemoOnlyBadge() {
+  return (
+    <Badge
+      variant="outline"
+      className="shrink-0 rounded-full border-amber-500/40 bg-amber-500/10 px-2 py-0 text-[0.625rem] font-semibold tracking-wide text-amber-800 uppercase dark:text-amber-200"
+    >
+      Demo only
+    </Badge>
+  );
+}
+
 function GameTitle({ title, className }: { title: string; className?: string }) {
+  const isDemo = isDemoOpenPlayTitle(title);
+
   return (
     <div className={cn("flex min-w-0 items-start gap-2", className)}>
       <CalendarDays
         className="mt-0.5 h-5 w-5 shrink-0 text-primary/70 md:h-5 md:w-5"
         aria-hidden
       />
-      <span className="min-w-0 leading-snug">{title}</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className="min-w-0 leading-snug">{title}</span>
+        {isDemo ? <DemoOnlyBadge /> : null}
+      </div>
     </div>
   );
 }
@@ -140,6 +157,7 @@ function GameListInfoGrouped({
       <div className="col-start-2 row-start-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-lg font-semibold leading-snug md:text-xl">{game.title}</span>
+          {isDemoOpenPlayTitle(game.title) ? <DemoOnlyBadge /> : null}
           {variant === "past" ? (
             <Badge variant="outline" className="shrink-0">
               Ended
