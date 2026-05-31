@@ -96,8 +96,9 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
 
           <div className="border-t border-border/60 pt-4">
             <p className="font-medium text-foreground">
-              — Andy Radam, Creator of Paddle Flow 🏓
+              — Andy Radam, Creator of Paddle Flow J316 🏓
             </p>
+            <p className="mt-2 italic text-muted-foreground">All glory to God.</p>
             <div className="mt-3">
               {showPhone ? (
                 <a
