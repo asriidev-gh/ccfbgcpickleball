@@ -95,8 +95,8 @@ async function isPlayerActiveOnCourt(gameId: string, playerObjectId: Types.Objec
   const courts = await Court.find({ gameId, status: "active" }).select("teamA teamB");
   return courts.some(
     (court) =>
-      court.teamA.playerIds.some((id) => id.equals(playerObjectId)) ||
-      court.teamB.playerIds.some((id) => id.equals(playerObjectId)),
+      court.teamA.playerIds.some((id: Types.ObjectId) => id.equals(playerObjectId)) ||
+      court.teamB.playerIds.some((id: Types.ObjectId) => id.equals(playerObjectId)),
   );
 }
 
