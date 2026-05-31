@@ -24,6 +24,7 @@ import { toast } from "sonner";
 
 import { CreateGameWizard } from "@/components/game/create-game-wizard";
 import { EditGameDialog, type EditGameDialogGame } from "@/components/game/edit-game-dialog";
+import { WatchDemoButton } from "@/components/watch-demo-button";
 import { GameExportButton } from "@/components/game/game-export-button";
 import {
   GAME_LIST_DESKTOP_MEDIA,
@@ -266,9 +267,12 @@ function GameListActions({
   deletingGameId: string | null;
   compact?: boolean;
 }) {
+  const isDemo = isDemoOpenPlayTitle(game.title);
+
   if (compact) {
     return (
       <div className="flex w-full flex-col gap-2.5">
+        {isDemo ? <WatchDemoButton className="w-full" /> : null}
         {variant === "active" ? (
           <Link href={`/games/${game.gameId}`} className="mb-2 w-full">
             <Button className="w-full">
@@ -304,6 +308,7 @@ function GameListActions({
 
   return (
     <div className="mx-auto flex w-full max-w-[17rem] flex-col items-center gap-2">
+      {isDemo ? <WatchDemoButton className="w-full" /> : null}
       {variant === "active" ? (
         <Link href={`/games/${game.gameId}`} className="w-full">
           <Button className="w-full">

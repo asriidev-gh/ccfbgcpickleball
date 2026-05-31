@@ -8,6 +8,8 @@ import { toast } from "sonner";
 
 import { LoginVideoIntro } from "@/components/login/login-video-intro";
 import { DeveloperCreditLink } from "@/components/developer-credit-link";
+import { WatchDemoButton } from "@/components/watch-demo-button";
+import { APP_NAME } from "@/lib/app-config";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -75,6 +77,13 @@ function LoginForm() {
           className="object-cover object-center"
         />
       </div>
+
+      <header className="login-page-header absolute inset-x-0 top-0 z-20 border-b border-border/60 bg-background/85 py-3 backdrop-blur-sm">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-6">
+          <span className="app-brand">{APP_NAME}</span>
+          <WatchDemoButton />
+        </div>
+      </header>
 
       <main className="login-page relative isolate z-10 flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden p-6">
         {!introDone ? <LoginVideoIntro onComplete={handleIntroComplete} /> : null}

@@ -62,7 +62,7 @@ export function AppBrandBar() {
       <div className={pad}>
         <div className={cn("app-brand-bar__inner mx-auto flex w-full items-center justify-between gap-3", container)}>
           <BrandTitle pathname={pathname} fromParam={fromParam} />
-          <div className="app-brand-actions shrink-0">
+          <div className="app-brand-actions flex shrink-0 items-center gap-2">
             {showThemeOnly ? <ThemeMenu /> : <UserMenu />}
           </div>
         </div>
