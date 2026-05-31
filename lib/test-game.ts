@@ -1,6 +1,7 @@
 import type { Types } from "mongoose";
 import { nanoid } from "nanoid";
 
+import type { OpenPlayType } from "@/lib/open-play-types";
 import { buildGameRegistrationQr } from "@/lib/game-qr";
 import { Court } from "@/models/Court";
 import { PickleGame } from "@/models/PickleGame";
@@ -66,7 +67,7 @@ type CreateTestGameOptions = {
   ownerId: string | Types.ObjectId;
   gameId?: string;
   title?: string;
-  openPlayType?: "Beginner" | "Intermediate" | "Advanced";
+  openPlayType?: OpenPlayType;
   courtCount?: number;
   playerCount?: number;
   qrPrefix?: string;

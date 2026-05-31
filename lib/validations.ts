@@ -1,9 +1,13 @@
 import { z } from "zod";
 
+import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
+
+const openPlayTypeSchema = z.enum(OPEN_PLAY_TYPES);
+
 export const createGameSchema = z
   .object({
     title: z.string().min(2, "Game title is required.").max(80),
-    openPlayType: z.enum(["Beginner", "Intermediate", "Advanced"]),
+    openPlayType: openPlayTypeSchema,
     courtCount: z.coerce.number().int().min(1).max(20),
     expectedPlayers: z.coerce.number().int().min(1).max(300),
     strictPlayerCount: z.boolean().default(false),
@@ -33,7 +37,7 @@ export const createGameSchema = z
 export const updateGameSchema = z
   .object({
     title: z.string().min(2, "Game title is required.").max(80),
-    openPlayType: z.enum(["Beginner", "Intermediate", "Advanced"]),
+    openPlayType: openPlayTypeSchema,
     courtCount: z.coerce.number().int().min(1).max(20),
     expectedPlayers: z.coerce.number().int().min(1).max(300).optional(),
     strictPlayerCount: z.boolean().optional(),

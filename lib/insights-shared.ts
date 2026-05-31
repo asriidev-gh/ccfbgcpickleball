@@ -54,6 +54,9 @@ export type UserOpenPlay = {
   openPlayType: string;
   courtCount: number;
   playerCount: number;
+  expectedPlayers: number;
+  strictPlayerCount: boolean;
+  organizerRegisteredAllPlayers: boolean;
   createdAt: string | null;
 };
 

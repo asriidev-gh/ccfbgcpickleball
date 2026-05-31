@@ -1,5 +1,6 @@
 import { DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
 import { connectToDatabase } from "@/lib/db";
+import { isOwnerPreRegisteredPlayer } from "@/lib/owner-pre-registered-players";
 import { formatPlayerTableName } from "@/lib/utils";
 import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import type {
@@ -176,13 +177,18 @@ async function buildUserOpenPlaysList(
 
   const games = (await PickleGame.find({ ownerId: userId, ...titleFilter })
     .sort({ createdAt: -1 })
-    .select("gameId title status openPlayType courtCount createdAt")
+    .select(
+      "gameId title status openPlayType courtCount expectedPlayers strictPlayerCount registrationMode createdAt",
+    )
     .lean()) as Array<{
     gameId: string;
     title: string;
     status?: string;
     openPlayType?: string;
     courtCount?: number;
+    expectedPlayers?: number;
+    strictPlayerCount?: boolean;
+    registrationMode?: string;
     createdAt?: Date;
   }>;
 
@@ -196,6 +202,28 @@ async function buildUserOpenPlaysList(
         ])) as Array<{ _id: string; players: unknown[] }>);
   const playersByGame = new Map(playerAgg.map((row) => [row._id, row.players.length]));
 
+  const organizerRegisteredByGame = new Set<string>();
+  if (gameIds.length > 0) {
+    const queueEntries = await QueueEntry.find({ gameId: { $in: gameIds } })
+      .select("gameId")
+      .populate("playerId", "email personalQrCode")
+      .lean<
+        Array<{
+          gameId: string;
+          playerId?: { email?: string; personalQrCode?: string } | null;
+        }>
+      >();
+
+    for (const entry of queueEntries) {
+      if (
+        entry.playerId &&
+        isOwnerPreRegisteredPlayer(entry.playerId, entry.gameId)
+      ) {
+        organizerRegisteredByGame.add(entry.gameId);
+      }
+    }
+  }
+
   return {
     user: { id: userId, name: userName },
     count: games.length,
@@ -206,6 +234,10 @@ async function buildUserOpenPlaysList(
       openPlayType: g.openPlayType ?? "—",
       courtCount: g.courtCount ?? 0,
       playerCount: playersByGame.get(g.gameId) ?? 0,
+      expectedPlayers: g.expectedPlayers ?? 0,
+      strictPlayerCount: g.strictPlayerCount === true,
+      organizerRegisteredAllPlayers:
+        g.registrationMode === "owner" || organizerRegisteredByGame.has(g.gameId),
       createdAt: g.createdAt ? new Date(g.createdAt).toISOString() : null,
     })),
   };

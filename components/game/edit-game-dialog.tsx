@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
 
-const types = ["Beginner", "Intermediate", "Advanced"] as const;
+const types = OPEN_PLAY_TYPES;
 
 export type EditGameDialogGame = {
   gameId: string;
@@ -234,7 +235,7 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
 
               <div className="space-y-3">
                 <Label className="text-base">Open play type</Label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {types.map((type) => (
                     <Button
                       key={type}

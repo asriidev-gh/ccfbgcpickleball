@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Award,
   CalendarPlus,
+  Eye,
   FlaskConical,
   Gamepad2,
   LayoutGrid,
@@ -21,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
 
@@ -34,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -320,6 +322,23 @@ function UserOpenPlaysDialog({
                       {game.openPlayType}
                     </Badge>
                   </div>
+                  <div className="mt-2 grid gap-1.5 text-xs text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground">Open play type:</span>{" "}
+                      {game.openPlayType}
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">Expected players:</span>{" "}
+                      {game.expectedPlayers}
+                      {game.strictPlayerCount ? " (strict)" : " (not strict)"}
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">
+                        Registered all players by organizer:
+                      </span>{" "}
+                      {game.organizerRegisteredAllPlayers ? "Yes" : "No"}
+                    </p>
+                  </div>
                   <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
                     <Badge variant="outline" className="gap-1">
                       <Users className="h-3 w-3" aria-hidden />
@@ -330,6 +349,15 @@ function UserOpenPlaysDialog({
                       {game.courtCount} {game.courtCount === 1 ? "court" : "courts"}
                     </Badge>
                   </div>
+                  <Link
+                    href={`/games/${game.gameId}/spectate`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3 inline-flex")}
+                  >
+                    <Eye className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                    Spectator view
+                  </Link>
                 </li>
               ))}
             </ul>

@@ -7,7 +7,7 @@ const pickleGameSchema = new Schema(
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     openPlayType: {
       type: String,
-      enum: ["Beginner", "Intermediate", "Advanced"],
+      enum: ["Beginner", "Intermediate", "Advanced", "Any Level Open Play"],
       required: true,
     },
     courtCount: { type: Number, required: true, min: 1 },

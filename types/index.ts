@@ -1,4 +1,5 @@
-export type OpenPlayType = "Beginner" | "Intermediate" | "Advanced";
+export type { OpenPlayType } from "@/lib/open-play-types";
+export { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
 
 export type RegistrationRole = "existing-player" | "new-player" | "volunteer";
 

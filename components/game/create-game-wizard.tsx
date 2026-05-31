@@ -11,9 +11,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import { defaultOpenPlayTitle, OPEN_PLAY_TYPES } from "@/lib/open-play-types";
 import { useUiStore } from "@/store/ui-store";
 
-const types = ["Beginner", "Intermediate", "Advanced"] as const;
+const types = OPEN_PLAY_TYPES;
 
 type RegistrationMode = "self" | "owner";
 
@@ -26,7 +27,7 @@ const INITIAL_FORM = {
 };
 
 function defaultGameTitle(openPlayType: string) {
-  return `${openPlayType} Open Play`;
+  return defaultOpenPlayTitle(openPlayType);
 }
 
 function getTotalSteps(mode: RegistrationMode | "") {
@@ -151,7 +152,7 @@ export function CreateGameWizard() {
           {stepKind === "openPlayType" ? (
             <div className="space-y-4">
               <Label className="text-base">Open Play Type</Label>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {types.map((type) => (
                   <Button
                     key={type}
