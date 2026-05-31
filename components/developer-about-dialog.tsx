@@ -61,7 +61,7 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
           <p className="text-foreground">Thank you for using Paddle Flow!</p>
 
           <p>
-            This app was created by a fellow pickleball enthusiast who wanted to make court
+            This app was created for pickleball enthusiast who wanted to make court
             management, player rotation, and queueing simpler, fairer, and more enjoyable for
             everyone. Whether you&apos;re joining open play, organizing club sessions, or managing
             tournaments, Paddle Flow is designed to help players spend less time waiting and more
