@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Phone } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -28,15 +28,20 @@ type DeveloperAboutDialogProps = {
 
 export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialogProps) {
   const [showPhone, setShowPhone] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) setShowPhone(false);
+    if (open) {
+      scrollRef.current?.scrollTo({ top: 0 });
+      return;
+    }
+    setShowPhone(false);
   }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="developer-about-dialog max-h-[min(90vh,44rem)] max-w-[min(96vw,32rem)] gap-4 overflow-y-auto sm:max-w-lg">
-        <DialogHeader className="items-center text-center sm:items-center sm:text-center">
+      <DialogContent className="developer-about-dialog flex max-h-[min(90vh,44rem)] max-w-[min(96vw,32rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogHeader className="shrink-0 items-center px-4 pt-4 pb-3 text-center sm:items-center sm:text-center">
           <div className="developer-about-photo mx-auto overflow-hidden rounded-full ring-2 ring-border">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -48,7 +53,11 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
           <DialogTitle className="text-lg sm:text-xl">Welcome to Paddle Flow 🏓</DialogTitle>
         </DialogHeader>
 
-        <div className="developer-about-body space-y-4 text-sm leading-relaxed text-muted-foreground">
+        <div
+          ref={scrollRef}
+          className="developer-about-body min-h-0 flex-1 overflow-y-auto px-4 pb-4"
+        >
+          <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
           <p className="text-foreground">Thank you for using Paddle Flow!</p>
 
           <p>
@@ -111,6 +120,7 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
                 </Button>
               )}
             </div>
+          </div>
           </div>
         </div>
       </DialogContent>

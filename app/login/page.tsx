@@ -7,6 +7,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { LoginVideoIntro } from "@/components/login/login-video-intro";
+import { DeveloperCreditLink } from "@/components/developer-credit-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -163,6 +164,9 @@ function LoginForm() {
             </Button>
           </CardContent>
         </Card>
+        <p className="text-center text-xs text-muted-foreground">
+          <DeveloperCreditLink />
+        </p>
       </div>
     </main>
     </>
