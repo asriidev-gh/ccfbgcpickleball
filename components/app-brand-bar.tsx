@@ -6,11 +6,15 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/theme-menu";
 import { UserMenu } from "@/components/user-menu";
 import { APP_NAME } from "@/lib/app-config";
-import { getBrandShellClasses, isPublicAppPath, shouldHideAppBrandBar } from "@/lib/app-shell";
+import { getBrandShellClasses, isPublicAppPath, isSpectatorPath, shouldHideAppBrandBar } from "@/lib/app-shell";
 import { dispatchRegistrationReset } from "@/lib/registration-reset";
 import { cn } from "@/lib/utils";
 
-function RegisterBrandTitle({ pathname }: { pathname: string }) {
+function BrandTitle({ pathname, fromParam }: { pathname: string; fromParam: string | null }) {
+  if (isSpectatorPath(pathname, fromParam)) {
+    return <span className="app-brand">{APP_NAME}</span>;
+  }
+
   const match = pathname.match(/^\/register\/([^/]+)(?:\/success)?\/?$/);
   if (!match) {
     return (
@@ -57,7 +61,7 @@ export function AppBrandBar() {
     <header className="app-brand-bar">
       <div className={pad}>
         <div className={cn("app-brand-bar__inner mx-auto flex w-full items-center justify-between gap-3", container)}>
-          <RegisterBrandTitle pathname={pathname} />
+          <BrandTitle pathname={pathname} fromParam={fromParam} />
           <div className="app-brand-actions shrink-0">
             {showThemeOnly ? <ThemeMenu /> : <UserMenu />}
           </div>

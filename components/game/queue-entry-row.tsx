@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, LogOut } from "lucide-react";
 
 import { PlayerNameWithPhoto, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,8 @@ type QueueEntryRowProps = {
   onReplace: () => void;
   replacePending: boolean;
   hideReplacePanel?: boolean;
+  onRemove?: () => void;
+  removePending?: boolean;
 };
 
 export function QueueEntryRow({
@@ -43,6 +45,8 @@ export function QueueEntryRow({
   onReplace,
   replacePending,
   hideReplacePanel = false,
+  onRemove,
+  removePending = false,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const rowClass = isNextUp
@@ -106,14 +110,42 @@ export function QueueEntryRow({
               "No eligible player to swap with yet."
             )}
           </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="queue-replace-btn"
+              onClick={onReplace}
+              disabled={replacePending || !swapTargetPlayer}
+            >
+              <ArrowLeftRight className="mr-1.5 h-3.5 w-3.5" />
+              Replace Player
+            </Button>
+            {onRemove ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="queue-remove-btn border-destructive/50 text-destructive"
+                onClick={onRemove}
+                disabled={removePending}
+              >
+                <LogOut className="mr-1.5 h-3.5 w-3.5" />
+                Check Out
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : onRemove ? (
+        <div className="mt-2">
           <Button
             size="sm"
             variant="outline"
-            className="queue-replace-btn"
-            onClick={onReplace}
-            disabled={replacePending || !swapTargetPlayer}
+            className="queue-remove-btn border-destructive/50 text-destructive"
+            onClick={onRemove}
+            disabled={removePending}
           >
-            Replace Player
+            <LogOut className="mr-1.5 h-3.5 w-3.5" />
+            Check Out
           </Button>
         </div>
       ) : null}

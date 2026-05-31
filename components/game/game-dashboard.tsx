@@ -237,6 +237,41 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     onError: (error) => toast.error(error.message),
   });
 
+  const removeMutation = useMutation({
+    mutationFn: async (queueEntryId: string) => {
+      const response = await fetch(`/api/games/${gameId}/remove-from-queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queueEntryId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const confirmRemoveFromQueue = async (entry: QueueEntryView) => {
+    const playerName = formatPlayerDisplayName(
+      entry.playerId.firstName,
+      entry.playerId.lastName,
+    );
+    const result = await Swal.fire({
+      ...alertBaseOptions,
+      title: "Check out?",
+      html: `<strong>${playerName}</strong> will be checked out of the queue. Their registration and match history are kept.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, check out",
+      cancelButtonText: "Cancel",
+    });
+    if (result.isConfirmed) removeMutation.mutate(entry._id);
+  };
+
   const readOnly = isSpectator;
   const loadingLabel = isSpectator ? "Loading spectator view..." : "Loading game dashboard...";
 
@@ -437,6 +472,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                               }
                               replacePending={!hideControls && replaceMutation.isPending}
                               hideReplacePanel={hideControls}
+                              onRemove={
+                                hideControls ? undefined : () => confirmRemoveFromQueue(entry)
+                              }
+                              removePending={
+                                !hideControls &&
+                                removeMutation.isPending &&
+                                removeMutation.variables === entry._id
+                              }
                             />
                           );
                         })}
@@ -490,6 +533,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                                 onReplace={() => {}}
                                 replacePending={false}
                                 hideReplacePanel
+                                onRemove={
+                                  hideControls ? undefined : () => confirmRemoveFromQueue(entry)
+                                }
+                                removePending={
+                                  !hideControls &&
+                                  removeMutation.isPending &&
+                                  removeMutation.variables === entry._id
+                                }
                               />
                             );
                           })}

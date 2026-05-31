@@ -393,7 +393,7 @@ export function RegistrationForm({
                       Loading…
                     </>
                   ) : isGenericForm ? (
-                    "Proceed"
+                    "Check In"
                   ) : (
                     "Player"
                   )}

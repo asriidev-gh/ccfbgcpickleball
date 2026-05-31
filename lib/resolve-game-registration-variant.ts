@@ -1,10 +1,13 @@
 import { getRegistrationFormVariant, type RegistrationFormVariant } from "@/lib/registration-variant";
+import { connectToDatabase } from "@/lib/db";
 import { PickleGame } from "@/models/PickleGame";
 import { User } from "@/models/User";
 
 export async function resolveGameRegistrationFormVariant(
   gameId: string,
 ): Promise<RegistrationFormVariant | null> {
+  await connectToDatabase();
+
   const game = await PickleGame.findOne({ gameId }).select("ownerId").lean();
   if (!game) return null;
 

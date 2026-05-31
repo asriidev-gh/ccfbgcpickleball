@@ -1,4 +1,5 @@
 import type { RegistrationFormVariant } from "@/lib/registration-variant";
+import { connectToDatabase } from "@/lib/db";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
@@ -32,6 +33,8 @@ export type GameRegistrationStatus = {
 export async function getGameRegistrationStatus(
   gameId: string,
 ): Promise<GameRegistrationStatus | null> {
+  await connectToDatabase();
+
   const game = await PickleGame.findOne({ gameId }).select(
     "gameId expectedPlayers strictPlayerCount status",
   );
@@ -64,6 +67,8 @@ export async function assertGameRegistrationAllowed(
   gameId: string,
   options?: { playerId?: string },
 ) {
+  await connectToDatabase();
+
   const game = await PickleGame.findOne({ gameId }).select(
     "expectedPlayers strictPlayerCount status",
   );
