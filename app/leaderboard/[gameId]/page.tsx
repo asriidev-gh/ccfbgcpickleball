@@ -1,9 +1,5 @@
 import { connectToDatabase } from "@/lib/db";
-import { computeSessionInsights } from "@/lib/session-insights";
-import { formatPlayerTableName } from "@/lib/utils";
-import { LeaderboardStats } from "@/models/LeaderboardStats";
-import { MatchHistory } from "@/models/MatchHistory";
-import "@/models/Player";
+import { loadGameLeaderboardRecap } from "@/lib/game-leaderboard-recap";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PickleGame } from "@/models/PickleGame";
@@ -14,23 +10,6 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
-type LeaderboardEntry = {
-  _id: string;
-  wins: number;
-  losses: number;
-  gamesPlayed: number;
-  winRate: number;
-  currentStreak: number;
-  playerId: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    photoUrl?: string;
-    photoPublicId?: string;
-    personalQrCode?: string;
-  } | null;
-};
 
 export default async function LeaderboardPage({
   params,
@@ -57,39 +36,7 @@ export default async function LeaderboardPage({
     if (!game) notFound();
   }
 
-  const [stats, matches] = await Promise.all([
-    LeaderboardStats.find({ gameId }).sort({ wins: -1, winRate: -1 }).populate("playerId"),
-    MatchHistory.find({ gameId })
-      .sort({ endedAt: 1 })
-      .populate(["teamAPlayerIds", "teamBPlayerIds"]),
-  ]);
-  const safeStats = (stats as unknown as LeaderboardEntry[]).filter((item) =>
-    Boolean(item.playerId),
-  );
-  const insights = computeSessionInsights(
-    matches.map((m) => ({
-      endedAt: m.endedAt,
-      courtNumber: m.courtNumber,
-      teamAPlayerIds: m.teamAPlayerIds,
-      teamBPlayerIds: m.teamBPlayerIds,
-      winnerTeam: m.winnerTeam,
-      durationSeconds: m.durationSeconds,
-    })),
-    safeStats.map((row) => ({
-      playerId: String(row.playerId!._id),
-      name: formatPlayerTableName(row.playerId!.firstName, row.playerId!.lastName),
-      firstName: row.playerId!.firstName,
-      lastName: row.playerId!.lastName,
-      photoUrl: row.playerId!.photoUrl,
-      photoPublicId: row.playerId!.photoPublicId,
-      personalQrCode: row.playerId!.personalQrCode,
-      gamesPlayed: row.gamesPlayed,
-      wins: row.wins,
-      losses: row.losses,
-      winRate: row.winRate,
-      currentStreak: row.currentStreak,
-    })),
-  );
+  const { rows, insights } = await loadGameLeaderboardRecap(gameId);
 
   return (
     <main className="min-h-screen p-6">
@@ -103,22 +50,7 @@ export default async function LeaderboardPage({
             </Button>
           </Link>
         </div>
-        <LeaderboardPageContent
-          insights={insights}
-          rows={safeStats.map((item) => ({
-            id: String(item._id),
-            firstName: item.playerId?.firstName ?? "Unknown",
-            lastName: item.playerId?.lastName ?? "Player",
-            photoUrl: item.playerId?.photoUrl,
-            photoPublicId: item.playerId?.photoPublicId,
-            personalQrCode: item.playerId?.personalQrCode,
-            wins: item.wins,
-            losses: item.losses,
-            gamesPlayed: item.gamesPlayed,
-            winRate: item.winRate,
-            currentStreak: item.currentStreak,
-          }))}
-        />
+        <LeaderboardPageContent insights={insights} rows={rows} />
       </section>
     </main>
   );

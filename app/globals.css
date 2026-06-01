@@ -953,7 +953,8 @@
     @apply space-y-2;
   }
 
-  .queue-waiting-header .queue-divider {
+  .queue-waiting-header .queue-divider,
+  .queue-checked-out-header .queue-divider {
     @apply mt-0 mb-3;
   }
 
@@ -1024,6 +1025,44 @@
     @apply bg-rose-500/20 text-rose-700 ring-rose-500/30 dark:text-rose-400;
   }
 
+  .queue-checked-out {
+    @apply border-dashed border-border/45 bg-muted/15 shadow-none;
+    opacity: 0.72;
+    filter: saturate(0.55);
+  }
+
+  .queue-checked-out:hover {
+    @apply bg-muted/20;
+    opacity: 0.78;
+  }
+
+  .queue-checked-out .body-lg,
+  .queue-checked-out .caption {
+    @apply text-muted-foreground;
+  }
+
+  /* Queue row stats: one line on narrow screens */
+  .queue-item .queue-entry-meta {
+    @apply mt-1.5 max-w-full leading-tight text-muted-foreground;
+    font-size: 0.625rem;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media (min-width: 640px) {
+    .queue-item .queue-entry-meta {
+      @apply mt-2 text-sm leading-relaxed;
+      letter-spacing: normal;
+      white-space: normal;
+    }
+  }
+
+  .queue-checked-out .player-identity [data-slot="avatar"] {
+    @apply opacity-70 grayscale;
+  }
+
   .queue-slot-label {
     @apply font-medium text-muted-foreground normal-case;
   }
@@ -1033,7 +1072,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 0.5rem;
   }
 
@@ -1049,7 +1088,7 @@
     }
   }
 
-  /* Tablet / short landscape (e.g. 1024×738, 1366×1024): always show Replace Player */
+  /* Tablet / short landscape (e.g. 1024×738, 1366×1024): always show Replace */
   @media (min-width: 1024px) and (max-height: 1024px) {
     .queue-next-up .queue-swap-panel {
       display: flex;

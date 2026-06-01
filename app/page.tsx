@@ -393,10 +393,11 @@ function GameList({
                 </div>
                 <div className="game-list-card-register flex w-full min-w-0 justify-center">
                   <GameQrRegistrationSlot
-                    key={`${game.gameId}-${game.updatedAt ?? ""}-${game.allowQrRegistration ?? true}`}
+                    key={`${game.gameId}-${game.updatedAt ?? ""}-${game.status}-${game.allowQrRegistration ?? true}`}
                     gameId={game.gameId}
                     gameTitle={game.title}
                     compact
+                    spectatorOnly={game.status === "ended"}
                   />
                 </div>
               </div>
@@ -444,10 +445,11 @@ function GameList({
             aria-label={`Registration for ${game.title}`}
           >
             <GameQrRegistrationSlot
-              key={`${game.gameId}-${game.updatedAt ?? ""}-${game.allowQrRegistration ?? true}`}
+              key={`${game.gameId}-${game.updatedAt ?? ""}-${game.status}-${game.allowQrRegistration ?? true}`}
               gameId={game.gameId}
               gameTitle={game.title}
               compact
+              spectatorOnly={game.status === "ended"}
             />
           </section>
         </div>

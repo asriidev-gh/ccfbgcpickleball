@@ -28,17 +28,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ message: "queueEntryId is required." }, { status: 400 });
     }
 
-    const entry = await QueueEntry.findOne({
-      _id: queueEntryId,
-      gameId,
-      status: "queued",
-    }).populate("playerId", "firstName lastName");
+    const entry = await QueueEntry.findOneAndUpdate(
+      { _id: queueEntryId, gameId, status: "queued" },
+      { $set: { status: "checked_out" } },
+      { new: true },
+    ).populate("playerId", "firstName lastName");
 
     if (!entry) {
       return NextResponse.json({ message: "Queued player not found." }, { status: 404 });
     }
-
-    await QueueEntry.deleteOne({ _id: entry._id });
 
     const player = entry.playerId as { firstName?: string; lastName?: string } | null;
     const name = [player?.firstName, player?.lastName].filter(Boolean).join(" ").trim() || "Player";

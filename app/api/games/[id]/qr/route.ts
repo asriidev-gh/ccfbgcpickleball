@@ -13,7 +13,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     const { id } = await params;
 
     const game = await PickleGame.findOne({ gameId: id, ownerId: authUser.userId }).select(
-      "title gameId allowQrRegistration registerUrl publicQrCodeDataUrl",
+      "title gameId status allowQrRegistration registerUrl publicQrCodeDataUrl",
     );
     if (!game) return NextResponse.json({ message: "Game not found." }, { status: 404 });
 

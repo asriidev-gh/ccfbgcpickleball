@@ -1,10 +1,12 @@
-import { formatDistanceToNow } from "date-fns";
 import { ArrowLeftRight, LogOut } from "lucide-react";
+
+import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
 import { PlayerNameWithPhoto, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatPlayerDisplayName } from "@/lib/utils";
+import { formatSessionRecordLabel } from "@/lib/games-played-map";
+import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type QueueEntryView = {
   _id: string;
@@ -12,10 +14,23 @@ export type QueueEntryView = {
   playerId: PlayerPhotoRef;
   registeredAt: string;
   lastMatchResult: "win" | "loss" | "none";
+  /** Set when the player checked out of the waiting queue. */
+  checkedOutAt?: string;
+  updatedAt?: string;
+  /** Session stats from leaderboard (this open play). */
+  gamesPlayed?: number;
+  wins?: number;
+  losses?: number;
 };
 
-/** All four highlighted players fill the next court together (see startGameOnFirstAvailableCourt). */
-const NEXT_COURT_STATUS = "Next on court" as const;
+function NextOnCourtLabel() {
+  return (
+    <>
+      <span className="sm:hidden">Next</span>
+      <span className="hidden sm:inline">Next on court</span>
+    </>
+  );
+}
 
 function formatLastMatchResult(result: QueueEntryView["lastMatchResult"]) {
   if (result === "win") return "Win";
@@ -27,29 +42,38 @@ type QueueEntryRowProps = {
   entry: QueueEntryView;
   index: number;
   isNextUp: boolean;
-  swapTargetIndex: number;
-  swapTargetPlayer: QueueEntryView | null;
+  canReplace?: boolean;
   onReplace: () => void;
   replacePending: boolean;
   hideReplacePanel?: boolean;
   onRemove?: () => void;
   removePending?: boolean;
+  /** Read-only row for players who left the waiting queue. */
+  checkedOut?: boolean;
 };
 
 export function QueueEntryRow({
   entry,
   index,
   isNextUp,
-  swapTargetIndex,
-  swapTargetPlayer,
+  canReplace = false,
   onReplace,
   replacePending,
   hideReplacePanel = false,
   onRemove,
   removePending = false,
+  checkedOut = false,
 }: QueueEntryRowProps) {
   const slot = index + 1;
-  const rowClass = isNextUp
+  const checkedOutTime = entry.checkedOutAt ? new Date(entry.checkedOutAt) : null;
+  const sessionRecordLabel = formatSessionRecordLabel({
+    gamesPlayed: entry.gamesPlayed ?? 0,
+    wins: entry.wins ?? 0,
+    losses: entry.losses ?? 0,
+  });
+  const rowClass = checkedOut
+    ? "queue-checked-out"
+    : isNextUp
     ? `queue-next-up queue-next-up-slot-${slot}`
     : entry.queueType === "winner"
       ? "queue-winner"
@@ -58,68 +82,76 @@ export function QueueEntryRow({
         : "queue-item-default border-border bg-muted/50";
 
   return (
-    <div className={`queue-item rounded-xl border p-3 ${rowClass}`}>
+    <div className={cn("queue-item rounded-xl border p-3", rowClass)}>
       {isNextUp ? <span className="queue-slot-ribbon" aria-hidden /> : null}
 
       <div className="queue-item-layout flex items-center justify-between">
         <div className="flex min-w-0 flex-1 items-center gap-3">
+          {checkedOut ? null : (
           <span className="queue-rank" aria-label={`Queue position ${slot}`}>
             {slot}
           </span>
+          )}
           <div className="min-w-0 flex-1">
             <div className="body-lg min-w-0">
-              <PlayerNameWithPhoto player={entry.playerId}>
+              <PlayerNameWithPhoto
+                player={entry.playerId}
+                className={checkedOut ? "opacity-80" : undefined}
+                nameClassName={checkedOut ? "text-muted-foreground" : undefined}
+              >
                 {formatPlayerDisplayName(
                   entry.playerId.firstName,
                   entry.playerId.lastName,
-                  slot,
+                  checkedOut ? undefined : slot,
                 )}
               </PlayerNameWithPhoto>
             </div>
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center">
-          {isNextUp ? (
-            <Badge className="badge-next-up">{NEXT_COURT_STATUS}</Badge>
+          {checkedOut ? (
+            <Badge variant="outline" className="border-border/60 bg-muted/40 text-muted-foreground">
+              Checked out
+            </Badge>
+          ) : isNextUp ? (
+            <Badge className="badge-next-up" aria-label="Next on court">
+              <NextOnCourtLabel />
+            </Badge>
           ) : (
             <Badge variant="outline">{entry.queueType}</Badge>
           )}
         </div>
       </div>
 
-      <p className="caption mt-2" suppressHydrationWarning>
-        Waiting for {formatDistanceToNow(new Date(entry.registeredAt))} | Last match:{" "}
-        {formatLastMatchResult(entry.lastMatchResult)}
+      <p
+        className={cn("queue-entry-meta", checkedOut && "text-muted-foreground/90")}
+        suppressHydrationWarning
+      >
+        {checkedOut && checkedOutTime ? (
+          <>
+            Checked out {formatRelativeTimeForCard(checkedOutTime, { addSuffix: true })} | Last match:{" "}
+            {formatLastMatchResult(entry.lastMatchResult)} | {sessionRecordLabel}
+          </>
+        ) : (
+          <>
+            Waiting for {formatRelativeTimeForCard(new Date(entry.registeredAt))} | Last match:{" "}
+            {formatLastMatchResult(entry.lastMatchResult)} | {sessionRecordLabel}
+          </>
+        )}
       </p>
 
-      {isNextUp && !hideReplacePanel ? (
+      {!checkedOut && isNextUp && !hideReplacePanel ? (
         <div className="queue-swap-panel">
-          <p className="queue-swap-hint text-sm">
-            {swapTargetPlayer ? (
-              <>
-                <ArrowLeftRight className="mr-1 inline h-3.5 w-3.5 opacity-70" />
-                Swap with #{swapTargetIndex + 1} (
-                {formatPlayerDisplayName(
-                  swapTargetPlayer.playerId.firstName,
-                  swapTargetPlayer.playerId.lastName,
-                  swapTargetIndex + 1,
-                )}
-                )
-              </>
-            ) : (
-              "No eligible player to swap with yet."
-            )}
-          </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button
               size="sm"
               variant="outline"
               className="queue-replace-btn"
               onClick={onReplace}
-              disabled={replacePending || !swapTargetPlayer}
+              disabled={replacePending || !canReplace}
             >
               <ArrowLeftRight className="mr-1.5 h-3.5 w-3.5" />
-              Replace Player
+              Replace
             </Button>
             {onRemove ? (
               <Button
@@ -135,8 +167,8 @@ export function QueueEntryRow({
             ) : null}
           </div>
         </div>
-      ) : onRemove ? (
-        <div className="mt-2">
+      ) : !checkedOut && onRemove ? (
+        <div className="mt-2 flex justify-end">
           <Button
             size="sm"
             variant="outline"

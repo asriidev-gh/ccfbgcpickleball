@@ -20,6 +20,8 @@ type GameQrTabletSquareProps = {
   compact?: boolean;
   /** Fills QR wall container in games list QR mode. */
   wall?: boolean;
+  /** Past/ended sessions: link QR to spectator view instead of registration. */
+  spectatorOnly?: boolean;
 };
 
 export function GameQrTabletSquare({
@@ -28,6 +30,7 @@ export function GameQrTabletSquare({
   embedded = false,
   compact = false,
   wall = false,
+  spectatorOnly = false,
 }: GameQrTabletSquareProps) {
   const [loading, setLoading] = useState(true);
   const [registrationFull, setRegistrationFull] = useState(false);
@@ -45,7 +48,10 @@ export function GameQrTabletSquare({
         const status = await fetchGameRegistrationStatus(gameId);
         if (cancelled) return;
 
-        const spectatorQr = status.allowQrRegistration === false;
+        const spectatorQr =
+          spectatorOnly ||
+          status.status === "ended" ||
+          status.allowQrRegistration === false;
         setIsSpectatorQr(spectatorQr);
 
         if (status.isFull && !spectatorQr) {
@@ -80,7 +86,7 @@ export function GameQrTabletSquare({
     return () => {
       cancelled = true;
     };
-  }, [gameId]);
+  }, [gameId, spectatorOnly]);
 
   const handleClick = async () => {
     if (registrationFull) {

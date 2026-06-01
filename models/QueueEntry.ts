@@ -1,4 +1,4 @@
-import { Schema, model, models } from "mongoose";
+import mongoose, { Schema, model, models } from "mongoose";
 
 const queueEntrySchema = new Schema(
   {
@@ -6,7 +6,7 @@ const queueEntrySchema = new Schema(
     playerId: { type: Schema.Types.ObjectId, ref: "Player", required: true },
     status: {
       type: String,
-      enum: ["queued", "on_court", "done"],
+      enum: ["queued", "on_court", "done", "checked_out"],
       default: "queued",
     },
     queueType: {
@@ -24,4 +24,9 @@ const queueEntrySchema = new Schema(
 
 queueEntrySchema.index({ gameId: 1, status: 1, registeredAt: 1 });
 
-export const QueueEntry = models.QueueEntry || model("QueueEntry", queueEntrySchema);
+/** Re-register in dev so schema enum changes (e.g. checked_out) apply without a full restart. */
+if (models.QueueEntry) {
+  delete mongoose.models.QueueEntry;
+}
+
+export const QueueEntry = model("QueueEntry", queueEntrySchema);

@@ -9,6 +9,7 @@ export type GameListQrModeGame = {
   title: string;
   gameId: string;
   openPlayType: string;
+  status?: "draft" | "active" | "ended";
   updatedAt?: string;
   allowQrRegistration?: boolean;
 };
@@ -34,17 +35,22 @@ export function GameListQrMode({ games, emptyMessage }: GameListQrModeProps) {
         <article
           key={game._id}
           className="game-list-qr-mode-item flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-border/80 bg-muted/25 p-4 shadow-sm sm:p-5"
-          aria-label={`Registration QR for ${game.title}`}
+          aria-label={
+            game.status === "ended"
+              ? `Spectator QR for ${game.title}`
+              : `Registration QR for ${game.title}`
+          }
         >
           <header className="w-full min-w-0 space-y-1 text-center">
             <h3 className="text-base font-semibold leading-snug sm:text-lg">{game.title}</h3>
             <p className="text-sm text-muted-foreground">{game.openPlayType}</p>
           </header>
           <GameQrListRegisterPanel
-            key={`${game.gameId}-${game.updatedAt ?? ""}-${game.allowQrRegistration ?? true}`}
+            key={`${game.gameId}-${game.updatedAt ?? ""}-${game.status}-${game.allowQrRegistration ?? true}`}
             gameId={game.gameId}
             gameTitle={game.title}
             wall
+            spectatorOnly={game.status === "ended"}
             className="w-full max-w-none flex-1"
           />
         </article>

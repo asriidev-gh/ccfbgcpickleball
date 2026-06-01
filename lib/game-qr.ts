@@ -11,6 +11,7 @@ import { PickleGame } from "@/models/PickleGame";
 type GameQrFields = {
   _id: unknown;
   gameId: string;
+  status?: "draft" | "active" | "ended";
   allowQrRegistration?: boolean | null;
   registerUrl?: string | null;
   publicQrCodeDataUrl?: string | null;
@@ -47,7 +48,8 @@ export function shouldRefreshGameQr(
 }
 
 export async function ensureGameRegistrationQr(game: GameQrFields) {
-  const allowQrRegistration = game.allowQrRegistration !== false;
+  const allowQrRegistration =
+    game.status === "ended" ? false : game.allowQrRegistration !== false;
   const expectedRegisterUrl = getGamePublicUrl(
     getPublicAppBaseUrl(),
     game.gameId,

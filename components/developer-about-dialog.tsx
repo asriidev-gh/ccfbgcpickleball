@@ -50,7 +50,7 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
               className="size-28 object-cover sm:size-32"
             />
           </div>
-          <DialogTitle className="text-lg sm:text-xl">Welcome to Paddle Flow 🏓</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">Welcome to Paddle Flow J316 🏓</DialogTitle>
         </DialogHeader>
 
         <div

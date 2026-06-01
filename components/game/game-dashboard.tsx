@@ -14,17 +14,29 @@ import {
   Loader2,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
+import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
 import { PlayerAvatar } from "@/components/game/player-avatar";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import { MatchHistoryList, type MatchHistoryView } from "@/components/game/match-history-list";
+import {
+  ReplacePlayerDialog,
+  type ReplacePlayerDialogState,
+} from "@/components/game/replace-player-dialog";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
+import {
+  attachSessionStatsToQueueEntry,
+  buildPlayerSessionStatsMap,
+  type LeaderboardGamesPlayedRow,
+} from "@/lib/games-played-map";
+import type { GameLeaderboardRecapRow } from "@/lib/game-leaderboard-recap";
+import type { SessionInsight } from "@/lib/session-insights";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,18 +58,15 @@ type GamePayload = {
     publicQrCodeDataUrl?: string;
   };
   queue: QueueEntryView[];
+  checkedOut?: QueueEntryView[];
   courts: CourtView[];
+  leaderboard?: LeaderboardGamesPlayedRow[];
   matches: MatchHistoryView[];
+  recap?: {
+    rows: GameLeaderboardRecapRow[];
+    insights: SessionInsight[];
+  };
 };
-
-function getSwapTargetIndex(sourceIndex: number, queueLength: number) {
-  const primaryTargetIndex = sourceIndex + 4;
-  const fallbackTargetIndex =
-    sourceIndex === 2 ? 4 : sourceIndex === 3 ? 5 : primaryTargetIndex;
-  if (queueLength > primaryTargetIndex) return primaryTargetIndex;
-  if (queueLength > fallbackTargetIndex) return fallbackTargetIndex;
-  return -1;
-}
 
 const alertBaseOptions = {
   background: "#0f172a",
@@ -67,6 +76,8 @@ const alertBaseOptions = {
 };
 
 const WAITING_LIST_STORAGE_KEY = "ccf-queue-waiting-visible";
+const CHECKED_OUT_LIST_STORAGE_KEY = "ccf-queue-checked-out-visible";
+const CHECKED_OUT_PREVIEW_COUNT = 2;
 
 function loadShowWaitingList() {
   if (typeof window === "undefined") return true;
@@ -75,6 +86,116 @@ function loadShowWaitingList() {
 
 function saveShowWaitingList(show: boolean) {
   localStorage.setItem(WAITING_LIST_STORAGE_KEY, show ? "true" : "false");
+}
+
+function loadShowCheckedOutList() {
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem(CHECKED_OUT_LIST_STORAGE_KEY) !== "false";
+}
+
+function saveShowCheckedOutList(show: boolean) {
+  localStorage.setItem(CHECKED_OUT_LIST_STORAGE_KEY, show ? "true" : "false");
+}
+
+type QueueCheckedOutListProps = {
+  entries: QueueEntryView[];
+  expanded: boolean;
+  onToggle: () => void;
+};
+
+function QueueCheckedOutList({ entries, expanded, onToggle }: QueueCheckedOutListProps) {
+  const [showAllCheckedOut, setShowAllCheckedOut] = useState(false);
+
+  useEffect(() => {
+    if (!expanded) setShowAllCheckedOut(false);
+  }, [expanded]);
+
+  const countLabel = entries.length > 0 ? ` (${entries.length})` : "";
+  const hasMoreThanPreview = entries.length > CHECKED_OUT_PREVIEW_COUNT;
+  const visibleEntries =
+    showAllCheckedOut || !hasMoreThanPreview
+      ? entries
+      : entries.slice(0, CHECKED_OUT_PREVIEW_COUNT);
+  const hiddenCount = entries.length - CHECKED_OUT_PREVIEW_COUNT;
+
+  return (
+    <div className="queue-checked-out-group mt-3 space-y-2">
+      <div className="queue-checked-out-header">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="queue-checked-out-toggle mb-2"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-controls="queue-checked-out-list"
+        >
+          {expanded ? (
+            <>
+              <ChevronUp className="mr-1.5 h-4 w-4" />
+              Hide checked out{countLabel}
+            </>
+          ) : (
+            <>
+              <ChevronDown className="mr-1.5 h-4 w-4" />
+              Show checked out{countLabel}
+            </>
+          )}
+        </Button>
+        <div className="queue-divider" role="separator">
+          <span>Checked out</span>
+        </div>
+      </div>
+      {expanded ? (
+        entries.length === 0 ? (
+          <p className="caption px-1 text-muted-foreground">No players have checked out yet.</p>
+        ) : (
+          <>
+            <div id="queue-checked-out-list" className="space-y-2">
+              {visibleEntries.map((entry, index) => (
+                <QueueEntryRow
+                  key={entry._id}
+                  entry={{
+                    ...entry,
+                    checkedOutAt: entry.checkedOutAt ?? entry.updatedAt,
+                  }}
+                  index={index}
+                  isNextUp={false}
+                  canReplace={false}
+                  onReplace={() => {}}
+                  replacePending={false}
+                  hideReplacePanel
+                  checkedOut
+                />
+              ))}
+            </div>
+            {hasMoreThanPreview ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="queue-checked-out-show-all w-full"
+                onClick={() => setShowAllCheckedOut((prev) => !prev)}
+                aria-expanded={showAllCheckedOut}
+              >
+                {showAllCheckedOut ? (
+                  <>
+                    <ChevronUp className="mr-1.5 h-4 w-4" />
+                    Show less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="mr-1.5 h-4 w-4" />
+                    Show all ({hiddenCount} more)
+                  </>
+                )}
+              </Button>
+            ) : null}
+          </>
+        )
+      ) : null}
+    </div>
+  );
 }
 
 async function getGame(id: string, spectator: boolean) {
@@ -100,6 +221,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [teamAScore, setTeamAScore] = useState("");
   const [teamBScore, setTeamBScore] = useState("");
   const [showWaitingList, setShowWaitingList] = useState(true);
+  const [showCheckedOutList, setShowCheckedOutList] = useState(true);
+  const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
 
@@ -119,13 +242,18 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   useEffect(() => {
     setShowWaitingList(loadShowWaitingList());
+    setShowCheckedOutList(loadShowCheckedOutList());
   }, []);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["game", gameId, isSpectator ? "spectator" : "operator"],
     queryFn: () => getGame(gameId, isSpectator) as Promise<GamePayload>,
     enabled: !!gameId,
-    refetchInterval: 4000,
+    refetchInterval: (query) => {
+      const status = query.state.data?.game?.status;
+      if (isSpectator && status === "ended") return false;
+      return 4000;
+    },
   });
 
   const startMutation = useMutation({
@@ -220,11 +348,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   });
 
   const replaceMutation = useMutation({
-    mutationFn: async (sourceIndex: number) => {
+    mutationFn: async (input: { sourceIndex: number; targetIndex: number }) => {
       const response = await fetch(`/api/games/${gameId}/swap-next`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceIndex }),
+        body: JSON.stringify(input),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
@@ -232,6 +360,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onSuccess: (payload) => {
       toast.success(payload.message);
+      setReplaceDialog(null);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
     onError: (error) => toast.error(error.message),
@@ -272,6 +401,26 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     if (result.isConfirmed) removeMutation.mutate(entry._id);
   };
 
+  const playerSessionStats = useMemo(
+    () => buildPlayerSessionStatsMap(data?.leaderboard),
+    [data?.leaderboard],
+  );
+  const queueWithStats = useMemo(
+    () =>
+      (data?.queue ?? []).map((entry) =>
+        attachSessionStatsToQueueEntry(entry, playerSessionStats),
+      ),
+    [data?.queue, playerSessionStats],
+  );
+  const checkedOutWithStats = useMemo(
+    () =>
+      (data?.checkedOut ?? []).map((entry) =>
+        attachSessionStatsToQueueEntry(entry, playerSessionStats),
+      ),
+    [data?.checkedOut, playerSessionStats],
+  );
+  const waitingLineEntries = useMemo(() => queueWithStats.slice(4), [queueWithStats]);
+
   const readOnly = isSpectator;
   const loadingLabel = isSpectator ? "Loading spectator view..." : "Loading game dashboard...";
 
@@ -287,8 +436,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   }
   if (!data) return <div className="p-8">No game data.</div>;
 
-  const { game, queue, courts, matches } = data;
+  const { game, courts, matches, recap } = data;
   const isPastGame = game.status === "ended";
+  const showSpectatorEndedRecap = isSpectator && isPastGame;
   const hideControls = readOnly || isPastGame;
   const endCourt =
     endTargetCourt != null ? courts.find((c) => c.courtNumber === endTargetCourt) : undefined;
@@ -326,7 +476,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <h1 className="page-title">{game.title}</h1>
                 {isSpectator ? (
                   <p className="caption mt-1 text-muted-foreground">
-                    View only — live queue and courts update automatically
+                    {showSpectatorEndedRecap
+                      ? "Session ended — view awards, standings, and match history below"
+                      : "View only — live queue and courts update automatically"}
                   </p>
                 ) : null}
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -337,13 +489,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   ) : null}
                   <Badge>{game.openPlayType}</Badge>
                   <Badge variant="outline">Courts: {game.courtCount}</Badge>
-                  <Badge variant="outline">Queue: {queue.length}</Badge>
+                  <Badge variant="outline">Queue: {queueWithStats.length}</Badge>
                   <Badge variant={game.status === "ended" ? "destructive" : "outline"}>
                     Status: {game.status}
                   </Badge>
                 </div>
               </div>
             </div>
+            {!showSpectatorEndedRecap ? (
             <div className="game-toolbar mt-4 flex flex-wrap items-center gap-2">
               {!isSpectator ? (
                 <Link href="/">
@@ -363,17 +516,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   {qrDialogLoading ? "Checking…" : "QR Registration"}
                 </Button>
               ) : null}
-              <Link
-                href={
-                  isSpectator
-                    ? `/leaderboard/${game.gameId}?from=spectator`
-                    : `/leaderboard/${game.gameId}`
-                }
-              >
-                <Button size="lg" variant="outline">
-                  <Trophy className="mr-2 h-4 w-4" /> Leaderboard
-                </Button>
-              </Link>
+              {!showSpectatorEndedRecap ? (
+                <Link
+                  href={
+                    isSpectator
+                      ? `/leaderboard/${game.gameId}?from=spectator`
+                      : `/leaderboard/${game.gameId}`
+                  }
+                >
+                  <Button size="lg" variant="outline">
+                    <Trophy className="mr-2 h-4 w-4" /> Leaderboard
+                  </Button>
+                </Link>
+              ) : null}
               {!readOnly && !isPastGame ? (
                 <Button
                   size="lg"
@@ -420,10 +575,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 </Button>
               ) : null}
             </div>
+            ) : null}
           </CardContent>
         </Card>
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_1fr]">
+        {showSpectatorEndedRecap ? (
+          <LeaderboardPageContent
+            insights={recap?.insights ?? []}
+            rows={recap?.rows ?? []}
+          />
+        ) : (
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
           <Card className="glass-panel">
             <CardHeader className="flex flex-row items-center justify-between gap-3">
               <CardTitle>Queue</CardTitle>
@@ -434,11 +596,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               ) : null}
             </CardHeader>
             <CardContent className="queue-list">
-              {queue.length === 0 ? (
+              {queueWithStats.length === 0 && checkedOutWithStats.length === 0 ? (
                 <p className="text-muted-foreground">Queue is empty.</p>
               ) : (
                 <>
-                  {queue.length > 0 ? (
+                  {queueWithStats.length > 0 ? (
                     <div className="queue-next-up-group">
                       <div className="queue-next-up-banner">
                         <div className="flex items-center gap-2">
@@ -446,31 +608,36 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                             <Zap className="h-4 w-4" />
                           </span>
                           <div>
-                            <p className="queue-next-up-title">Next on court</p>
+                            <p className="queue-next-up-title">
+                              <span className="sm:hidden">Next</span>
+                              <span className="hidden sm:inline">Next on court</span>
+                            </p>
                             <p className="caption">
-                              Top {Math.min(4, queue.length)}{" "}
-                              {Math.min(4, queue.length) === 1 ? "player" : "players"} — ready to play
+                              Top {Math.min(4, queueWithStats.length)}{" "}
+                              {Math.min(4, queueWithStats.length) === 1 ? "player" : "players"} — ready to play
                             </p>
                           </div>
                         </div>
-                        <Badge className="badge-next-up-count">{Math.min(4, queue.length)} / 4</Badge>
+                        <Badge className="badge-next-up-count">{Math.min(4, queueWithStats.length)} / 4</Badge>
                       </div>
                       <div className="queue-next-up-slots space-y-2">
-                        {queue.slice(0, 4).map((entry, index) => {
-                          const targetIndex = getSwapTargetIndex(index, queue.length);
-                          const targetPlayer = targetIndex >= 0 ? queue[targetIndex] : null;
-                          return (
+                        {queueWithStats.slice(0, 4).map((entry, index) => (
                             <QueueEntryRow
                               key={entry._id}
                               entry={entry}
                               index={index}
                               isNextUp
-                              swapTargetIndex={targetIndex}
-                              swapTargetPlayer={targetPlayer}
+                              canReplace={!hideControls && waitingLineEntries.length > 0}
                               onReplace={
-                                hideControls ? () => {} : () => replaceMutation.mutate(index)
+                                hideControls
+                                  ? () => {}
+                                  : () => setReplaceDialog({ sourceIndex: index, sourceEntry: entry })
                               }
-                              replacePending={!hideControls && replaceMutation.isPending}
+                              replacePending={
+                                !hideControls &&
+                                replaceMutation.isPending &&
+                                replaceMutation.variables?.sourceIndex === index
+                              }
                               hideReplacePanel={hideControls}
                               onRemove={
                                 hideControls ? undefined : () => confirmRemoveFromQueue(entry)
@@ -481,12 +648,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                                 removeMutation.variables === entry._id
                               }
                             />
-                          );
-                        })}
+                        ))}
                       </div>
                     </div>
                   ) : null}
-                  {queue.length > 4 ? (
+                  {queueWithStats.length > 4 ? (
                     <div className="queue-waiting-group">
                       <div className="queue-waiting-header">
                         <Button
@@ -510,7 +676,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                           ) : (
                             <>
                               <ChevronDown className="mr-1.5 h-4 w-4" />
-                              Show waiting list ({queue.length - 4})
+                              Show waiting list ({queueWithStats.length - 4})
                             </>
                           )}
                         </Button>
@@ -520,7 +686,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                       </div>
                       {showWaitingList ? (
                         <div id="queue-waiting-list" className="space-y-2">
-                          {queue.slice(4).map((entry, offset) => {
+                          {queueWithStats.slice(4).map((entry, offset) => {
                             const index = offset + 4;
                             return (
                               <QueueEntryRow
@@ -528,8 +694,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                                 entry={entry}
                                 index={index}
                                 isNextUp={false}
-                                swapTargetIndex={-1}
-                                swapTargetPlayer={null}
+                                canReplace={false}
                                 onReplace={() => {}}
                                 replacePending={false}
                                 hideReplacePanel
@@ -548,6 +713,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                       ) : null}
                     </div>
                   ) : null}
+                  {!readOnly && !isPastGame ? (
+                    <QueueCheckedOutList
+                      entries={checkedOutWithStats}
+                      expanded={showCheckedOutList}
+                      onToggle={() => {
+                        const next = !showCheckedOutList;
+                        setShowCheckedOutList(next);
+                        saveShowCheckedOutList(next);
+                      }}
+                    />
+                  ) : null}
                 </>
               )}
             </CardContent>
@@ -565,6 +741,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <CourtCard
                   key={court._id}
                   court={court}
+                  playerSessionStats={playerSessionStats}
                   hideEndGame={hideControls}
                   onEndGame={
                     hideControls
@@ -588,6 +765,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             </CardContent>
           </Card>
         </section>
+        )}
 
         <Card className="glass-panel match-history-panel">
           <CardHeader>
@@ -601,6 +779,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           </CardContent>
         </Card>
       </section>
+
+      {!readOnly ? (
+        <ReplacePlayerDialog
+          open={replaceDialog !== null}
+          onOpenChange={(open) => {
+            if (!open) setReplaceDialog(null);
+          }}
+          state={replaceDialog}
+          waitingEntries={waitingLineEntries}
+          isPending={replaceMutation.isPending}
+          onConfirm={(input) => replaceMutation.mutate(input)}
+        />
+      ) : null}
 
       {!readOnly && game.publicQrCodeDataUrl && game.registerUrl ? (
         <GameQrDialog

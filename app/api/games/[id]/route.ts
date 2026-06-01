@@ -24,10 +24,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
     const { id } = await params;
 
-    const [game, queue, courts, leaderboard, matches] = await Promise.all([
+    const [game, queue, checkedOut, courts, leaderboard, matches] = await Promise.all([
       PickleGame.findOne({ gameId: id, ownerId: authUser.userId }),
       QueueEntry.find({ gameId: id, status: "queued" })
         .sort({ registeredAt: 1 })
+        .populate("playerId"),
+      QueueEntry.find({ gameId: id, status: "checked_out" })
+        .sort({ updatedAt: -1 })
         .populate("playerId"),
       Court.find({ gameId: id }).sort({ courtNumber: 1 }).populate([
         "teamA.playerIds",
@@ -49,7 +52,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       publicQrCodeDataUrl,
     };
 
-    return NextResponse.json({ game: gamePayload, queue, courts, leaderboard, matches });
+    return NextResponse.json({ game: gamePayload, queue, checkedOut, courts, leaderboard, matches });
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to load game." },

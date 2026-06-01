@@ -10,6 +10,7 @@ type GameQrListRegisterPanelProps = {
   compact?: boolean;
   /** Large QR for games list QR wall mode. */
   wall?: boolean;
+  spectatorOnly?: boolean;
   className?: string;
 };
 
@@ -18,6 +19,7 @@ export function GameQrListRegisterPanel({
   gameTitle,
   compact = false,
   wall = false,
+  spectatorOnly = false,
   className,
 }: GameQrListRegisterPanelProps) {
   return (
@@ -38,6 +40,7 @@ export function GameQrListRegisterPanel({
         embedded
         compact={compact}
         wall={wall}
+        spectatorOnly={spectatorOnly}
       />
     </div>
   );

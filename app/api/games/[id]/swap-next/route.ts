@@ -16,38 +16,43 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (game.status === "ended") {
       return NextResponse.json(
         { message: "Open play has ended. Reset the game to restart." },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const body = await request.json();
     const sourceIndex = Number(body?.sourceIndex);
+    const targetIndex = Number(body?.targetIndex);
 
     if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex > 3) {
       return NextResponse.json(
         { message: "sourceIndex must be an integer from 0 to 3." },
-        { status: 400 }
+        { status: 400 },
+      );
+    }
+
+    if (!Number.isInteger(targetIndex) || targetIndex < 4) {
+      return NextResponse.json(
+        { message: "targetIndex must be an integer of 4 or greater (waiting line)." },
+        { status: 400 },
       );
     }
 
     const queue = await QueueEntry.find({ gameId, status: "queued" }).sort({ registeredAt: 1 });
-    const primaryTargetIndex = sourceIndex + 4;
-    const fallbackTargetIndex =
-      sourceIndex === 2 ? 4 : sourceIndex === 3 ? 5 : primaryTargetIndex;
-    const targetIndex =
-      queue.length > primaryTargetIndex
-        ? primaryTargetIndex
-        : queue.length > fallbackTargetIndex
-          ? fallbackTargetIndex
-          : -1;
 
-    if (targetIndex < 0 || targetIndex === sourceIndex) {
+    if (targetIndex >= queue.length) {
       return NextResponse.json(
-        { message: "Not enough players in queue to perform this replacement." },
-        { status: 400 }
+        { message: "Selected player is not in the waiting line." },
+        { status: 400 },
       );
     }
 
-    // Swap in-memory order first, then rewrite deterministic timestamps for the whole queue.
+    if (targetIndex === sourceIndex) {
+      return NextResponse.json(
+        { message: "Cannot swap a player with themselves." },
+        { status: 400 },
+      );
+    }
+
     const reorderedQueue = [...queue];
     [reorderedQueue[sourceIndex], reorderedQueue[targetIndex]] = [
       reorderedQueue[targetIndex],
@@ -63,9 +68,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       reorderedQueue.map((entry, index) =>
         QueueEntry.updateOne(
           { _id: entry._id },
-          { $set: { registeredAt: new Date(baseTime + index * 1000) } }
-        )
-      )
+          { $set: { registeredAt: new Date(baseTime + index * 1000) } },
+        ),
+      ),
     );
 
     return NextResponse.json({
@@ -74,7 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to swap players in the queue." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 }
