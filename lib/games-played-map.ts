@@ -58,6 +58,6 @@ export function attachSessionStatsToQueueEntry<
   entry: T,
   map: Map<string, PlayerSessionStats>,
 ): T & PlayerSessionStats {
-  const stats = getPlayerSessionStats(map, entry.playerId._id);
+  const stats = getPlayerSessionStats(map, entry.playerId);
   return { ...entry, ...stats };
 }

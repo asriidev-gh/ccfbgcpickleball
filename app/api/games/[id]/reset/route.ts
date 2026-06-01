@@ -50,10 +50,10 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
         uniquePlayerIds.map((playerId, index) => ({
           gameId,
           playerId,
-          status: "queued",
-          queueType: "normal",
+          status: "queued" as const,
+          queueType: "normal" as const,
           registeredAt: new Date(Date.now() + index * 1000),
-          lastMatchResult: "none",
+          lastMatchResult: "none" as const,
           winStreak: 0,
         }))
       );

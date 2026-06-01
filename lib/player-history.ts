@@ -88,8 +88,8 @@ export async function getPlayerGameHistory(
   })
     .select("_id")
     .lean<Array<{ _id: { toString(): string } }>>();
-  const playerObjectIds = siblings.map((doc) => doc._id);
-  const playerIdSet = new Set(playerObjectIds.map((id) => id.toString()));
+  const playerObjectIds = siblings.map((doc) => doc._id.toString());
+  const playerIdSet = new Set(playerObjectIds);
 
   const [queueGameIds, statGameIds] = await Promise.all([
     QueueEntry.distinct("gameId", { playerId: { $in: playerObjectIds } }),
