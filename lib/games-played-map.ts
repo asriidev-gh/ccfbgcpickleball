@@ -52,6 +52,27 @@ export function formatSessionRecordLabel(stats: PlayerSessionStats) {
   return `${gamesPlayed} game/s (W${wins}/L${losses})`;
 }
 
+function ordinalSuffix(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return "th";
+  switch (n % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
+/** Badge for the next game this session, e.g. "1st game", "2nd game". */
+export function formatUpcomingGameBadgeLabel(gamesPlayed: number) {
+  const nextGame = Math.max(1, gamesPlayed + 1);
+  return `${nextGame}${ordinalSuffix(nextGame)} game`;
+}
+
 export function attachSessionStatsToQueueEntry<
   T extends { playerId: { _id?: { toString(): string } | string } },
 >(

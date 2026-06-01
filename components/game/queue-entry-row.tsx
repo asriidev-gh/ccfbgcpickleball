@@ -5,7 +5,10 @@ import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 import { PlayerNameWithPhoto, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatSessionRecordLabel } from "@/lib/games-played-map";
+import {
+  formatSessionRecordLabel,
+  formatUpcomingGameBadgeLabel,
+} from "@/lib/games-played-map";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type QueueEntryView = {
@@ -144,7 +147,9 @@ export function QueueEntryRow({
               <NextOnCourtLabel />
             </Badge>
           ) : (
-            <Badge variant="outline">{entry.queueType}</Badge>
+            <Badge variant="outline">
+              {formatUpcomingGameBadgeLabel(entry.gamesPlayed ?? 0)}
+            </Badge>
           )}
         </div>
       </div>
