@@ -18,6 +18,8 @@ type GameQrTabletSquareProps = {
   embedded?: boolean;
   /** Scales QR to parent width (narrow card column). */
   compact?: boolean;
+  /** Fills QR wall container in games list QR mode. */
+  wall?: boolean;
 };
 
 export function GameQrTabletSquare({
@@ -25,6 +27,7 @@ export function GameQrTabletSquare({
   gameTitle,
   embedded = false,
   compact = false,
+  wall = false,
 }: GameQrTabletSquareProps) {
   const [loading, setLoading] = useState(true);
   const [registrationFull, setRegistrationFull] = useState(false);
@@ -114,18 +117,22 @@ export function GameQrTabletSquare({
       <div
         className={cn(
           "flex w-full min-w-0 flex-col items-center",
-          compact ? "gap-0.5" : "gap-2",
+          compact ? "gap-0.5" : wall ? "gap-1.5" : "gap-2",
         )}
       >
         <button
           type="button"
           className={cn(
             "game-qr-tablet-square flex aspect-square flex-col items-center justify-center transition-colors",
-            compact ? "w-full max-w-full" : "w-36 sm:w-40",
+            compact
+              ? "w-full max-w-full"
+              : wall
+                ? "w-full max-w-[12rem] sm:max-w-[14rem] lg:max-w-[16rem]"
+                : "w-36 sm:w-40",
             embedded
               ? cn(
                   "rounded-2xl bg-transparent hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  compact ? "p-0.5" : "p-1",
+                  compact ? "p-0.5" : wall ? "p-1 sm:p-1.5" : "p-1",
                 )
               : "rounded-xl border-2 border-border bg-muted/30 p-3 hover:border-primary/40 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
             registrationFull &&
@@ -147,7 +154,7 @@ export function GameQrTabletSquare({
             <Loader2
               className={cn(
                 "animate-spin text-muted-foreground",
-                compact ? "h-6 w-6 sm:h-7 sm:w-7" : "h-14 w-14",
+                compact ? "h-6 w-6 sm:h-7 sm:w-7" : wall ? "h-10 w-10 sm:h-12 sm:w-12" : "h-14 w-14",
               )}
               aria-hidden
             />
@@ -155,7 +162,7 @@ export function GameQrTabletSquare({
             <QrCode
               className={cn(
                 "text-muted-foreground/50",
-                compact ? "h-6 w-6 sm:h-7 sm:w-7" : "h-14 w-14",
+                compact ? "h-6 w-6 sm:h-7 sm:w-7" : wall ? "h-10 w-10 sm:h-12 sm:w-12" : "h-14 w-14",
               )}
               aria-hidden
             />
@@ -163,7 +170,7 @@ export function GameQrTabletSquare({
             <div
               className={cn(
                 "flex size-full items-center justify-center rounded-md bg-white",
-                compact ? "p-0.5" : "rounded-lg p-1.5",
+                compact ? "p-0.5" : wall ? "rounded-lg p-1 sm:p-1.5" : "rounded-lg p-1.5",
               )}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -175,7 +182,10 @@ export function GameQrTabletSquare({
             </div>
           ) : (
             <QrCode
-              className={cn("text-primary/80", compact ? "h-6 w-6 sm:h-7 sm:w-7" : "h-14 w-14")}
+              className={cn(
+                "text-primary/80",
+                compact ? "h-6 w-6 sm:h-7 sm:w-7" : wall ? "h-10 w-10 sm:h-12 sm:w-12" : "h-14 w-14",
+              )}
               aria-hidden
             />
           )}
@@ -183,7 +193,7 @@ export function GameQrTabletSquare({
         <span
           className={cn(
             "font-semibold tracking-wide text-muted-foreground uppercase",
-            compact ? "text-[0.625rem] leading-none" : "text-xs",
+            compact ? "text-[0.625rem] leading-none" : wall ? "text-[0.6875rem] sm:text-xs" : "text-xs",
           )}
         >
           {isSpectatorQr ? "Spectate" : "Register"}

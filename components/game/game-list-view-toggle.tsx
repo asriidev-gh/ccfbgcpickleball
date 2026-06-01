@@ -1,11 +1,11 @@
 "use client";
 
-import { LayoutGrid, LayoutList } from "lucide-react";
+import { LayoutGrid, LayoutList, QrCode } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type GameListViewMode = "list" | "cards";
+export type GameListViewMode = "list" | "cards" | "qr";
 
 export const GAME_LIST_VIEW_STORAGE_KEY = "ccf-game-list-view";
 
@@ -25,7 +25,7 @@ export function loadGameListView(): GameListViewMode {
   if (typeof window === "undefined") return "cards";
   const stored = localStorage.getItem(GAME_LIST_VIEW_STORAGE_KEY);
   if (!stored) return defaultGameListView();
-  if (stored === "cards") return "cards";
+  if (stored === "cards" || stored === "qr") return stored;
   // Saved "list" on desktop only; mobile defaults to cards.
   return isGameListDesktopViewport() ? "list" : "cards";
 }
@@ -67,6 +67,17 @@ export function GameListViewToggle({ value, onChange }: GameListViewToggleProps)
       >
         <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />
         <span className="hidden sm:inline">Cards</span>
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={value === "qr" ? "default" : "ghost"}
+        className={cn("game-list-view-toggle-btn h-8 gap-1.5 px-2.5 sm:px-3")}
+        onClick={() => onChange("qr")}
+        aria-pressed={value === "qr"}
+      >
+        <QrCode className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="hidden sm:inline">QR Mode</span>
       </Button>
     </div>
   );

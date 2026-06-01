@@ -35,6 +35,7 @@ import {
   saveGameListView,
   type GameListViewMode,
 } from "@/components/game/game-list-view-toggle";
+import { GameListQrMode } from "@/components/game/game-list-qr-mode";
 import { GameQrRegistrationButton } from "@/components/game/game-qr-registration-button";
 import { GameQrRegistrationSlot } from "@/components/game/game-qr-registration-slot";
 import { Badge } from "@/components/ui/badge";
@@ -361,6 +362,10 @@ function GameList({
 }) {
   if (games.length === 0) {
     return <p className="text-muted-foreground">{emptyMessage}</p>;
+  }
+
+  if (view === "qr") {
+    return <GameListQrMode games={games} emptyMessage={emptyMessage} />;
   }
 
   if (view === "cards") {
