@@ -42,7 +42,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { isGameResetEnabled } from "@/lib/feature-flags";
+import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
+import {
+  clearQueueHighlightPlayerId,
+  getActiveQueueHighlightPlayerId,
+  hasQueueHighlightBeenApplied,
+  markQueueHighlightApplied,
+  peekQueueHighlightPlayerId,
+  persistActiveQueueHighlight,
+  queueEntryPlayerId,
+} from "@/lib/queue-highlight";
 import {
   getMatchScoreInputError,
   MAX_MATCH_SCORE,
@@ -240,7 +249,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
-
   const openQrRegistrationDialog = async () => {
     setQrDialogLoading(true);
     try {
@@ -454,6 +462,44 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   );
   const waitingLineEntries = useMemo(() => queueWithStats.slice(4), [queueWithStats]);
 
+  /** Re-read on every queue update so highlight never drops after refetch or reorder. */
+  const selfHighlightPlayerId = useMemo(
+    () => (gameId ? getActiveQueueHighlightPlayerId(gameId) : null),
+    [gameId, data?.queue],
+  );
+
+  useEffect(() => {
+    if (!gameId || !data?.queue?.length) return;
+
+    const fromRegistration = peekQueueHighlightPlayerId(gameId);
+    if (!fromRegistration) return;
+
+    const queueIndex = data.queue.findIndex(
+      (entry) => queueEntryPlayerId(entry) === fromRegistration,
+    );
+    if (queueIndex < 0) return;
+
+    markQueueHighlightApplied(gameId);
+    clearQueueHighlightPlayerId(gameId);
+    persistActiveQueueHighlight(gameId, fromRegistration);
+
+    if (queueIndex >= 4) {
+      setShowWaitingList(true);
+      saveShowWaitingList(true);
+    }
+
+    const entry = data.queue[queueIndex];
+    const scrollTimer = window.setTimeout(() => {
+      document
+        .getElementById(`queue-entry-${entry._id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 200);
+
+    return () => {
+      window.clearTimeout(scrollTimer);
+    };
+  }, [gameId, data?.queue]);
+
   const readOnly = isSpectator;
   const loadingLabel = isSpectator ? "Loading spectator view..." : "Loading game dashboard...";
 
@@ -473,6 +519,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const isPastGame = game.status === "ended";
   const showSpectatorEndedRecap = isSpectator && isPastGame;
   const hideControls = readOnly || isPastGame;
+  const fillingCourtNumber = startMutation.isPending
+    ? [...courts]
+        .filter((c) => c.status === "empty")
+        .sort((a, b) => a.courtNumber - b.courtNumber)[0]?.courtNumber ?? null
+    : null;
   const endCourt =
     endTargetCourt != null ? courts.find((c) => c.courtNumber === endTargetCourt) : undefined;
   const winningPlayers =
@@ -598,7 +649,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   {endOpenPlayMutation.isPending ? "Ending..." : "End Open Play"}
                 </Button>
               ) : null}
-              {!readOnly && isGameResetEnabled() ? (
+              {!readOnly && isDemoOpenPlayTitle(game.title) ? (
                 <Button
                   size="lg"
                   variant="destructive"
@@ -636,8 +687,21 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             <CardHeader className="flex flex-row items-center justify-between gap-3">
               <CardTitle>Queue</CardTitle>
               {!hideControls ? (
-                <Button onClick={() => startMutation.mutate()}>
-                  <Play className="mr-2 h-4 w-4" /> Fill next court
+                <Button
+                  onClick={() => startMutation.mutate()}
+                  disabled={startMutation.isPending}
+                >
+                  {startMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      Filling…
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" aria-hidden />
+                      Fill next court
+                    </>
+                  )}
                 </Button>
               ) : null}
             </CardHeader>
@@ -693,6 +757,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                                 removeMutation.isPending &&
                                 removeMutation.variables === entry._id
                               }
+                              highlighted={
+                                selfHighlightPlayerId != null &&
+                                queueEntryPlayerId(entry) === selfHighlightPlayerId
+                              }
                             />
                         ))}
                       </div>
@@ -740,6 +808,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                                 entry={entry}
                                 index={index}
                                 isNextUp={false}
+                                inWaitingLine
                                 canReplace={false}
                                 onReplace={() => {}}
                                 replacePending={false}
@@ -752,6 +821,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                                   removeMutation.isPending &&
                                   removeMutation.variables === entry._id
                                 }
+                                highlighted={
+                                selfHighlightPlayerId != null &&
+                                queueEntryPlayerId(entry) === selfHighlightPlayerId
+                              }
                               />
                             );
                           })}
@@ -811,6 +884,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   swapPending={
                     swapCourtMutation.isPending &&
                     swapCourtMutation.variables === court.courtNumber
+                  }
+                  isFilling={
+                    fillingCourtNumber != null && court.courtNumber === fillingCourtNumber
                   }
                 />
               ))}

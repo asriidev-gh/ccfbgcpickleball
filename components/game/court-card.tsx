@@ -1,4 +1,4 @@
-import { CircleDot, Shuffle, Users } from "lucide-react";
+import { CircleDot, Loader2, Shuffle, Users } from "lucide-react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
@@ -81,6 +81,8 @@ type CourtCardProps = {
   onSwapTeams?: () => void;
   swapPending?: boolean;
   hideEndGame?: boolean;
+  /** Filling this court from the queue (Fill next court). */
+  isFilling?: boolean;
 };
 
 export function CourtCard({
@@ -90,6 +92,7 @@ export function CourtCard({
   onSwapTeams,
   swapPending = false,
   hideEndGame = false,
+  isFilling = false,
 }: CourtCardProps) {
   const isActive = court.status === "active";
   const teamA = court.teamA?.playerIds ?? [];
@@ -97,8 +100,9 @@ export function CourtCard({
 
   return (
     <Card
-      className={`court-card overflow-hidden ${isActive ? "court-active" : "court-empty"}`}
+      className={`court-card overflow-hidden ${isActive ? "court-active" : "court-empty"}${isFilling ? " court-filling" : ""}`}
       data-court-status={court.status}
+      aria-busy={isFilling}
     >
       <CardHeader className="court-card-header flex flex-row items-start justify-between gap-2">
         <div>
@@ -166,6 +170,14 @@ export function CourtCard({
               </Button>
             ) : null}
           </>
+        ) : isFilling ? (
+          <div className="court-empty-state court-empty-state--filling">
+            <Loader2 className="h-9 w-9 animate-spin text-primary" aria-hidden />
+            <p className="court-empty-title">Filling court…</p>
+            <p className="caption text-center text-muted-foreground">
+              Assigning players from the queue
+            </p>
+          </div>
         ) : (
           <div className="court-empty-state">
             <div className="court-empty-icon" aria-hidden>

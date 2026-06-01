@@ -14,6 +14,10 @@ import {
 } from "@/components/game/registration-capacity-prompt";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
 import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
+import {
+  persistActiveQueueHighlight,
+  setQueueHighlightPlayerId,
+} from "@/lib/queue-highlight";
 import type { RegistrationFormVariant } from "@/lib/registration-variant";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -306,6 +310,12 @@ export function RegistrationForm({
         }
         setSubmitting(false);
         return;
+      }
+      const registeredPlayerId = data?.player?._id;
+      if (registeredPlayerId != null) {
+        const id = String(registeredPlayerId);
+        setQueueHighlightPlayerId(gameId, id);
+        persistActiveQueueHighlight(gameId, id);
       }
       router.push(`/register/${gameId}/success`);
     } catch {

@@ -953,6 +953,25 @@
     @apply space-y-2;
   }
 
+  /* Waiting line: no winner/loser left accent (keep rank badge colors) */
+  .queue-waiting-group .queue-item.queue-waiting-line.queue-winner,
+  .queue-waiting-group .queue-item.queue-waiting-line.queue-loser,
+  .queue-waiting-group .queue-item.queue-waiting-line.queue-item-default {
+    border-left-width: 0;
+  }
+
+  .queue-waiting-group .queue-item.queue-waiting-line.queue-winner {
+    @apply border-border bg-muted/50;
+    box-shadow: none;
+    background-image: none;
+  }
+
+  .queue-waiting-group .queue-item.queue-waiting-line.queue-loser {
+    @apply border-border bg-muted/50;
+    box-shadow: none;
+    background-image: none;
+  }
+
   .queue-waiting-header .queue-divider,
   .queue-checked-out-header .queue-divider {
     @apply mt-0 mb-3;
@@ -1105,6 +1124,45 @@
 
   .queue-check-back-in-btn {
     @apply border-primary/40 bg-background text-foreground hover:bg-primary/10;
+  }
+
+  /* Self-registration highlight — uses --primary so it matches the active theme */
+  .queue-item.queue-entry-highlighted {
+    @apply relative border-primary/50 bg-primary/10;
+    --queue-highlight-ring: color-mix(in srgb, var(--primary) 48%, transparent);
+    --queue-highlight-ring-strong: color-mix(in srgb, var(--primary) 80%, transparent);
+    --queue-highlight-glow: color-mix(in srgb, var(--primary) 24%, transparent);
+    --queue-highlight-glow-strong: color-mix(in srgb, var(--primary) 42%, transparent);
+    box-shadow: 0 0 0 1px var(--queue-highlight-ring);
+  }
+
+  .queue-item.queue-entry-highlighted::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    animation: queue-entry-highlight-pulse 2s ease-in-out infinite;
+  }
+
+  .queue-item.queue-entry-highlighted > * {
+    position: relative;
+    z-index: 2;
+  }
+
+  @keyframes queue-entry-highlight-pulse {
+    0%,
+    100% {
+      box-shadow:
+        inset 0 0 0 2px var(--queue-highlight-ring),
+        0 0 18px var(--queue-highlight-glow);
+    }
+    50% {
+      box-shadow:
+        inset 0 0 0 3px var(--queue-highlight-ring-strong),
+        0 0 32px var(--queue-highlight-glow-strong);
+    }
   }
 
   @keyframes queue-next-pulse {
@@ -1342,6 +1400,17 @@
       0 3px 5px 0 rgb(0 0 0 / 10%);
   }
 
+  [data-theme="material"] .queue-waiting-group .queue-item.queue-waiting-line.queue-winner,
+  [data-theme="material"] .queue-waiting-group .queue-item.queue-waiting-line.queue-loser {
+    border-left: 0;
+    background: white;
+    background-image: none;
+    box-shadow:
+      0 1px 3px 0 rgb(0 0 0 / 12%),
+      0 1px 1px 0 rgb(0 0 0 / 14%),
+      0 2px 1px -1px rgb(0 0 0 / 10%);
+  }
+
   [data-theme="material"] .queue-swap-panel {
     @apply rounded-md border border-[#90caf9] bg-[#f5f9ff] p-3;
     box-shadow: inset 0 1px 2px rgb(25 118 210 / 8%);
@@ -1455,6 +1524,14 @@
 
   .court-card.court-empty {
     @apply border-2 border-dashed border-muted-foreground/35 bg-muted/25;
+  }
+
+  .court-card.court-filling {
+    @apply border-primary/45 bg-primary/5;
+  }
+
+  .court-empty-state--filling {
+    @apply gap-3 py-6;
   }
 
   .court-card.court-active {
@@ -2139,6 +2216,11 @@
     box-shadow: inset 3px 0 0 0 var(--cupertino-orange);
   }
 
+  [data-theme="cupertino"] .queue-waiting-group .queue-item.queue-waiting-line.queue-winner,
+  [data-theme="cupertino"] .queue-waiting-group .queue-item.queue-waiting-line.queue-loser {
+    box-shadow: none;
+  }
+
   /* —— Courts panel (matches queue grouped list pattern) —— */
   [data-theme="cupertino"] .glass-panel.courts-panel {
     @apply overflow-hidden rounded-[12px] border-0 ring-0;
@@ -2558,6 +2640,11 @@
     box-shadow: inset 4px 0 0 0 #ef4444;
   }
 
+  [data-theme="cosmos"] .queue-waiting-group .queue-item.queue-waiting-line.queue-winner,
+  [data-theme="cosmos"] .queue-waiting-group .queue-item.queue-waiting-line.queue-loser {
+    box-shadow: none;
+  }
+
   [data-theme="cosmos"] .court-card {
     @apply rounded-2xl border border-border py-0 shadow-sm;
   }
@@ -2859,6 +2946,11 @@
   [data-theme="session"] .queue-loser {
     @apply border-border bg-card;
     box-shadow: inset 3px 0 0 0 #ff4d4d;
+  }
+
+  [data-theme="session"] .queue-waiting-group .queue-item.queue-waiting-line.queue-winner,
+  [data-theme="session"] .queue-waiting-group .queue-item.queue-waiting-line.queue-loser {
+    box-shadow: none;
   }
 
   [data-theme="session"] .glass-panel.courts-panel [data-slot="card-content"].court-grid {
@@ -3239,6 +3331,11 @@
   [data-theme="makati"] .queue-loser {
     @apply border-border bg-card;
     box-shadow: inset 3px 0 0 0 var(--makati-red);
+  }
+
+  [data-theme="makati"] .queue-waiting-group .queue-item.queue-waiting-line.queue-winner,
+  [data-theme="makati"] .queue-waiting-group .queue-item.queue-waiting-line.queue-loser {
+    box-shadow: none;
   }
 
   [data-theme="makati"] .glass-panel.courts-panel [data-slot="card-content"].court-grid {

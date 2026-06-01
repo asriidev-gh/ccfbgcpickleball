@@ -52,6 +52,10 @@ type QueueEntryRowProps = {
   checkedOut?: boolean;
   onCheckBackIn?: () => void;
   checkBackInPending?: boolean;
+  /** Pulse highlight after self-registration (Proceed to game queue). */
+  highlighted?: boolean;
+  /** Waiting in line section (not next on court) — no left accent bar. */
+  inWaitingLine?: boolean;
 };
 
 export function QueueEntryRow({
@@ -67,6 +71,8 @@ export function QueueEntryRow({
   checkedOut = false,
   onCheckBackIn,
   checkBackInPending = false,
+  highlighted = false,
+  inWaitingLine = false,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const checkedOutTime = entry.checkedOutAt ? new Date(entry.checkedOutAt) : null;
@@ -86,7 +92,15 @@ export function QueueEntryRow({
         : "queue-item-default border-border bg-muted/50";
 
   return (
-    <div className={cn("queue-item rounded-xl border p-3", rowClass)}>
+    <div
+      id={`queue-entry-${entry._id}`}
+      className={cn(
+        "queue-item rounded-xl border p-3",
+        rowClass,
+        inWaitingLine && "queue-waiting-line",
+        highlighted && "queue-entry-highlighted",
+      )}
+    >
       {isNextUp ? <span className="queue-slot-ribbon" aria-hidden /> : null}
 
       <div className="queue-item-layout flex items-center justify-between">
