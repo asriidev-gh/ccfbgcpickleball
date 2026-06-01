@@ -57,11 +57,13 @@ function TeamPlayers({
           >
             <PlayerAvatar player={player} />
             <div className="min-w-0 flex-1">
-              <PlayerPhotoTrigger player={player} className="court-player-name min-w-0 truncate">
-                <span className="court-player-name--first">{firstName || fullName}</span>
-                <span className="court-player-name--full">{fullName}</span>
-              </PlayerPhotoTrigger>
-              <p className="caption mt-0.5 text-muted-foreground">
+              <div className="body-lg min-w-0">
+                <PlayerPhotoTrigger player={player} className="court-player-name min-w-0 truncate">
+                  <span className="court-player-name--first">{firstName || fullName}</span>
+                  <span className="court-player-name--full">{fullName}</span>
+                </PlayerPhotoTrigger>
+              </div>
+              <p className="court-player-session-record">
                 {formatSessionRecordLabel(stats)}
               </p>
             </div>

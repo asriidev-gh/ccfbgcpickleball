@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  loserScoreExceedsWinner,
+  LOSER_SCORE_TOO_HIGH_MESSAGE,
+  MAX_MATCH_SCORE,
+} from "@/lib/match-score-validation";
 import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
 
 const openPlayTypeSchema = z.enum(OPEN_PLAY_TYPES);
@@ -123,17 +128,30 @@ export const existingPlayerSchema = z.object({
 });
 
 export const editMatchScoreSchema = z.object({
-  teamAScore: z.coerce.number().int().min(0).max(999),
-  teamBScore: z.coerce.number().int().min(0).max(999),
+  teamAScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE),
+  teamBScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE),
 });
 
-export const endGameSchema = z.object({
-  gameId: z.string().min(4),
-  courtNumber: z.coerce.number().int().min(1),
-  winnerTeam: z.enum(["A", "B"]),
-  teamAScore: z.coerce.number().int().min(0).max(999).optional(),
-  teamBScore: z.coerce.number().int().min(0).max(999).optional(),
-});
+export const endGameSchema = z
+  .object({
+    gameId: z.string().min(4),
+    courtNumber: z.coerce.number().int().min(1),
+    winnerTeam: z.enum(["A", "B"]),
+    teamAScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE).optional(),
+    teamBScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.teamAScore === undefined && data.teamBScore === undefined) return;
+    const teamAScore = data.teamAScore ?? 0;
+    const teamBScore = data.teamBScore ?? 0;
+    if (loserScoreExceedsWinner(data.winnerTeam, teamAScore, teamBScore)) {
+      ctx.addIssue({
+        code: "custom",
+        message: LOSER_SCORE_TOO_HIGH_MESSAGE,
+        path: ["teamBScore"],
+      });
+    }
+  });
 
 export const swapCourtTeamsSchema = z.object({
   gameId: z.string().min(4),

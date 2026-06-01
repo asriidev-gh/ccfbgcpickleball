@@ -1103,6 +1103,10 @@
     @apply border-border bg-background text-foreground hover:bg-muted;
   }
 
+  .queue-check-back-in-btn {
+    @apply border-primary/40 bg-background text-foreground hover:bg-primary/10;
+  }
+
   @keyframes queue-next-pulse {
     0%,
     100% {
@@ -1414,7 +1418,7 @@
   }
 
   .court-team-players-list {
-    @apply m-0 list-disc space-y-0.5 pl-5 text-sm font-medium leading-snug text-card-foreground;
+    @apply m-0 list-disc space-y-0.5 pl-5 text-card-foreground;
   }
 
   .court-team-players-list li {
@@ -1502,7 +1506,23 @@
   }
 
   .court-team-players {
-    @apply text-sm font-medium leading-snug text-card-foreground;
+    @apply text-card-foreground;
+  }
+
+  .court-card .court-player-name {
+    @apply font-medium leading-snug;
+  }
+
+  .court-card .court-player-session-record {
+    @apply mt-0.5 block max-w-full font-normal leading-tight text-muted-foreground;
+    font-size: 0.625rem;
+    letter-spacing: -0.02em;
+  }
+
+  @media (min-width: 640px) {
+    .court-card .court-player-session-record {
+      font-size: 0.6875rem;
+    }
   }
 
   .court-vs {
@@ -2193,10 +2213,17 @@
     @apply space-y-3 px-4 pb-4 pt-3;
   }
 
-  [data-theme="cupertino"] .glass-panel.courts-panel .court-card .caption {
-    font-size: 13px;
-    line-height: 18px;
+  [data-theme="cupertino"] .glass-panel.courts-panel .court-card .court-player-session-record {
+    font-size: 11px;
+    line-height: 14px;
     color: var(--cupertino-slate-mid);
+  }
+
+  [data-theme="cupertino"] .glass-panel.courts-panel .court-card .body-lg {
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 400;
+    color: var(--cupertino-slate-dark);
   }
 
   [data-theme="cupertino"] .glass-panel.courts-panel .court-card.court-empty {

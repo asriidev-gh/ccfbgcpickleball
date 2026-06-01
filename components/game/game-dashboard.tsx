@@ -43,6 +43,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { isGameResetEnabled } from "@/lib/feature-flags";
+import {
+  getMatchScoreInputError,
+  MAX_MATCH_SCORE,
+  sanitizeScoreInput,
+} from "@/lib/match-score-validation";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type GameDashboardMode = "operator" | "spectator";
@@ -101,9 +106,17 @@ type QueueCheckedOutListProps = {
   entries: QueueEntryView[];
   expanded: boolean;
   onToggle: () => void;
+  onCheckBackIn: (entry: QueueEntryView) => void;
+  checkBackInPendingId: string | null;
 };
 
-function QueueCheckedOutList({ entries, expanded, onToggle }: QueueCheckedOutListProps) {
+function QueueCheckedOutList({
+  entries,
+  expanded,
+  onToggle,
+  onCheckBackIn,
+  checkBackInPendingId,
+}: QueueCheckedOutListProps) {
   const [showAllCheckedOut, setShowAllCheckedOut] = useState(false);
 
   useEffect(() => {
@@ -166,6 +179,8 @@ function QueueCheckedOutList({ entries, expanded, onToggle }: QueueCheckedOutLis
                   replacePending={false}
                   hideReplacePanel
                   checkedOut
+                  onCheckBackIn={() => onCheckBackIn(entry)}
+                  checkBackInPending={checkBackInPendingId === entry._id}
                 />
               ))}
             </div>
@@ -384,6 +399,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     onError: (error) => toast.error(error.message),
   });
 
+  const checkBackInMutation = useMutation({
+    mutationFn: async (queueEntryId: string) => {
+      const response = await fetch(`/api/games/${gameId}/check-back-in`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queueEntryId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const confirmRemoveFromQueue = async (entry: QueueEntryView) => {
     const playerName = formatPlayerDisplayName(
       entry.playerId.firstName,
@@ -448,6 +481,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       : pendingWinner === "B"
         ? (endCourt?.teamB.playerIds ?? [])
         : [];
+  const endGameScoreError =
+    pendingWinner != null
+      ? getMatchScoreInputError(pendingWinner, teamAScore, teamBScore)
+      : null;
+  const endGameWinnerScoreRaw = pendingWinner === "A" ? teamAScore : teamBScore;
+  const endGameWinnerScoreParsed =
+    endGameWinnerScoreRaw.trim() === "" ? undefined : Number(endGameWinnerScoreRaw);
+  const endGameLoserScoreMax =
+    endGameWinnerScoreParsed !== undefined &&
+    Number.isInteger(endGameWinnerScoreParsed) &&
+    endGameWinnerScoreParsed >= 0
+      ? Math.max(0, endGameWinnerScoreParsed - 1)
+      : undefined;
 
   return (
     <main
@@ -722,6 +768,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                         setShowCheckedOutList(next);
                         saveShowCheckedOutList(next);
                       }}
+                      onCheckBackIn={(entry) => checkBackInMutation.mutate(entry._id)}
+                      checkBackInPendingId={
+                        checkBackInMutation.isPending
+                          ? (checkBackInMutation.variables ?? null)
+                          : null
+                      }
                     />
                   ) : null}
                 </>
@@ -885,16 +937,29 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                         pendingWinner === "A" && "text-primary",
                       )}
                     >
-                      Team A{pendingWinner === "A" ? " (winner)" : ""}
+                      Team A
+                      {pendingWinner === "A"
+                        ? " (winner)"
+                        : pendingWinner != null
+                          ? " (loser)"
+                          : ""}
                     </label>
                     <Input
                       id="team-a-score"
-                      type="number"
+                      type="text"
                       inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={2}
                       min={0}
+                      max={
+                        pendingWinner === "A"
+                          ? MAX_MATCH_SCORE
+                          : endGameLoserScoreMax ?? MAX_MATCH_SCORE
+                      }
                       placeholder="—"
                       value={teamAScore}
-                      onChange={(event) => setTeamAScore(event.target.value)}
+                      onChange={(event) => setTeamAScore(sanitizeScoreInput(event.target.value))}
+                      aria-invalid={endGameScoreError != null && pendingWinner === "B"}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -905,19 +970,37 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                         pendingWinner === "B" && "text-primary",
                       )}
                     >
-                      Team B{pendingWinner === "B" ? " (winner)" : ""}
+                      Team B
+                      {pendingWinner === "B"
+                        ? " (winner)"
+                        : pendingWinner != null
+                          ? " (loser)"
+                          : ""}
                     </label>
                     <Input
                       id="team-b-score"
-                      type="number"
+                      type="text"
                       inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={2}
                       min={0}
+                      max={
+                        pendingWinner === "B"
+                          ? MAX_MATCH_SCORE
+                          : endGameLoserScoreMax ?? MAX_MATCH_SCORE
+                      }
                       placeholder="—"
                       value={teamBScore}
-                      onChange={(event) => setTeamBScore(event.target.value)}
+                      onChange={(event) => setTeamBScore(sanitizeScoreInput(event.target.value))}
+                      aria-invalid={endGameScoreError != null && pendingWinner === "A"}
                     />
                   </div>
                 </div>
+                {endGameScoreError ? (
+                  <p className="text-sm text-destructive" role="alert">
+                    {endGameScoreError}
+                  </p>
+                ) : null}
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     type="button"
@@ -933,8 +1016,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   </Button>
                   <Button
                     type="button"
-                    disabled={endMutation.isPending}
+                    disabled={endMutation.isPending || endGameScoreError != null}
                     onClick={() => {
+                      if (!pendingWinner || endGameScoreError) return;
                       const a = teamAScore.trim();
                       const b = teamBScore.trim();
                       const hasAnyScore = a !== "" || b !== "";

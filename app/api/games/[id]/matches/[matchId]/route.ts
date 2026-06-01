@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
+import { loserScoreExceedsWinner, LOSER_SCORE_TOO_HIGH_MESSAGE } from "@/lib/match-score-validation";
 import { editMatchScoreSchema } from "@/lib/validations";
 import { MatchHistory } from "@/models/MatchHistory";
 import { PickleGame } from "@/models/PickleGame";
@@ -21,6 +22,12 @@ export async function PATCH(
 
     const body = await request.json();
     const { teamAScore, teamBScore } = editMatchScoreSchema.parse(body);
+
+    const existing = await MatchHistory.findOne({ _id: matchId, gameId: id }).select("winnerTeam");
+    if (!existing) return NextResponse.json({ message: "Match not found." }, { status: 404 });
+    if (loserScoreExceedsWinner(existing.winnerTeam, teamAScore, teamBScore)) {
+      return NextResponse.json({ message: LOSER_SCORE_TOO_HIGH_MESSAGE }, { status: 400 });
+    }
 
     const match = await MatchHistory.findOneAndUpdate(
       { _id: matchId, gameId: id },

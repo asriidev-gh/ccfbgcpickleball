@@ -1,4 +1,4 @@
-import { ArrowLeftRight, LogOut } from "lucide-react";
+import { ArrowLeftRight, LogIn, LogOut } from "lucide-react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
@@ -50,6 +50,8 @@ type QueueEntryRowProps = {
   removePending?: boolean;
   /** Read-only row for players who left the waiting queue. */
   checkedOut?: boolean;
+  onCheckBackIn?: () => void;
+  checkBackInPending?: boolean;
 };
 
 export function QueueEntryRow({
@@ -63,6 +65,8 @@ export function QueueEntryRow({
   onRemove,
   removePending = false,
   checkedOut = false,
+  onCheckBackIn,
+  checkBackInPending = false,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const checkedOutTime = entry.checkedOutAt ? new Date(entry.checkedOutAt) : null;
@@ -109,11 +113,19 @@ export function QueueEntryRow({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center">
-          {checkedOut ? (
-            <Badge variant="outline" className="border-border/60 bg-muted/40 text-muted-foreground">
-              Checked out
-            </Badge>
-          ) : isNextUp ? (
+          {checkedOut && onCheckBackIn ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="queue-check-back-in-btn"
+              onClick={onCheckBackIn}
+              disabled={checkBackInPending}
+            >
+              <LogIn className="mr-1.5 h-3.5 w-3.5" />
+              {checkBackInPending ? "Checking in…" : "Check back in"}
+            </Button>
+          ) : checkedOut ? null : isNextUp ? (
             <Badge className="badge-next-up" aria-label="Next on court">
               <NextOnCourtLabel />
             </Badge>

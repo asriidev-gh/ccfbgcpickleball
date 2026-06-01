@@ -18,6 +18,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
+import {
+  getMatchScoreInputError,
+  MAX_MATCH_SCORE,
+  sanitizeScoreInput,
+} from "@/lib/match-score-validation";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type MatchHistoryPlayer = {
@@ -158,8 +163,10 @@ export function MatchHistoryList({
 
   const openEditScore = (match: MatchHistoryView) => {
     setEditingMatch(match);
-    setEditTeamAScore(match.teamAScore != null ? String(match.teamAScore) : "0");
-    setEditTeamBScore(match.teamBScore != null ? String(match.teamBScore) : "0");
+    const a = Math.min(MAX_MATCH_SCORE, Math.max(0, match.teamAScore ?? 0));
+    const b = Math.min(MAX_MATCH_SCORE, Math.max(0, match.teamBScore ?? 0));
+    setEditTeamAScore(sanitizeScoreInput(String(a)));
+    setEditTeamBScore(sanitizeScoreInput(String(b)));
   };
 
   const closeEditScore = () => {
@@ -209,6 +216,20 @@ export function MatchHistoryList({
   const visibleMatches = matches.slice(0, visibleCount);
   const remaining = matches.length - visibleCount;
   const hasMore = remaining > 0;
+
+  const editScoreError = editingMatch
+    ? getMatchScoreInputError(editingMatch.winnerTeam, editTeamAScore, editTeamBScore)
+    : null;
+  const editWinnerScoreRaw =
+    editingMatch?.winnerTeam === "A" ? editTeamAScore : editTeamBScore;
+  const editWinnerScoreParsed =
+    editWinnerScoreRaw?.trim() === "" ? undefined : Number(editWinnerScoreRaw);
+  const editLoserScoreMax =
+    editWinnerScoreParsed !== undefined &&
+    Number.isInteger(editWinnerScoreParsed) &&
+    editWinnerScoreParsed >= 0
+      ? Math.max(0, editWinnerScoreParsed - 1)
+      : undefined;
 
   return (
     <div className="match-history-list space-y-2.5">
@@ -296,15 +317,28 @@ export function MatchHistoryList({
                       editingMatch.winnerTeam === "A" && "text-primary",
                     )}
                   >
-                    Team A{editingMatch.winnerTeam === "A" ? " (winner)" : ""}
+                    Team A
+                    {editingMatch.winnerTeam === "A"
+                      ? " (winner)"
+                      : " (loser)"}
                   </label>
                   <Input
                     id="edit-team-a-score"
-                    type="number"
+                    type="text"
                     inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={2}
                     min={0}
+                    max={
+                      editingMatch.winnerTeam === "A"
+                        ? MAX_MATCH_SCORE
+                        : editLoserScoreMax ?? MAX_MATCH_SCORE
+                    }
                     value={editTeamAScore}
-                    onChange={(event) => setEditTeamAScore(event.target.value)}
+                    onChange={(event) =>
+                      setEditTeamAScore(sanitizeScoreInput(event.target.value))
+                    }
+                    aria-invalid={editScoreError != null && editingMatch.winnerTeam === "B"}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -315,18 +349,36 @@ export function MatchHistoryList({
                       editingMatch.winnerTeam === "B" && "text-primary",
                     )}
                   >
-                    Team B{editingMatch.winnerTeam === "B" ? " (winner)" : ""}
+                    Team B
+                    {editingMatch.winnerTeam === "B"
+                      ? " (winner)"
+                      : " (loser)"}
                   </label>
                   <Input
                     id="edit-team-b-score"
-                    type="number"
+                    type="text"
                     inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={2}
                     min={0}
+                    max={
+                      editingMatch.winnerTeam === "B"
+                        ? MAX_MATCH_SCORE
+                        : editLoserScoreMax ?? MAX_MATCH_SCORE
+                    }
                     value={editTeamBScore}
-                    onChange={(event) => setEditTeamBScore(event.target.value)}
+                    onChange={(event) =>
+                      setEditTeamBScore(sanitizeScoreInput(event.target.value))
+                    }
+                    aria-invalid={editScoreError != null && editingMatch.winnerTeam === "A"}
                   />
                 </div>
               </div>
+              {editScoreError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {editScoreError}
+                </p>
+              ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <Button
                   type="button"
@@ -338,14 +390,15 @@ export function MatchHistoryList({
                 </Button>
                 <Button
                   type="button"
-                  disabled={editScoreMutation.isPending}
-                  onClick={() =>
+                  disabled={editScoreMutation.isPending || editScoreError != null}
+                  onClick={() => {
+                    if (editScoreError) return;
                     editScoreMutation.mutate({
                       matchId: editingMatch._id,
                       teamAScore: editTeamAScore.trim() === "" ? 0 : Number(editTeamAScore),
                       teamBScore: editTeamBScore.trim() === "" ? 0 : Number(editTeamBScore),
-                    })
-                  }
+                    });
+                  }}
                 >
                   {editScoreMutation.isPending ? "Saving…" : "Save score"}
                 </Button>
