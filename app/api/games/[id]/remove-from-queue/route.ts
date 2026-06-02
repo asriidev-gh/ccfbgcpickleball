@@ -10,10 +10,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     await connectToDatabase();
     const authUser = await getAuthUserFromCookie();
-    if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
     const { id: gameId } = await params;
-    const game = await PickleGame.findOne({ gameId, ownerId: authUser.userId });
+    const game = await PickleGame.findOne({ gameId });
     if (!game) return NextResponse.json({ message: "Game not found." }, { status: 404 });
     if (game.status === "ended") {
       return NextResponse.json(
@@ -24,18 +23,54 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const body = await request.json();
     const queueEntryId = typeof body?.queueEntryId === "string" ? body.queueEntryId.trim() : "";
+    const selfPlayerId = typeof body?.selfPlayerId === "string" ? body.selfPlayerId.trim() : "";
+    const selfPlayerIds =
+      Array.isArray(body?.selfPlayerIds)
+        ? body.selfPlayerIds
+            .filter((value: unknown): value is string => typeof value === "string")
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : [];
+    const allowedSelfPlayerIds = Array.from(new Set([selfPlayerId, ...selfPlayerIds].filter(Boolean)));
     if (!queueEntryId) {
       return NextResponse.json({ message: "queueEntryId is required." }, { status: 400 });
     }
+    if (!authUser && allowedSelfPlayerIds.length === 0) {
+      return NextResponse.json(
+        { message: "Unauthorized. Sign in or provide your player identity." },
+        { status: 401 },
+      );
+    }
+
+    const updateFilter: {
+      _id: string;
+      gameId: string;
+      status: "queued";
+      playerId?: { $in: string[] };
+    } = {
+      _id: queueEntryId,
+      gameId,
+      status: "queued",
+    };
+    if (!authUser) {
+      updateFilter.playerId = { $in: allowedSelfPlayerIds };
+    }
 
     const entry = await QueueEntry.findOneAndUpdate(
-      { _id: queueEntryId, gameId, status: "queued" },
+      updateFilter,
       { $set: { status: "checked_out" } },
       { new: true },
     ).populate("playerId", "firstName lastName");
 
     if (!entry) {
-      return NextResponse.json({ message: "Queued player not found." }, { status: 404 });
+      return NextResponse.json(
+        {
+          message: authUser
+            ? "Queued player not found."
+            : "Your queued player record was not found.",
+        },
+        { status: 404 },
+      );
     }
 
     const player = entry.playerId as { firstName?: string; lastName?: string } | null;

@@ -47,6 +47,23 @@ const events = [
 
 type FieldErrors = Record<string, string>;
 
+function formatMobileNumberInput(value: string, forcePrefix = false): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (!forcePrefix && digits.length === 0) return "";
+
+  const tail =
+    digits.startsWith("09")
+      ? digits.slice(2)
+      : digits.startsWith("9")
+        ? digits.slice(1)
+        : digits.startsWith("0")
+          ? digits.slice(1)
+          : digits;
+  const normalized = (`09${tail}`).slice(0, 11);
+  if (normalized.length <= 4) return normalized;
+  return `${normalized.slice(0, 4)}-${normalized.slice(4)}`;
+}
+
 export function RegistrationForm({
   gameId,
   gameTitle,
@@ -61,6 +78,7 @@ export function RegistrationForm({
   const [role, setRole] = useState<"existing-player" | "new-player" | "volunteer" | "">("");
   const [pendingRole, setPendingRole] = useState<"new-player" | "volunteer" | null>(null);
   const [volunteerType, setVolunteerType] = useState("");
+  const [mobileTouched, setMobileTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -201,6 +219,10 @@ export function RegistrationForm({
   const updateForm = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
     clearFieldError(String(key));
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateMobileNumber = (value: string) => {
+    updateForm("mobileNumber", formatMobileNumberInput(value, mobileTouched));
   };
 
   const buildNewPlayerPayload = () => {
@@ -493,11 +515,17 @@ export function RegistrationForm({
                         autoComplete="tel"
                         placeholder="09XX-XXXXXXX"
                         value={form.mobileNumber}
+                        maxLength={12}
                         aria-invalid={Boolean(fieldErrors.mobileNumber)}
                         aria-describedby={
                           fieldErrors.mobileNumber ? "mobileNumber-error" : undefined
                         }
-                        onChange={(event) => updateForm("mobileNumber", event.target.value)}
+                        onFocus={() => {
+                          if (mobileTouched) return;
+                          setMobileTouched(true);
+                          if (!form.mobileNumber) updateForm("mobileNumber", "09");
+                        }}
+                        onChange={(event) => updateMobileNumber(event.target.value)}
                       />
                       {renderFieldError("mobileNumber")}
                     </div>

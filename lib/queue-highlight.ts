@@ -37,15 +37,56 @@ export function hasQueueHighlightBeenApplied(gameId: string) {
 /** Keeps self-registration highlight until the player clears browser data for this site. */
 export function persistActiveQueueHighlight(gameId: string, playerId: string) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(activeHighlightKey(gameId), playerId);
+  const key = activeHighlightKey(gameId);
+  const raw = localStorage.getItem(key);
+  const normalized = playerId.trim();
+  if (!normalized) return;
+  const ids = parseActiveHighlightIds(raw);
+  if (!ids.includes(normalized)) ids.push(normalized);
+  localStorage.setItem(key, JSON.stringify(ids));
 }
 
 export function getActiveQueueHighlightPlayerId(gameId: string): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(activeHighlightKey(gameId));
+  const ids = getActiveQueueHighlightPlayerIds(gameId);
+  return ids.length > 0 ? ids[ids.length - 1] : null;
+}
+
+export function getActiveQueueHighlightPlayerIds(gameId: string): string[] {
+  if (typeof window === "undefined") return [];
+  return parseActiveHighlightIds(localStorage.getItem(activeHighlightKey(gameId)));
+}
+
+export function removeActiveQueueHighlightPlayerId(gameId: string, playerId: string) {
+  if (typeof window === "undefined") return;
+  const normalized = playerId.trim();
+  if (!normalized) return;
+  const key = activeHighlightKey(gameId);
+  const next = getActiveQueueHighlightPlayerIds(gameId).filter((id) => id !== normalized);
+  if (next.length === 0) {
+    localStorage.removeItem(key);
+    return;
+  }
+  localStorage.setItem(key, JSON.stringify(next));
 }
 
 export function clearActiveQueueHighlight(gameId: string) {
   if (typeof window === "undefined") return;
   localStorage.removeItem(activeHighlightKey(gameId));
+}
+
+function parseActiveHighlightIds(raw: string | null): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  if (!trimmed.startsWith("[")) return [trimmed];
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }

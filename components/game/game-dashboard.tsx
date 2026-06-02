@@ -48,11 +48,13 @@ import { isGameResetEnabled } from "@/lib/feature-flags";
 import {
   clearQueueHighlightPlayerId,
   getActiveQueueHighlightPlayerId,
+  getActiveQueueHighlightPlayerIds,
   hasQueueHighlightBeenApplied,
   markQueueHighlightApplied,
   peekQueueHighlightPlayerId,
   persistActiveQueueHighlight,
   queueEntryPlayerId,
+  removeActiveQueueHighlightPlayerId,
 } from "@/lib/queue-highlight";
 import {
   getMatchScoreInputError,
@@ -457,17 +459,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   });
 
   const removeMutation = useMutation({
-    mutationFn: async (queueEntryId: string) => {
+    mutationFn: async (input: {
+      queueEntryId: string;
+      checkedOutPlayerId: string;
+      selfPlayerIds?: string[];
+    }) => {
       const response = await fetch(`/api/games/${gameId}/remove-from-queue`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ queueEntryId }),
+        body: JSON.stringify(input),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onSuccess: (payload) => {
+    onSuccess: (payload, variables) => {
+      if (gameId) {
+        removeActiveQueueHighlightPlayerId(gameId, variables.checkedOutPlayerId);
+      }
       toast.success(payload.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
@@ -506,7 +515,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       confirmButtonText: "Yes, check out",
       cancelButtonText: "Cancel",
     });
-    if (result.isConfirmed) removeMutation.mutate(entry._id);
+    if (result.isConfirmed) {
+      removeMutation.mutate({
+        queueEntryId: entry._id,
+        checkedOutPlayerId: queueEntryPlayerId(entry),
+        selfPlayerIds,
+      });
+    }
   };
 
   const playerSessionStats = useMemo(
@@ -532,6 +547,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   /** Re-read on every queue update so highlight never drops after refetch or reorder. */
   const selfHighlightPlayerId = useMemo(
     () => (gameId ? getActiveQueueHighlightPlayerId(gameId) : null),
+    [gameId, data?.queue],
+  );
+  const selfPlayerIds = useMemo(
+    () => (gameId ? getActiveQueueHighlightPlayerIds(gameId) : []),
     [gameId, data?.queue],
   );
 
@@ -587,6 +606,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const showSpectatorEndedRecap = isSpectator && isPastGame;
   const canResetGame = isDemoOpenPlayTitle(game.title) || isGameResetEnabled();
   const hideControls = readOnly || isPastGame;
+  const canCheckoutFromQueue = !isPastGame;
+  const canSelfCheckoutEntry = (entry: QueueEntryView) =>
+    selfPlayerIds.includes(queueEntryPlayerId(entry));
+  const canRemoveEntry = (entry: QueueEntryView) =>
+    !hideControls || (isSpectator && canCheckoutFromQueue && canSelfCheckoutEntry(entry));
   const nextEmptyCourt =
     [...courts]
       .filter((c) => c.status === "empty")
@@ -831,12 +855,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                               }
                               hideReplacePanel={hideControls}
                               onRemove={
-                                hideControls ? undefined : () => confirmRemoveFromQueue(entry)
+                                canRemoveEntry(entry) ? () => confirmRemoveFromQueue(entry) : undefined
                               }
                               removePending={
-                                !hideControls &&
+                                canRemoveEntry(entry) &&
                                 removeMutation.isPending &&
-                                removeMutation.variables === entry._id
+                                removeMutation.variables?.queueEntryId === entry._id
                               }
                               highlighted={
                                 selfHighlightPlayerId != null &&
@@ -895,12 +919,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                                 replacePending={false}
                                 hideReplacePanel
                                 onRemove={
-                                  hideControls ? undefined : () => confirmRemoveFromQueue(entry)
+                                  canRemoveEntry(entry) ? () => confirmRemoveFromQueue(entry) : undefined
                                 }
                                 removePending={
-                                  !hideControls &&
+                                  canRemoveEntry(entry) &&
                                   removeMutation.isPending &&
-                                  removeMutation.variables === entry._id
+                                  removeMutation.variables?.queueEntryId === entry._id
                                 }
                                 highlighted={
                                 selfHighlightPlayerId != null &&
