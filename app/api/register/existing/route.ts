@@ -59,7 +59,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ player, message: "Welcome back! Added to queue." });
   } catch (error) {
     if (error instanceof RegistrationLimitError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return NextResponse.json(
+        {
+          message: error.message,
+          alreadyRegistered: error.alreadyRegistered ?? false,
+          ...(error.playerId ? { player: { _id: error.playerId } } : {}),
+        },
+        { status: error.status },
+      );
     }
     return NextResponse.json(
       { message: formatZodError(error) },

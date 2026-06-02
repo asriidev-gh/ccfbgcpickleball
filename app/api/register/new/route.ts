@@ -12,6 +12,8 @@ import {
   RegistrationLimitError,
 } from "@/lib/game-registration-limit";
 import { formatZodError } from "@/lib/format-zod-error";
+import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
+import { findPlayerAlreadyRegisteredForGame } from "@/lib/registration-duplicate";
 import { capitalizeNameWords } from "@/lib/utils";
 import {
   getRegistrationPhotoFromFormData,
@@ -71,6 +73,22 @@ export async function POST(request: Request) {
     }
 
     await assertGameRegistrationAllowed(payload.gameId);
+
+    const duplicatePlayer = await findPlayerAlreadyRegisteredForGame(payload.gameId, {
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      email: payload.email,
+    });
+    if (duplicatePlayer) {
+      return NextResponse.json(
+        {
+          message: ALREADY_REGISTERED_MESSAGE,
+          alreadyRegistered: true,
+          player: { _id: duplicatePlayer._id },
+        },
+        { status: 409 },
+      );
+    }
 
     const personalQrCode = `P-${nanoid(10)}`;
     let photoUrl = getGeneratedAvatarUrl(personalQrCode);
@@ -141,7 +159,14 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof RegistrationLimitError) {
-      return NextResponse.json({ message: error.message }, { status: error.status });
+      return NextResponse.json(
+        {
+          message: error.message,
+          alreadyRegistered: error.alreadyRegistered ?? false,
+          ...(error.playerId ? { player: { _id: error.playerId } } : {}),
+        },
+        { status: error.status },
+      );
     }
     return NextResponse.json(
       { message: formatZodError(error) },

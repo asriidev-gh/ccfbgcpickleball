@@ -904,11 +904,11 @@
   }
 
   .queue-next-up-group {
-    @apply flex flex-col gap-4 rounded-xl border-2 border-amber-400/50 bg-card p-4 text-card-foreground shadow-[0_0_24px_rgba(250,204,21,0.12)];
+    @apply flex flex-col gap-2.5 rounded-xl border-2 border-amber-400/50 bg-card p-3 text-card-foreground shadow-[0_0_24px_rgba(250,204,21,0.12)] xl:gap-3 xl:p-4;
   }
 
   .queue-next-up-banner {
-    @apply mb-0 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-border bg-muted px-3 py-2.5;
+    @apply mb-0 flex shrink-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted px-2.5 py-2 xl:gap-3 xl:px-3 xl:py-2.5;
   }
 
   .queue-next-up-title {
@@ -916,7 +916,7 @@
   }
 
   .queue-next-up-icon {
-    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-400/20 text-amber-300;
+    @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-400/20 text-amber-300 xl:h-9 xl:w-9;
   }
 
   .badge-next-up-count {
@@ -927,12 +927,120 @@
     @apply border-0 bg-amber-400 font-semibold text-slate-950 hover:bg-amber-400/90;
   }
 
+  .queue-undefeated-badge {
+    @apply inline-flex items-center gap-1 border-amber-400/80 bg-gradient-to-r from-amber-400/25 via-yellow-300/15 to-amber-500/20 px-2 py-0.5 shadow-[0_0_10px_rgba(251,191,36,0.28)];
+    animation: queue-undefeated-glow 2.5s ease-in-out infinite;
+  }
+
+  .queue-undefeated-badge-icon {
+    @apply size-3 shrink-0 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)];
+  }
+
+  .queue-undefeated-badge-text {
+    @apply text-[10px] font-bold uppercase tracking-wider text-white;
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  }
+
+  @keyframes queue-undefeated-glow {
+    0%,
+    100% {
+      border-color: rgb(251 191 36 / 0.55);
+      box-shadow:
+        0 0 8px rgb(251 191 36 / 0.22),
+        inset 0 0 0 1px rgb(255 255 255 / 0.08);
+    }
+
+    50% {
+      border-color: rgb(252 211 77 / 0.95);
+      box-shadow:
+        0 0 14px rgb(251 191 36 / 0.48),
+        0 0 4px rgb(252 211 77 / 0.35),
+        inset 0 0 0 1px rgb(255 255 255 / 0.14);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .queue-undefeated-badge {
+      animation: none;
+    }
+  }
+
   .badge-court-slot {
     @apply border-border bg-background/80 font-semibold text-foreground;
   }
 
   .queue-next-up-slots {
-    @apply space-y-2.5;
+    @apply flex flex-col gap-1.5 xl:gap-2;
+  }
+
+  /* Denser next-on-court rows — phones, tablets, and 1024×768 */
+  @media (max-width: 1024px), (max-height: 768px) {
+    .queue-next-up-group {
+      @apply gap-1.5 border p-2 shadow-[0_0_16px_rgba(250,204,21,0.08)];
+    }
+
+    .queue-next-up-banner {
+      @apply rounded-md px-2 py-1.5;
+    }
+
+    .queue-next-up-title {
+      @apply text-xs font-semibold;
+    }
+
+    .queue-next-up-slots {
+      @apply gap-1;
+    }
+
+    .queue-next-up--compact {
+      @apply rounded-lg p-2;
+    }
+
+    .queue-next-up--compact .queue-slot-ribbon {
+      @apply top-2 bottom-2;
+    }
+
+    .queue-next-up .queue-rank {
+      @apply h-7 w-7 text-xs;
+    }
+
+    .queue-next-up .player-identity .player-avatar {
+      width: 2rem !important;
+      height: 2rem !important;
+      min-width: 2rem;
+      min-height: 2rem;
+    }
+
+    .queue-next-up .queue-entry-meta--next-up {
+      @apply mt-1 hidden;
+    }
+
+    .queue-next-up .queue-swap-panel {
+      @apply mt-1.5 gap-0.5 p-1;
+    }
+
+    .queue-next-up .queue-swap-panel .queue-replace-btn,
+    .queue-next-up .queue-swap-panel .queue-remove-btn {
+      height: 1.5rem;
+      min-height: 1.5rem;
+      padding-inline: 0.375rem;
+      font-size: 0.625rem;
+      line-height: 1.1;
+    }
+
+    .queue-next-up .queue-swap-panel .queue-replace-btn svg,
+    .queue-next-up .queue-swap-panel .queue-remove-btn svg {
+      width: 0.6875rem;
+      height: 0.6875rem;
+    }
+  }
+
+  @media (min-width: 1025px) and (min-height: 769px) {
+    .queue-next-up .queue-entry-meta--next-up {
+      @apply mt-1.5 text-xs;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 
   .queue-divider {
@@ -2156,14 +2264,21 @@
   }
 
   [data-theme="cupertino"] .queue-next-up-banner {
-    @apply rounded-[10px] border-0 bg-white px-4 py-3 shadow-none;
+    @apply rounded-[10px] border-0 bg-white px-3 py-2 shadow-none xl:px-4 xl:py-3;
   }
 
   [data-theme="cupertino"] .queue-next-up-title {
-    font-size: 17px;
-    line-height: 22px;
+    font-size: 15px;
+    line-height: 20px;
     font-weight: 600;
     color: var(--cupertino-slate-dark);
+  }
+
+  @media (min-width: 1025px) and (min-height: 769px) {
+    [data-theme="cupertino"] .queue-next-up-title {
+      font-size: 17px;
+      line-height: 22px;
+    }
   }
 
   [data-theme="cupertino"] .queue-next-up-banner .caption {
@@ -2205,7 +2320,7 @@
     border-radius: 10px;
     background-color: var(--cupertino-surface-raised);
     box-shadow: none;
-    @apply px-4 py-3;
+    @apply px-3 py-2 xl:px-4 xl:py-3;
   }
 
   [data-theme="cupertino"] .glass-panel:has(.queue-list) .queue-slot-ribbon {
@@ -2312,7 +2427,7 @@
   }
 
   [data-theme="cupertino"] .queue-swap-panel {
-    @apply mt-2 rounded-[8px] border-0 px-3 py-2.5;
+    @apply mt-1.5 rounded-[8px] border-0 px-2 py-1.5 xl:mt-2 xl:px-3 xl:py-2.5;
     background-color: var(--cupertino-surface-soft);
   }
 

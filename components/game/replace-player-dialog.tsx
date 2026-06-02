@@ -177,21 +177,20 @@ export function ReplacePlayerDialog({
           )}
         </div>
 
-        <DialogFooter className="replace-player-dialog-footer !mx-0 !mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-muted/30 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <DialogFooter className="replace-player-dialog-footer !mx-0 !mb-0 mt-0 shrink-0 flex-row items-stretch gap-2 rounded-none border-t border-border bg-muted/30 px-5 py-4 lg:items-center lg:justify-between lg:gap-3">
           <Button
             type="button"
             variant="outline"
-            className="w-full sm:w-auto"
+            className="min-w-0 flex-1 lg:w-auto lg:flex-none"
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
             Cancel
           </Button>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <div className="hidden items-center gap-2 lg:flex">
             <Button
               type="button"
               variant="outline"
-              className="w-full sm:w-auto"
               onClick={goPrevious}
               disabled={isPending || waitingEntries.length <= 1}
             >
@@ -201,35 +200,34 @@ export function ReplacePlayerDialog({
             <Button
               type="button"
               variant="outline"
-              className="w-full sm:w-auto"
               onClick={goNext}
               disabled={isPending || waitingEntries.length <= 1}
             >
               Next
               <ChevronRight className="ml-1 h-4 w-4 shrink-0" aria-hidden />
             </Button>
-            <Button
-              type="button"
-              className="w-full sm:w-auto"
-              disabled={isPending || !state || !selectedEntry}
-              onClick={() => {
-                if (!state || !selectedEntry) return;
-                onConfirm({
-                  sourceIndex: state.sourceIndex,
-                  targetIndex: selectedTargetIndex,
-                });
-              }}
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Swapping…
-                </>
-              ) : (
-                "Confirm"
-              )}
-            </Button>
           </div>
+          <Button
+            type="button"
+            className="min-w-0 flex-1 lg:w-auto lg:flex-none"
+            disabled={isPending || !state || !selectedEntry}
+            onClick={() => {
+              if (!state || !selectedEntry) return;
+              onConfirm({
+                sourceIndex: state.sourceIndex,
+                targetIndex: selectedTargetIndex,
+              });
+            }}
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Swapping…
+              </>
+            ) : (
+              "Confirm"
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

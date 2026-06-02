@@ -92,6 +92,8 @@ const alertBaseOptions = {
 
 const WAITING_LIST_STORAGE_KEY = "ccf-queue-waiting-visible";
 const CHECKED_OUT_LIST_STORAGE_KEY = "ccf-queue-checked-out-visible";
+const MATCH_HISTORY_STORAGE_KEY = "ccf-match-history-visible";
+const COURTS_STORAGE_KEY = "ccf-courts-visible";
 const CHECKED_OUT_PREVIEW_COUNT = 2;
 
 function loadShowWaitingList() {
@@ -110,6 +112,24 @@ function loadShowCheckedOutList() {
 
 function saveShowCheckedOutList(show: boolean) {
   localStorage.setItem(CHECKED_OUT_LIST_STORAGE_KEY, show ? "true" : "false");
+}
+
+function loadShowMatchHistory() {
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem(MATCH_HISTORY_STORAGE_KEY) !== "false";
+}
+
+function saveShowMatchHistory(show: boolean) {
+  localStorage.setItem(MATCH_HISTORY_STORAGE_KEY, show ? "true" : "false");
+}
+
+function loadShowCourts() {
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem(COURTS_STORAGE_KEY) !== "false";
+}
+
+function saveShowCourts(show: boolean) {
+  localStorage.setItem(COURTS_STORAGE_KEY, show ? "true" : "false");
 }
 
 type QueueCheckedOutListProps = {
@@ -273,6 +293,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [teamBScore, setTeamBScore] = useState("");
   const [showWaitingList, setShowWaitingList] = useState(true);
   const [showCheckedOutList, setShowCheckedOutList] = useState(true);
+  const [showMatchHistory, setShowMatchHistory] = useState(true);
+  const [showCourts, setShowCourts] = useState(true);
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
@@ -294,6 +316,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   useEffect(() => {
     setShowWaitingList(loadShowWaitingList());
     setShowCheckedOutList(loadShowCheckedOutList());
+    setShowMatchHistory(loadShowMatchHistory());
+    setShowCourts(loadShowCourts());
   }, []);
 
   const { data, isLoading, error } = useQuery({
@@ -774,10 +798,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                           </span>
                           <div>
                             <p className="queue-next-up-title">
-                              <span className="sm:hidden">Next</span>
-                              <span className="hidden sm:inline">Next on court</span>
+                              <span className="xl:hidden">Next</span>
+                              <span className="hidden xl:inline">Next on court</span>
                             </p>
-                            <p className="caption">
+                            <p className="caption hidden xl:block">
                               Top {Math.min(4, queueWithStats.length)}{" "}
                               {Math.min(4, queueWithStats.length) === 1 ? "player" : "players"} — ready to play
                             </p>
@@ -785,7 +809,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                         </div>
                         <Badge className="badge-next-up-count">{Math.min(4, queueWithStats.length)} / 4</Badge>
                       </div>
-                      <div className="queue-next-up-slots space-y-2">
+                      <div className="queue-next-up-slots">
                         {queueWithStats.slice(0, 4).map((entry, index) => (
                             <QueueEntryRow
                               key={entry._id}
@@ -910,13 +934,44 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           </Card>
 
           <Card className="glass-panel courts-panel">
-            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle>Courts</CardTitle>
                 <CourtsSummary courts={courts} />
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="courts-toggle shrink-0 lg:hidden"
+                onClick={() => {
+                  const next = !showCourts;
+                  setShowCourts(next);
+                  saveShowCourts(next);
+                }}
+                aria-expanded={showCourts}
+                aria-controls="courts-list"
+              >
+                {showCourts ? (
+                  <>
+                    <ChevronUp className="mr-1.5 h-4 w-4" />
+                    Hide courts
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="mr-1.5 h-4 w-4" />
+                    Show courts
+                  </>
+                )}
+              </Button>
             </CardHeader>
-            <CardContent className="court-grid court-grid--list grid grid-cols-1 gap-3">
+            <CardContent
+              id="courts-list"
+              className={cn(
+                "court-grid court-grid--list grid grid-cols-1 gap-3",
+                !showCourts && "hidden lg:grid",
+              )}
+            >
               {courts.map((court) => (
                 <CourtCard
                   key={court._id}
@@ -951,15 +1006,44 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         )}
 
         <Card className="glass-panel match-history-panel">
-          <CardHeader>
-            <CardTitle>Match History</CardTitle>
-            <p className="caption">
-              {matches.length} {matches.length === 1 ? "match" : "matches"} recorded
-            </p>
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Match History</CardTitle>
+              <p className="caption">
+                {matches.length} {matches.length === 1 ? "match" : "matches"} recorded
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="match-history-toggle shrink-0"
+              onClick={() => {
+                const next = !showMatchHistory;
+                setShowMatchHistory(next);
+                saveShowMatchHistory(next);
+              }}
+              aria-expanded={showMatchHistory}
+              aria-controls="match-history-list"
+            >
+              {showMatchHistory ? (
+                <>
+                  <ChevronUp className="mr-1.5 h-4 w-4" />
+                  Hide match history
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="mr-1.5 h-4 w-4" />
+                  Show match history
+                </>
+              )}
+            </Button>
           </CardHeader>
-          <CardContent>
-            <MatchHistoryList matches={matches} gameId={gameId} editable={!hideControls} />
-          </CardContent>
+          {showMatchHistory ? (
+            <CardContent id="match-history-list">
+              <MatchHistoryList matches={matches} gameId={gameId} editable={!hideControls} />
+            </CardContent>
+          ) : null}
         </Card>
       </section>
 

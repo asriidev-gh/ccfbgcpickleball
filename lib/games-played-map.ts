@@ -46,10 +46,15 @@ export function getPlayerSessionStats(
   return map.get(id) ?? { gamesPlayed: 0, wins: 0, losses: 0 };
 }
 
-/** e.g. "1 game/s (W1/L0)" */
+/** e.g. "(W1/L0)" */
 export function formatSessionRecordLabel(stats: PlayerSessionStats) {
-  const { gamesPlayed, wins, losses } = stats;
-  return `${gamesPlayed} game/s (W${wins}/L${losses})`;
+  const { wins, losses } = stats;
+  return `(W${wins}/L${losses})`;
+}
+
+/** At least 3 wins this session and no losses yet. */
+export function isSessionUndefeated(stats: Pick<PlayerSessionStats, "wins" | "losses">) {
+  return stats.wins >= 3 && stats.losses === 0;
 }
 
 function ordinalSuffix(n: number): string {

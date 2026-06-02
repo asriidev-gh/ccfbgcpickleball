@@ -30,6 +30,7 @@ import {
   getZodFieldErrors,
 } from "@/lib/format-zod-error";
 import { REGISTRATION_RESET_EVENT } from "@/lib/registration-reset";
+import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
 import { existingPlayerSchema, genericPlayerSchema, newPlayerSchema } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 
@@ -276,6 +277,15 @@ export function RegistrationForm({
 
     setFieldErrors({});
 
+    const finishRegistrationSuccess = (registeredPlayerId: unknown) => {
+      if (registeredPlayerId != null) {
+        const id = String(registeredPlayerId);
+        setQueueHighlightPlayerId(gameId, id);
+        persistActiveQueueHighlight(gameId, id);
+      }
+      router.push(`/register/${gameId}/success`);
+    };
+
     try {
       setSubmitting(true);
 
@@ -295,6 +305,14 @@ export function RegistrationForm({
       const response = await fetch(endpoint, requestInit);
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 409 && data.alreadyRegistered) {
+          toast.error(
+            typeof data.message === "string" ? data.message : ALREADY_REGISTERED_MESSAGE,
+          );
+          finishRegistrationSuccess(data?.player?._id);
+          return;
+        }
+
         const message =
           typeof data.message === "string"
             ? formatZodError(data.message)
@@ -311,13 +329,7 @@ export function RegistrationForm({
         setSubmitting(false);
         return;
       }
-      const registeredPlayerId = data?.player?._id;
-      if (registeredPlayerId != null) {
-        const id = String(registeredPlayerId);
-        setQueueHighlightPlayerId(gameId, id);
-        persistActiveQueueHighlight(gameId, id);
-      }
-      router.push(`/register/${gameId}/success`);
+      finishRegistrationSuccess(data?.player?._id);
     } catch {
       toast.error("Registration failed. Please try again.");
       setSubmitting(false);

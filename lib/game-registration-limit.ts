@@ -3,14 +3,23 @@ import { connectToDatabase } from "@/lib/db";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
+import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
 
 export class RegistrationLimitError extends Error {
   status: number;
+  playerId?: string;
+  alreadyRegistered?: boolean;
 
-  constructor(message: string, status = 403) {
+  constructor(
+    message: string,
+    status = 403,
+    options?: { playerId?: string; alreadyRegistered?: boolean },
+  ) {
     super(message);
     this.name = "RegistrationLimitError";
     this.status = status;
+    this.playerId = options?.playerId;
+    this.alreadyRegistered = options?.alreadyRegistered;
   }
 }
 
@@ -88,7 +97,10 @@ export async function assertGameRegistrationAllowed(
       playerId: options.playerId,
     });
     if (alreadyRegistered) {
-      throw new RegistrationLimitError("You are already registered for this session.", 409);
+      throw new RegistrationLimitError(ALREADY_REGISTERED_MESSAGE, 409, {
+        playerId: options.playerId,
+        alreadyRegistered: true,
+      });
     }
   }
 
