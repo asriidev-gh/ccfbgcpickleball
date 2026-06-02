@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       Array.isArray(body?.selfPlayerIds)
         ? body.selfPlayerIds
             .filter((value: unknown): value is string => typeof value === "string")
-            .map((value) => value.trim())
+            .map((value: string) => value.trim())
             .filter(Boolean)
         : [];
     const allowedSelfPlayerIds = Array.from(new Set([selfPlayerId, ...selfPlayerIds].filter(Boolean)));
