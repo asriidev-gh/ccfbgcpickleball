@@ -981,7 +981,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             }
             onConfirmFill={() => startMutation.mutate()}
             fillPending={startMutation.isPending}
-            onShuffle={() => shuffleNextMutation.mutateAsync()}
+            onShuffle={async () => {
+              await shuffleNextMutation.mutateAsync();
+            }}
           />
           <ReplacePlayerDialog
             open={replaceDialog !== null}

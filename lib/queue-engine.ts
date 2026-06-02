@@ -108,6 +108,78 @@ export async function shuffleNextOnCourtInQueue(gameId: string) {
   await persistQueueOrder([...firstHalf, ...secondHalf, ...queue.slice(4)]);
 }
 
+/** Move a ready deck foursome onto the promoted open-court line (Team A vs Team B). */
+export async function promoteDeckMatchToOpenCourt(input: {
+  gameId: string;
+  teamAEntryIds: string[];
+  teamBEntryIds: string[];
+}) {
+  const allIds = [...input.teamAEntryIds, ...input.teamBEntryIds];
+  if (new Set(allIds).size !== 4) {
+    throw new Error("All four queue entry ids must be unique.");
+  }
+
+  const entries = await QueueEntry.find({
+    gameId: input.gameId,
+    status: "queued",
+    _id: { $in: allIds },
+  });
+
+  if (entries.length !== 4) {
+    throw new Error("One or more players are not in the queue.");
+  }
+
+  const byId = new Map(entries.map((entry) => [String(entry._id), entry]));
+  for (const id of allIds) {
+    if (!byId.has(id)) {
+      throw new Error("One or more queue entries were not found.");
+    }
+  }
+
+  const openCourtGroupId = `OC-${nanoid(8)}`;
+
+  await Promise.all(
+    input.teamAEntryIds.map((id) =>
+      QueueEntry.updateOne(
+        { _id: id },
+        {
+          $set: {
+            deckPlacement: "open_court",
+            openCourtGroupId,
+            openCourtTeam: "A",
+          },
+        },
+      ),
+    ),
+  );
+  await Promise.all(
+    input.teamBEntryIds.map((id) =>
+      QueueEntry.updateOne(
+        { _id: id },
+        {
+          $set: {
+            deckPlacement: "open_court",
+            openCourtGroupId,
+            openCourtTeam: "B",
+          },
+        },
+      ),
+    ),
+  );
+
+  const queue = await QueueEntry.find({ gameId: input.gameId, status: "queued" }).sort({
+    registeredAt: 1,
+  });
+  const promoteSet = new Set(allIds);
+  const others = queue.filter((entry) => !promoteSet.has(String(entry._id)));
+  const promotedOrdered = [
+    ...input.teamAEntryIds.map((id) => byId.get(id)!),
+    ...input.teamBEntryIds.map((id) => byId.get(id)!),
+  ];
+
+  await persistQueueOrder([...others, ...promotedOrdered]);
+}
+
 /**
  * Randomly re-pairs everyone on a court into two new teams. Each call produces
  * a different team composition than the current one (when possible), so the
