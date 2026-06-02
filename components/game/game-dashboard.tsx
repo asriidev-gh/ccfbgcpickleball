@@ -315,7 +315,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       return data;
     },
     onSuccess: () => {
-      setFillCourtDialogOpen(false);
       toast.success("Next court filled from the queue.");
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
@@ -979,7 +978,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             replacePendingSourceIndex={
               replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
             }
-            onConfirmFill={() => startMutation.mutate()}
+            onConfirmFill={() => {
+              setFillCourtDialogOpen(false);
+              startMutation.mutate();
+            }}
             fillPending={startMutation.isPending}
             onShuffle={async () => {
               await shuffleNextMutation.mutateAsync();
