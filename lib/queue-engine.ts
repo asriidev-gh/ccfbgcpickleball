@@ -50,6 +50,64 @@ function teamKey(slots: CourtSlot[]): string {
     .join(",");
 }
 
+function shuffleIntoNewHalves<T>(
+  items: T[],
+  teamKeyForHalf: (half: T[]) => string,
+): { firstHalf: T[]; secondHalf: T[] } {
+  if (items.length < 2) {
+    throw new Error("Not enough players to shuffle.");
+  }
+
+  const half = Math.floor(items.length / 2);
+  const currentKey = teamKeyForHalf(items.slice(0, half));
+
+  let shuffled = items;
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    shuffled = shuffleSlots(items);
+    if (teamKeyForHalf(shuffled.slice(0, half)) !== currentKey) break;
+  }
+
+  return { firstHalf: shuffled.slice(0, half), secondHalf: shuffled.slice(half) };
+}
+
+async function persistQueueOrder(
+  orderedEntries: Array<{ _id: Types.ObjectId; registeredAt: Date }>,
+) {
+  const baseTime =
+    orderedEntries.length > 0
+      ? new Date(orderedEntries[0].registeredAt).getTime()
+      : Date.now();
+
+  await Promise.all(
+    orderedEntries.map((entry, index) =>
+      QueueEntry.updateOne(
+        { _id: entry._id },
+        { $set: { registeredAt: new Date(baseTime + index * 1000) } },
+      ),
+    ),
+  );
+}
+
+/** Re-pair the next four queued players (Team A = #1–2, Team B = #3–4). */
+export async function shuffleNextOnCourtInQueue(gameId: string) {
+  const queue = await QueueEntry.find({ gameId, status: "queued" }).sort({ registeredAt: 1 });
+  if (queue.length < 4) {
+    throw new Error("Not enough queued players. At least 4 players are required.");
+  }
+
+  const nextUp = queue.slice(0, 4);
+  const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp, (half) =>
+    teamKey(
+      half.map((entry) => ({
+        playerId: entry.playerId as Types.ObjectId,
+        queueEntryId: entry._id,
+      })),
+    ),
+  );
+
+  await persistQueueOrder([...firstHalf, ...secondHalf, ...queue.slice(4)]);
+}
+
 /**
  * Randomly re-pairs everyone on a court into two new teams. Each call produces
  * a different team composition than the current one (when possible), so the
@@ -78,22 +136,7 @@ export async function swapPlayersBetweenCourtTeams(input: {
     })),
   ];
 
-  if (slots.length < 2) {
-    throw new Error("Not enough players on this court to shuffle.");
-  }
-
-  const half = Math.floor(slots.length / 2);
-  const currentKey = teamKey(slots.slice(0, half));
-
-  // Re-roll until Team A's lineup actually changes (cap attempts as a safety net).
-  let shuffled = slots;
-  for (let attempt = 0; attempt < 25; attempt += 1) {
-    shuffled = shuffleSlots(slots);
-    if (teamKey(shuffled.slice(0, half)) !== currentKey) break;
-  }
-
-  const nextA = shuffled.slice(0, half);
-  const nextB = shuffled.slice(half);
+  const { firstHalf: nextA, secondHalf: nextB } = shuffleIntoNewHalves(slots, teamKey);
 
   court.teamA = {
     playerIds: nextA.map((slot) => slot.playerId),

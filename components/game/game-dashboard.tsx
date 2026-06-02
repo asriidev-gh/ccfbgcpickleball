@@ -21,10 +21,11 @@ import Swal from "sweetalert2";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
-import { PlayerAvatar } from "@/components/game/player-avatar";
+import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import { MatchHistoryList, type MatchHistoryView } from "@/components/game/match-history-list";
+import { FillCourtConfirmDialog } from "@/components/game/fill-court-confirm-dialog";
 import {
   ReplacePlayerDialog,
   type ReplacePlayerDialogState,
@@ -222,6 +223,32 @@ function QueueCheckedOutList({
   );
 }
 
+function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
+  if (players.length === 0) {
+    return <p className="court-winner-team-roster text-center text-xs text-muted-foreground">—</p>;
+  }
+
+  return (
+    <ul className="court-winner-team-roster flex flex-col gap-1.5">
+      {players.map((player, index) => (
+        <li
+          key={
+            player._id != null
+              ? `${String(player._id)}-${index}`
+              : `${player.firstName}-${player.lastName}-${index}`
+          }
+          className="flex items-center gap-2"
+        >
+          <PlayerAvatar player={player} size="sm" className="!size-8 sm:!size-8" />
+          <span className="min-w-0 text-left text-xs font-medium leading-snug">
+            {formatPlayerDisplayName(player.firstName, player.lastName)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 async function getGame(id: string, spectator: boolean) {
   const path = spectator ? `/api/games/${id}/spectate` : `/api/games/${id}`;
   const response = await fetch(path);
@@ -247,6 +274,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [showWaitingList, setShowWaitingList] = useState(true);
   const [showCheckedOutList, setShowCheckedOutList] = useState(true);
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
+  const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
   const openQrRegistrationDialog = async () => {
@@ -287,6 +315,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       return data;
     },
     onSuccess: () => {
+      setFillCourtDialogOpen(false);
       toast.success("Next court filled from the queue.");
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
@@ -318,6 +347,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     onSuccess: () => {
       closeEndDialog();
       toast.success("Game ended and queue updated.");
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const shuffleNextMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/games/${gameId}/shuffle-next`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
     onError: (error) => toast.error(error.message),
@@ -519,11 +562,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const isPastGame = game.status === "ended";
   const showSpectatorEndedRecap = isSpectator && isPastGame;
   const hideControls = readOnly || isPastGame;
-  const fillingCourtNumber = startMutation.isPending
-    ? [...courts]
-        .filter((c) => c.status === "empty")
-        .sort((a, b) => a.courtNumber - b.courtNumber)[0]?.courtNumber ?? null
-    : null;
+  const nextEmptyCourt =
+    [...courts]
+      .filter((c) => c.status === "empty")
+      .sort((a, b) => a.courtNumber - b.courtNumber)[0] ?? null;
+  const canFillNextCourt = queueWithStats.length >= 4 && nextEmptyCourt != null;
+  const fillCourtTeamA = queueWithStats.slice(0, 2);
+  const fillCourtTeamB = queueWithStats.slice(2, 4);
+  const fillingCourtNumber = startMutation.isPending ? nextEmptyCourt?.courtNumber ?? null : null;
   const endCourt =
     endTargetCourt != null ? courts.find((c) => c.courtNumber === endTargetCourt) : undefined;
   const winningPlayers =
@@ -688,8 +734,18 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               <CardTitle>Queue</CardTitle>
               {!hideControls ? (
                 <Button
-                  onClick={() => startMutation.mutate()}
-                  disabled={startMutation.isPending}
+                  onClick={() => {
+                    if (!canFillNextCourt) {
+                      if (queueWithStats.length < 4) {
+                        toast.error("Not enough players in the queue. At least 4 are required.");
+                      } else {
+                        toast.error("No empty court available.");
+                      }
+                      return;
+                    }
+                    setFillCourtDialogOpen(true);
+                  }}
+                  disabled={startMutation.isPending || !canFillNextCourt}
                 >
                   {startMutation.isPending ? (
                     <>
@@ -909,16 +965,35 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       </section>
 
       {!readOnly ? (
-        <ReplacePlayerDialog
-          open={replaceDialog !== null}
-          onOpenChange={(open) => {
-            if (!open) setReplaceDialog(null);
-          }}
-          state={replaceDialog}
-          waitingEntries={waitingLineEntries}
-          isPending={replaceMutation.isPending}
-          onConfirm={(input) => replaceMutation.mutate(input)}
-        />
+        <>
+          <FillCourtConfirmDialog
+            open={fillCourtDialogOpen}
+            onOpenChange={setFillCourtDialogOpen}
+            courtNumber={nextEmptyCourt?.courtNumber ?? null}
+            teamA={fillCourtTeamA}
+            teamB={fillCourtTeamB}
+            canReplace={waitingLineEntries.length > 0}
+            onReplace={(sourceIndex, sourceEntry) =>
+              setReplaceDialog({ sourceIndex, sourceEntry })
+            }
+            replacePendingSourceIndex={
+              replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
+            }
+            onConfirmFill={() => startMutation.mutate()}
+            fillPending={startMutation.isPending}
+            onShuffle={() => shuffleNextMutation.mutateAsync()}
+          />
+          <ReplacePlayerDialog
+            open={replaceDialog !== null}
+            onOpenChange={(open) => {
+              if (!open) setReplaceDialog(null);
+            }}
+            state={replaceDialog}
+            waitingEntries={waitingLineEntries}
+            isPending={replaceMutation.isPending}
+            onConfirm={(input) => replaceMutation.mutate(input)}
+          />
+        </>
       ) : null}
 
       {!readOnly && game.publicQrCodeDataUrl && game.registerUrl ? (
@@ -944,32 +1019,38 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
             {pendingWinner === null ? (
               <div className="court-winner-dialog-actions grid grid-cols-2 gap-3">
-                <Button
-                  type="button"
-                  size="lg"
-                  variant="outline"
-                  className="court-winner-btn"
-                  onClick={() => {
-                    setPendingWinner("A");
-                    setTeamAScore("11");
-                    setTeamBScore("0");
-                  }}
-                >
-                  Team A won
-                </Button>
-                <Button
-                  type="button"
-                  size="lg"
-                  variant="outline"
-                  className="court-winner-btn"
-                  onClick={() => {
-                    setPendingWinner("B");
-                    setTeamBScore("11");
-                    setTeamAScore("0");
-                  }}
-                >
-                  Team B won
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    size="lg"
+                    variant="outline"
+                    className="court-winner-btn"
+                    onClick={() => {
+                      setPendingWinner("A");
+                      setTeamAScore("11");
+                      setTeamBScore("0");
+                    }}
+                  >
+                    Team A won
+                  </Button>
+                  <CourtWinnerTeamRoster players={endCourt?.teamA.playerIds ?? []} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    size="lg"
+                    variant="outline"
+                    className="court-winner-btn"
+                    onClick={() => {
+                      setPendingWinner("B");
+                      setTeamBScore("11");
+                      setTeamAScore("0");
+                    }}
+                  >
+                    Team B won
+                  </Button>
+                  <CourtWinnerTeamRoster players={endCourt?.teamB.playerIds ?? []} />
+                </div>
               </div>
             ) : (
               <div className="flex flex-col gap-4">

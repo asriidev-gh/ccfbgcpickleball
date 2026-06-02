@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowLeftRight, ChevronRight, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import type { PlayerPhotoRef } from "@/components/game/player-avatar";
@@ -66,10 +66,17 @@ export function ReplacePlayerDialog({
   isPending = false,
 }: ReplacePlayerDialogProps) {
   const [selectedOffset, setSelectedOffset] = useState(0);
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     if (open) setSelectedOffset(0);
   }, [open, state?.sourceIndex]);
+
+  useEffect(() => {
+    if (!open || waitingEntries.length === 0) return;
+    const selectedButton = optionRefs.current[selectedOffset];
+    selectedButton?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [open, selectedOffset, waitingEntries.length]);
 
   const selectedEntry = waitingEntries[selectedOffset];
   const selectedTargetIndex = 4 + selectedOffset;
@@ -77,6 +84,11 @@ export function ReplacePlayerDialog({
   const goNext = () => {
     if (waitingEntries.length === 0) return;
     setSelectedOffset((prev) => (prev + 1) % waitingEntries.length);
+  };
+
+  const goPrevious = () => {
+    if (waitingEntries.length === 0) return;
+    setSelectedOffset((prev) => (prev - 1 + waitingEntries.length) % waitingEntries.length);
   };
 
   const sourceName = state
@@ -118,6 +130,9 @@ export function ReplacePlayerDialog({
                   return (
                     <li key={entry._id}>
                       <button
+                        ref={(element) => {
+                          optionRefs.current[offset] = element;
+                        }}
                         type="button"
                         className={cn(
                           "replace-player-dialog-option flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
@@ -177,11 +192,21 @@ export function ReplacePlayerDialog({
               type="button"
               variant="outline"
               className="w-full sm:w-auto"
+              onClick={goPrevious}
+              disabled={isPending || waitingEntries.length <= 1}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden />
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
               onClick={goNext}
               disabled={isPending || waitingEntries.length <= 1}
             >
               Next
-              <ChevronRight className="ml-1 h-4 w-4 shrink-0" />
+              <ChevronRight className="ml-1 h-4 w-4 shrink-0" aria-hidden />
             </Button>
             <Button
               type="button"
