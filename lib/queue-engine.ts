@@ -255,7 +255,7 @@ export async function endGameAndRequeue(input: {
   const loserPairGroupId = `L-${nanoid(8)}`;
   const now = new Date();
 
-  await QueueEntry.create(
+  await QueueEntry.insertMany(
     requeueOrder.map((playerId: Types.ObjectId, index: number) => {
       const isWinner = winnerPlayerIdSet.has(playerId.toString());
       return {
