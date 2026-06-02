@@ -241,33 +241,35 @@ export async function endGameAndRequeue(input: {
 
   const winnerPlayers = input.winnerTeam === "A" ? court.teamA.playerIds : court.teamB.playerIds;
   const loserPlayers = input.winnerTeam === "A" ? court.teamB.playerIds : court.teamA.playerIds;
+  const winnerPlayerIdSet = new Set(winnerPlayers.map((id: Types.ObjectId) => id.toString()));
+  const teamAPlayers = [...court.teamA.playerIds];
+  const teamBPlayers = [...court.teamB.playerIds];
+  const requeueOrder: Types.ObjectId[] = [
+    teamAPlayers[0],
+    teamBPlayers[0],
+    teamAPlayers[1],
+    teamBPlayers[1],
+  ].filter(Boolean) as Types.ObjectId[];
 
   const winnerPairGroupId = `W-${nanoid(8)}`;
   const loserPairGroupId = `L-${nanoid(8)}`;
   const now = new Date();
 
-  await QueueEntry.create([
-    ...winnerPlayers.map((playerId: Types.ObjectId) => ({
-      gameId: input.gameId,
-      playerId,
-      status: "queued",
-      queueType: "winner",
-      pairGroupId: winnerPairGroupId,
-      registeredAt: now,
-      lastMatchResult: "win",
-      winStreak: 1,
-    })),
-    ...loserPlayers.map((playerId: Types.ObjectId) => ({
-      gameId: input.gameId,
-      playerId,
-      status: "queued",
-      queueType: "loser",
-      pairGroupId: loserPairGroupId,
-      registeredAt: now,
-      lastMatchResult: "loss",
-      winStreak: 0,
-    })),
-  ]);
+  await QueueEntry.create(
+    requeueOrder.map((playerId: Types.ObjectId, index: number) => {
+      const isWinner = winnerPlayerIdSet.has(playerId.toString());
+      return {
+        gameId: input.gameId,
+        playerId,
+        status: "queued",
+        queueType: isWinner ? "winner" : "loser",
+        pairGroupId: isWinner ? winnerPairGroupId : loserPairGroupId,
+        registeredAt: new Date(now.getTime() + index),
+        lastMatchResult: isWinner ? "win" : "loss",
+        winStreak: isWinner ? 1 : 0,
+      };
+    }),
+  );
 
   await MatchHistory.create({
     gameId: input.gameId,

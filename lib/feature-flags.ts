@@ -6,6 +6,7 @@ function parseEnvFlag(value: string | undefined): boolean {
 
 /** Legacy env flag; reset is gated by demo open play title in the dashboard and API. */
 export function isGameResetEnabled(): boolean {
+  if (process.env.NODE_ENV !== "production") return true;
   return (
     parseEnvFlag(process.env.NEXT_PUBLIC_ENABLE_GAME_RESET) ||
     parseEnvFlag(process.env.ENABLE_GAME_RESET)

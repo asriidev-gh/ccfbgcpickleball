@@ -44,6 +44,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
+import { isGameResetEnabled } from "@/lib/feature-flags";
 import {
   clearQueueHighlightPlayerId,
   getActiveQueueHighlightPlayerId,
@@ -584,6 +585,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const { game, courts, matches, recap } = data;
   const isPastGame = game.status === "ended";
   const showSpectatorEndedRecap = isSpectator && isPastGame;
+  const canResetGame = isDemoOpenPlayTitle(game.title) || isGameResetEnabled();
   const hideControls = readOnly || isPastGame;
   const nextEmptyCourt =
     [...courts]
@@ -718,7 +720,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   {endOpenPlayMutation.isPending ? "Ending..." : "End Open Play"}
                 </Button>
               ) : null}
-              {!readOnly && isDemoOpenPlayTitle(game.title) ? (
+              {!readOnly && canResetGame ? (
                 <Button
                   size="lg"
                   variant="destructive"
