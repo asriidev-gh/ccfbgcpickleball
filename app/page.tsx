@@ -259,6 +259,7 @@ function GameListActions({
   onEdit,
   onDelete,
   deletingGameId,
+  userType,
   compact = false,
 }: {
   game: GameCard;
@@ -266,6 +267,7 @@ function GameListActions({
   onEdit: (game: GameCard) => void;
   onDelete: (game: GameCard) => void;
   deletingGameId: string | null;
+  userType?: string | null;
   compact?: boolean;
 }) {
   const isDemo = isDemoOpenPlayTitle(game.title);
@@ -273,7 +275,7 @@ function GameListActions({
   if (compact) {
     return (
       <div className="flex w-full flex-col gap-2.5">
-        {isDemo ? <WatchDemoButton className="w-full" /> : null}
+        {isDemo ? <WatchDemoButton className="w-full" userType={userType ?? undefined} /> : null}
         {variant === "active" ? (
           <Link href={`/games/${game.gameId}`} className="mb-2 w-full">
             <Button className="w-full">
@@ -309,7 +311,7 @@ function GameListActions({
 
   return (
     <div className="mx-auto flex w-full max-w-[17rem] flex-col items-center gap-2">
-      {isDemo ? <WatchDemoButton className="w-full" /> : null}
+      {isDemo ? <WatchDemoButton className="w-full" userType={userType ?? undefined} /> : null}
       {variant === "active" ? (
         <Link href={`/games/${game.gameId}`} className="w-full">
           <Button className="w-full">
@@ -351,6 +353,7 @@ function GameList({
   onEdit,
   onDelete,
   deletingGameId,
+  userType,
 }: {
   games: GameCard[];
   emptyMessage: string;
@@ -359,6 +362,7 @@ function GameList({
   onEdit: (game: GameCard) => void;
   onDelete: (game: GameCard) => void;
   deletingGameId: string | null;
+  userType?: string | null;
 }) {
   if (games.length === 0) {
     return <p className="text-muted-foreground">{emptyMessage}</p>;
@@ -409,6 +413,7 @@ function GameList({
                 onEdit={onEdit}
                 onDelete={onDelete}
                 deletingGameId={deletingGameId}
+                userType={userType ?? undefined}
                 compact
               />
             </CardFooter>
@@ -438,6 +443,7 @@ function GameList({
               onEdit={onEdit}
               onDelete={onDelete}
               deletingGameId={deletingGameId}
+              userType={userType ?? undefined}
             />
           </section>
           <section
@@ -498,12 +504,13 @@ function HomeInner() {
       const response = await fetch("/api/games");
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message);
-      return payload as { games: GameCard[]; hasDemoOpenPlay: boolean };
+      return payload as { games: GameCard[]; hasDemoOpenPlay: boolean; userType?: string };
     },
     refetchInterval: 5000,
   });
 
   const hasDemoOpenPlay = Boolean(data?.hasDemoOpenPlay);
+  const userType = data?.userType;
 
   const generateTestGameMutation = useMutation({
     mutationFn: async () => {
@@ -638,6 +645,7 @@ function HomeInner() {
                   onEdit={setEditingGame}
                   onDelete={handleDeleteGame}
                   deletingGameId={deletingGameId}
+                  userType={userType}
                 />
               </TabsContent>
               <TabsContent value="past">
@@ -650,6 +658,7 @@ function HomeInner() {
                   onEdit={setEditingGame}
                   onDelete={handleDeleteGame}
                   deletingGameId={deletingGameId}
+                  userType={userType}
                 />
               </TabsContent>
             </Tabs>

@@ -9,9 +9,10 @@ import { cn } from "@/lib/utils";
 
 type WatchDemoButtonProps = {
   className?: string;
+  userType?: string;
 };
 
-export function WatchDemoButton({ className }: WatchDemoButtonProps) {
+export function WatchDemoButton({ className, userType }: WatchDemoButtonProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -27,7 +28,7 @@ export function WatchDemoButton({ className }: WatchDemoButtonProps) {
         Watch demo
       </Button>
 
-      <DemoVideoDialog open={open} onOpenChange={setOpen} />
+      <DemoVideoDialog open={open} onOpenChange={setOpen} userType={userType} />
     </>
   );
 }
