@@ -35,9 +35,17 @@ import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entr
 import {
   QueueDndZone,
   QueueDragHandle,
+  type QueueDragHandleProps,
   SortableQueueItem,
   SortableQueueList,
 } from "@/components/game/sortable-queue-list";
+import {
+  WaitingLineGroupView,
+  WaitingLineViewToggle,
+  loadWaitingLineViewMode,
+  saveWaitingLineViewMode,
+  type WaitingLineViewMode,
+} from "@/components/game/queue-waiting-line-panel";
 import {
   attachSessionStatsToQueueEntry,
   buildPlayerSessionStatsMap,
@@ -303,6 +311,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [teamAScore, setTeamAScore] = useState("");
   const [teamBScore, setTeamBScore] = useState("");
   const [showWaitingList, setShowWaitingList] = useState(true);
+  const [waitingLineView, setWaitingLineView] = useState<WaitingLineViewMode>("list");
   const [showCheckedOutList, setShowCheckedOutList] = useState(true);
   const [showMatchHistory, setShowMatchHistory] = useState(true);
   const [showCourts, setShowCourts] = useState(true);
@@ -331,6 +340,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   useEffect(() => {
     setShowWaitingList(loadShowWaitingList());
+    setWaitingLineView(loadWaitingLineViewMode());
     setShowCheckedOutList(loadShowCheckedOutList());
     setShowMatchHistory(loadShowMatchHistory());
     setShowCourts(loadShowCourts());
@@ -770,63 +780,79 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const queueEntryIds = queueWithStats.map((entry) => entry._id);
   const canCheckoutFromQueue = !isPastGame;
 
-  const renderQueuedEntry = (entry: QueueEntryView, index: number) => {
+  const renderQueueEntryRow = (
+    entry: QueueEntryView,
+    index: number,
+    drag?: QueueDragHandleProps,
+    options?: { compactName?: boolean },
+  ) => {
     const isNextUp = index < 4;
-    const playerName = formatPlayerDisplayName(
-      entry.playerId.firstName,
-      entry.playerId.lastName,
+    return (
+      <QueueEntryRow
+        entry={entry}
+        index={index}
+        isNextUp={isNextUp}
+        inWaitingLine={!isNextUp}
+        canReplace={!hideControls && isNextUp && waitingLineEntries.length > 0}
+        onReplace={
+          hideControls
+            ? () => {}
+            : () =>
+                setReplaceDialog({
+                  kind: "queue",
+                  sourceIndex: index,
+                  sourceEntry: entry,
+                })
+        }
+        replacePending={
+          !hideControls &&
+          replaceMutation.isPending &&
+          replaceMutation.variables?.sourceIndex === index
+        }
+        hideReplacePanel={hideControls}
+        onRemove={canRemoveEntry(entry) ? () => confirmRemoveFromQueue(entry) : undefined}
+        removePending={
+          canRemoveEntry(entry) &&
+          removeMutation.isPending &&
+          removeMutation.variables?.queueEntryId === entry._id
+        }
+        highlighted={
+          selfHighlightPlayerId != null &&
+          queueEntryPlayerId(entry) === selfHighlightPlayerId
+        }
+        compactName={options?.compactName}
+        dragHandle={
+          drag ? (
+            <QueueDragHandle
+              {...drag}
+              label={`Reorder ${formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)} in queue`}
+            />
+          ) : undefined
+        }
+      />
     );
+  };
+
+  const renderQueuedEntry = (
+    entry: QueueEntryView,
+    index: number,
+    options?: { sortable?: boolean; compactName?: boolean },
+  ) => {
+    if (options?.sortable === false) {
+      return (
+        <div key={entry._id}>{renderQueueEntryRow(entry, index, undefined, options)}</div>
+      );
+    }
 
     return (
       <SortableQueueItem key={entry._id} id={entry._id} enabled={canReorderQueue}>
-        {(drag) => (
-          <QueueEntryRow
-            entry={entry}
-            index={index}
-            isNextUp={isNextUp}
-            inWaitingLine={!isNextUp}
-            canReplace={!hideControls && isNextUp && waitingLineEntries.length > 0}
-            onReplace={
-              hideControls
-                ? () => {}
-                : () =>
-                    setReplaceDialog({
-                      kind: "queue",
-                      sourceIndex: index,
-                      sourceEntry: entry,
-                    })
-            }
-            replacePending={
-              !hideControls &&
-              replaceMutation.isPending &&
-              replaceMutation.variables?.sourceIndex === index
-            }
-            hideReplacePanel={hideControls}
-            onRemove={
-              canRemoveEntry(entry) ? () => confirmRemoveFromQueue(entry) : undefined
-            }
-            removePending={
-              canRemoveEntry(entry) &&
-              removeMutation.isPending &&
-              removeMutation.variables?.queueEntryId === entry._id
-            }
-            highlighted={
-              selfHighlightPlayerId != null &&
-              queueEntryPlayerId(entry) === selfHighlightPlayerId
-            }
-            dragHandle={
-              drag ? (
-                <QueueDragHandle
-                  {...drag}
-                  label={`Reorder ${playerName} in queue`}
-                />
-              ) : undefined
-            }
-          />
-        )}
+        {(drag) => renderQueueEntryRow(entry, index, drag, options)}
       </SortableQueueItem>
     );
   };
+
+  const sortableQueueEntryIds =
+    waitingLineView === "list" ? queueEntryIds : queueEntryIds.slice(0, 4);
   const canSelfCheckoutEntry = (entry: QueueEntryView) =>
     selfPlayerIds.includes(queueEntryPlayerId(entry));
   const canRemoveEntry = (entry: QueueEntryView) =>
@@ -1039,7 +1065,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <>
                   {queueWithStats.length > 0 ? (
                     <SortableQueueList
-                      entryIds={queueEntryIds}
+                      entryIds={sortableQueueEntryIds}
                       enabled={canReorderQueue}
                       onReorder={(orderedEntryIds) =>
                         reorderQueueMutation.mutate(orderedEntryIds)
@@ -1104,13 +1130,43 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                             <div className="queue-divider" role="separator">
                               <span>Waiting in line</span>
                             </div>
+                            {showWaitingList ? (
+                              <div className="queue-waiting-view-bar mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <WaitingLineViewToggle
+                                  view={waitingLineView}
+                                  onViewChange={(mode) => {
+                                    setWaitingLineView(mode);
+                                    saveWaitingLineViewMode(mode);
+                                  }}
+                                />
+                                {waitingLineView === "group" && canReorderQueue ? (
+                                  <p className="caption text-muted-foreground">
+                                    Switch to list view to drag and reorder.
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
                           <div
                             id="queue-waiting-list"
-                            className={cn("space-y-2", !showWaitingList && "hidden")}
+                            className={cn(!showWaitingList && "hidden")}
                           >
-                            {queueWithStats.slice(4).map((entry, offset) =>
-                              renderQueuedEntry(entry, offset + 4),
+                            {waitingLineView === "list" ? (
+                              <div className="space-y-2">
+                                {waitingLineEntries.map((entry, offset) =>
+                                  renderQueuedEntry(entry, offset + 4),
+                                )}
+                              </div>
+                            ) : (
+                              <WaitingLineGroupView
+                                waitingEntries={waitingLineEntries}
+                                renderEntry={(entry, queueIndex) =>
+                                  renderQueuedEntry(entry, queueIndex, {
+                                    sortable: false,
+                                    compactName: true,
+                                  })
+                                }
+                              />
                             )}
                           </div>
                         </QueueDndZone>

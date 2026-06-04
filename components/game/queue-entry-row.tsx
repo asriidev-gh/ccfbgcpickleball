@@ -10,7 +10,7 @@ import {
   formatSessionRecordLabel,
   isSessionUndefeated,
 } from "@/lib/games-played-map";
-import { cn, formatPlayerDisplayName } from "@/lib/utils";
+import { cn, formatPlayerCourtName, formatPlayerDisplayName } from "@/lib/utils";
 
 export type QueueEntryView = {
   _id: string;
@@ -97,6 +97,8 @@ type QueueEntryRowProps = {
   inWaitingLine?: boolean;
   /** Operator drag handle for reordering queue position. */
   dragHandle?: ReactNode;
+  /** First name + last initial (e.g. "Alex M.") for dense layouts. */
+  compactName?: boolean;
 };
 
 export function QueueEntryRow({
@@ -115,6 +117,7 @@ export function QueueEntryRow({
   highlighted = false,
   inWaitingLine = false,
   dragHandle,
+  compactName = false,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const checkedOutTime = entry.checkedOutAt ? new Date(entry.checkedOutAt) : null;
@@ -143,6 +146,7 @@ export function QueueEntryRow({
         isNextUp && "queue-next-up--compact",
         rowClass,
         inWaitingLine && "queue-waiting-line",
+        compactName && "queue-item--compact-name",
         highlighted && "queue-entry-highlighted",
       )}
     >
@@ -166,11 +170,17 @@ export function QueueEntryRow({
                 )}
                 nameClassName={checkedOut ? "text-muted-foreground" : undefined}
               >
-                {formatPlayerDisplayName(
-                  entry.playerId.firstName,
-                  entry.playerId.lastName,
-                  checkedOut ? undefined : slot,
-                )}
+                {compactName
+                  ? formatPlayerCourtName(
+                      entry.playerId.firstName,
+                      entry.playerId.lastName,
+                      checkedOut ? undefined : slot,
+                    )
+                  : formatPlayerDisplayName(
+                      entry.playerId.firstName,
+                      entry.playerId.lastName,
+                      checkedOut ? undefined : slot,
+                    )}
               </PlayerNameWithPhoto>
             </div>
           </div>

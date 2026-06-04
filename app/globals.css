@@ -1061,6 +1061,90 @@
     @apply space-y-2;
   }
 
+  .queue-waiting-view-bar .queue-waiting-view-toggle {
+    @apply w-fit shrink-0;
+  }
+
+  .queue-waiting-group-list {
+    @apply pt-1;
+  }
+
+  .queue-waiting-group-card {
+    @apply overflow-hidden rounded-xl border border-border/80 bg-card/60 shadow-sm;
+  }
+
+  .queue-waiting-group-card-header {
+    @apply flex items-start justify-between gap-2 border-b border-border/60 bg-muted/30 px-3 py-2.5;
+  }
+
+  .queue-waiting-group-card-title {
+    @apply text-sm font-semibold text-foreground;
+  }
+
+  .queue-waiting-group-card-body {
+    @apply grid gap-2 p-3 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch;
+  }
+
+  .queue-waiting-group-team-label {
+    @apply mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground;
+  }
+
+  .queue-waiting-group-vs {
+    @apply flex items-center justify-center py-1 sm:flex-col sm:py-4;
+  }
+
+  .queue-waiting-group-vs span {
+    @apply rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-muted-foreground;
+  }
+
+  .queue-waiting-group-placeholder {
+    @apply flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-5 text-center;
+  }
+
+  .queue-waiting-group-placeholder-icon {
+    @apply flex size-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground;
+  }
+
+  .queue-waiting-group-placeholder-title {
+    @apply text-sm font-medium text-muted-foreground;
+  }
+
+  .queue-waiting-group-placeholder-slot {
+    @apply text-[11px] text-muted-foreground/80;
+  }
+
+  .queue-waiting-group-card-footer {
+    @apply border-t border-border/50 bg-muted/20 px-3 py-2;
+  }
+
+  .queue-waiting-group-card .queue-item--compact-name {
+    @apply p-2;
+  }
+
+  .queue-waiting-group-card .queue-item--compact-name .queue-item-layout {
+    @apply gap-1.5;
+  }
+
+  .queue-waiting-group-card .queue-item--compact-name .body-lg,
+  .queue-waiting-group-card .queue-item--compact-name .player-identity span {
+    @apply text-sm;
+  }
+
+  .queue-waiting-group-card .queue-item--compact-name .player-identity .player-avatar {
+    width: 2rem !important;
+    height: 2rem !important;
+    min-width: 2rem;
+    min-height: 2rem;
+  }
+
+  .queue-waiting-group-card .queue-item--compact-name .queue-rank {
+    @apply h-7 w-7 text-xs;
+  }
+
+  .queue-waiting-group-card .queue-entry-meta {
+    @apply hidden;
+  }
+
   /* Waiting line: no winner/loser left accent (keep rank badge colors) */
   .queue-waiting-group .queue-item.queue-waiting-line.queue-winner,
   .queue-waiting-group .queue-item.queue-waiting-line.queue-loser,
