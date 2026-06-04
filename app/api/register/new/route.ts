@@ -21,7 +21,19 @@ import {
   parseNewPlayerPayloadFromFormData,
 } from "@/lib/parse-registration-form";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
-import { genericPlayerSchema, newPlayerSchema, type NewPlayerInput } from "@/lib/validations";
+import {
+  genericPlayerSchema,
+  newPlayerSchema,
+  type NewPlayerInput,
+  type VolunteerNewPlayerInput,
+  volunteerNewPlayerSchema,
+} from "@/lib/validations";
+
+function isVolunteerNewPlayerPayload(
+  payload: NewPlayerInput | VolunteerNewPlayerInput | ReturnType<typeof genericPlayerSchema.parse>,
+): payload is VolunteerNewPlayerInput {
+  return "volunteerType" in payload && Boolean(payload.volunteerType);
+}
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 import { Volunteer } from "@/models/Volunteer";
@@ -50,7 +62,10 @@ export async function POST(request: Request) {
 
     const photoFile = formData ? getRegistrationPhotoFromFormData(formData) : null;
 
-    let payload: ReturnType<typeof newPlayerSchema.parse> | ReturnType<typeof genericPlayerSchema.parse>;
+    let payload:
+      | ReturnType<typeof newPlayerSchema.parse>
+      | ReturnType<typeof volunteerNewPlayerSchema.parse>
+      | ReturnType<typeof genericPlayerSchema.parse>;
 
     if (isMultipart && formData) {
       const parsed =
@@ -62,10 +77,17 @@ export async function POST(request: Request) {
       }
       payload = parsed.data;
     } else {
+      const isVolunteerJson =
+        jsonBody?.volunteerType === "Pickleball" ||
+        jsonBody?.volunteerType === "Running" ||
+        jsonBody?.volunteerType === "Badminton" ||
+        jsonBody?.volunteerType === "Other";
       const parsed =
         formVariant === "generic"
           ? genericPlayerSchema.safeParse(jsonBody)
-          : newPlayerSchema.safeParse(jsonBody);
+          : isVolunteerJson
+            ? volunteerNewPlayerSchema.safeParse(jsonBody)
+            : newPlayerSchema.safeParse(jsonBody);
       if (!parsed.success) {
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
       }
@@ -123,6 +145,14 @@ export async function POST(request: Request) {
         attendedEvents: [],
         attendedEventsOther: "",
       });
+    } else if (isVolunteerNewPlayerPayload(payload)) {
+      player = await Player.create({
+        ...playerFields,
+        firstTimeSportsMinistry: false,
+        isPartOfDgroup: false,
+        attendedEvents: [],
+        attendedEventsOther: "",
+      });
     } else {
       const ccfPayload = payload as NewPlayerInput;
       player = await Player.create({
@@ -141,16 +171,13 @@ export async function POST(request: Request) {
       queueType: "normal",
     });
 
-    if (formVariant !== "generic") {
-      const ccfPayload = payload as NewPlayerInput;
-      if (ccfPayload.volunteerType) {
-        await Volunteer.create({
-          playerId: player._id,
-          gameId: ccfPayload.gameId,
-          volunteerType: ccfPayload.volunteerType,
-          volunteerTypeOther: ccfPayload.volunteerTypeOther,
-        });
-      }
+    if (formVariant !== "generic" && isVolunteerNewPlayerPayload(payload)) {
+      await Volunteer.create({
+        playerId: player._id,
+        gameId: payload.gameId,
+        volunteerType: payload.volunteerType,
+        volunteerTypeOther: payload.volunteerTypeOther,
+      });
     }
 
     return NextResponse.json({

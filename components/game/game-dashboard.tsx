@@ -28,9 +28,16 @@ import { MatchHistoryList, type MatchHistoryView } from "@/components/game/match
 import { FillCourtConfirmDialog } from "@/components/game/fill-court-confirm-dialog";
 import {
   ReplacePlayerDialog,
+  type ReplacePlayerConfirmInput,
   type ReplacePlayerDialogState,
 } from "@/components/game/replace-player-dialog";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
+import {
+  QueueDndZone,
+  QueueDragHandle,
+  SortableQueueItem,
+  SortableQueueList,
+} from "@/components/game/sortable-queue-list";
 import {
   attachSessionStatsToQueueEntry,
   buildPlayerSessionStatsMap,
@@ -292,6 +299,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const queryClient = useQueryClient();
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
   const [pendingWinner, setPendingWinner] = useState<"A" | "B" | null>(null);
+  const [endGameRematch, setEndGameRematch] = useState(false);
   const [teamAScore, setTeamAScore] = useState("");
   const [teamBScore, setTeamBScore] = useState("");
   const [showWaitingList, setShowWaitingList] = useState(true);
@@ -300,6 +308,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [showCourts, setShowCourts] = useState(true);
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
+  const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);
+  const [cancelRematchTarget, setCancelRematchTarget] = useState<number | null>(null);
+  const [rematchCourtNumbers, setRematchCourtNumbers] = useState<Set<number>>(
+    () => new Set(),
+  );
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
   const openQrRegistrationDialog = async () => {
@@ -351,28 +364,40 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const closeEndDialog = () => {
     setEndTargetCourt(null);
     setPendingWinner(null);
+    setEndGameRematch(false);
     setTeamAScore("");
     setTeamBScore("");
   };
 
   const endMutation = useMutation({
     mutationFn: async (input: {
+      courtNumber: number;
       winnerTeam: "A" | "B";
-      teamAScore?: number;
-      teamBScore?: number;
+      teamAScore: number;
+      teamBScore: number;
+      rematch: boolean;
     }) => {
       const response = await fetch(`/api/games/${gameId}/end`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courtNumber: endTargetCourt, ...input }),
+        body: JSON.stringify(input),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
-      return data;
+      return data as { message?: string; rematch?: boolean };
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      if (variables.rematch) {
+        setRematchCourtNumbers((prev) => new Set(prev).add(variables.courtNumber));
+      } else {
+        setRematchCourtNumbers((prev) => {
+          const next = new Set(prev);
+          next.delete(variables.courtNumber);
+          return next;
+        });
+      }
       closeEndDialog();
-      toast.success("Game ended and queue updated.");
+      toast.success(data.message ?? "Court updated.");
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
     onError: (error) => toast.error(error.message),
@@ -410,6 +435,54 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     onError: (error) => toast.error(error.message),
   });
 
+  const cancelCourtMutation = useMutation({
+    mutationFn: async (courtNumber: number) => {
+      const response = await fetch(`/api/games/${gameId}/cancel-court`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtNumber }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (data, courtNumber) => {
+      setRematchCourtNumbers((prev) => {
+        const next = new Set(prev);
+        next.delete(courtNumber);
+        return next;
+      });
+      toast.success(data.message);
+      setCancelCourtTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const cancelRematchMutation = useMutation({
+    mutationFn: async (courtNumber: number) => {
+      const response = await fetch(`/api/games/${gameId}/cancel-rematch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtNumber }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (data, courtNumber) => {
+      setRematchCourtNumbers((prev) => {
+        const next = new Set(prev);
+        next.delete(courtNumber);
+        return next;
+      });
+      toast.success(data.message);
+      setCancelRematchTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const resetMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch(`/api/games/${gameId}/reset`, { method: "POST" });
@@ -439,6 +512,23 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     onError: (error) => toast.error(error.message),
   });
 
+  const reorderQueueMutation = useMutation({
+    mutationFn: async (orderedEntryIds: string[]) => {
+      const response = await fetch(`/api/games/${gameId}/reorder-queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedEntryIds }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   const replaceMutation = useMutation({
     mutationFn: async (input: { sourceIndex: number; targetIndex: number }) => {
       const response = await fetch(`/api/games/${gameId}/swap-next`, {
@@ -457,6 +547,51 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error) => toast.error(error.message),
   });
+
+  const replaceCourtMutation = useMutation({
+    mutationFn: async (input: {
+      courtNumber: number;
+      team: "A" | "B";
+      slotIndex: number;
+      targetIndex: number;
+    }) => {
+      const response = await fetch(`/api/games/${gameId}/replace-court-player`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+      setReplaceDialog(null);
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const handleReplaceConfirm = (input: ReplacePlayerConfirmInput) => {
+    if (input.kind === "queue") {
+      replaceMutation.mutate({
+        sourceIndex: input.sourceIndex,
+        targetIndex: input.targetIndex,
+      });
+      return;
+    }
+    replaceCourtMutation.mutate({
+      courtNumber: input.courtNumber,
+      team: input.team,
+      slotIndex: input.slotIndex,
+      targetIndex: input.targetIndex,
+    });
+  };
+
+  const courtReplacePendingKey =
+    replaceCourtMutation.isPending && replaceCourtMutation.variables
+      ? `${replaceCourtMutation.variables.courtNumber}-${replaceCourtMutation.variables.team}-${replaceCourtMutation.variables.slotIndex}`
+      : null;
 
   const removeMutation = useMutation({
     mutationFn: async (input: {
@@ -555,6 +690,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   );
 
   useEffect(() => {
+    if (!data?.courts) return;
+    setRematchCourtNumbers(
+      new Set(
+        data.courts
+          .filter((court) => court.status === "active" && court.isRematch === true)
+          .map((court) => court.courtNumber),
+      ),
+    );
+  }, [data?.courts]);
+
+  useEffect(() => {
     if (!gameId || !data?.queue?.length) return;
 
     const fromRegistration = peekQueueHighlightPlayerId(gameId);
@@ -602,11 +748,85 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   if (!data) return <div className="p-8">No game data.</div>;
 
   const { game, courts, matches, recap } = data;
+
+  const isCourtRematch = (court: CourtView) =>
+    court.isRematch === true || rematchCourtNumbers.has(court.courtNumber);
+
+  const playersOnCourtsCount = courts.reduce((total, court) => {
+    if (court.status !== "active") return total;
+    return (
+      total +
+      (court.teamA?.playerIds?.length ?? 0) +
+      (court.teamB?.playerIds?.length ?? 0)
+    );
+  }, 0);
+  const totalSessionPlayers = queueWithStats.length + playersOnCourtsCount;
   const isPastGame = game.status === "ended";
   const showSpectatorEndedRecap = isSpectator && isPastGame;
   const canResetGame = isDemoOpenPlayTitle(game.title) || isGameResetEnabled();
   const hideControls = readOnly || isPastGame;
+  const canReorderQueue =
+    !hideControls && queueWithStats.length >= 2 && !reorderQueueMutation.isPending;
+  const queueEntryIds = queueWithStats.map((entry) => entry._id);
   const canCheckoutFromQueue = !isPastGame;
+
+  const renderQueuedEntry = (entry: QueueEntryView, index: number) => {
+    const isNextUp = index < 4;
+    const playerName = formatPlayerDisplayName(
+      entry.playerId.firstName,
+      entry.playerId.lastName,
+    );
+
+    return (
+      <SortableQueueItem key={entry._id} id={entry._id} enabled={canReorderQueue}>
+        {(drag) => (
+          <QueueEntryRow
+            entry={entry}
+            index={index}
+            isNextUp={isNextUp}
+            inWaitingLine={!isNextUp}
+            canReplace={!hideControls && isNextUp && waitingLineEntries.length > 0}
+            onReplace={
+              hideControls
+                ? () => {}
+                : () =>
+                    setReplaceDialog({
+                      kind: "queue",
+                      sourceIndex: index,
+                      sourceEntry: entry,
+                    })
+            }
+            replacePending={
+              !hideControls &&
+              replaceMutation.isPending &&
+              replaceMutation.variables?.sourceIndex === index
+            }
+            hideReplacePanel={hideControls}
+            onRemove={
+              canRemoveEntry(entry) ? () => confirmRemoveFromQueue(entry) : undefined
+            }
+            removePending={
+              canRemoveEntry(entry) &&
+              removeMutation.isPending &&
+              removeMutation.variables?.queueEntryId === entry._id
+            }
+            highlighted={
+              selfHighlightPlayerId != null &&
+              queueEntryPlayerId(entry) === selfHighlightPlayerId
+            }
+            dragHandle={
+              drag ? (
+                <QueueDragHandle
+                  {...drag}
+                  label={`Reorder ${playerName} in queue`}
+                />
+              ) : undefined
+            }
+          />
+        )}
+      </SortableQueueItem>
+    );
+  };
   const canSelfCheckoutEntry = (entry: QueueEntryView) =>
     selfPlayerIds.includes(queueEntryPlayerId(entry));
   const canRemoveEntry = (entry: QueueEntryView) =>
@@ -629,7 +849,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         : [];
   const endGameScoreError =
     pendingWinner != null
-      ? getMatchScoreInputError(pendingWinner, teamAScore, teamBScore)
+      ? getMatchScoreInputError(pendingWinner, teamAScore, teamBScore, { required: true })
       : null;
   const endGameWinnerScoreRaw = pendingWinner === "A" ? teamAScore : teamBScore;
   const endGameWinnerScoreParsed =
@@ -681,7 +901,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   ) : null}
                   <Badge>{game.openPlayType}</Badge>
                   <Badge variant="outline">Courts: {game.courtCount}</Badge>
-                  <Badge variant="outline">Queue: {queueWithStats.length}</Badge>
+                  <Badge variant="outline">
+                    Players: {totalSessionPlayers}
+                  </Badge>
                   <Badge variant={game.status === "ended" ? "destructive" : "outline"}>
                     Status: {game.status}
                   </Badge>
@@ -816,126 +1038,84 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               ) : (
                 <>
                   {queueWithStats.length > 0 ? (
-                    <div className="queue-next-up-group">
-                      <div className="queue-next-up-banner">
-                        <div className="flex items-center gap-2">
-                          <span className="queue-next-up-icon">
-                            <Zap className="h-4 w-4" />
-                          </span>
-                          <div>
-                            <p className="queue-next-up-title">
-                              <span className="xl:hidden">Next</span>
-                              <span className="hidden xl:inline">Next on court</span>
-                            </p>
-                            <p className="caption hidden xl:block">
-                              Top {Math.min(4, queueWithStats.length)}{" "}
-                              {Math.min(4, queueWithStats.length) === 1 ? "player" : "players"} — ready to play
-                            </p>
+                    <SortableQueueList
+                      entryIds={queueEntryIds}
+                      enabled={canReorderQueue}
+                      onReorder={(orderedEntryIds) =>
+                        reorderQueueMutation.mutate(orderedEntryIds)
+                      }
+                    >
+                      <QueueDndZone zone="next-up" className="queue-next-up-group">
+                        <div className="queue-next-up-banner">
+                          <div className="flex items-center gap-2">
+                            <span className="queue-next-up-icon">
+                              <Zap className="h-4 w-4" />
+                            </span>
+                            <div>
+                              <p className="queue-next-up-title">
+                                <span className="xl:hidden">Next</span>
+                                <span className="hidden xl:inline">Next on court</span>
+                              </p>
+                              <p className="caption hidden xl:block">
+                                Top {Math.min(4, queueWithStats.length)}{" "}
+                                {Math.min(4, queueWithStats.length) === 1 ? "player" : "players"} — ready to play
+                                {canReorderQueue ? " · drag to reorder" : ""}
+                              </p>
+                            </div>
                           </div>
+                          <Badge className="badge-next-up-count">
+                            {Math.min(4, queueWithStats.length)} / 4
+                          </Badge>
                         </div>
-                        <Badge className="badge-next-up-count">{Math.min(4, queueWithStats.length)} / 4</Badge>
-                      </div>
-                      <div className="queue-next-up-slots">
-                        {queueWithStats.slice(0, 4).map((entry, index) => (
-                            <QueueEntryRow
-                              key={entry._id}
-                              entry={entry}
-                              index={index}
-                              isNextUp
-                              canReplace={!hideControls && waitingLineEntries.length > 0}
-                              onReplace={
-                                hideControls
-                                  ? () => {}
-                                  : () => setReplaceDialog({ sourceIndex: index, sourceEntry: entry })
-                              }
-                              replacePending={
-                                !hideControls &&
-                                replaceMutation.isPending &&
-                                replaceMutation.variables?.sourceIndex === index
-                              }
-                              hideReplacePanel={hideControls}
-                              onRemove={
-                                canRemoveEntry(entry) ? () => confirmRemoveFromQueue(entry) : undefined
-                              }
-                              removePending={
-                                canRemoveEntry(entry) &&
-                                removeMutation.isPending &&
-                                removeMutation.variables?.queueEntryId === entry._id
-                              }
-                              highlighted={
-                                selfHighlightPlayerId != null &&
-                                queueEntryPlayerId(entry) === selfHighlightPlayerId
-                              }
-                            />
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                  {queueWithStats.length > 4 ? (
-                    <div className="queue-waiting-group">
-                      <div className="queue-waiting-header">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="queue-waiting-toggle mb-2"
-                          onClick={() => {
-                            const next = !showWaitingList;
-                            setShowWaitingList(next);
-                            saveShowWaitingList(next);
-                          }}
-                          aria-expanded={showWaitingList}
-                          aria-controls="queue-waiting-list"
-                        >
-                          {showWaitingList ? (
-                            <>
-                              <ChevronUp className="mr-1.5 h-4 w-4" />
-                              Hide waiting list
-                            </>
-                          ) : (
-                            <>
-                              <ChevronDown className="mr-1.5 h-4 w-4" />
-                              Show waiting list ({queueWithStats.length - 4})
-                            </>
+                        <div className="queue-next-up-slots">
+                          {queueWithStats.slice(0, 4).map((entry, index) =>
+                            renderQueuedEntry(entry, index),
                           )}
-                        </Button>
-                        <div className="queue-divider" role="separator">
-                          <span>Waiting in line</span>
                         </div>
-                      </div>
-                      {showWaitingList ? (
-                        <div id="queue-waiting-list" className="space-y-2">
-                          {queueWithStats.slice(4).map((entry, offset) => {
-                            const index = offset + 4;
-                            return (
-                              <QueueEntryRow
-                                key={entry._id}
-                                entry={entry}
-                                index={index}
-                                isNextUp={false}
-                                inWaitingLine
-                                canReplace={false}
-                                onReplace={() => {}}
-                                replacePending={false}
-                                hideReplacePanel
-                                onRemove={
-                                  canRemoveEntry(entry) ? () => confirmRemoveFromQueue(entry) : undefined
-                                }
-                                removePending={
-                                  canRemoveEntry(entry) &&
-                                  removeMutation.isPending &&
-                                  removeMutation.variables?.queueEntryId === entry._id
-                                }
-                                highlighted={
-                                selfHighlightPlayerId != null &&
-                                queueEntryPlayerId(entry) === selfHighlightPlayerId
-                              }
-                              />
-                            );
-                          })}
-                        </div>
+                      </QueueDndZone>
+                      {queueWithStats.length > 4 ? (
+                        <QueueDndZone zone="waiting" className="queue-waiting-group">
+                          <div className="queue-waiting-header">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="queue-waiting-toggle mb-2"
+                              onClick={() => {
+                                const next = !showWaitingList;
+                                setShowWaitingList(next);
+                                saveShowWaitingList(next);
+                              }}
+                              aria-expanded={showWaitingList}
+                              aria-controls="queue-waiting-list"
+                            >
+                              {showWaitingList ? (
+                                <>
+                                  <ChevronUp className="mr-1.5 h-4 w-4" />
+                                  Hide waiting list
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="mr-1.5 h-4 w-4" />
+                                  Show waiting list ({queueWithStats.length - 4})
+                                </>
+                              )}
+                            </Button>
+                            <div className="queue-divider" role="separator">
+                              <span>Waiting in line</span>
+                            </div>
+                          </div>
+                          <div
+                            id="queue-waiting-list"
+                            className={cn("space-y-2", !showWaitingList && "hidden")}
+                          >
+                            {queueWithStats.slice(4).map((entry, offset) =>
+                              renderQueuedEntry(entry, offset + 4),
+                            )}
+                          </div>
+                        </QueueDndZone>
                       ) : null}
-                    </div>
+                    </SortableQueueList>
                   ) : null}
                   {!readOnly && !isPastGame ? (
                     <QueueCheckedOutList
@@ -1003,6 +1183,22 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   key={court._id}
                   court={court}
                   playerSessionStats={playerSessionStats}
+                  canReplacePlayers={
+                    !hideControls && court.status === "active" && queueWithStats.length > 0
+                  }
+                  onReplacePlayer={
+                    hideControls
+                      ? undefined
+                      : ({ courtNumber, team, slotIndex, player }) =>
+                          setReplaceDialog({
+                            kind: "court",
+                            courtNumber,
+                            team,
+                            slotIndex,
+                            player,
+                          })
+                  }
+                  replacePendingKey={courtReplacePendingKey}
                   hideEndGame={hideControls}
                   onEndGame={
                     hideControls
@@ -1020,6 +1216,28 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   swapPending={
                     swapCourtMutation.isPending &&
                     swapCourtMutation.variables === court.courtNumber
+                  }
+                  onCancelAssignment={
+                    hideControls ||
+                    court.status !== "active" ||
+                    isCourtRematch(court)
+                      ? undefined
+                      : () => setCancelCourtTarget(court.courtNumber)
+                  }
+                  cancelPending={
+                    cancelCourtMutation.isPending &&
+                    cancelCourtMutation.variables === court.courtNumber
+                  }
+                  onCancelRematch={
+                    hideControls ||
+                    court.status !== "active" ||
+                    !isCourtRematch(court)
+                      ? undefined
+                      : () => setCancelRematchTarget(court.courtNumber)
+                  }
+                  cancelRematchPending={
+                    cancelRematchMutation.isPending &&
+                    cancelRematchMutation.variables === court.courtNumber
                   }
                   isFilling={
                     fillingCourtNumber != null && court.courtNumber === fillingCourtNumber
@@ -1083,7 +1301,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             teamB={fillCourtTeamB}
             canReplace={waitingLineEntries.length > 0}
             onReplace={(sourceIndex, sourceEntry) =>
-              setReplaceDialog({ sourceIndex, sourceEntry })
+              setReplaceDialog({ kind: "queue", sourceIndex, sourceEntry })
             }
             replacePendingSourceIndex={
               replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
@@ -1104,9 +1322,101 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             }}
             state={replaceDialog}
             waitingEntries={waitingLineEntries}
-            isPending={replaceMutation.isPending}
-            onConfirm={(input) => replaceMutation.mutate(input)}
+            courtReplaceEntries={queueWithStats}
+            isPending={replaceMutation.isPending || replaceCourtMutation.isPending}
+            onConfirm={handleReplaceConfirm}
           />
+          <Dialog
+            open={cancelCourtTarget !== null}
+            onOpenChange={(open) => {
+              if (!open && !cancelCourtMutation.isPending) setCancelCourtTarget(null);
+            }}
+          >
+            <DialogContent className="cancel-court-dialog sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Cancel court assignment?</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">
+                Return all four players on{" "}
+                <span className="font-medium text-foreground">Court {cancelCourtTarget}</span> to
+                the top of the queue? The waiting line order will be restored. You can only cancel
+                within the first 5 minutes after filling the court.
+              </p>
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={cancelCourtMutation.isPending}
+                  onClick={() => setCancelCourtTarget(null)}
+                >
+                  Keep on court
+                </Button>
+                <Button
+                  type="button"
+                  disabled={cancelCourtMutation.isPending || cancelCourtTarget === null}
+                  onClick={() => {
+                    if (cancelCourtTarget === null) return;
+                    cancelCourtMutation.mutate(cancelCourtTarget);
+                  }}
+                >
+                  {cancelCourtMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      Cancelling…
+                    </>
+                  ) : (
+                    "Yes, cancel assignment"
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={cancelRematchTarget !== null}
+            onOpenChange={(open) => {
+              if (!open && !cancelRematchMutation.isPending) setCancelRematchTarget(null);
+            }}
+          >
+            <DialogContent className="cancel-rematch-dialog sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Cancel rematch?</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">
+                Return all four players on{" "}
+                <span className="font-medium text-foreground">Court {cancelRematchTarget}</span> to
+                the queue? The last completed match stays in history — only this rematch is undone.
+                You can only cancel within the first 5 minutes after the rematch started.
+              </p>
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={cancelRematchMutation.isPending}
+                  onClick={() => setCancelRematchTarget(null)}
+                >
+                  Keep playing
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={cancelRematchMutation.isPending || cancelRematchTarget === null}
+                  onClick={() => {
+                    if (cancelRematchTarget === null) return;
+                    cancelRematchMutation.mutate(cancelRematchTarget);
+                  }}
+                >
+                  {cancelRematchMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      Cancelling…
+                    </>
+                  ) : (
+                    "Yes, cancel rematch"
+                  )}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </>
       ) : null}
 
@@ -1126,7 +1436,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             <DialogHeader>
               <DialogTitle>
                 {pendingWinner
-                  ? `Team ${pendingWinner} won — add the score?`
+                  ? `Team ${pendingWinner} won — enter the score`
                   : `Who won on Court ${endTargetCourt}?`}
               </DialogTitle>
             </DialogHeader>
@@ -1196,9 +1506,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                     </ul>
                   </div>
                 ) : null}
-                <p className="text-sm text-muted-foreground">
-                  Scores are optional. Leave them blank to just record the win.
-                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
                     <label
@@ -1272,6 +1579,38 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                     {endGameScoreError}
                   </p>
                 ) : null}
+                <div className="end-game-rematch-block">
+                  <div className="end-game-rematch-row">
+                    <span className="end-game-rematch-label">Rematch?</span>
+                    <div className="end-game-rematch-toggle" role="group" aria-label="Rematch">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={endGameRematch ? "outline" : "default"}
+                        className="end-game-rematch-btn"
+                        disabled={endMutation.isPending}
+                        onClick={() => setEndGameRematch(false)}
+                      >
+                        No
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={endGameRematch ? "default" : "outline"}
+                        className="end-game-rematch-btn"
+                        disabled={endMutation.isPending}
+                        onClick={() => setEndGameRematch(true)}
+                      >
+                        Yes
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="end-game-rematch-hint">
+                    {endGameRematch
+                      ? "Same four, fresh clock on this court."
+                      : "Return all four to the queue."}
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Button
                     type="button"
@@ -1279,28 +1618,34 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                     disabled={endMutation.isPending}
                     onClick={() => {
                       setPendingWinner(null);
+                      setEndGameRematch(false);
                       setTeamAScore("");
                       setTeamBScore("");
                     }}
                   >
-                    Cancel
+                    Back
                   </Button>
                   <Button
                     type="button"
                     disabled={endMutation.isPending || endGameScoreError != null}
                     onClick={() => {
-                      if (!pendingWinner || endGameScoreError) return;
+                      if (!pendingWinner || endGameScoreError || endTargetCourt == null) return;
                       const a = teamAScore.trim();
                       const b = teamBScore.trim();
-                      const hasAnyScore = a !== "" || b !== "";
                       endMutation.mutate({
+                        courtNumber: endTargetCourt,
                         winnerTeam: pendingWinner,
-                        teamAScore: hasAnyScore ? (a === "" ? 0 : Number(a)) : undefined,
-                        teamBScore: hasAnyScore ? (b === "" ? 0 : Number(b)) : undefined,
+                        teamAScore: a === "" ? 0 : Number(a),
+                        teamBScore: b === "" ? 0 : Number(b),
+                        rematch: endGameRematch,
                       });
                     }}
                   >
-                    {endMutation.isPending ? "Saving…" : "Confirm"}
+                    {endMutation.isPending
+                      ? "Saving…"
+                      : endGameRematch
+                        ? "Start rematch"
+                        : "End game"}
                   </Button>
                 </div>
               </div>

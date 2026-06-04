@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { Types } from "mongoose";
 
+import { COURT_CANCEL_GRACE_MS } from "@/lib/court-cancel-grace";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -25,6 +26,7 @@ export async function startGameOnFirstAvailableCourt(gameId: string) {
 
   court.status = "active";
   court.startedAt = new Date();
+  court.isRematch = false;
   court.teamA = { playerIds: [p1.playerId, p2.playerId], queueEntryIds: [p1._id, p2._id] };
   court.teamB = { playerIds: [p3.playerId, p4.playerId], queueEntryIds: [p3._id, p4._id] };
   await court.save();
@@ -68,6 +70,31 @@ function shuffleIntoNewHalves<T>(
   }
 
   return { firstHalf: shuffled.slice(0, half), secondHalf: shuffled.slice(half) };
+}
+
+/** Apply a new FIFO order for all queued players (top 4 + waiting line). */
+export async function reorderQueuedPlayers(gameId: string, orderedEntryIds: string[]) {
+  const queue = await QueueEntry.find({ gameId, status: "queued" }).sort({ registeredAt: 1 });
+
+  if (orderedEntryIds.length !== queue.length) {
+    throw new Error("Queue order must include every queued player exactly once.");
+  }
+
+  const byId = new Map(queue.map((entry) => [entry._id.toString(), entry]));
+  const seen = new Set<string>();
+  const reordered = orderedEntryIds.map((entryId) => {
+    if (seen.has(entryId)) {
+      throw new Error("Queue order must include every queued player exactly once.");
+    }
+    seen.add(entryId);
+    const entry = byId.get(entryId);
+    if (!entry) {
+      throw new Error("Invalid queue entry in reorder request.");
+    }
+    return entry;
+  });
+
+  await persistQueueOrder(reordered);
 }
 
 async function persistQueueOrder(
@@ -225,12 +252,200 @@ export async function swapPlayersBetweenCourtTeams(input: {
   return court;
 }
 
+/** Undo an active court fill — return those four players to the top of the queue. */
+export async function cancelCourtAssignment(input: { gameId: string; courtNumber: number }) {
+  const court = await Court.findOne({
+    gameId: input.gameId,
+    courtNumber: input.courtNumber,
+    status: "active",
+  });
+  if (!court) throw new Error("Active court not found.");
+
+  if (!court.startedAt) {
+    throw new Error("Court start time is missing.");
+  }
+
+  const elapsedMs = Date.now() - new Date(court.startedAt).getTime();
+  if (elapsedMs > COURT_CANCEL_GRACE_MS) {
+    throw new Error("The cancel window has expired. Players are already in play.");
+  }
+
+  const courtQueueEntryIds = [...court.teamA.queueEntryIds, ...court.teamB.queueEntryIds];
+  if (courtQueueEntryIds.length !== 4) {
+    throw new Error("Court does not have a full assignment to cancel.");
+  }
+
+  const courtEntries = await QueueEntry.find({
+    _id: { $in: courtQueueEntryIds },
+    gameId: input.gameId,
+    status: "on_court",
+  });
+  if (courtEntries.length !== 4) {
+    throw new Error("One or more court players are no longer on court.");
+  }
+
+  const otherQueued = await QueueEntry.find({ gameId: input.gameId, status: "queued" }).sort({
+    registeredAt: 1,
+  });
+
+  const courtEntriesOrdered = [...courtEntries].sort(
+    (a, b) => new Date(a.registeredAt).getTime() - new Date(b.registeredAt).getTime(),
+  );
+
+  court.status = "empty";
+  court.teamA = { playerIds: [], queueEntryIds: [] };
+  court.teamB = { playerIds: [], queueEntryIds: [] };
+  court.startedAt = null;
+  court.isRematch = false;
+  await court.save();
+
+  await QueueEntry.updateMany(
+    { _id: { $in: courtQueueEntryIds } },
+    { $set: { status: "queued" } },
+  );
+
+  await persistQueueOrder([...courtEntriesOrdered, ...otherQueued]);
+
+  return court;
+}
+
+/** End a rematch early — return the four players to the queue (no history or stats changes). */
+export async function cancelRematch(input: { gameId: string; courtNumber: number }) {
+  const court = await Court.findOne({
+    gameId: input.gameId,
+    courtNumber: input.courtNumber,
+    status: "active",
+  });
+  if (!court) throw new Error("Active court not found.");
+  if (!court.isRematch) {
+    throw new Error("This court is not in a rematch.");
+  }
+
+  if (!court.startedAt) {
+    throw new Error("Court start time is missing.");
+  }
+
+  const elapsedMs = Date.now() - new Date(court.startedAt).getTime();
+  if (elapsedMs > COURT_CANCEL_GRACE_MS) {
+    throw new Error("The cancel window has expired. Players are already in play.");
+  }
+
+  const courtQueueEntryIds = [...court.teamA.queueEntryIds, ...court.teamB.queueEntryIds];
+  if (courtQueueEntryIds.length !== 4) {
+    throw new Error("Court does not have a full assignment to cancel.");
+  }
+
+  const courtEntries = await QueueEntry.find({
+    _id: { $in: courtQueueEntryIds },
+    gameId: input.gameId,
+    status: "on_court",
+  });
+  if (courtEntries.length !== 4) {
+    throw new Error("One or more court players are no longer on court.");
+  }
+
+  const otherQueued = await QueueEntry.find({ gameId: input.gameId, status: "queued" }).sort({
+    registeredAt: 1,
+  });
+
+  const courtEntriesOrdered = [...courtEntries].sort(
+    (a, b) => new Date(a.registeredAt).getTime() - new Date(b.registeredAt).getTime(),
+  );
+
+  court.status = "empty";
+  court.teamA = { playerIds: [], queueEntryIds: [] };
+  court.teamB = { playerIds: [], queueEntryIds: [] };
+  court.startedAt = null;
+  court.isRematch = false;
+  await court.save();
+
+  await QueueEntry.updateMany(
+    { _id: { $in: courtQueueEntryIds } },
+    { $set: { status: "queued" } },
+  );
+
+  await persistQueueOrder([...otherQueued, ...courtEntriesOrdered]);
+
+  return court;
+}
+
+/** Swap an active-court player with someone from the queue (next up or waiting line). */
+export async function replaceCourtPlayerWithWaiting(input: {
+  gameId: string;
+  courtNumber: number;
+  team: "A" | "B";
+  slotIndex: number;
+  targetIndex: number;
+}) {
+  if (input.slotIndex < 0 || input.slotIndex > 1) {
+    throw new Error("slotIndex must be 0 or 1.");
+  }
+
+  const court = await Court.findOne({
+    gameId: input.gameId,
+    courtNumber: input.courtNumber,
+    status: "active",
+  });
+  if (!court) throw new Error("Active court not found.");
+
+  const teamKey = input.team === "A" ? "teamA" : "teamB";
+  const team = court[teamKey];
+  if (input.slotIndex >= team.playerIds.length) {
+    throw new Error("Invalid player slot on court.");
+  }
+
+  const courtQueueEntryId = team.queueEntryIds[input.slotIndex];
+  const courtEntry = await QueueEntry.findById(courtQueueEntryId);
+  if (!courtEntry || courtEntry.status !== "on_court") {
+    throw new Error("Court player queue entry not found.");
+  }
+
+  const queue = await QueueEntry.find({ gameId: input.gameId, status: "queued" }).sort({
+    registeredAt: 1,
+  });
+
+  if (input.targetIndex < 0 || input.targetIndex >= queue.length) {
+    throw new Error("Selected player is not in the queue.");
+  }
+
+  const queuedEntry = queue[input.targetIndex];
+
+  team.playerIds[input.slotIndex] = queuedEntry.playerId as Types.ObjectId;
+  team.queueEntryIds[input.slotIndex] = queuedEntry._id;
+  court.markModified(teamKey);
+
+  const reordered = [
+    ...queue.slice(0, input.targetIndex),
+    courtEntry,
+    ...queue.slice(input.targetIndex + 1),
+  ];
+  await persistQueueOrder(reordered);
+
+  await QueueEntry.updateOne({ _id: queuedEntry._id }, { $set: { status: "on_court" } });
+  await QueueEntry.updateOne({ _id: courtEntry._id }, { $set: { status: "queued" } });
+
+  await court.save();
+
+  return court;
+}
+
+async function recalculateLeaderboardWinRates(gameId: string) {
+  const allStats = await LeaderboardStats.find({ gameId });
+  await Promise.all(
+    allStats.map(async (stat) => {
+      stat.winRate = stat.gamesPlayed > 0 ? Math.round((stat.wins / stat.gamesPlayed) * 100) : 0;
+      await stat.save();
+    }),
+  );
+}
+
 export async function endGameAndRequeue(input: {
   gameId: string;
   courtNumber: number;
   winnerTeam: "A" | "B";
-  teamAScore?: number;
-  teamBScore?: number;
+  teamAScore: number;
+  teamBScore: number;
+  rematch?: boolean;
 }) {
   const court = await Court.findOne({
     gameId: input.gameId,
@@ -242,6 +457,59 @@ export async function endGameAndRequeue(input: {
   const winnerPlayers = input.winnerTeam === "A" ? court.teamA.playerIds : court.teamB.playerIds;
   const loserPlayers = input.winnerTeam === "A" ? court.teamB.playerIds : court.teamA.playerIds;
   const winnerPlayerIdSet = new Set(winnerPlayers.map((id: Types.ObjectId) => id.toString()));
+
+  const endedAt = new Date();
+  const startedAt = court.startedAt ? new Date(court.startedAt) : endedAt;
+  const durationSeconds = court.startedAt
+    ? Math.max(0, Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000))
+    : 0;
+
+  await MatchHistory.create({
+    gameId: input.gameId,
+    courtNumber: input.courtNumber,
+    teamAPlayerIds: court.teamA.playerIds,
+    teamBPlayerIds: court.teamB.playerIds,
+    winnerTeam: input.winnerTeam,
+    loserTeam: input.winnerTeam === "A" ? "B" : "A",
+    teamAScore: input.teamAScore,
+    teamBScore: input.teamBScore,
+    startedAt,
+    endedAt,
+    durationSeconds,
+  });
+
+  await Promise.all(
+    [...winnerPlayers, ...loserPlayers].map(async (playerId: Types.ObjectId) => {
+      const hasWon = winnerPlayerIdSet.has(playerId.toString());
+      await LeaderboardStats.findOneAndUpdate(
+        { gameId: input.gameId, playerId },
+        {
+          $inc: {
+            gamesPlayed: 1,
+            wins: hasWon ? 1 : 0,
+            losses: hasWon ? 0 : 1,
+            currentStreak: hasWon ? 1 : -1,
+          },
+        },
+        { upsert: true, new: true },
+      );
+    }),
+  );
+
+  await recalculateLeaderboardWinRates(input.gameId);
+
+  if (input.rematch) {
+    court.startedAt = new Date();
+    court.isRematch = true;
+    court.markModified("isRematch");
+    await court.save();
+    return {
+      ok: true,
+      rematch: true,
+      message: `Court ${input.courtNumber} rematch started — same players, fresh clock.`,
+    };
+  }
+
   const teamAPlayers = [...court.teamA.playerIds];
   const teamBPlayers = [...court.teamB.playerIds];
   const requeueOrder: Types.ObjectId[] = [
@@ -271,38 +539,6 @@ export async function endGameAndRequeue(input: {
     }),
   );
 
-  await MatchHistory.create({
-    gameId: input.gameId,
-    courtNumber: input.courtNumber,
-    teamAPlayerIds: court.teamA.playerIds,
-    teamBPlayerIds: court.teamB.playerIds,
-    winnerTeam: input.winnerTeam,
-    loserTeam: input.winnerTeam === "A" ? "B" : "A",
-    teamAScore: input.teamAScore ?? null,
-    teamBScore: input.teamBScore ?? null,
-    durationSeconds: court.startedAt
-      ? Math.floor((Date.now() - new Date(court.startedAt).getTime()) / 1000)
-      : 0,
-  });
-
-  await Promise.all(
-    [...winnerPlayers, ...loserPlayers].map(async (playerId: Types.ObjectId) => {
-      const hasWon = winnerPlayers.some((id: Types.ObjectId) => id.toString() === playerId.toString());
-      await LeaderboardStats.findOneAndUpdate(
-        { gameId: input.gameId, playerId },
-        {
-          $inc: {
-            gamesPlayed: 1,
-            wins: hasWon ? 1 : 0,
-            losses: hasWon ? 0 : 1,
-            currentStreak: hasWon ? 1 : -1,
-          },
-        },
-        { upsert: true, new: true },
-      );
-    }),
-  );
-
   await QueueEntry.updateMany(
     { _id: { $in: [...court.teamA.queueEntryIds, ...court.teamB.queueEntryIds] } },
     { $set: { status: "done" } },
@@ -312,15 +548,12 @@ export async function endGameAndRequeue(input: {
   court.teamA = { playerIds: [], queueEntryIds: [] };
   court.teamB = { playerIds: [], queueEntryIds: [] };
   court.startedAt = null;
+  court.isRematch = false;
   await court.save();
 
-  const allStats = await LeaderboardStats.find({ gameId: input.gameId });
-  await Promise.all(
-    allStats.map(async (stat) => {
-      stat.winRate = stat.gamesPlayed > 0 ? Math.round((stat.wins / stat.gamesPlayed) * 100) : 0;
-      await stat.save();
-    }),
-  );
-
-  return { ok: true };
+  return {
+    ok: true,
+    rematch: false,
+    message: "Game ended and players returned to the queue.",
+  };
 }

@@ -34,8 +34,45 @@ export type SessionMatch = {
   teamAPlayerIds: SessionPlayerRef[];
   teamBPlayerIds: SessionPlayerRef[];
   winnerTeam: "A" | "B";
+  teamAScore?: number | null;
+  teamBScore?: number | null;
   durationSeconds: number;
 };
+
+type RecordedScores = { teamAScore: number; teamBScore: number };
+
+function matchHasRecordedScores(match: SessionMatch): match is SessionMatch & RecordedScores {
+  return match.teamAScore != null && match.teamBScore != null;
+}
+
+function winnerLoserScores(match: SessionMatch, scores: RecordedScores) {
+  const winnerScore = match.winnerTeam === "A" ? scores.teamAScore : scores.teamBScore;
+  const loserScore = match.winnerTeam === "A" ? scores.teamBScore : scores.teamAScore;
+  return { winnerScore, loserScore };
+}
+
+function matchWinMargin(match: SessionMatch & RecordedScores): number {
+  const { winnerScore, loserScore } = winnerLoserScores(match, match);
+  return winnerScore - loserScore;
+}
+
+function formatScoreLine(match: SessionMatch & RecordedScores): string {
+  return `${match.teamAScore}–${match.teamBScore}`;
+}
+
+function matchInsightPlayers(
+  match: SessionMatch,
+  insightPlayer: (id: string) => InsightPlayer,
+): InsightPlayer[] {
+  return [...match.teamAPlayerIds, ...match.teamBPlayerIds].map((p) =>
+    insightPlayer(playerIdOf(p)),
+  );
+}
+
+function winningSideIds(match: SessionMatch): string[] {
+  const side = match.winnerTeam === "A" ? match.teamAPlayerIds : match.teamBPlayerIds;
+  return side.map((p) => playerIdOf(p));
+}
 
 export type SessionStatRow = {
   playerId: string;
@@ -421,25 +458,112 @@ export function computeSessionInsights(
     });
   }
 
-  // Longest Battle (proxy for clutch / ice in veins until scores exist)
+  // Longest Battle — most time on court before the match ended
   if (sorted.length > 0) {
     const longest = [...sorted].sort((a, b) => b.durationSeconds - a.durationSeconds)[0];
     if (longest.durationSeconds >= 60) {
-      const players = [...longest.teamAPlayerIds, ...longest.teamBPlayerIds].map((p) => {
-        const id = playerIdOf(p);
-        return insightPlayer(id);
-      });
       const mins = Math.floor(longest.durationSeconds / 60);
       const secs = longest.durationSeconds % 60;
       insights.push({
         id: "longest-battle",
         title: "Longest Battle",
-        description:
-          "The nail-biter of the session. Add scores later for true one-point thrillers.",
-        players,
+        description: "Longest court time before the match ended.",
+        players: matchInsightPlayers(longest, insightPlayer),
         stat: mins > 0 ? `${mins}m ${secs}s` : `${secs}s`,
       });
     }
+  }
+
+  const scored = sorted.filter(matchHasRecordedScores);
+
+  // Nail Biter — won by exactly one point (requires recorded scores)
+  const nailBiters = scored.filter((match) => matchWinMargin(match) === 1);
+  if (nailBiters.length > 0) {
+    const thriller = nailBiters[nailBiters.length - 1];
+    const courtLabel =
+      thriller.courtNumber != null ? ` · Court ${thriller.courtNumber}` : "";
+    insights.push({
+      id: "nail-biter",
+      title: "Nail Biter",
+      description: "The closest finish — only one point separated the teams.",
+      players: matchInsightPlayers(thriller, insightPlayer),
+      stat: `${formatScoreLine(thriller)}${courtLabel}`,
+    });
+  }
+
+  // Ice in Veins — most wins decided by a single point
+  const clutchWins = new Map<string, number>();
+  for (const match of nailBiters) {
+    for (const id of winningSideIds(match)) {
+      clutchWins.set(id, (clutchWins.get(id) ?? 0) + 1);
+    }
+  }
+  const topClutch = [...clutchWins.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (topClutch && topClutch[1] >= 1 && nailBiters.length > 0) {
+    const [clutchId, clutchCount] = topClutch;
+    const showIceInVeins = clutchCount >= 2 || nailBiters.length === 1;
+    if (showIceInVeins) {
+      insights.push({
+        id: "ice-in-veins",
+        title: "Ice in Veins",
+        description:
+          clutchCount >= 2
+            ? "Cooled under pressure — multiple one-point wins."
+            : "Clutch win when every point counted.",
+        players: [insightPlayer(clutchId)],
+        stat:
+          clutchCount >= 2
+            ? `${clutchCount} one-point wins`
+            : "1 one-point win",
+      });
+    }
+  }
+
+  // Blowout — biggest margin of victory
+  const blowouts = scored.filter((match) => matchWinMargin(match) >= 3);
+  if (blowouts.length > 0) {
+    const blowout = [...blowouts].sort((a, b) => matchWinMargin(b) - matchWinMargin(a))[0];
+    const margin = matchWinMargin(blowout);
+    insights.push({
+      id: "blowout",
+      title: "Blowout",
+      description: "The most lopsided scoreline of the session.",
+      players: winningSideIds(blowout).map((id) => insightPlayer(id)),
+      stat: `${formatScoreLine(blowout)} (+${margin})`,
+    });
+  }
+
+  // Shutout — held opponents to zero
+  const shutouts = scored.filter((match) => winnerLoserScores(match, match).loserScore === 0);
+  if (shutouts.length > 0) {
+    const shutout = shutouts[shutouts.length - 1];
+    insights.push({
+      id: "shutout",
+      title: "Shutout",
+      description: "Winners held the other side scoreless.",
+      players: winningSideIds(shutout).map((id) => insightPlayer(id)),
+      stat: formatScoreLine(shutout),
+    });
+  }
+
+  // High Water Mark — highest winning score in a single match
+  let highScoreMatch: (SessionMatch & RecordedScores) | null = null;
+  let highWinnerScore = 0;
+  for (const match of scored) {
+    const { winnerScore } = winnerLoserScores(match, match);
+    if (winnerScore > highWinnerScore) {
+      highWinnerScore = winnerScore;
+      highScoreMatch = match;
+    }
+  }
+  if (highScoreMatch && highWinnerScore >= 11) {
+    insights.push({
+      id: "high-water-mark",
+      title: "High Water Mark",
+      description: "Highest winning score in a single match.",
+      players: winningSideIds(highScoreMatch).map((id) => insightPlayer(id)),
+      stat: `${highWinnerScore} pts · ${formatScoreLine(highScoreMatch)}`,
+    });
   }
 
   // Rivalry — most head-to-head as opponents

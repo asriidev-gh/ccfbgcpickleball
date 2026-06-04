@@ -30,14 +30,18 @@ function parseScoreField(raw: string): number | null {
   return value;
 }
 
-/** Validates optional score fields for the end-game / edit-score modals. */
+/** Validates score fields for the end-game / edit-score modals. */
 export function getMatchScoreInputError(
   winnerTeam: "A" | "B",
   teamAScoreRaw: string,
   teamBScoreRaw: string,
+  options?: { required?: boolean },
 ): string | null {
   const aTrim = teamAScoreRaw.trim();
   const bTrim = teamBScoreRaw.trim();
+  if (options?.required && (aTrim === "" || bTrim === "")) {
+    return "Enter scores for both teams.";
+  }
   if (aTrim === "" && bTrim === "") return null;
 
   const teamAScore = parseScoreField(teamAScoreRaw);

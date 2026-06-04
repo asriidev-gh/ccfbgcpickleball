@@ -21,6 +21,8 @@ function friendlyFieldLabel(path: (string | number)[] | undefined) {
       return "Personal QR code";
     case "attendedEvents":
       return "CCF events attended";
+    case "volunteerType":
+      return "Volunteer type";
     default:
       return typeof key === "string" ? key : "This field";
   }

@@ -42,6 +42,8 @@ async function computeGameAwardsForPlayer(gameId: string, playerIds: Set<string>
       teamAPlayerIds: m.teamAPlayerIds,
       teamBPlayerIds: m.teamBPlayerIds,
       winnerTeam: m.winnerTeam,
+      teamAScore: m.teamAScore,
+      teamBScore: m.teamBScore,
       durationSeconds: m.durationSeconds,
     })),
     safeStats.map((row) => ({

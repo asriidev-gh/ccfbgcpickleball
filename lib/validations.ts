@@ -93,6 +93,8 @@ export const genericPlayerSchema = z.object({
   email: z.string().min(1, "Email is required.").email("Enter a valid email address."),
 });
 
+const volunteerTypeSchema = z.enum(["Pickleball", "Running", "Badminton", "Other"]);
+
 export const newPlayerSchema = z.object({
   gameId: z.string().min(4),
   firstName: z.string().min(1, "First name is required."),
@@ -107,12 +109,29 @@ export const newPlayerSchema = z.object({
   isPartOfDgroup: z.boolean(),
   attendedEvents: z.array(z.string()).min(1, "Select at least one CCF event option."),
   attendedEventsOther: z.string().optional().default(""),
-  volunteerType: z.enum(["Pickleball", "Running", "Badminton", "Other"]).optional(),
+  volunteerType: volunteerTypeSchema.optional(),
+  volunteerTypeOther: z.string().optional().default(""),
+});
+
+export const volunteerNewPlayerSchema = z.object({
+  gameId: z.string().min(4),
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
+  mobileNumber: z
+    .string()
+    .trim()
+    .min(1, "Mobile number is required.")
+    .min(7, "Enter a valid mobile number (at least 7 digits)."),
+  email: z.string().min(1, "Email is required.").email("Enter a valid email address."),
+  volunteerType: volunteerTypeSchema,
   volunteerTypeOther: z.string().optional().default(""),
 });
 
 export type NewPlayerInput = z.infer<typeof newPlayerSchema>;
+export type VolunteerNewPlayerInput = z.infer<typeof volunteerNewPlayerSchema>;
 export type GenericPlayerInput = z.infer<typeof genericPlayerSchema>;
+export type ExistingPlayerInput = z.infer<typeof existingPlayerSchema>;
+export type VolunteerExistingPlayerInput = z.infer<typeof volunteerExistingPlayerSchema>;
 
 export const existingPlayerSchema = z.object({
   gameId: z.string().min(4),
@@ -123,7 +142,17 @@ export const existingPlayerSchema = z.object({
   isPartOfDgroup: z.boolean(),
   attendedEvents: z.array(z.string()).min(1, "Select at least one CCF event option."),
   attendedEventsOther: z.string().optional().default(""),
-  volunteerType: z.enum(["Pickleball", "Running", "Badminton", "Other"]).optional(),
+  volunteerType: volunteerTypeSchema.optional(),
+  volunteerTypeOther: z.string().optional().default(""),
+});
+
+export const volunteerExistingPlayerSchema = z.object({
+  gameId: z.string().min(4),
+  personalQrCode: z
+    .string()
+    .min(1, "Personal QR code is required.")
+    .min(4, "Enter your personal QR code."),
+  volunteerType: volunteerTypeSchema,
   volunteerTypeOther: z.string().optional().default(""),
 });
 
@@ -137,14 +166,12 @@ export const endGameSchema = z
     gameId: z.string().min(4),
     courtNumber: z.coerce.number().int().min(1),
     winnerTeam: z.enum(["A", "B"]),
-    teamAScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE).optional(),
-    teamBScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE).optional(),
+    teamAScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE),
+    teamBScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE),
+    rematch: z.boolean().optional().default(false),
   })
   .superRefine((data, ctx) => {
-    if (data.teamAScore === undefined && data.teamBScore === undefined) return;
-    const teamAScore = data.teamAScore ?? 0;
-    const teamBScore = data.teamBScore ?? 0;
-    if (loserScoreExceedsWinner(data.winnerTeam, teamAScore, teamBScore)) {
+    if (loserScoreExceedsWinner(data.winnerTeam, data.teamAScore, data.teamBScore)) {
       ctx.addIssue({
         code: "custom",
         message: LOSER_SCORE_TOO_HIGH_MESSAGE,
@@ -157,4 +184,17 @@ export const swapCourtTeamsSchema = z.object({
   gameId: z.string().min(4),
   courtNumber: z.coerce.number().int().min(1),
   slotIndex: z.coerce.number().int().min(0).max(1).optional(),
+});
+
+export const replaceCourtPlayerSchema = z.object({
+  gameId: z.string().min(4),
+  courtNumber: z.coerce.number().int().min(1),
+  team: z.enum(["A", "B"]),
+  slotIndex: z.coerce.number().int().min(0).max(1),
+  targetIndex: z.coerce.number().int().min(0),
+});
+
+export const cancelCourtAssignmentSchema = z.object({
+  gameId: z.string().min(4),
+  courtNumber: z.coerce.number().int().min(1),
 });

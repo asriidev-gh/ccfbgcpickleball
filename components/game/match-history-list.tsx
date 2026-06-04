@@ -2,9 +2,10 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, Clock, MapPin, Trophy } from "lucide-react";
+import { ChevronDown, Clock, Loader2, MapPin, Trash2, Trophy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import Swal from "sweetalert2";
 
 import { PlayerPhotoTrigger } from "@/components/game/player-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -23,6 +24,10 @@ import {
   MAX_MATCH_SCORE,
   sanitizeScoreInput,
 } from "@/lib/match-score-validation";
+import {
+  formatMatchPlayedDuration,
+  formatMatchTimeRange,
+} from "@/lib/match-history-display";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type MatchHistoryPlayer = {
@@ -42,24 +47,24 @@ export type MatchHistoryView = {
   winnerTeam: "A" | "B";
   teamAScore?: number | null;
   teamBScore?: number | null;
+  startedAt?: string | null;
   durationSeconds: number;
   endedAt: string;
 };
 
 const MATCH_HISTORY_PAGE_SIZE = 5;
 
+const deleteMatchAlertOptions = {
+  background: "#0f172a",
+  color: "#e2e8f0",
+  confirmButtonColor: "#ef4444",
+  cancelButtonColor: "#64748b",
+};
+
 function getInitials(firstName: string, lastName: string) {
   const first = firstName.trim()[0] ?? "";
   const last = lastName.trim()[0] ?? "";
   return (first + last).toUpperCase() || "?";
-}
-
-function formatDuration(seconds: number) {
-  if (seconds <= 0) return "—";
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  if (minutes === 0) return `${remainder}s`;
-  return remainder > 0 ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
 
 function TeamPanel({
@@ -198,6 +203,38 @@ export function MatchHistoryList({
       toast.error(error instanceof Error ? error.message : "Failed to update score."),
   });
 
+  const deleteMatchMutation = useMutation({
+    mutationFn: async (matchId: string) => {
+      const response = await fetch(`/api/games/${gameId}/matches/${matchId}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+      if (gameId) queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Failed to delete match."),
+  });
+
+  const confirmDeleteMatch = async (match: MatchHistoryView) => {
+    const result = await Swal.fire({
+      ...deleteMatchAlertOptions,
+      title: "Delete match?",
+      html: `Remove this Court ${match.courtNumber} match from history? Leaderboard stats for those players will be updated.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, delete",
+      cancelButtonText: "Cancel",
+    });
+    if (result.isConfirmed) {
+      deleteMatchMutation.mutate(match._id);
+    }
+  };
+
   useEffect(() => {
     if (matches.length < prevMatchCount.current) {
       setVisibleCount(MATCH_HISTORY_PAGE_SIZE);
@@ -246,12 +283,23 @@ export function MatchHistoryList({
                 <MapPin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                 Court {match.courtNumber}
               </span>
-              <p className="caption flex shrink-0 items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                {formatDuration(match.durationSeconds)}
-                <span className="text-muted-foreground">·</span>
-                <span suppressHydrationWarning>
-                  {formatDistanceToNow(new Date(match.endedAt), { addSuffix: true })}
+              <p
+                className="caption inline-flex max-w-full items-center justify-end gap-x-1.5 overflow-x-auto whitespace-nowrap text-right"
+                suppressHydrationWarning
+              >
+                <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="font-medium text-foreground">
+                  {formatMatchPlayedDuration(match.durationSeconds)}
+                </span>
+                <span className="text-muted-foreground" aria-hidden>
+                  ·
+                </span>
+                <span className="text-muted-foreground">{formatMatchTimeRange(match)}</span>
+                <span className="text-muted-foreground" aria-hidden>
+                  ·
+                </span>
+                <span className="text-muted-foreground">
+                  Ended {formatDistanceToNow(new Date(match.endedAt), { addSuffix: true })}
                 </span>
               </p>
             </div>
@@ -274,6 +322,34 @@ export function MatchHistoryList({
               )}
               <TeamPanel label="Team B" players={match.teamBPlayerIds} won={!teamAWon} />
             </div>
+            {canEdit ? (
+              <div className="mt-2.5 flex justify-end border-t border-border/60 pt-2.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="match-history-delete-btn border-destructive/50 text-destructive hover:bg-destructive/10"
+                  disabled={
+                    deleteMatchMutation.isPending &&
+                    deleteMatchMutation.variables === match._id
+                  }
+                  onClick={() => void confirmDeleteMatch(match)}
+                >
+                  {deleteMatchMutation.isPending &&
+                  deleteMatchMutation.variables === match._id ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                      Deleting…
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                      Delete
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : null}
           </article>
         );
       })}

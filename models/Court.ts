@@ -1,4 +1,4 @@
-import { Schema, model, models } from "mongoose";
+import mongoose, { Schema, model, models } from "mongoose";
 
 const teamSchema = new Schema(
   {
@@ -16,10 +16,16 @@ const courtSchema = new Schema(
     teamA: { type: teamSchema, default: { playerIds: [], queueEntryIds: [] } },
     teamB: { type: teamSchema, default: { playerIds: [], queueEntryIds: [] } },
     startedAt: { type: Date, default: null },
+    /** True when the current court session started via rematch (not queue fill). */
+    isRematch: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
 courtSchema.index({ gameId: 1, courtNumber: 1 }, { unique: true });
 
-export const Court = models.Court || model("Court", courtSchema);
+if (models.Court) {
+  mongoose.deleteModel("Court");
+}
+
+export const Court = model("Court", courtSchema);

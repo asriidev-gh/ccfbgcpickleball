@@ -6,7 +6,11 @@ import {
   RegistrationLimitError,
 } from "@/lib/game-registration-limit";
 import { formatZodError } from "@/lib/format-zod-error";
-import { existingPlayerSchema } from "@/lib/validations";
+import {
+  existingPlayerSchema,
+  type ExistingPlayerInput,
+  volunteerExistingPlayerSchema,
+} from "@/lib/validations";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 import { Volunteer } from "@/models/Volunteer";
@@ -15,7 +19,14 @@ export async function POST(request: Request) {
   try {
     await connectToDatabase();
     const body = await request.json();
-    const parsed = existingPlayerSchema.safeParse(body);
+    const isVolunteer =
+      body?.volunteerType === "Pickleball" ||
+      body?.volunteerType === "Running" ||
+      body?.volunteerType === "Badminton" ||
+      body?.volunteerType === "Other";
+    const parsed = isVolunteer
+      ? volunteerExistingPlayerSchema.safeParse(body)
+      : existingPlayerSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
     }
@@ -30,9 +41,12 @@ export async function POST(request: Request) {
       playerId: String(player._id),
     });
 
-    player.isPartOfDgroup = payload.isPartOfDgroup;
-    player.attendedEvents = payload.attendedEvents;
-    player.attendedEventsOther = payload.attendedEventsOther;
+    if (!isVolunteer) {
+      const playerPayload = payload as ExistingPlayerInput;
+      player.isPartOfDgroup = playerPayload.isPartOfDgroup;
+      player.attendedEvents = playerPayload.attendedEvents;
+      player.attendedEventsOther = playerPayload.attendedEventsOther;
+    }
     player.lastAttendedAt = new Date();
     await player.save();
 

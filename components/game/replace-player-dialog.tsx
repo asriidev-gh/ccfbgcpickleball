@@ -17,10 +17,19 @@ import {
 } from "@/components/ui/dialog";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
-export type ReplacePlayerDialogState = {
-  sourceIndex: number;
-  sourceEntry: QueueEntryView;
-};
+export type ReplacePlayerDialogState =
+  | {
+      kind: "queue";
+      sourceIndex: number;
+      sourceEntry: QueueEntryView;
+    }
+  | {
+      kind: "court";
+      courtNumber: number;
+      team: "A" | "B";
+      slotIndex: number;
+      player: PlayerPhotoRef;
+    };
 
 function playerInitials(player: PlayerPhotoRef) {
   const name = formatPlayerDisplayName(player.firstName, player.lastName);
@@ -48,12 +57,25 @@ function ReplaceDialogPlayerIdentity({
   );
 }
 
+export type ReplacePlayerConfirmInput =
+  | { kind: "queue"; sourceIndex: number; targetIndex: number }
+  | {
+      kind: "court";
+      courtNumber: number;
+      team: "A" | "B";
+      slotIndex: number;
+      targetIndex: number;
+    };
+
 type ReplacePlayerDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   state: ReplacePlayerDialogState | null;
+  /** Waiting line only — used when replacing from the queue (index 4+). */
   waitingEntries: QueueEntryView[];
-  onConfirm: (input: { sourceIndex: number; targetIndex: number }) => void;
+  /** Full queued list (next on court + waiting) — used when replacing from a court. */
+  courtReplaceEntries?: QueueEntryView[];
+  onConfirm: (input: ReplacePlayerConfirmInput) => void;
   isPending?: boolean;
 };
 
@@ -62,42 +84,55 @@ export function ReplacePlayerDialog({
   onOpenChange,
   state,
   waitingEntries,
+  courtReplaceEntries = [],
   onConfirm,
   isPending = false,
 }: ReplacePlayerDialogProps) {
   const [selectedOffset, setSelectedOffset] = useState(0);
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
+  const isCourtReplace = state?.kind === "court";
+  const candidateEntries = isCourtReplace ? courtReplaceEntries : waitingEntries;
+
   useEffect(() => {
     if (open) setSelectedOffset(0);
-  }, [open, state?.sourceIndex]);
+  }, [open, state?.kind, state?.kind === "queue" ? state.sourceIndex : state?.slotIndex]);
 
   useEffect(() => {
-    if (!open || waitingEntries.length === 0) return;
+    if (!open || candidateEntries.length === 0) return;
     const selectedButton = optionRefs.current[selectedOffset];
     selectedButton?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [open, selectedOffset, waitingEntries.length]);
+  }, [open, selectedOffset, candidateEntries.length]);
 
-  const selectedEntry = waitingEntries[selectedOffset];
-  const selectedTargetIndex = 4 + selectedOffset;
+  const selectedEntry = candidateEntries[selectedOffset];
+  const selectedTargetIndex = isCourtReplace ? selectedOffset : 4 + selectedOffset;
 
   const goNext = () => {
-    if (waitingEntries.length === 0) return;
-    setSelectedOffset((prev) => (prev + 1) % waitingEntries.length);
+    if (candidateEntries.length === 0) return;
+    setSelectedOffset((prev) => (prev + 1) % candidateEntries.length);
   };
 
   const goPrevious = () => {
-    if (waitingEntries.length === 0) return;
-    setSelectedOffset((prev) => (prev - 1 + waitingEntries.length) % waitingEntries.length);
+    if (candidateEntries.length === 0) return;
+    setSelectedOffset((prev) => (prev - 1 + candidateEntries.length) % candidateEntries.length);
   };
 
   const sourceName = state
-    ? formatPlayerDisplayName(
-        state.sourceEntry.playerId.firstName,
-        state.sourceEntry.playerId.lastName,
-        state.sourceIndex + 1,
-      )
+    ? state.kind === "queue"
+      ? formatPlayerDisplayName(
+          state.sourceEntry.playerId.firstName,
+          state.sourceEntry.playerId.lastName,
+          state.sourceIndex + 1,
+        )
+      : formatPlayerDisplayName(state.player.firstName, state.player.lastName)
     : "";
+
+  const sourceLabel =
+    state?.kind === "court"
+      ? `Court ${state.courtNumber} · Team ${state.team}`
+      : state
+        ? `#${state.sourceIndex + 1}`
+        : "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -110,22 +145,28 @@ export function ReplacePlayerDialog({
           {state ? (
             <p className="caption text-left text-muted-foreground">
               Swap <span className="font-medium text-foreground">{sourceName}</span> with someone
-              from the waiting line.
+              {isCourtReplace
+                ? " from the queue (next on court or waiting line)."
+                : " from the waiting line."}
             </p>
           ) : null}
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {waitingEntries.length === 0 ? (
+          {candidateEntries.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Not enough players in the waiting line to replace.
+              {isCourtReplace
+                ? "No players in the queue to replace with."
+                : "Not enough players in the waiting line to replace."}
             </p>
           ) : (
             <>
-              <p className="caption mb-2 text-muted-foreground">Waiting line</p>
+              <p className="caption mb-2 text-muted-foreground">
+                {isCourtReplace ? "Queue" : "Waiting line"}
+              </p>
               <ul className="replace-player-dialog-list max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-muted/25 p-2">
-                {waitingEntries.map((entry, offset) => {
-                  const queuePosition = 5 + offset;
+                {candidateEntries.map((entry, offset) => {
+                  const queuePosition = isCourtReplace ? offset + 1 : 5 + offset;
                   const isSelected = offset === selectedOffset;
                   return (
                     <li key={entry._id}>
@@ -166,7 +207,7 @@ export function ReplacePlayerDialog({
               </ul>
               {selectedEntry && state ? (
                 <p className="caption mt-3 text-center text-muted-foreground">
-                  #{state.sourceIndex + 1} {sourceName} ↔ #{selectedTargetIndex + 1}{" "}
+                  {sourceLabel} {sourceName} ↔ #{selectedTargetIndex + 1}{" "}
                   {formatPlayerDisplayName(
                     selectedEntry.playerId.firstName,
                     selectedEntry.playerId.lastName,
@@ -177,57 +218,80 @@ export function ReplacePlayerDialog({
           )}
         </div>
 
-        <DialogFooter className="replace-player-dialog-footer !mx-0 !mb-0 mt-0 shrink-0 flex-row items-stretch gap-2 rounded-none border-t border-border bg-muted/30 px-5 py-4 lg:items-center lg:justify-between lg:gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="min-w-0 flex-1 lg:w-auto lg:flex-none"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
-            Cancel
-          </Button>
-          <div className="hidden items-center gap-2 lg:flex">
+        <DialogFooter className="replace-player-dialog-footer !mx-0 !mb-0 mt-0 shrink-0 !flex-col gap-0 overflow-hidden rounded-none border-t border-border bg-muted/30 p-0 sm:!flex-col">
+          <div className="flex w-full min-w-0 flex-col gap-2.5 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-3 sm:px-5 sm:py-4">
+            <div
+              className="flex min-w-0 justify-center sm:flex-1"
+              role="group"
+              aria-label="Browse replacement options"
+            >
+              <div className="inline-flex w-full max-w-[11.5rem] items-center justify-between gap-0.5 rounded-lg border border-border bg-background p-1 sm:w-auto sm:max-w-none sm:justify-center sm:gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-9 shrink-0"
+                  aria-label="Previous player"
+                  onClick={goPrevious}
+                  disabled={isPending || candidateEntries.length <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden />
+                </Button>
+                <span
+                  className="min-w-0 flex-1 px-1 text-center text-xs font-medium tabular-nums text-muted-foreground sm:flex-none sm:min-w-[4.25rem] sm:text-sm"
+                  aria-live="polite"
+                >
+                  {candidateEntries.length > 0
+                    ? `${selectedOffset + 1} / ${candidateEntries.length}`
+                    : "—"}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-9 shrink-0"
+                  aria-label="Next player"
+                  onClick={goNext}
+                  disabled={isPending || candidateEntries.length <= 1}
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden />
+                </Button>
+              </div>
+            </div>
+
             <Button
               type="button"
-              variant="outline"
-              onClick={goPrevious}
-              disabled={isPending || waitingEntries.length <= 1}
+              className="h-9 w-full shrink-0 px-4 sm:w-auto sm:min-w-[7.75rem]"
+              disabled={isPending || !state || !selectedEntry}
+              onClick={() => {
+                if (!state || !selectedEntry) return;
+                if (state.kind === "queue") {
+                  onConfirm({
+                    kind: "queue",
+                    sourceIndex: state.sourceIndex,
+                    targetIndex: selectedTargetIndex,
+                  });
+                } else {
+                  onConfirm({
+                    kind: "court",
+                    courtNumber: state.courtNumber,
+                    team: state.team,
+                    slotIndex: state.slotIndex,
+                    targetIndex: selectedTargetIndex,
+                  });
+                }
+              }}
             >
-              <ChevronLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden />
-              Previous
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={goNext}
-              disabled={isPending || waitingEntries.length <= 1}
-            >
-              Next
-              <ChevronRight className="ml-1 h-4 w-4 shrink-0" aria-hidden />
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  Swapping…
+                </>
+              ) : (
+                "Confirm swap"
+              )}
             </Button>
           </div>
-          <Button
-            type="button"
-            className="min-w-0 flex-1 lg:w-auto lg:flex-none"
-            disabled={isPending || !state || !selectedEntry}
-            onClick={() => {
-              if (!state || !selectedEntry) return;
-              onConfirm({
-                sourceIndex: state.sourceIndex,
-                targetIndex: selectedTargetIndex,
-              });
-            }}
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Swapping…
-              </>
-            ) : (
-              "Confirm"
-            )}
-          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

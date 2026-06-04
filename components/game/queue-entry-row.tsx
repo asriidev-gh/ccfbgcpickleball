@@ -1,4 +1,5 @@
 import { ArrowLeftRight, LogIn, LogOut, Trophy } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
@@ -94,6 +95,8 @@ type QueueEntryRowProps = {
   highlighted?: boolean;
   /** Waiting in line section (not next on court) — no left accent bar. */
   inWaitingLine?: boolean;
+  /** Operator drag handle for reordering queue position. */
+  dragHandle?: ReactNode;
 };
 
 export function QueueEntryRow({
@@ -111,6 +114,7 @@ export function QueueEntryRow({
   checkBackInPending = false,
   highlighted = false,
   inWaitingLine = false,
+  dragHandle,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const checkedOutTime = entry.checkedOutAt ? new Date(entry.checkedOutAt) : null;
@@ -146,6 +150,7 @@ export function QueueEntryRow({
 
       <div className="queue-item-layout flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 xl:gap-3">
+          {dragHandle}
           {checkedOut ? null : (
           <span className="queue-rank" aria-label={`Queue position ${slot}`}>
             {slot}

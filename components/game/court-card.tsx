@@ -1,6 +1,7 @@
-import { CircleDot, Loader2, Shuffle, Users } from "lucide-react";
+import { ArrowLeftRight, CircleDot, Loader2, Shuffle, Users } from "lucide-react";
 
-import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
+import { CourtCancelAssignmentButton } from "@/components/game/court-cancel-assignment-button";
+import { CourtInPlayElapsedPanel } from "@/components/game/court-play-timer";
 
 import {
   PlayerAvatar,
@@ -12,10 +13,15 @@ import {
   getPlayerSessionStats,
   type PlayerSessionStats,
 } from "@/lib/games-played-map";
-import { capitalizeNameWords, formatPlayerDisplayName } from "@/lib/utils";
+import {
+  capitalizeNameWords,
+  formatPlayerCourtName,
+  formatPlayerDisplayName,
+} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 
 type PlayerRef = PlayerPhotoRef & { _id?: string };
 
@@ -24,16 +30,35 @@ export type CourtView = {
   courtNumber: number;
   status: "empty" | "active";
   startedAt?: string | null;
+  isRematch?: boolean;
   teamA: { playerIds: PlayerRef[] };
   teamB: { playerIds: PlayerRef[] };
 };
 
+function courtReplacePendingKey(
+  courtNumber: number,
+  team: "A" | "B",
+  slotIndex: number,
+) {
+  return `${courtNumber}-${team}-${slotIndex}`;
+}
+
 function TeamPlayers({
   players,
   playerSessionStats,
+  courtNumber,
+  team,
+  canReplace = false,
+  onReplacePlayer,
+  replacePendingKey = null,
 }: {
   players: PlayerRef[];
   playerSessionStats: Map<string, PlayerSessionStats>;
+  courtNumber: number;
+  team: "A" | "B";
+  canReplace?: boolean;
+  onReplacePlayer?: (slotIndex: number, player: PlayerRef) => void;
+  replacePendingKey?: string | null;
 }) {
   if (!players.length) {
     return <p className="court-team-players">—</p>;
@@ -43,6 +68,7 @@ function TeamPlayers({
     <ul className="court-team-players court-team-players-list">
       {players.map((player, index) => {
         const firstName = capitalizeNameWords(player.firstName);
+        const courtName = formatPlayerCourtName(player.firstName, player.lastName);
         const fullName = formatPlayerDisplayName(player.firstName, player.lastName);
         const stats = getPlayerSessionStats(playerSessionStats, player._id);
 
@@ -59,14 +85,42 @@ function TeamPlayers({
             <div className="min-w-0 flex-1">
               <div className="body-lg min-w-0">
                 <PlayerPhotoTrigger player={player} className="court-player-name min-w-0 truncate">
-                  <span className="court-player-name--first">{firstName || fullName}</span>
-                  <span className="court-player-name--full">{fullName}</span>
+                  <span className="court-player-name--first">{firstName || courtName}</span>
+                  <span className="court-player-name--full">{courtName}</span>
                 </PlayerPhotoTrigger>
               </div>
               <p className="court-player-session-record">
                 {formatSessionRecordLabel(stats)}
               </p>
             </div>
+            {onReplacePlayer ? (
+              <SimpleTooltip
+                label={
+                  canReplace
+                    ? `Replace ${fullName}`
+                    : "No players in the queue"
+                }
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="court-replace-btn group/button size-8 shrink-0"
+                  aria-label={`Replace ${fullName}`}
+                  onClick={() => onReplacePlayer(index, player)}
+                  disabled={
+                    !canReplace ||
+                    replacePendingKey === courtReplacePendingKey(courtNumber, team, index)
+                  }
+                >
+                  {replacePendingKey === courtReplacePendingKey(courtNumber, team, index) ? (
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <ArrowLeftRight className="size-3.5" aria-hidden />
+                  )}
+                </Button>
+              </SimpleTooltip>
+            ) : null}
           </li>
         );
       })}
@@ -78,9 +132,21 @@ type CourtCardProps = {
   court: CourtView;
   playerSessionStats: Map<string, PlayerSessionStats>;
   onEndGame: () => void;
+  onCancelAssignment?: () => void;
+  cancelPending?: boolean;
+  onCancelRematch?: () => void;
+  cancelRematchPending?: boolean;
   onSwapTeams?: () => void;
   swapPending?: boolean;
   hideEndGame?: boolean;
+  canReplacePlayers?: boolean;
+  onReplacePlayer?: (input: {
+    courtNumber: number;
+    team: "A" | "B";
+    slotIndex: number;
+    player: PlayerRef;
+  }) => void;
+  replacePendingKey?: string | null;
   /** Filling this court from the queue (Fill next court). */
   isFilling?: boolean;
 };
@@ -89,9 +155,16 @@ export function CourtCard({
   court,
   playerSessionStats,
   onEndGame,
+  onCancelAssignment,
+  cancelPending = false,
+  onCancelRematch,
+  cancelRematchPending = false,
   onSwapTeams,
   swapPending = false,
   hideEndGame = false,
+  canReplacePlayers = false,
+  onReplacePlayer,
+  replacePendingKey = null,
   isFilling = false,
 }: CourtCardProps) {
   const isActive = court.status === "active";
@@ -107,11 +180,6 @@ export function CourtCard({
       <CardHeader className="court-card-header flex flex-row items-start justify-between gap-2">
         <div>
           <CardTitle>Court {court.courtNumber}</CardTitle>
-          {isActive && court.startedAt ? (
-            <p className="caption mt-1" suppressHydrationWarning>
-              In play for {formatRelativeTimeForCard(new Date(court.startedAt))}
-            </p>
-          ) : null}
         </div>
         <Badge
           variant={isActive ? "default" : "outline"}
@@ -134,7 +202,25 @@ export function CourtCard({
             <div className="court-teams">
               <div className="court-team court-team-a">
                 <p className="court-team-label">Team A</p>
-                <TeamPlayers players={teamA} playerSessionStats={playerSessionStats} />
+                <TeamPlayers
+                  players={teamA}
+                  playerSessionStats={playerSessionStats}
+                  courtNumber={court.courtNumber}
+                  team="A"
+                  canReplace={canReplacePlayers}
+                  onReplacePlayer={
+                    onReplacePlayer
+                      ? (slotIndex, player) =>
+                          onReplacePlayer({
+                            courtNumber: court.courtNumber,
+                            team: "A",
+                            slotIndex,
+                            player,
+                          })
+                      : undefined
+                  }
+                  replacePendingKey={replacePendingKey}
+                />
               </div>
               <div className="court-vs-column flex flex-col items-center justify-center gap-1.5">
                 {!hideEndGame && onSwapTeams && teamA.length > 0 && teamB.length > 0 ? (
@@ -157,17 +243,54 @@ export function CourtCard({
               </div>
               <div className="court-team court-team-b">
                 <p className="court-team-label">Team B</p>
-                <TeamPlayers players={teamB} playerSessionStats={playerSessionStats} />
+                <TeamPlayers
+                  players={teamB}
+                  playerSessionStats={playerSessionStats}
+                  courtNumber={court.courtNumber}
+                  team="B"
+                  canReplace={canReplacePlayers}
+                  onReplacePlayer={
+                    onReplacePlayer
+                      ? (slotIndex, player) =>
+                          onReplacePlayer({
+                            courtNumber: court.courtNumber,
+                            team: "B",
+                            slotIndex,
+                            player,
+                          })
+                      : undefined
+                  }
+                  replacePendingKey={replacePendingKey}
+                />
               </div>
             </div>
             {!hideEndGame ? (
-              <Button
-                variant="destructive"
-                className="court-end-btn w-full"
-                onClick={onEndGame}
-              >
-                End Game
-              </Button>
+              <div className="flex flex-col gap-2">
+                {onCancelRematch ? (
+                  <CourtCancelAssignmentButton
+                    variant="rematch"
+                    startedAt={court.startedAt}
+                    pending={cancelRematchPending}
+                    onClick={onCancelRematch}
+                  />
+                ) : onCancelAssignment ? (
+                  <CourtCancelAssignmentButton
+                    startedAt={court.startedAt}
+                    pending={cancelPending}
+                    onClick={onCancelAssignment}
+                  />
+                ) : null}
+                <CourtInPlayElapsedPanel startedAt={court.startedAt} />
+                <Button
+                  variant="destructive"
+                  className="court-end-btn w-full"
+                  onClick={onEndGame}
+                >
+                  End Game
+                </Button>
+              </div>
+            ) : isActive && court.startedAt ? (
+              <CourtInPlayElapsedPanel startedAt={court.startedAt} />
             ) : null}
           </>
         ) : isFilling ? (

@@ -71,6 +71,8 @@ export async function loadGameLeaderboardRecap(gameId: string): Promise<{
       teamAPlayerIds: m.teamAPlayerIds,
       teamBPlayerIds: m.teamBPlayerIds,
       winnerTeam: m.winnerTeam,
+      teamAScore: m.teamAScore,
+      teamBScore: m.teamBScore,
       durationSeconds: m.durationSeconds,
     })),
     safeStats.map((row) => ({

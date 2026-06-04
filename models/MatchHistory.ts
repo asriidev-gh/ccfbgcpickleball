@@ -10,6 +10,7 @@ const matchHistorySchema = new Schema(
     loserTeam: { type: String, enum: ["A", "B"], required: true },
     teamAScore: { type: Number, default: null },
     teamBScore: { type: Number, default: null },
+    startedAt: { type: Date, default: null },
     durationSeconds: { type: Number, default: 0 },
     endedAt: { type: Date, default: () => new Date() },
   },

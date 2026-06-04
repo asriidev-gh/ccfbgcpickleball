@@ -31,7 +31,13 @@ import {
 } from "@/lib/format-zod-error";
 import { REGISTRATION_RESET_EVENT } from "@/lib/registration-reset";
 import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
-import { existingPlayerSchema, genericPlayerSchema, newPlayerSchema } from "@/lib/validations";
+import {
+  existingPlayerSchema,
+  genericPlayerSchema,
+  newPlayerSchema,
+  volunteerExistingPlayerSchema,
+  volunteerNewPlayerSchema,
+} from "@/lib/validations";
 import { cn } from "@/lib/utils";
 
 const events = [
@@ -236,10 +242,22 @@ export function RegistrationForm({
       };
     }
 
+    if (role === "volunteer") {
+      return {
+        gameId,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        mobileNumber: form.mobileNumber,
+        email: form.email,
+        personalQrCode: form.personalQrCode,
+        volunteerType,
+        volunteerTypeOther: form.volunteerTypeOther || "",
+      };
+    }
+
     return {
       ...form,
       gameId,
-      volunteerType: role === "volunteer" ? volunteerType || undefined : undefined,
       volunteerTypeOther: form.volunteerTypeOther || "",
     };
   };
@@ -254,23 +272,24 @@ export function RegistrationForm({
     body.append("mobileNumber", payload.mobileNumber);
     body.append("email", payload.email);
 
-    if (!isGenericForm) {
+    if (!isGenericForm && role === "volunteer") {
+      const volunteerPayload = payload as ReturnType<typeof buildNewPlayerPayload> & {
+        volunteerType: string;
+        volunteerTypeOther?: string;
+      };
+      body.append("volunteerType", volunteerPayload.volunteerType);
+      body.append("volunteerTypeOther", volunteerPayload.volunteerTypeOther ?? "");
+    } else if (!isGenericForm) {
       const ccfPayload = payload as ReturnType<typeof buildNewPlayerPayload> & {
         firstTimeSportsMinistry: boolean;
         isPartOfDgroup: boolean;
         attendedEvents: string[];
         attendedEventsOther?: string;
-        volunteerType?: string;
-        volunteerTypeOther?: string;
       };
       body.append("firstTimeSportsMinistry", String(ccfPayload.firstTimeSportsMinistry));
       body.append("isPartOfDgroup", String(ccfPayload.isPartOfDgroup));
       body.append("attendedEvents", JSON.stringify(ccfPayload.attendedEvents));
       body.append("attendedEventsOther", ccfPayload.attendedEventsOther ?? "");
-      if (ccfPayload.volunteerType) {
-        body.append("volunteerType", ccfPayload.volunteerType);
-      }
-      body.append("volunteerTypeOther", ccfPayload.volunteerTypeOther ?? "");
     }
 
     if (photoFile) {
@@ -279,37 +298,52 @@ export function RegistrationForm({
   };
 
   const submit = async () => {
-    if (!(await ensureCanRegister())) return;
-
-    const isExisting =
-      role === "existing-player" || (role === "volunteer" && !!form.personalQrCode.trim());
-    const endpoint = isExisting ? "/api/register/existing" : "/api/register/new";
-
-    const payload = buildNewPlayerPayload();
-
-    const validation = isExisting
-      ? existingPlayerSchema.safeParse(payload)
-      : isGenericForm
-        ? genericPlayerSchema.safeParse(payload)
-        : newPlayerSchema.safeParse(payload);
-    if (!validation.success) {
-      showValidationErrors(validation.error);
-      return;
-    }
-
-    setFieldErrors({});
-
-    const finishRegistrationSuccess = (registeredPlayerId: unknown) => {
-      if (registeredPlayerId != null) {
-        const id = String(registeredPlayerId);
-        setQueueHighlightPlayerId(gameId, id);
-        persistActiveQueueHighlight(gameId, id);
-      }
-      router.push(`/register/${gameId}/success`);
-    };
+    setSubmitting(true);
 
     try {
-      setSubmitting(true);
+      if (!(await ensureCanRegister())) {
+        setSubmitting(false);
+        return;
+      }
+
+      const isVolunteer = role === "volunteer";
+      const isExisting =
+        role === "existing-player" || (isVolunteer && !!form.personalQrCode.trim());
+      const endpoint = isExisting ? "/api/register/existing" : "/api/register/new";
+
+      if (isVolunteer && !volunteerType) {
+        toast.error("Select a volunteer type.");
+        setSubmitting(false);
+        return;
+      }
+
+      const payload = buildNewPlayerPayload();
+
+      const validation = isExisting
+        ? isVolunteer
+          ? volunteerExistingPlayerSchema.safeParse(payload)
+          : existingPlayerSchema.safeParse(payload)
+        : isGenericForm
+          ? genericPlayerSchema.safeParse(payload)
+          : isVolunteer
+            ? volunteerNewPlayerSchema.safeParse(payload)
+            : newPlayerSchema.safeParse(payload);
+      if (!validation.success) {
+        showValidationErrors(validation.error);
+        setSubmitting(false);
+        return;
+      }
+
+      setFieldErrors({});
+
+      const finishRegistrationSuccess = (registeredPlayerId: unknown) => {
+        if (registeredPlayerId != null) {
+          const id = String(registeredPlayerId);
+          setQueueHighlightPlayerId(gameId, id);
+          persistActiveQueueHighlight(gameId, id);
+        }
+        router.push(`/register/${gameId}/success`);
+      };
 
       let requestInit: RequestInit;
       if (isExisting) {
@@ -370,21 +404,23 @@ export function RegistrationForm({
 
   return (
     <main className="register-page">
-      <section className="register-shell">
-        <Card className="register-card relative border border-border bg-card shadow-sm">
-          {submitting ? (
-            <div
-              className="register-loading-overlay absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-xl bg-background/90 px-6 text-center backdrop-blur-sm"
-              role="status"
-              aria-live="polite"
-              aria-busy="true"
-            >
-              <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
-              <p className="text-base font-medium text-foreground">Adding you to the queue…</p>
-              <p className="caption">Please wait a moment.</p>
-            </div>
-          ) : null}
+      {submitting ? (
+        <div
+          className="register-loading-overlay"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="register-loading-overlay-content">
+            <Loader2 className="register-loading-spinner" aria-hidden />
+            <p className="register-loading-title">Adding you to the queue…</p>
+            <p className="register-loading-caption">Please wait a moment.</p>
+          </div>
+        </div>
+      ) : null}
 
+      <section className="register-shell">
+        <Card className="register-card border border-border bg-card shadow-sm">
           <CardHeader className="register-card-header">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -604,7 +640,7 @@ export function RegistrationForm({
                   </div>
                 ) : null}
 
-                {!isGenericForm ? (
+                {!isGenericForm && role !== "volunteer" ? (
                   <>
                     <div className="register-toggle-row">
                       <Button
@@ -701,8 +737,16 @@ export function RegistrationForm({
                   className="register-submit w-full"
                   onClick={() => void submit()}
                   disabled={submitting || statusLoading}
+                  aria-busy={submitting}
                 >
-                  {submitting ? "Submitting…" : "Submit Registration"}
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      Please wait..
+                    </>
+                  ) : (
+                    "Submit Registration"
+                  )}
                 </Button>
               </>
             )}

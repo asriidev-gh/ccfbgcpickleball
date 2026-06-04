@@ -1,7 +1,11 @@
 import type { z } from "zod";
 
 import type { RegistrationFormVariant } from "@/lib/registration-variant";
-import { genericPlayerSchema, newPlayerSchema } from "@/lib/validations";
+import {
+  genericPlayerSchema,
+  newPlayerSchema,
+  volunteerNewPlayerSchema,
+} from "@/lib/validations";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -52,6 +56,18 @@ export function parseNewPlayerPayloadFromFormData(
       ? volunteerTypeRaw
       : undefined;
 
+  if (volunteerType) {
+    return volunteerNewPlayerSchema.safeParse({
+      gameId: formString(formData, "gameId"),
+      firstName: formString(formData, "firstName"),
+      lastName: formString(formData, "lastName"),
+      mobileNumber: formString(formData, "mobileNumber"),
+      email: formString(formData, "email"),
+      volunteerType,
+      volunteerTypeOther: formString(formData, "volunteerTypeOther"),
+    });
+  }
+
   const body = {
     gameId: formString(formData, "gameId"),
     firstName: formString(formData, "firstName"),
@@ -62,7 +78,6 @@ export function parseNewPlayerPayloadFromFormData(
     isPartOfDgroup: formBoolean(formData, "isPartOfDgroup"),
     attendedEvents: formStringArray(formData, "attendedEvents"),
     attendedEventsOther: formString(formData, "attendedEventsOther"),
-    volunteerType,
     volunteerTypeOther: formString(formData, "volunteerTypeOther"),
   };
 

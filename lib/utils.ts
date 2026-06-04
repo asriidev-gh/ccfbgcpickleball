@@ -52,6 +52,21 @@ export function formatPlayerDisplayName(
   return `${first} ${capitalizeNameWords(lastName)}`.trim();
 }
 
+/** Courts panel: first name plus last initial (e.g. "Alex M."). */
+export function formatPlayerCourtName(
+  firstName: string,
+  lastName: string,
+  rank?: number,
+) {
+  if (isRankPlaceholderPlayer(firstName, lastName)) {
+    return formatPlayerDisplayName(firstName, lastName, rank);
+  }
+  const first = capitalizeNameWords(firstName);
+  if (!hasMeaningfulLastName(lastName)) return first;
+  const lastInitial = capitalizeNameWord(lastName.trim().charAt(0));
+  return `${first} ${lastInitial}.`.trim();
+}
+
 /** Table view: rank is its own column — never repeat "Rank N" in the player cell. */
 export function formatPlayerTableName(firstName: string, lastName: string) {
   if (isRankPlaceholderPlayer(firstName, lastName)) {

@@ -12,11 +12,15 @@ import {
   Mountain,
   Repeat,
   Shield,
+  Snowflake,
   Swords,
+  Target,
   TrendingUp,
   Trophy,
   Users,
   Zap,
+  BarChart3,
+  Skull,
 } from "lucide-react";
 
 import type { InsightPlayer, SessionInsight } from "@/lib/session-insights";
@@ -40,6 +44,11 @@ const INSIGHT_ICONS: Record<string, LucideIcon> = {
   "longest-battle": Mountain,
   rivalry: Swords,
   "court-hopper": Repeat,
+  "nail-biter": Target,
+  "ice-in-veins": Snowflake,
+  blowout: TrendingUp,
+  shutout: Skull,
+  "high-water-mark": BarChart3,
 };
 
 const SESSION_AWARDS_OPEN_KEY = "ccf-session-awards-open";
@@ -158,8 +167,8 @@ export function SessionInsightsGrid({ insights, compact = false }: SessionInsigh
           <p className="text-muted-foreground">
             Play and end court matches to unlock MVP, streaks, dream teams, and more.
             <span className="caption mt-2 block">
-              Tip: Record match scores in a future update for awards like Ice in Veins (one-point
-              wins).
+              Tip: Record scores when ending a court to unlock Nail Biter, Blowout, Shutout, and
+              more.
             </span>
           </p>
         ) : (

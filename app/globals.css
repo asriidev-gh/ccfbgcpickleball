@@ -1226,6 +1226,47 @@
     @apply text-sm text-muted-foreground;
   }
 
+  .queue-sortable-item {
+    @apply touch-none;
+  }
+
+  .queue-sortable-item--dragging .queue-item {
+    @apply z-10 border-primary/40 bg-card shadow-lg ring-2 ring-primary/25;
+  }
+
+  .queue-drag-handle {
+    @apply inline-flex h-8 w-8 shrink-0 cursor-grab items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:cursor-grabbing;
+    touch-action: none;
+  }
+
+  .queue-drag-handle:focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+
+  .queue-dnd-root--dragging {
+    @apply rounded-xl transition-[box-shadow] duration-150;
+  }
+
+  .queue-dnd-zone--dragging.queue-next-up-group {
+    @apply border-primary/35 bg-primary/5 shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_18%,transparent)] transition-[border-color,box-shadow,background-color] duration-150;
+  }
+
+  .queue-dnd-zone--over.queue-next-up-group {
+    @apply border-primary/70 bg-primary/10 ring-2 ring-primary/30;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--primary) 25%, transparent),
+      0 0 28px color-mix(in srgb, var(--primary) 22%, transparent);
+  }
+
+  .queue-dnd-zone--dragging.queue-waiting-group #queue-waiting-list {
+    @apply rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-2 transition-[border-color,background-color] duration-150;
+  }
+
+  .queue-dnd-zone--over.queue-waiting-group #queue-waiting-list {
+    @apply border-primary/60 border-solid bg-primary/10 ring-2 ring-primary/25;
+    box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+
   .queue-replace-btn {
     @apply border-border bg-background text-foreground hover:bg-muted;
   }
@@ -1683,7 +1724,7 @@
   }
 
   .court-team-b {
-    @apply border-l-4 border-l-violet-500/80;
+    @apply border-l-4 border-l-rose-500/80;
   }
 
   .court-team-label {
@@ -1758,6 +1799,83 @@
 
   .court-swap-btn {
     @apply border-border bg-background shadow-sm;
+  }
+
+  .court-replace-btn:not(:disabled) {
+    @apply border-amber-400/60 bg-amber-500/15 text-amber-800 shadow-sm;
+    @apply hover:border-amber-400/80 hover:bg-amber-500/25 hover:text-amber-900;
+  }
+
+  .court-replace-btn:not(:disabled) svg {
+    @apply text-amber-700;
+  }
+
+  .court-cancel-assignment-btn {
+    @apply border-border/80 bg-background/80 hover:bg-muted/60;
+  }
+
+  .court-cancel-rematch-btn {
+    @apply border-amber-500/40 bg-background/80 text-foreground hover:bg-amber-500/10;
+  }
+
+  .court-cancel-clock-shell {
+    animation: court-cancel-clock-shell-pulse 2.4s ease-in-out infinite;
+  }
+
+  .court-cancel-clock-icon {
+    animation: court-cancel-clock-tick 2.4s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  @keyframes court-cancel-clock-shell-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 18%, transparent);
+    }
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 10%, transparent);
+    }
+  }
+
+  @keyframes court-cancel-clock-tick {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    25% {
+      transform: rotate(10deg);
+    }
+    75% {
+      transform: rotate(-6deg);
+    }
+  }
+
+  .court-play-timer-shell {
+    animation: court-play-timer-shell-pulse 2.4s ease-in-out infinite;
+  }
+
+  .court-play-timer-icon {
+    animation: court-cancel-clock-tick 2.4s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  @keyframes court-play-timer-shell-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, rgb(16 185 129) 18%, transparent);
+    }
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in srgb, rgb(16 185 129) 10%, transparent);
+    }
+  }
+
+  .dark .court-replace-btn:not(:disabled) {
+    @apply border-amber-400/50 bg-amber-500/20 text-amber-200;
+    @apply hover:border-amber-400/70 hover:bg-amber-500/30 hover:text-amber-100;
+  }
+
+  .dark .court-replace-btn:not(:disabled) svg {
+    @apply text-amber-300;
   }
 
   /* Fill-court shuffle roulette */
@@ -1898,6 +2016,30 @@
     }
   }
 
+  .end-game-rematch-block {
+    @apply rounded-lg border border-border/70 bg-muted/30 px-2.5 py-2;
+  }
+
+  .end-game-rematch-row {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .end-game-rematch-label {
+    @apply shrink-0 text-sm font-medium text-foreground;
+  }
+
+  .end-game-rematch-toggle {
+    @apply inline-flex shrink-0 gap-1;
+  }
+
+  .end-game-rematch-btn {
+    @apply h-8 min-w-[3.25rem] px-3 text-xs font-semibold;
+  }
+
+  .end-game-rematch-hint {
+    @apply mt-1.5 text-[11px] leading-snug text-muted-foreground;
+  }
+
   .court-winner-dialog-actions [data-slot="button"].court-winner-btn {
     @apply border-border bg-muted text-foreground shadow-none transition-colors duration-150;
   }
@@ -1923,7 +2065,7 @@
   }
 
   .court-active .court-team-b {
-    @apply border-emerald-500/20 bg-violet-500/10;
+    @apply border-rose-500/25 bg-rose-500/10;
   }
 
   [data-theme="fintech"] .court-card.court-empty {
@@ -2650,7 +2792,7 @@
   }
 
   [data-theme="cupertino"] .glass-panel.courts-panel .court-team-b .court-team-label {
-    color: var(--cupertino-slate-mid);
+    color: #d12d52;
   }
 
   [data-theme="cupertino"] .glass-panel.courts-panel .court-team-a {
@@ -2658,7 +2800,8 @@
   }
 
   [data-theme="cupertino"] .glass-panel.courts-panel .court-team-b {
-    background-color: color-mix(in srgb, var(--cupertino-slate-light) 45%, white);
+    background-color: color-mix(in srgb, #ff2d55 7%, var(--cupertino-surface-soft));
+    border-left: 3px solid color-mix(in srgb, #ff2d55 35%, var(--cupertino-gray-border));
   }
 
   [data-theme="cupertino"] .glass-panel.courts-panel .court-vs {
@@ -2667,6 +2810,23 @@
     font-weight: 600;
     letter-spacing: 0.06em;
     color: var(--cupertino-slate-mid);
+  }
+
+  [data-theme="cupertino"] .glass-panel.courts-panel .court-replace-btn:not(:disabled) {
+    border-color: color-mix(in srgb, var(--makati-amber) 55%, var(--cupertino-gray-border));
+    background-color: color-mix(in srgb, var(--makati-amber) 16%, white);
+    color: #b45309;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--makati-amber) 18%, transparent);
+  }
+
+  [data-theme="cupertino"] .glass-panel.courts-panel .court-replace-btn:not(:disabled):hover {
+    border-color: color-mix(in srgb, var(--makati-amber) 70%, var(--cupertino-gray-border));
+    background-color: color-mix(in srgb, var(--makati-amber) 24%, white);
+    color: #92400e;
+  }
+
+  [data-theme="cupertino"] .glass-panel.courts-panel .court-replace-btn:not(:disabled) svg {
+    color: #d97706;
   }
 
   [data-theme="cupertino"] .surface-muted {
@@ -2927,7 +3087,7 @@
   }
 
   [data-theme="cosmos"] .court-team-b {
-    @apply rounded-xl border-0 border-l-0 bg-amber-500/10;
+    @apply rounded-xl border-0 border-l-0 bg-rose-500/10;
   }
 
   [data-theme="cosmos"] .court-team-label {
@@ -2935,7 +3095,7 @@
   }
 
   [data-theme="cosmos"] .court-team-b .court-team-label {
-    @apply text-amber-300;
+    @apply text-rose-400;
   }
 
   [data-theme="cosmos"] .court-team-players {
@@ -3711,7 +3871,7 @@
 
   /* —— Player registration (compact layout, theme-aware spacing) —— */
   .register-page {
-    @apply relative z-0 flex min-h-screen justify-center px-4 py-6 md:px-6 md:py-8;
+    @apply relative z-0 flex min-h-screen items-center justify-center px-4 py-6 md:px-6 md:py-8;
   }
 
   .register-page [data-slot="button"],
@@ -3720,11 +3880,11 @@
   }
 
   .register-shell {
-    @apply w-full max-w-3xl min-w-0;
+    @apply mx-auto w-full max-w-3xl min-w-0;
   }
 
   .register-card {
-    @apply min-w-0 overflow-hidden;
+    @apply relative min-w-0 overflow-hidden;
   }
 
   .register-card [data-slot="card-header"].register-card-header {
@@ -3768,7 +3928,23 @@
   }
 
   .register-loading-overlay {
-    @apply pointer-events-auto;
+    @apply pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-background/25 p-4 backdrop-blur-[1px];
+  }
+
+  .register-loading-overlay-content {
+    @apply flex w-auto max-w-[14rem] flex-col items-center gap-1.5 rounded-lg border border-border bg-card px-4 py-3 text-center shadow-md sm:max-w-[15rem] sm:px-5 sm:py-3.5;
+  }
+
+  .register-loading-spinner {
+    @apply h-7 w-7 shrink-0 animate-spin text-primary;
+  }
+
+  .register-loading-title {
+    @apply text-sm font-medium leading-snug text-foreground;
+  }
+
+  .register-loading-caption {
+    @apply text-xs leading-snug text-muted-foreground;
   }
 
   .register-role-grid {
