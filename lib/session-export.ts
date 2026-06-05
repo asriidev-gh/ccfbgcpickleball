@@ -17,6 +17,7 @@ type PopulatedPlayer = {
   personalQrCode?: string;
   firstTimeSportsMinistry?: boolean;
   isPartOfDgroup?: boolean;
+  wantsToJoinDgroup?: boolean | null;
   attendedEvents?: string[];
   attendedEventsOther?: string;
 };
@@ -35,6 +36,7 @@ export type SessionExportRow = {
   "Volunteer Type": string;
   "Volunteer Type (Other)": string;
   "In a D-Group": string;
+  "Want to Join D-Group": string;
   "First Time at CCF Sports Ministry": string;
   "Attended CCF Events": string;
   "Other Event (Specify)": string;
@@ -57,6 +59,7 @@ const CCF_QUESTIONNAIRE_COLUMNS = [
   "Volunteer Type",
   "Volunteer Type (Other)",
   "In a D-Group",
+  "Want to Join D-Group",
   "First Time at CCF Sports Ministry",
   "Attended CCF Events",
   "Other Event (Specify)",
@@ -72,6 +75,12 @@ const GENERIC_EXPORT_COLUMNS = [...BASE_EXPORT_COLUMNS];
 function formatYesNo(value: boolean | undefined) {
   if (value === true) return "Yes";
   if (value === false) return "No";
+  return "";
+}
+
+function formatYesNoNotYet(value: boolean | null | undefined) {
+  if (value === true) return "Yes";
+  if (value === false) return "Not Yet";
   return "";
 }
 
@@ -186,6 +195,7 @@ export async function buildSessionExportWorkbook(gameId: string, ownerId: string
       "Volunteer Type": volunteer?.volunteerType ?? "",
       "Volunteer Type (Other)": volunteer?.volunteerTypeOther ?? "",
       "In a D-Group": formatYesNo(player?.isPartOfDgroup),
+      "Want to Join D-Group": formatYesNoNotYet(player?.wantsToJoinDgroup),
       "First Time at CCF Sports Ministry": formatYesNo(player?.firstTimeSportsMinistry),
       "Attended CCF Events": (player?.attendedEvents ?? []).join(", "),
       "Other Event (Specify)": player?.attendedEventsOther ?? "",

@@ -16,6 +16,13 @@ function formBoolean(formData: FormData, key: string) {
   return formData.get(key) === "true";
 }
 
+function formNullableBoolean(formData: FormData, key: string) {
+  const value = formData.get(key);
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return null;
+}
+
 function formStringArray(formData: FormData, key: string) {
   const raw = formData.get(key);
   if (typeof raw !== "string" || !raw) return [];
@@ -76,6 +83,7 @@ export function parseNewPlayerPayloadFromFormData(
     email: formString(formData, "email"),
     firstTimeSportsMinistry: formBoolean(formData, "firstTimeSportsMinistry"),
     isPartOfDgroup: formBoolean(formData, "isPartOfDgroup"),
+    wantsToJoinDgroup: formNullableBoolean(formData, "wantsToJoinDgroup"),
     attendedEvents: formStringArray(formData, "attendedEvents"),
     attendedEventsOther: formString(formData, "attendedEventsOther"),
     volunteerTypeOther: formString(formData, "volunteerTypeOther"),

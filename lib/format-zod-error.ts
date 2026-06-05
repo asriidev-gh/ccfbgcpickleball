@@ -21,6 +21,10 @@ function friendlyFieldLabel(path: (string | number)[] | undefined) {
       return "Personal QR code";
     case "attendedEvents":
       return "CCF events attended";
+    case "wantsToJoinDgroup":
+      return "Join a D-group";
+    case "isPartOfDgroup":
+      return "D-group membership";
     case "volunteerType":
       return "Volunteer type";
     default:

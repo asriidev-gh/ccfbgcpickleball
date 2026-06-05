@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 
@@ -31,6 +31,7 @@ import {
 } from "@/lib/format-zod-error";
 import { REGISTRATION_RESET_EVENT } from "@/lib/registration-reset";
 import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
+import { CCF_ATTENDED_NOT_YET, CCF_EVENT_OPTIONS } from "@/lib/ccf-registration";
 import {
   existingPlayerSchema,
   genericPlayerSchema,
@@ -40,18 +41,10 @@ import {
 } from "@/lib/validations";
 import { cn } from "@/lib/utils";
 
-const events = [
-  "Not yet",
-  "Sunday Service",
-  "Women to Women Ministry",
-  "Men's Ministry",
-  "B1G Singles Ministry",
-  "Elevate Youth Ministry",
-  "True Life Retreat",
-  "Other",
-];
-
 type FieldErrors = Record<string, string>;
+type CcfEventsBeforeAnswer = "yes" | "not_yet";
+
+const REGISTRATION_VOLUNTEER_TYPE = "Pickleball";
 
 function formatMobileNumberInput(value: string, forcePrefix = false): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -83,7 +76,6 @@ export function RegistrationForm({
   const isGenericForm = formVariant === "generic";
   const [role, setRole] = useState<"existing-player" | "new-player" | "volunteer" | "">("");
   const [pendingRole, setPendingRole] = useState<"new-player" | "volunteer" | null>(null);
-  const [volunteerType, setVolunteerType] = useState("");
   const [mobileTouched, setMobileTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -92,26 +84,23 @@ export function RegistrationForm({
     null,
   );
   const [statusLoading, setStatusLoading] = useState(true);
+  const [ccfEventsBefore, setCcfEventsBefore] = useState<CcfEventsBeforeAnswer | null>(null);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     mobileNumber: "",
     email: "",
     personalQrCode: "",
-    firstTimeSportsMinistry: false,
-    isPartOfDgroup: false,
-    attendedEvents: ["Not yet"] as string[],
+    isPartOfDgroup: null as boolean | null,
+    wantsToJoinDgroup: null as boolean | null,
+    attendedEvents: [] as string[],
     attendedEventsOther: "",
-    volunteerTypeOther: "",
   });
 
   const fieldRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const eventsBlockRef = useRef<HTMLDivElement>(null);
-
-  const isOtherSelected = useMemo(
-    () => form.attendedEvents.includes("Other"),
-    [form.attendedEvents]
-  );
+  const dgroupBlockRef = useRef<HTMLDivElement>(null);
+  const joinDgroupBlockRef = useRef<HTMLDivElement>(null);
 
   const registrationBlockedMessage = registrationStatus
     ? getRegistrationBlockedMessage(registrationStatus)
@@ -119,7 +108,7 @@ export function RegistrationForm({
 
   const resetToRoleSelection = () => {
     setRole("");
-    setVolunteerType("");
+    setCcfEventsBefore(null);
     setFieldErrors({});
     setPhotoFile(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -195,6 +184,16 @@ export function RegistrationForm({
       eventsBlockRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    if (name === "isPartOfDgroup") {
+      dgroupBlockRef.current?.focus();
+      dgroupBlockRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    if (name === "wantsToJoinDgroup") {
+      joinDgroupBlockRef.current?.focus();
+      joinDgroupBlockRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     const input = fieldRefs.current[name];
     input?.focus();
     input?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -210,6 +209,43 @@ export function RegistrationForm({
     requestAnimationFrame(() => {
       if (firstField) focusField(firstField);
     });
+  };
+
+  const selectCcfEventsBefore = (answer: CcfEventsBeforeAnswer) => {
+    clearFieldError("attendedEvents");
+    clearFieldError("isPartOfDgroup");
+    clearFieldError("wantsToJoinDgroup");
+    setCcfEventsBefore(answer);
+    if (answer === "not_yet") {
+      setForm((prev) => ({
+        ...prev,
+        attendedEvents: [],
+        isPartOfDgroup: null,
+        wantsToJoinDgroup: null,
+      }));
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      attendedEvents: [],
+      isPartOfDgroup: null,
+      wantsToJoinDgroup: null,
+    }));
+  };
+
+  const selectDgroupMembership = (inDgroup: boolean) => {
+    clearFieldError("isPartOfDgroup");
+    clearFieldError("wantsToJoinDgroup");
+    setForm((prev) => ({
+      ...prev,
+      isPartOfDgroup: inDgroup,
+      wantsToJoinDgroup: inDgroup ? null : prev.wantsToJoinDgroup,
+    }));
+  };
+
+  const selectWantsToJoinDgroup = (wantsToJoin: boolean) => {
+    clearFieldError("wantsToJoinDgroup");
+    setForm((prev) => ({ ...prev, wantsToJoinDgroup: wantsToJoin }));
   };
 
   const toggleEvent = (item: string, checked: boolean) => {
@@ -231,6 +267,37 @@ export function RegistrationForm({
     updateForm("mobileNumber", formatMobileNumberInput(value, mobileTouched));
   };
 
+  const buildCcfQuestionnairePayload = () => {
+    if (ccfEventsBefore === "not_yet") {
+      return {
+        firstTimeSportsMinistry: false,
+        attendedEvents: [CCF_ATTENDED_NOT_YET],
+        attendedEventsOther: "",
+        isPartOfDgroup: false,
+        wantsToJoinDgroup: null as boolean | null,
+      };
+    }
+
+    if (ccfEventsBefore === "yes") {
+      return {
+        firstTimeSportsMinistry: false,
+        attendedEvents: form.attendedEvents,
+        attendedEventsOther: "",
+        isPartOfDgroup: form.isPartOfDgroup ?? false,
+        wantsToJoinDgroup:
+          form.isPartOfDgroup === true ? null : form.wantsToJoinDgroup,
+      };
+    }
+
+    return {
+      firstTimeSportsMinistry: false,
+      attendedEvents: [] as string[],
+      attendedEventsOther: "",
+      isPartOfDgroup: false,
+      wantsToJoinDgroup: null as boolean | null,
+    };
+  };
+
   const buildNewPlayerPayload = () => {
     if (isGenericForm) {
       return {
@@ -250,15 +317,15 @@ export function RegistrationForm({
         mobileNumber: form.mobileNumber,
         email: form.email,
         personalQrCode: form.personalQrCode,
-        volunteerType,
-        volunteerTypeOther: form.volunteerTypeOther || "",
+        volunteerType: REGISTRATION_VOLUNTEER_TYPE,
+        volunteerTypeOther: "",
       };
     }
 
     return {
       ...form,
+      ...buildCcfQuestionnairePayload(),
       gameId,
-      volunteerTypeOther: form.volunteerTypeOther || "",
     };
   };
 
@@ -283,11 +350,18 @@ export function RegistrationForm({
       const ccfPayload = payload as ReturnType<typeof buildNewPlayerPayload> & {
         firstTimeSportsMinistry: boolean;
         isPartOfDgroup: boolean;
+        wantsToJoinDgroup: boolean | null;
         attendedEvents: string[];
         attendedEventsOther?: string;
       };
       body.append("firstTimeSportsMinistry", String(ccfPayload.firstTimeSportsMinistry));
       body.append("isPartOfDgroup", String(ccfPayload.isPartOfDgroup));
+      body.append(
+        "wantsToJoinDgroup",
+        ccfPayload.wantsToJoinDgroup === null
+          ? "null"
+          : String(ccfPayload.wantsToJoinDgroup),
+      );
       body.append("attendedEvents", JSON.stringify(ccfPayload.attendedEvents));
       body.append("attendedEventsOther", ccfPayload.attendedEventsOther ?? "");
     }
@@ -310,12 +384,6 @@ export function RegistrationForm({
       const isExisting =
         role === "existing-player" || (isVolunteer && !!form.personalQrCode.trim());
       const endpoint = isExisting ? "/api/register/existing" : "/api/register/new";
-
-      if (isVolunteer && !volunteerType) {
-        toast.error("Select a volunteer type.");
-        setSubmitting(false);
-        return;
-      }
 
       const payload = buildNewPlayerPayload();
 
@@ -609,83 +677,8 @@ export function RegistrationForm({
                   </div>
                 )}
 
-                {!isGenericForm && role === "volunteer" ? (
-                  <div className="register-block">
-                    <Label className="register-label">Volunteer Type</Label>
-                    <div className="register-choice-grid">
-                      {["Pickleball", "Running", "Badminton", "Other"].map((item) => (
-                        <Button
-                          key={item}
-                          type="button"
-                          variant={volunteerType === item ? "default" : "outline"}
-                          className="register-choice-btn"
-                          onClick={() => setVolunteerType(item)}
-                          disabled={submitting}
-                        >
-                          {item}
-                        </Button>
-                      ))}
-                    </div>
-                    {volunteerType === "Other" ? (
-                      <Input
-                        className="register-input"
-                        placeholder="Specify volunteer type"
-                        value={form.volunteerTypeOther}
-                        onChange={(event) =>
-                          updateForm("volunteerTypeOther", event.target.value)
-                        }
-                        disabled={submitting}
-                      />
-                    ) : null}
-                  </div>
-                ) : null}
-
                 {!isGenericForm && role !== "volunteer" ? (
                   <>
-                    <div className="register-toggle-row">
-                      <Button
-                        type="button"
-                        variant={form.isPartOfDgroup ? "default" : "outline"}
-                        className="register-toggle-btn"
-                        onClick={() => setForm({ ...form, isPartOfDgroup: true })}
-                        disabled={submitting}
-                      >
-                        In a D-Group: Yes
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={!form.isPartOfDgroup ? "default" : "outline"}
-                        className="register-toggle-btn"
-                        onClick={() => setForm({ ...form, isPartOfDgroup: false })}
-                        disabled={submitting}
-                      >
-                        In a D-Group: No
-                      </Button>
-                    </div>
-
-                    {role !== "existing-player" ? (
-                      <div className="register-toggle-row">
-                        <Button
-                          type="button"
-                          variant={form.firstTimeSportsMinistry ? "default" : "outline"}
-                          className="register-toggle-btn"
-                          onClick={() => setForm({ ...form, firstTimeSportsMinistry: true })}
-                          disabled={submitting}
-                        >
-                          First time at CCF Sports Ministry: Yes
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={!form.firstTimeSportsMinistry ? "default" : "outline"}
-                          className="register-toggle-btn"
-                          onClick={() => setForm({ ...form, firstTimeSportsMinistry: false })}
-                          disabled={submitting}
-                        >
-                          First time at CCF Sports Ministry: No
-                        </Button>
-                      </div>
-                    ) : null}
-
                     <div
                       ref={eventsBlockRef}
                       tabIndex={-1}
@@ -697,37 +690,131 @@ export function RegistrationForm({
                       <Label className="register-label">
                         Have you attended any other CCF events before?
                       </Label>
-                      <div className="register-checklist">
-                        {events.map((item) => {
-                          const checked = form.attendedEvents.includes(item);
-                          return (
-                            <label
-                              key={item}
-                              className={cn("register-checklist-item", checked && "is-checked")}
-                            >
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(value) => toggleEvent(item, Boolean(value))}
-                                disabled={submitting}
-                              />
-                              <span>{item}</span>
-                            </label>
-                          );
-                        })}
+                      <div className="register-toggle-row">
+                        <Button
+                          type="button"
+                          variant={ccfEventsBefore === "yes" ? "default" : "outline"}
+                          className="register-toggle-btn"
+                          onClick={() => selectCcfEventsBefore("yes")}
+                          disabled={submitting}
+                        >
+                          Yes
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={ccfEventsBefore === "not_yet" ? "default" : "outline"}
+                          className="register-toggle-btn"
+                          onClick={() => selectCcfEventsBefore("not_yet")}
+                          disabled={submitting}
+                        >
+                          Not Yet
+                        </Button>
                       </div>
                       {renderFieldError("attendedEvents")}
-                      {isOtherSelected ? (
-                        <Input
-                          className="register-input"
-                          placeholder="Please specify the other event"
-                          value={form.attendedEventsOther}
-                          onChange={(event) =>
-                            updateForm("attendedEventsOther", event.target.value)
-                          }
-                          disabled={submitting}
-                        />
-                      ) : null}
                     </div>
+
+                    {ccfEventsBefore === "yes" ? (
+                      <>
+                        <div className="register-block">
+                          <Label className="register-label">Which event?</Label>
+                          <div className="register-checklist">
+                            {CCF_EVENT_OPTIONS.map((item) => {
+                              const checked = form.attendedEvents.includes(item);
+                              return (
+                                <label
+                                  key={item}
+                                  className={cn(
+                                    "register-checklist-item",
+                                    checked && "is-checked",
+                                  )}
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={(value) =>
+                                      toggleEvent(item, Boolean(value))
+                                    }
+                                    disabled={submitting}
+                                  />
+                                  <span>{item}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div
+                          ref={dgroupBlockRef}
+                          tabIndex={-1}
+                          className={cn(
+                            "register-block rounded-lg outline-none",
+                            fieldErrors.isPartOfDgroup && "ring-2 ring-destructive/40",
+                          )}
+                        >
+                          <Label className="register-label">Are you in a D-group?</Label>
+                          <div className="register-toggle-row">
+                            <Button
+                              type="button"
+                              variant={form.isPartOfDgroup === true ? "default" : "outline"}
+                              className="register-toggle-btn"
+                              onClick={() => selectDgroupMembership(true)}
+                              disabled={submitting}
+                            >
+                              Yes
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={form.isPartOfDgroup === false ? "default" : "outline"}
+                              className="register-toggle-btn"
+                              onClick={() => selectDgroupMembership(false)}
+                              disabled={submitting}
+                            >
+                              No
+                            </Button>
+                          </div>
+                          {renderFieldError("isPartOfDgroup")}
+                        </div>
+
+                        {form.isPartOfDgroup === false ? (
+                          <div
+                            ref={joinDgroupBlockRef}
+                            tabIndex={-1}
+                            className={cn(
+                              "register-block rounded-lg outline-none",
+                              fieldErrors.wantsToJoinDgroup && "ring-2 ring-destructive/40",
+                            )}
+                          >
+                            <Label className="register-label">
+                              Do you want to join a dgroup?
+                            </Label>
+                            <div className="register-toggle-row">
+                              <Button
+                                type="button"
+                                variant={
+                                  form.wantsToJoinDgroup === true ? "default" : "outline"
+                                }
+                                className="register-toggle-btn"
+                                onClick={() => selectWantsToJoinDgroup(true)}
+                                disabled={submitting}
+                              >
+                                Yes
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={
+                                  form.wantsToJoinDgroup === false ? "default" : "outline"
+                                }
+                                className="register-toggle-btn"
+                                onClick={() => selectWantsToJoinDgroup(false)}
+                                disabled={submitting}
+                              >
+                                Not Yet
+                              </Button>
+                            </div>
+                            {renderFieldError("wantsToJoinDgroup")}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
                   </>
                 ) : null}
 

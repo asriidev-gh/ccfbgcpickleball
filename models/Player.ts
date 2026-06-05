@@ -9,6 +9,7 @@ const playerSchema = new Schema(
     personalQrCode: { type: String, required: true, unique: true },
     firstTimeSportsMinistry: { type: Boolean, default: false },
     isPartOfDgroup: { type: Boolean, default: false },
+    wantsToJoinDgroup: { type: Boolean, default: null },
     attendedEvents: { type: [String], default: [] },
     attendedEventsOther: { type: String, default: "" },
     gamesPlayed: { type: Number, default: 0 },

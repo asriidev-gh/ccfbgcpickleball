@@ -157,8 +157,9 @@ export async function POST(request: Request) {
       const ccfPayload = payload as NewPlayerInput;
       player = await Player.create({
         ...playerFields,
-        firstTimeSportsMinistry: ccfPayload.firstTimeSportsMinistry,
+        firstTimeSportsMinistry: ccfPayload.firstTimeSportsMinistry ?? false,
         isPartOfDgroup: ccfPayload.isPartOfDgroup,
+        wantsToJoinDgroup: ccfPayload.wantsToJoinDgroup ?? null,
         attendedEvents: ccfPayload.attendedEvents,
         attendedEventsOther: ccfPayload.attendedEventsOther ?? "",
       });

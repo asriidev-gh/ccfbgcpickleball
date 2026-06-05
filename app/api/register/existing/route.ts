@@ -44,6 +44,7 @@ export async function POST(request: Request) {
     if (!isVolunteer) {
       const playerPayload = payload as ExistingPlayerInput;
       player.isPartOfDgroup = playerPayload.isPartOfDgroup;
+      player.wantsToJoinDgroup = playerPayload.wantsToJoinDgroup ?? null;
       player.attendedEvents = playerPayload.attendedEvents;
       player.attendedEventsOther = playerPayload.attendedEventsOther;
     }

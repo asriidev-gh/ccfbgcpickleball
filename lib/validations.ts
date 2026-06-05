@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { CCF_ATTENDED_NOT_YET } from "@/lib/ccf-registration";
 import {
   loserScoreExceedsWinner,
   LOSER_SCORE_TOO_HIGH_MESSAGE,
@@ -95,23 +96,61 @@ export const genericPlayerSchema = z.object({
 
 const volunteerTypeSchema = z.enum(["Pickleball", "Running", "Badminton", "Other"]);
 
-export const newPlayerSchema = z.object({
-  gameId: z.string().min(4),
-  firstName: z.string().min(1, "First name is required."),
-  lastName: z.string().min(1, "Last name is required."),
-  mobileNumber: z
-    .string()
-    .trim()
-    .min(1, "Mobile number is required.")
-    .min(7, "Enter a valid mobile number (at least 7 digits)."),
-  email: z.string().min(1, "Email is required.").email("Enter a valid email address."),
-  firstTimeSportsMinistry: z.boolean(),
-  isPartOfDgroup: z.boolean(),
-  attendedEvents: z.array(z.string()).min(1, "Select at least one CCF event option."),
-  attendedEventsOther: z.string().optional().default(""),
-  volunteerType: volunteerTypeSchema.optional(),
-  volunteerTypeOther: z.string().optional().default(""),
-});
+function refineCcfQuestionnaire(
+  data: {
+    attendedEvents: string[];
+    isPartOfDgroup: boolean;
+    wantsToJoinDgroup?: boolean | null;
+  },
+  ctx: z.RefinementCtx,
+) {
+  const isNotYet =
+    data.attendedEvents.length === 1 && data.attendedEvents[0] === CCF_ATTENDED_NOT_YET;
+
+  if (isNotYet) return;
+
+  const realEvents = data.attendedEvents.filter((event) => event !== CCF_ATTENDED_NOT_YET);
+  if (realEvents.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Select at least one event.",
+      path: ["attendedEvents"],
+    });
+  }
+
+  if (!data.isPartOfDgroup) {
+    if (data.wantsToJoinDgroup !== true && data.wantsToJoinDgroup !== false) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Please indicate if you want to join a D-group.",
+        path: ["wantsToJoinDgroup"],
+      });
+    }
+  }
+}
+
+export const newPlayerSchema = z
+  .object({
+    gameId: z.string().min(4),
+    firstName: z.string().min(1, "First name is required."),
+    lastName: z.string().min(1, "Last name is required."),
+    mobileNumber: z
+      .string()
+      .trim()
+      .min(1, "Mobile number is required.")
+      .min(7, "Enter a valid mobile number (at least 7 digits)."),
+    email: z.string().min(1, "Email is required.").email("Enter a valid email address."),
+    firstTimeSportsMinistry: z.boolean().optional().default(false),
+    isPartOfDgroup: z.boolean(),
+    wantsToJoinDgroup: z.boolean().nullable().optional(),
+    attendedEvents: z
+      .array(z.string())
+      .min(1, "Answer whether you have attended other CCF events."),
+    attendedEventsOther: z.string().optional().default(""),
+    volunteerType: volunteerTypeSchema.optional(),
+    volunteerTypeOther: z.string().optional().default(""),
+  })
+  .superRefine(refineCcfQuestionnaire);
 
 export const volunteerNewPlayerSchema = z.object({
   gameId: z.string().min(4),
@@ -133,18 +172,23 @@ export type GenericPlayerInput = z.infer<typeof genericPlayerSchema>;
 export type ExistingPlayerInput = z.infer<typeof existingPlayerSchema>;
 export type VolunteerExistingPlayerInput = z.infer<typeof volunteerExistingPlayerSchema>;
 
-export const existingPlayerSchema = z.object({
-  gameId: z.string().min(4),
-  personalQrCode: z
-    .string()
-    .min(1, "Personal QR code is required.")
-    .min(4, "Enter your personal QR code."),
-  isPartOfDgroup: z.boolean(),
-  attendedEvents: z.array(z.string()).min(1, "Select at least one CCF event option."),
-  attendedEventsOther: z.string().optional().default(""),
-  volunteerType: volunteerTypeSchema.optional(),
-  volunteerTypeOther: z.string().optional().default(""),
-});
+export const existingPlayerSchema = z
+  .object({
+    gameId: z.string().min(4),
+    personalQrCode: z
+      .string()
+      .min(1, "Personal QR code is required.")
+      .min(4, "Enter your personal QR code."),
+    isPartOfDgroup: z.boolean(),
+    wantsToJoinDgroup: z.boolean().nullable().optional(),
+    attendedEvents: z
+      .array(z.string())
+      .min(1, "Answer whether you have attended other CCF events."),
+    attendedEventsOther: z.string().optional().default(""),
+    volunteerType: volunteerTypeSchema.optional(),
+    volunteerTypeOther: z.string().optional().default(""),
+  })
+  .superRefine(refineCcfQuestionnaire);
 
 export const volunteerExistingPlayerSchema = z.object({
   gameId: z.string().min(4),
