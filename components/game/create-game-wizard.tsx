@@ -31,15 +31,33 @@ const types = OPEN_PLAY_TYPES;
 type RegistrationMode = "self" | "owner";
 type Meridiem = OpenPlayMeridiem;
 
-const OPEN_PLAY_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
-const OPEN_PLAY_MERIDIEM_OPTIONS: Meridiem[] = ["AM", "PM"];
-
-function isOpenPlayTimeComplete(form: {
+type CreateGameForm = {
+  title: string;
+  openPlayType: (typeof types)[number];
+  openPlayDate: string;
   openPlayFromHour: string;
   openPlayFromMeridiem: Meridiem | "";
   openPlayToHour: string;
   openPlayToMeridiem: Meridiem | "";
-}) {
+  courtCount: number;
+  expectedPlayers: number;
+  strictPlayerCount: boolean;
+};
+
+const OPEN_PLAY_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const OPEN_PLAY_MERIDIEM_OPTIONS: Meridiem[] = ["AM", "PM"];
+
+type OpenPlayTimeFields = Pick<
+  CreateGameForm,
+  "openPlayFromHour" | "openPlayFromMeridiem" | "openPlayToHour" | "openPlayToMeridiem"
+>;
+
+function isOpenPlayTimeComplete(
+  form: OpenPlayTimeFields,
+): form is OpenPlayTimeFields & {
+  openPlayFromMeridiem: Meridiem;
+  openPlayToMeridiem: Meridiem;
+} {
   return Boolean(
     form.openPlayFromHour &&
       form.openPlayFromMeridiem &&
@@ -110,7 +128,7 @@ function getTodayDateInputValue() {
   return `${year}-${month}-${day}`;
 }
 
-function createInitialForm() {
+function createInitialForm(): CreateGameForm {
   return {
     title: "",
     openPlayType: "Beginner" as (typeof types)[number],
@@ -157,7 +175,7 @@ export function CreateGameWizard() {
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode | "">("self");
   const [playerNames, setPlayerNames] = useState<string[]>([""]);
   const [allowQrRegistration, setAllowQrRegistration] = useState(false);
-  const [form, setForm] = useState(createInitialForm);
+  const [form, setForm] = useState<CreateGameForm>(createInitialForm);
   const [timeRangeError, setTimeRangeError] = useState("");
 
   const totalSteps = getTotalSteps(registrationMode);
