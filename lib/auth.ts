@@ -46,6 +46,28 @@ export function getAuthCookieName() {
   return AUTH_COOKIE;
 }
 
+const IMPERSONATE_PURPOSE = "impersonate";
+
+export function signImpersonationToken(targetUserId: string, adminUserId: string) {
+  return jwt.sign(
+    { purpose: IMPERSONATE_PURPOSE, targetUserId, adminUserId },
+    getJwtSecret(),
+    { expiresIn: "5m" },
+  );
+}
+
+export function verifyImpersonationToken(token: string) {
+  const payload = jwt.verify(token, getJwtSecret()) as {
+    purpose?: string;
+    targetUserId?: string;
+    adminUserId?: string;
+  };
+  if (payload.purpose !== IMPERSONATE_PURPOSE || !payload.targetUserId || !payload.adminUserId) {
+    throw new Error("Invalid impersonation link.");
+  }
+  return { targetUserId: payload.targetUserId, adminUserId: payload.adminUserId };
+}
+
 export const GOOGLE_OAUTH_STATE_COOKIE = "ccf_google_state";
 
 export function getGoogleOAuthConfig() {

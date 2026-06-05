@@ -11,6 +11,7 @@ import {
   Loader2,
   Ban,
   KeyRound,
+  LogIn,
   QrCode,
   ShieldCheck,
   ShieldOff,
@@ -29,6 +30,7 @@ import Swal from "sweetalert2";
 import { toast } from "sonner";
 
 import { ChangeUserPasswordDialog } from "@/components/insights/change-user-password-dialog";
+import { buildImpersonateUrl } from "@/lib/browser-origin";
 import { PlayerAvatar } from "@/components/game/player-avatar";
 import {
   Dialog,
@@ -389,6 +391,7 @@ function UserListPanel({ selection, onSelectFilter }: {
     name: string;
     email: string;
   } | null>(null);
+  const [loginAsPendingId, setLoginAsPendingId] = useState<string | null>(null);
   const [nameFilter, setNameFilter] = useState("");
 
   const queryUrl =
@@ -537,6 +540,39 @@ function UserListPanel({ selection, onSelectFilter }: {
       id: user.id,
       registrationFeature: enabling ? "qr_id" : "default",
     });
+  };
+
+  const handleLoginAs = async (user: UserListItem) => {
+    const newTab = window.open("about:blank", "_blank");
+    if (!newTab) {
+      toast.error("Popup blocked. Allow popups for this site and try again.");
+      return;
+    }
+    newTab.opener = null;
+
+    setLoginAsPendingId(user.id);
+    try {
+      const response = await fetch(`/api/insights/users/${user.id}/login-as`, {
+        method: "POST",
+      });
+      const payload = (await response.json()) as { message?: string; token?: string };
+      if (!response.ok) {
+        newTab.close();
+        toast.error(payload.message ?? "Failed to open user session.");
+        return;
+      }
+      if (!payload.token) {
+        newTab.close();
+        toast.error("Failed to open user session.");
+        return;
+      }
+      newTab.location.href = buildImpersonateUrl(payload.token);
+    } catch {
+      newTab.close();
+      toast.error("Failed to open user session.");
+    } finally {
+      setLoginAsPendingId(null);
+    }
   };
 
   const handleDelete = async (user: UserListItem) => {
@@ -762,6 +798,22 @@ function UserListPanel({ selection, onSelectFilter }: {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        aria-label={`Login as ${user.name}`}
+                        title="Login as user"
+                        disabled={user.isBlocked || loginAsPendingId === user.id}
+                        onClick={() => handleLoginAs(user)}
+                      >
+                        {loginAsPendingId === user.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        ) : (
+                          <LogIn className="h-4 w-4" aria-hidden />
+                        )}
+                      </Button>
                       {!user.hasGoogle ? (
                         <Button
                           type="button"
