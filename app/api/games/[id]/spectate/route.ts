@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
+import { getSpectatorCount } from "@/lib/spectator-presence";
 import { loadGameLeaderboardRecap } from "@/lib/game-leaderboard-recap";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
@@ -44,6 +45,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       leaderboard,
       matches,
       recap: recap ?? undefined,
+      spectatorCount: getSpectatorCount(id),
     });
   } catch (error) {
     return NextResponse.json(

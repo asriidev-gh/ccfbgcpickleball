@@ -10,6 +10,7 @@ import {
 } from "@/lib/owner-pre-registered-players";
 import { updateGameSchema } from "@/lib/validations";
 import { getAuthUserFromCookie } from "@/lib/auth";
+import { getSpectatorCount } from "@/lib/spectator-presence";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -52,7 +53,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       publicQrCodeDataUrl,
     };
 
-    return NextResponse.json({ game: gamePayload, queue, checkedOut, courts, leaderboard, matches });
+    return NextResponse.json({
+      game: gamePayload,
+      queue,
+      checkedOut,
+      courts,
+      leaderboard,
+      matches,
+      spectatorCount: getSpectatorCount(id),
+    });
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to load game." },

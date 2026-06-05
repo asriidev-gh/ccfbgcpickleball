@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Eye,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -77,6 +78,7 @@ import {
   sanitizeScoreInput,
 } from "@/lib/match-score-validation";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
+import { useSpectatorPresence } from "@/hooks/use-spectator-presence";
 
 export type GameDashboardMode = "operator" | "spectator";
 
@@ -95,6 +97,7 @@ type GamePayload = {
   courts: CourtView[];
   leaderboard?: LeaderboardGamesPlayedRow[];
   matches: MatchHistoryView[];
+  spectatorCount?: number;
   recap?: {
     rows: GameLeaderboardRecapRow[];
     insights: SessionInsight[];
@@ -355,6 +358,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (isSpectator && status === "ended") return false;
       return 4000;
     },
+  });
+
+  useSpectatorPresence(gameId, isSpectator && data?.game?.status !== "ended");
+
+  const { data: spectatorPresence } = useQuery({
+    queryKey: ["game", gameId, "spectator-count"],
+    queryFn: async () => {
+      const response = await fetch(`/api/games/${gameId}/spectate/presence`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message);
+      return payload as { count: number };
+    },
+    enabled: !!gameId && data?.game?.status !== "ended",
+    refetchInterval: 2000,
   });
 
   const startMutation = useMutation({
@@ -932,6 +949,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   </Badge>
                   <Badge variant={game.status === "ended" ? "destructive" : "outline"}>
                     Status: {game.status}
+                  </Badge>
+                  <Badge variant="outline">
+                    <Eye className="mr-1 h-3 w-3" />
+                    Spectators: {spectatorPresence?.count ?? data?.spectatorCount ?? 0}
                   </Badge>
                 </div>
               </div>
