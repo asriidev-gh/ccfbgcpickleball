@@ -79,6 +79,65 @@ export function parseOpenPlayTimeRange(value: string) {
   return { fromHour, fromMeridiem, toHour, toMeridiem };
 }
 
+export function getTodayOpenPlayDateInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function formatOpenPlayDateInputValue(value: string | Date | null | undefined): string {
+  if (!value) return "";
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export type OpenPlayTimeFields = {
+  openPlayFromHour: string;
+  openPlayFromMeridiem: OpenPlayMeridiem | "";
+  openPlayToHour: string;
+  openPlayToMeridiem: OpenPlayMeridiem | "";
+};
+
+export function isOpenPlayTimeComplete(
+  form: OpenPlayTimeFields,
+): form is OpenPlayTimeFields & {
+  openPlayFromMeridiem: OpenPlayMeridiem;
+  openPlayToMeridiem: OpenPlayMeridiem;
+} {
+  return Boolean(
+    form.openPlayFromHour &&
+      form.openPlayFromMeridiem &&
+      form.openPlayToHour &&
+      form.openPlayToMeridiem,
+  );
+}
+
+export function openPlayScheduleFieldsFromStored(
+  openPlayDate: string | Date | null | undefined,
+  openPlayTimeRange: string | null | undefined,
+): { openPlayDate: string } & OpenPlayTimeFields {
+  const parsed = openPlayTimeRange?.trim()
+    ? parseOpenPlayTimeRange(openPlayTimeRange.trim())
+    : null;
+
+  return {
+    openPlayDate:
+      formatOpenPlayDateInputValue(openPlayDate) || getTodayOpenPlayDateInputValue(),
+    openPlayFromHour: parsed ? String(parsed.fromHour) : "",
+    openPlayFromMeridiem: parsed?.fromMeridiem ?? "",
+    openPlayToHour: parsed ? String(parsed.toHour) : "",
+    openPlayToMeridiem: parsed?.toMeridiem ?? "",
+  };
+}
+
 export function formatOpenPlayDate(value: string | Date | null | undefined): string | null {
   if (!value) return null;
 

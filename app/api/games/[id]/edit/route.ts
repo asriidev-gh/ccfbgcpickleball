@@ -28,6 +28,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
         gameId: game.gameId,
         title: game.title,
         openPlayType: game.openPlayType,
+        openPlayDate: game.openPlayDate ? new Date(game.openPlayDate).toISOString() : null,
+        openPlayTimeRange: game.openPlayTimeRange ?? null,
         courtCount: game.courtCount,
         expectedPlayers: game.expectedPlayers,
         strictPlayerCount: game.strictPlayerCount === true,

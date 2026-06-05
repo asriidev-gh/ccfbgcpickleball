@@ -64,6 +64,12 @@ export const updateGameSchema = z
   .object({
     title: z.string().min(2, "Game title is required.").max(80),
     openPlayType: openPlayTypeSchema,
+    openPlayDate: openPlayDateSchema,
+    openPlayTimeRange: z
+      .string()
+      .trim()
+      .min(3, "Open play time range is required.")
+      .max(80, "Time range must be 80 characters or less."),
     courtCount: z.coerce.number().int().min(1).max(20),
     expectedPlayers: z.coerce.number().int().min(1).max(300).optional(),
     strictPlayerCount: z.boolean().optional(),
@@ -79,6 +85,15 @@ export const updateGameSchema = z
       .optional(),
   })
   .superRefine((data, ctx) => {
+    const timeRangeValidation = validateOpenPlayTimeRangeString(data.openPlayTimeRange);
+    if (!timeRangeValidation.ok) {
+      ctx.addIssue({
+        code: "custom",
+        message: timeRangeValidation.message,
+        path: ["openPlayTimeRange"],
+      });
+    }
+
     if (data.ownerPlayers) {
       const activeCount = data.ownerPlayers.filter(
         (player) => player.displayName.trim().length > 0 && player.remove !== true,

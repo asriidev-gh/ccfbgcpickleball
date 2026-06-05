@@ -165,6 +165,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         $set: {
           title: parsed.data.title,
           openPlayType: parsed.data.openPlayType,
+          openPlayDate: new Date(`${parsed.data.openPlayDate}T12:00:00.000Z`),
+          openPlayTimeRange: parsed.data.openPlayTimeRange,
           courtCount: parsed.data.courtCount,
           expectedPlayers,
           strictPlayerCount,

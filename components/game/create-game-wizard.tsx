@@ -10,16 +10,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   formatOpenPlayTimeRange,
+  getTodayOpenPlayDateInputValue,
+  isOpenPlayTimeComplete,
   validateOpenPlayTimeOrder,
   type OpenPlayMeridiem,
 } from "@/lib/open-play-time-range";
@@ -44,95 +40,11 @@ type CreateGameForm = {
   strictPlayerCount: boolean;
 };
 
-const OPEN_PLAY_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
-const OPEN_PLAY_MERIDIEM_OPTIONS: Meridiem[] = ["AM", "PM"];
-
-type OpenPlayTimeFields = Pick<
-  CreateGameForm,
-  "openPlayFromHour" | "openPlayFromMeridiem" | "openPlayToHour" | "openPlayToMeridiem"
->;
-
-function isOpenPlayTimeComplete(
-  form: OpenPlayTimeFields,
-): form is OpenPlayTimeFields & {
-  openPlayFromMeridiem: Meridiem;
-  openPlayToMeridiem: Meridiem;
-} {
-  return Boolean(
-    form.openPlayFromHour &&
-      form.openPlayFromMeridiem &&
-      form.openPlayToHour &&
-      form.openPlayToMeridiem,
-  );
-}
-
-function OpenPlayTimeField({
-  idPrefix,
-  label,
-  hour,
-  meridiem,
-  onHourChange,
-  onMeridiemChange,
-}: {
-  idPrefix: string;
-  label: string;
-  hour: string;
-  meridiem: Meridiem | "";
-  onHourChange: (hour: string) => void;
-  onMeridiemChange: (meridiem: Meridiem) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <Label className="text-base">{label}</Label>
-      <div className="grid grid-cols-2 gap-3">
-        <Select value={hour || null} onValueChange={(value) => onHourChange(value ?? "")}>
-          <SelectTrigger id={`${idPrefix}-hour`} className="h-11 w-full bg-background text-base">
-            <SelectValue placeholder="Hour" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover text-popover-foreground">
-            {OPEN_PLAY_HOUR_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={meridiem || null}
-          onValueChange={(value) => onMeridiemChange((value ?? "AM") as Meridiem)}
-        >
-          <SelectTrigger
-            id={`${idPrefix}-meridiem`}
-            className="h-11 w-full bg-background text-base"
-          >
-            <SelectValue placeholder="AM/PM" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover text-popover-foreground">
-            {OPEN_PLAY_MERIDIEM_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  );
-}
-
-function getTodayDateInputValue() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function createInitialForm(): CreateGameForm {
   return {
     title: "",
     openPlayType: "Beginner" as (typeof types)[number],
-    openPlayDate: getTodayDateInputValue(),
+    openPlayDate: getTodayOpenPlayDateInputValue(),
     openPlayFromHour: "7",
     openPlayFromMeridiem: "PM",
     openPlayToHour: "10",

@@ -9,7 +9,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import {
+  formatOpenPlayTimeRange,
+  getTodayOpenPlayDateInputValue,
+  isOpenPlayTimeComplete,
+  openPlayScheduleFieldsFromStored,
+  validateOpenPlayTimeOrder,
+  type OpenPlayMeridiem,
+} from "@/lib/open-play-time-range";
 import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
 
 const types = OPEN_PLAY_TYPES;
@@ -29,9 +38,16 @@ type OwnerPlayerRow = {
   canRemove: boolean;
 };
 
+type Meridiem = OpenPlayMeridiem;
+
 type EditFormState = {
   title: string;
   openPlayType: (typeof types)[number];
+  openPlayDate: string;
+  openPlayFromHour: string;
+  openPlayFromMeridiem: Meridiem | "";
+  openPlayToHour: string;
+  openPlayToMeridiem: Meridiem | "";
   courtCount: number;
   expectedPlayers: number;
   strictPlayerCount: boolean;
@@ -50,6 +66,11 @@ type EditGameDialogProps = {
 const INITIAL_FORM: EditFormState = {
   title: "",
   openPlayType: "Beginner",
+  openPlayDate: getTodayOpenPlayDateInputValue(),
+  openPlayFromHour: "7",
+  openPlayFromMeridiem: "PM",
+  openPlayToHour: "10",
+  openPlayToMeridiem: "PM",
   courtCount: 2,
   expectedPlayers: 24,
   strictPlayerCount: false,
@@ -63,8 +84,40 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [removedPlayerIds, setRemovedPlayerIds] = useState<string[]>([]);
   const [form, setForm] = useState<EditFormState>(INITIAL_FORM);
+  const [timeRangeError, setTimeRangeError] = useState("");
 
   const isOwnerRegistration = form.registrationMode === "owner";
+
+  useEffect(() => {
+    if (!isOpenPlayTimeComplete(form)) {
+      setTimeRangeError("");
+      return;
+    }
+
+    const validation = validateOpenPlayTimeOrder(
+      form.openPlayFromHour,
+      form.openPlayFromMeridiem,
+      form.openPlayToHour,
+      form.openPlayToMeridiem,
+    );
+    setTimeRangeError(validation.ok ? "" : validation.message);
+  }, [
+    form.openPlayFromHour,
+    form.openPlayFromMeridiem,
+    form.openPlayToHour,
+    form.openPlayToMeridiem,
+  ]);
+
+  const canSaveSchedule = () => {
+    if (!form.openPlayDate.trim()) return false;
+    if (!isOpenPlayTimeComplete(form)) return false;
+    return validateOpenPlayTimeOrder(
+      form.openPlayFromHour,
+      form.openPlayFromMeridiem,
+      form.openPlayToHour,
+      form.openPlayToMeridiem,
+    ).ok;
+  };
 
   useEffect(() => {
     if (!game || !open) return;
@@ -81,10 +134,16 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
 
         if (cancelled) return;
 
+        const schedule = openPlayScheduleFieldsFromStored(
+          data.game.openPlayDate,
+          data.game.openPlayTimeRange,
+        );
+
         setForm({
           title: data.game.title,
           openPlayType:
             types.find((type) => type === data.game.openPlayType) ?? "Beginner",
+          ...schedule,
           courtCount: data.game.courtCount,
           expectedPlayers: data.game.expectedPlayers,
           strictPlayerCount: data.game.strictPlayerCount === true,
@@ -135,6 +194,11 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
   const submit = async () => {
     if (!game) return;
 
+    if (!canSaveSchedule()) {
+      toast.error(timeRangeError || "Select a valid open play date and time range.");
+      return;
+    }
+
     if (isOwnerRegistration && activeOwnerPlayerCount < 1) {
       toast.error("Enter at least one player name.");
       return;
@@ -146,6 +210,13 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
       const body: Record<string, unknown> = {
         title: form.title.trim(),
         openPlayType: form.openPlayType,
+        openPlayDate: form.openPlayDate,
+        openPlayTimeRange: formatOpenPlayTimeRange(
+          form.openPlayFromHour,
+          form.openPlayFromMeridiem as Meridiem,
+          form.openPlayToHour,
+          form.openPlayToMeridiem as Meridiem,
+        ),
         courtCount: form.courtCount,
       };
 
@@ -249,6 +320,50 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
                     </Button>
                   ))}
                 </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-open-play-date" className="text-base">
+                    Open Play Date
+                  </Label>
+                  <Input
+                    id="edit-open-play-date"
+                    type="date"
+                    className="h-11 text-base"
+                    value={form.openPlayDate}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, openPlayDate: event.target.value }))
+                    }
+                  />
+                </div>
+                <OpenPlayTimeField
+                  idPrefix="edit-open-play-from"
+                  label="From Time"
+                  hour={form.openPlayFromHour}
+                  meridiem={form.openPlayFromMeridiem}
+                  onHourChange={(openPlayFromHour) =>
+                    setForm((prev) => ({ ...prev, openPlayFromHour }))
+                  }
+                  onMeridiemChange={(openPlayFromMeridiem) =>
+                    setForm((prev) => ({ ...prev, openPlayFromMeridiem }))
+                  }
+                />
+                <OpenPlayTimeField
+                  idPrefix="edit-open-play-to"
+                  label="To Time"
+                  hour={form.openPlayToHour}
+                  meridiem={form.openPlayToMeridiem}
+                  onHourChange={(openPlayToHour) =>
+                    setForm((prev) => ({ ...prev, openPlayToHour }))
+                  }
+                  onMeridiemChange={(openPlayToMeridiem) =>
+                    setForm((prev) => ({ ...prev, openPlayToMeridiem }))
+                  }
+                />
+                {timeRangeError ? (
+                  <p className="text-sm text-destructive">{timeRangeError}</p>
+                ) : null}
               </div>
 
               <div className="space-y-3">
@@ -387,7 +502,7 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
           <Button
             size="lg"
             onClick={submit}
-            disabled={loading || loadingDetails || !game}
+            disabled={loading || loadingDetails || !game || !canSaveSchedule()}
           >
             {loading ? "Saving…" : "Save changes"}
           </Button>
