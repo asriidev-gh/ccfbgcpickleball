@@ -17,3 +17,7 @@ export function getRegistrationFormVariant(
   // Legacy owners created before userType existed — keep CCF form.
   return "ccf";
 }
+
+export function isRegistrationPhotoRequired(formVariant: RegistrationFormVariant): boolean {
+  return formVariant === "ccf";
+}

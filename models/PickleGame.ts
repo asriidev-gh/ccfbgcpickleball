@@ -10,6 +10,8 @@ const pickleGameSchema = new Schema(
       enum: ["Beginner", "Intermediate", "Advanced", "Any Level Open Play"],
       required: true,
     },
+    openPlayDate: { type: Date },
+    openPlayTimeRange: { type: String, trim: true },
     courtCount: { type: Number, required: true, min: 1 },
     expectedPlayers: { type: Number, required: true, min: 4 },
     strictPlayerCount: { type: Boolean, required: true, default: false },

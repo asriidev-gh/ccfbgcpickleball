@@ -1,8 +1,4 @@
-import Link from "next/link";
-import { Eye } from "lucide-react";
-
-import { RegisterAnotherPlayerButton } from "@/components/register/register-another-player-button";
-import { Button } from "@/components/ui/button";
+import { RegisterSuccessActions } from "@/components/register/register-success-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function RegisterSuccessPage({
@@ -22,15 +18,7 @@ export default async function RegisterSuccessPage({
             <p className="text-base leading-relaxed text-muted-foreground">
               Thank you for registering. Your profile and queue entry are now active.
             </p>
-            <div className="flex flex-col gap-3">
-              <Link href={`/games/${gameId}/spectate`}>
-                <Button size="lg" className="register-submit w-full">
-                  <Eye className="mr-2 h-5 w-5" />
-                  Proceed to the Game Queue!
-                </Button>
-              </Link>
-              <RegisterAnotherPlayerButton gameId={gameId} />
-            </div>
+            <RegisterSuccessActions gameId={gameId} />
           </CardContent>
         </Card>
       </section>

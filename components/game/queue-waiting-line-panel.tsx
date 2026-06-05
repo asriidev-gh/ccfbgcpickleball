@@ -11,14 +11,25 @@ import { cn } from "@/lib/utils";
 export type WaitingLineViewMode = "list" | "group";
 
 export const WAITING_LINE_VIEW_STORAGE_KEY = "ccf-queue-waiting-view";
+export const GAME_QUEUE_DESKTOP_MEDIA = "(min-width: 1024px)";
+
+export function isGameQueueDesktopViewport(): boolean {
+  if (typeof window === "undefined") return true;
+  return window.matchMedia(GAME_QUEUE_DESKTOP_MEDIA).matches;
+}
 
 export function loadWaitingLineViewMode(): WaitingLineViewMode {
   if (typeof window === "undefined") return "list";
+  if (!isGameQueueDesktopViewport()) return "list";
   const stored = localStorage.getItem(WAITING_LINE_VIEW_STORAGE_KEY);
   return stored === "group" ? "group" : "list";
 }
 
 export function saveWaitingLineViewMode(mode: WaitingLineViewMode) {
+  if (!isGameQueueDesktopViewport()) {
+    localStorage.setItem(WAITING_LINE_VIEW_STORAGE_KEY, "list");
+    return;
+  }
   localStorage.setItem(WAITING_LINE_VIEW_STORAGE_KEY, mode);
 }
 

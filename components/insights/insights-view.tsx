@@ -10,6 +10,8 @@ import {
   LayoutGrid,
   Loader2,
   Ban,
+  KeyRound,
+  QrCode,
   ShieldCheck,
   ShieldOff,
   Trash2,
@@ -26,6 +28,7 @@ import Link from "next/link";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
 
+import { ChangeUserPasswordDialog } from "@/components/insights/change-user-password-dialog";
 import { PlayerAvatar } from "@/components/game/player-avatar";
 import {
   Dialog,
@@ -39,6 +42,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -374,6 +384,11 @@ function UserListPanel({ selection, onSelectFilter }: {
 }) {
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<UserOpenPlaysSelection | null>(null);
+  const [changePasswordUser, setChangePasswordUser] = useState<{
+    id: string;
+    name: string;
+    email: string;
+  } | null>(null);
   const [nameFilter, setNameFilter] = useState("");
 
   const queryUrl =
@@ -431,6 +446,60 @@ function UserListPanel({ selection, onSelectFilter }: {
     },
   });
 
+  const userTypeMutation = useMutation({
+    mutationFn: async ({
+      id,
+      userType,
+    }: {
+      id: string;
+      userType: "default" | "ccf";
+    }) => {
+      const response = await fetch(`/api/insights/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userType }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message);
+      return payload as { message: string };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+      queryClient.invalidateQueries({ queryKey: ["insights-users"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to update user type.");
+    },
+  });
+
+  const registrationFeatureMutation = useMutation({
+    mutationFn: async ({
+      id,
+      registrationFeature,
+    }: {
+      id: string;
+      registrationFeature: "default" | "qr_id";
+    }) => {
+      const response = await fetch(`/api/insights/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ registrationFeature }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message);
+      return payload as { message: string };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+      queryClient.invalidateQueries({ queryKey: ["insights-users"] });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update registration feature.",
+      );
+    },
+  });
+
   const handleBlockToggle = async (user: UserListItem) => {
     const blocking = !user.isBlocked;
     const result = await Swal.fire({
@@ -447,6 +516,27 @@ function UserListPanel({ selection, onSelectFilter }: {
     });
     if (!result.isConfirmed) return;
     blockMutation.mutate({ id: user.id, blocked: blocking });
+  };
+
+  const handleRegistrationFeatureToggle = async (user: UserListItem) => {
+    const enabling = user.registrationFeature !== "qr_id";
+    const result = await Swal.fire({
+      ...deleteAlertOptions,
+      title: enabling ? "Enable QR ID registration?" : "Switch to default registration?",
+      html: enabling
+        ? `<strong>${user.name}</strong> (${user.email}) will show personal QR IDs to new players and allow QR ID check-in for their games.`
+        : `<strong>${user.name}</strong> (${user.email}) will use the standard registration flow without personal QR IDs.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: enabling ? "Enable QR ID" : "Use default",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: enabling ? "#2563eb" : "#64748b",
+    });
+    if (!result.isConfirmed) return;
+    registrationFeatureMutation.mutate({
+      id: user.id,
+      registrationFeature: enabling ? "qr_id" : "default",
+    });
   };
 
   const handleDelete = async (user: UserListItem) => {
@@ -541,6 +631,7 @@ function UserListPanel({ selection, onSelectFilter }: {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Registration</TableHead>
                 <TableHead>Sign-in</TableHead>
                 <TableHead>Registered on</TableHead>
                 <TableHead>Last login</TableHead>
@@ -570,8 +661,43 @@ function UserListPanel({ selection, onSelectFilter }: {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{user.email}</TableCell>
                   <TableCell>
-                    <Badge variant={user.userType === "ccf" ? "default" : "secondary"}>
-                      {user.userType}
+                    <Select
+                      value={user.userType}
+                      disabled={
+                        userTypeMutation.isPending &&
+                        userTypeMutation.variables?.id === user.id
+                      }
+                      onValueChange={(value) => {
+                        const nextType = value as "default" | "ccf";
+                        if (nextType === user.userType) return;
+                        userTypeMutation.mutate({ id: user.id, userType: nextType });
+                      }}
+                    >
+                      <SelectTrigger
+                        className={cn(
+                          "h-6 w-fit cursor-pointer gap-1 rounded-full border-0 px-2.5 text-xs font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring",
+                          user.userType === "ccf"
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+                        )}
+                        aria-label={`Change type for ${user.name}`}
+                      >
+                        {userTypeMutation.isPending &&
+                        userTypeMutation.variables?.id === user.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                        ) : (
+                          <SelectValue />
+                        )}
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover text-popover-foreground">
+                        <SelectItem value="default">default</SelectItem>
+                        <SelectItem value="ccf">ccf</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={user.registrationFeature === "qr_id" ? "default" : "outline"}>
+                      {user.registrationFeature === "qr_id" ? "QR ID" : "Default"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
@@ -636,6 +762,58 @@ function UserListPanel({ selection, onSelectFilter }: {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {!user.hasGoogle ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          aria-label={`Change password for ${user.name}`}
+                          title="Change password"
+                          onClick={() =>
+                            setChangePasswordUser({
+                              id: user.id,
+                              name: user.name,
+                              email: user.email,
+                            })
+                          }
+                        >
+                          <KeyRound className="h-4 w-4" aria-hidden />
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "size-8",
+                          user.registrationFeature === "qr_id"
+                            ? "text-primary hover:bg-primary/10 hover:text-primary"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                        aria-label={
+                          user.registrationFeature === "qr_id"
+                            ? `Set default registration for ${user.name}`
+                            : `Enable QR ID registration for ${user.name}`
+                        }
+                        title={
+                          user.registrationFeature === "qr_id"
+                            ? "Registration: QR ID"
+                            : "Registration: default"
+                        }
+                        disabled={
+                          registrationFeatureMutation.isPending &&
+                          registrationFeatureMutation.variables?.id === user.id
+                        }
+                        onClick={() => handleRegistrationFeatureToggle(user)}
+                      >
+                        {registrationFeatureMutation.isPending &&
+                        registrationFeatureMutation.variables?.id === user.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        ) : (
+                          <QrCode className="h-4 w-4" aria-hidden />
+                        )}
+                      </Button>
                       <Button
                         type="button"
                         variant="ghost"
@@ -685,6 +863,10 @@ function UserListPanel({ selection, onSelectFilter }: {
       </CardContent>
 
       <UserOpenPlaysDialog user={selectedUser} onClose={() => setSelectedUser(null)} />
+      <ChangeUserPasswordDialog
+        user={changePasswordUser}
+        onClose={() => setChangePasswordUser(null)}
+      />
     </Card>
   );
 }

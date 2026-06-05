@@ -21,7 +21,17 @@ function clearAuthCookie(response: NextResponse) {
 export async function GET() {
   const user = await getAuthUserFromCookie();
   if (user) {
-    return NextResponse.json({ user: { ...user, isSuperAdmin: isSuperAdmin(user.email) } });
+    await connectToDatabase();
+    const doc = await User.findById(user.userId)
+      .select("registrationFeature")
+      .lean();
+    return NextResponse.json({
+      user: {
+        ...user,
+        isSuperAdmin: isSuperAdmin(user.email),
+        registrationFeature: doc?.registrationFeature ?? "default",
+      },
+    });
   }
 
   const cookieStore = await cookies();

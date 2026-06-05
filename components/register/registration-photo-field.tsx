@@ -20,6 +20,7 @@ type RegistrationPhotoFieldProps = {
   disabled?: boolean;
   error?: string;
   optional?: boolean;
+  currentPhotoUrl?: string | null;
   onChange: (file: File | null) => void;
 };
 
@@ -27,6 +28,7 @@ export function RegistrationPhotoField({
   disabled = false,
   error,
   optional = false,
+  currentPhotoUrl = null,
   onChange,
 }: RegistrationPhotoFieldProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +99,7 @@ export function RegistrationPhotoField({
   };
 
   const inputsDisabled = disabled || processing;
+  const displayPhotoUrl = previewUrl ?? (currentPhotoUrl?.trim() || null);
 
   return (
     <div
@@ -107,19 +110,20 @@ export function RegistrationPhotoField({
     >
       <div>
         <Label className="register-label">
-          Your photo{optional ? " (optional)" : ""}
+          Your photo{optional ? " (optional)" : " *"}
         </Label>
         <p className="caption mt-1 text-muted-foreground">
-          Take a selfie or upload a picture{optional ? "" : " (optional)"}. Large camera photos are
-          resized automatically. If you skip this, a random avatar is assigned.
+          {optional
+            ? "Take a selfie or upload a picture. Large camera photos are resized automatically. If you skip this, a random avatar is assigned."
+            : "Take a selfie or upload a picture. A photo is required to register. Large camera photos are resized automatically."}
         </p>
       </div>
 
-      {previewUrl ? (
+      {displayPhotoUrl ? (
         <div className="register-photo-preview-wrap">
           <div className="register-photo-preview-frame">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt="Registration preview" className="register-photo-preview" />
+            <img src={displayPhotoUrl} alt="Registration preview" className="register-photo-preview" />
           </div>
           {fileName ? (
             <p className="caption min-w-0 truncate text-muted-foreground">{fileName}</p>
@@ -159,7 +163,7 @@ export function RegistrationPhotoField({
           <ImagePlus className="mr-2 h-4 w-4" />
           Upload photo
         </Button>
-        {previewUrl ? (
+        {displayPhotoUrl ? (
           <Button
             type="button"
             variant="ghost"

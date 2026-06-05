@@ -32,11 +32,14 @@ export type UserListFilter =
   | "new7"
   | "new30";
 
+export type RegistrationFeatureSetting = "default" | "qr_id";
+
 export type UserListItem = {
   id: string;
   name: string;
   email: string;
   userType: string;
+  registrationFeature: RegistrationFeatureSetting;
   hasGoogle: boolean;
   openPlayCount: number;
   demoOpenPlayCount: number;

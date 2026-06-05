@@ -2,8 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, Clock, Loader2, MapPin, Trash2, Trophy } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Clock, Loader2, MapPin, Search, Trash2, Trophy, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import Swal from "sweetalert2";
 
@@ -28,6 +28,7 @@ import {
   formatMatchPlayedDuration,
   formatMatchTimeRange,
 } from "@/lib/match-history-display";
+import { filterMatchesByPlayerName } from "@/lib/match-history-filter";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type MatchHistoryPlayer = {
@@ -147,18 +148,69 @@ function ScoreContent({
   );
 }
 
+export type MatchHistoryScope = "mine" | "all";
+
+type MatchHistoryScopeToggleProps = {
+  scope: MatchHistoryScope;
+  onScopeChange: (scope: MatchHistoryScope) => void;
+};
+
+export function MatchHistoryScopeToggle({
+  scope,
+  onScopeChange,
+}: MatchHistoryScopeToggleProps) {
+  return (
+    <div
+      className="match-history-scope-toggle inline-flex rounded-lg border border-border p-0.5"
+      role="group"
+      aria-label="Match history filter"
+    >
+      <Button
+        type="button"
+        size="sm"
+        variant={scope === "mine" ? "default" : "ghost"}
+        className={cn("h-8 px-2.5 text-xs", scope === "mine" && "shadow-sm")}
+        aria-pressed={scope === "mine"}
+        onClick={() => onScopeChange("mine")}
+      >
+        My matches
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={scope === "all" ? "default" : "ghost"}
+        className={cn("h-8 px-2.5 text-xs", scope === "all" && "shadow-sm")}
+        aria-pressed={scope === "all"}
+        onClick={() => onScopeChange("all")}
+      >
+        All
+      </Button>
+    </div>
+  );
+}
+
 export function MatchHistoryList({
   matches,
   gameId,
   editable = false,
+  emptyMessage,
+  showNameFilter = false,
 }: {
   matches: MatchHistoryView[];
   gameId?: string;
   editable?: boolean;
+  emptyMessage?: string;
+  showNameFilter?: boolean;
 }) {
   const [visibleCount, setVisibleCount] = useState(MATCH_HISTORY_PAGE_SIZE);
+  const [nameFilter, setNameFilter] = useState("");
   const prevMatchCount = useRef(matches.length);
   const queryClient = useQueryClient();
+
+  const filteredMatches = useMemo(
+    () => (showNameFilter ? filterMatchesByPlayerName(matches, nameFilter) : matches),
+    [matches, nameFilter, showNameFilter],
+  );
 
   const [editingMatch, setEditingMatch] = useState<MatchHistoryView | null>(null);
   const [editTeamAScore, setEditTeamAScore] = useState("");
@@ -216,8 +268,6 @@ export function MatchHistoryList({
       toast.success(data.message);
       if (gameId) queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Failed to delete match."),
   });
 
   const confirmDeleteMatch = async (match: MatchHistoryView) => {
@@ -229,30 +279,47 @@ export function MatchHistoryList({
       showCancelButton: true,
       confirmButtonText: "Yes, delete",
       cancelButtonText: "Cancel",
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
+        try {
+          return await deleteMatchMutation.mutateAsync(match._id);
+        } catch (error) {
+          Swal.showValidationMessage(
+            error instanceof Error ? error.message : "Failed to delete match.",
+          );
+          return false;
+        }
+      },
     });
-    if (result.isConfirmed) {
-      deleteMatchMutation.mutate(match._id);
-    }
+
+    if (!result.isConfirmed) return;
   };
 
   useEffect(() => {
-    if (matches.length < prevMatchCount.current) {
+    if (filteredMatches.length < prevMatchCount.current) {
       setVisibleCount(MATCH_HISTORY_PAGE_SIZE);
     }
-    prevMatchCount.current = matches.length;
-  }, [matches.length]);
+    prevMatchCount.current = filteredMatches.length;
+  }, [filteredMatches.length]);
+
+  useEffect(() => {
+    setVisibleCount(MATCH_HISTORY_PAGE_SIZE);
+  }, [nameFilter]);
 
   if (matches.length === 0) {
     return (
       <p className="text-muted-foreground">
-        No matches yet. End a court game and pick the winning team to record a match.
+        {emptyMessage ??
+          "No matches yet. End a court game and pick the winning team to record a match."}
       </p>
     );
   }
 
-  const visibleMatches = matches.slice(0, visibleCount);
-  const remaining = matches.length - visibleCount;
+  const visibleMatches = filteredMatches.slice(0, visibleCount);
+  const remaining = filteredMatches.length - visibleCount;
   const hasMore = remaining > 0;
+  const trimmedNameFilter = nameFilter.trim();
 
   const editScoreError = editingMatch
     ? getMatchScoreInputError(editingMatch.winnerTeam, editTeamAScore, editTeamBScore)
@@ -270,6 +337,39 @@ export function MatchHistoryList({
 
   return (
     <div className="match-history-list space-y-2.5">
+      {showNameFilter ? (
+        <div className="match-history-name-filter relative">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            value={nameFilter}
+            onChange={(event) => setNameFilter(event.target.value)}
+            placeholder="Filter by player name"
+            aria-label="Filter match history by player name"
+            className="h-9 pr-9 pl-9"
+          />
+          {trimmedNameFilter ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-1/2 right-1 -translate-y-1/2"
+              aria-label="Clear name filter"
+              onClick={() => setNameFilter("")}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {filteredMatches.length === 0 ? (
+        <p className="text-muted-foreground">
+          No matches found for &ldquo;{trimmedNameFilter}&rdquo;.
+        </p>
+      ) : null}
       {visibleMatches.map((match) => {
         const teamAWon = match.winnerTeam === "A";
         const hasScore = match.teamAScore != null || match.teamBScore != null;

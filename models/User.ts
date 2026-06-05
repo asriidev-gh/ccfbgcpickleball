@@ -13,6 +13,14 @@ const userSchema = new Schema(
       enum: ["default", "ccf"],
       default: "default",
     },
+    registrationFeature: {
+      type: String,
+      enum: ["default", "qr_id"],
+      default: "default",
+    },
+    /** Custom header on player QR downloads (max 20 chars). Empty uses default branding. */
+    playerQrTitle: { type: String, trim: true, maxlength: 20, default: "" },
+    linkedPlayerId: { type: Schema.Types.ObjectId, ref: "Player", index: true, sparse: true },
     registeredDevice: { type: String, trim: true },
     lastLoginAt: { type: Date },
     lastLoginDevice: { type: String, trim: true },

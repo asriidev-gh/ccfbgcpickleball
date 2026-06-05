@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, QrCode } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -12,13 +12,20 @@ import {
   getRegistrationBlockedMessage,
   promptIfRegistrationFull,
 } from "@/components/game/registration-capacity-prompt";
+import { PlayerQrReveal } from "@/components/register/player-qr-reveal";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
+import { UploadQrIdFlow } from "@/components/register/upload-qr-id-flow";
 import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
 import {
   persistActiveQueueHighlight,
   setQueueHighlightPlayerId,
 } from "@/lib/queue-highlight";
-import type { RegistrationFormVariant } from "@/lib/registration-variant";
+import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
+import { REGISTRATION_PHOTO_REQUIRED_MESSAGE } from "@/lib/registration-photo";
+import {
+  isRegistrationPhotoRequired,
+  type RegistrationFormVariant,
+} from "@/lib/registration-variant";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -63,18 +70,32 @@ function formatMobileNumberInput(value: string, forcePrefix = false): string {
   return `${normalized.slice(0, 4)}-${normalized.slice(4)}`;
 }
 
+type RegistrationFormMode = "upload-qr";
+
+type PendingQrReveal = {
+  playerId: string;
+  firstName: string;
+  personalQrCode: string;
+  personalQrCodeDataUrl?: string;
+};
+
 export function RegistrationForm({
   gameId,
   gameTitle,
   formVariant,
+  initialMode,
 }: {
   gameId: string;
   gameTitle?: string;
   formVariant: RegistrationFormVariant;
+  initialMode?: RegistrationFormMode;
 }) {
   const router = useRouter();
   const isGenericForm = formVariant === "generic";
-  const [role, setRole] = useState<"existing-player" | "new-player" | "volunteer" | "">("");
+  const [role, setRole] = useState<"existing-player" | "new-player" | "volunteer" | "upload-qr" | "">(
+    initialMode === "upload-qr" ? "upload-qr" : "",
+  );
+  const [pendingQrReveal, setPendingQrReveal] = useState<PendingQrReveal | null>(null);
   const [pendingRole, setPendingRole] = useState<"new-player" | "volunteer" | null>(null);
   const [mobileTouched, setMobileTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -106,8 +127,11 @@ export function RegistrationForm({
     ? getRegistrationBlockedMessage(registrationStatus)
     : null;
 
+  const qrIdEnabled = isQrIdRegistrationEnabled(registrationStatus?.registrationFeature);
+
   const resetToRoleSelection = () => {
     setRole("");
+    setPendingQrReveal(null);
     setCcfEventsBefore(null);
     setFieldErrors({});
     setPhotoFile(null);
@@ -152,14 +176,14 @@ export function RegistrationForm({
     return canProceed;
   };
 
-  const selectRole = async (nextRole: "new-player" | "volunteer") => {
+  const selectRole = async (nextRole: "new-player" | "volunteer" | "upload-qr") => {
     if (pendingRole) return;
-    setPendingRole(nextRole);
+    if (nextRole !== "upload-qr") setPendingRole(nextRole);
     try {
       if (!(await ensureCanRegister())) return;
       setRole(nextRole);
     } finally {
-      setPendingRole(null);
+      if (nextRole !== "upload-qr") setPendingRole(null);
     }
   };
 
@@ -402,14 +426,46 @@ export function RegistrationForm({
         return;
       }
 
+      if (!isExisting && isRegistrationPhotoRequired(formVariant) && !photoFile) {
+        setFieldErrors({ photo: REGISTRATION_PHOTO_REQUIRED_MESSAGE });
+        toast.error(REGISTRATION_PHOTO_REQUIRED_MESSAGE);
+        setSubmitting(false);
+        return;
+      }
+
       setFieldErrors({});
 
-      const finishRegistrationSuccess = (registeredPlayerId: unknown) => {
+      const finishRegistrationSuccess = (
+        registeredPlayerId: unknown,
+        options?: {
+          showPlayerQr?: boolean;
+          personalQrCode?: string;
+          personalQrCodeDataUrl?: string;
+          firstName?: string;
+        },
+      ) => {
         if (registeredPlayerId != null) {
           const id = String(registeredPlayerId);
           setQueueHighlightPlayerId(gameId, id);
           persistActiveQueueHighlight(gameId, id);
         }
+
+        if (
+          options?.showPlayerQr &&
+          options.personalQrCode &&
+          registeredPlayerId != null
+        ) {
+          setPendingQrReveal({
+            playerId: String(registeredPlayerId),
+            firstName: options.firstName ?? form.firstName,
+            personalQrCode: options.personalQrCode,
+            personalQrCodeDataUrl: options.personalQrCodeDataUrl,
+          });
+          setSubmitting(false);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+
         router.push(`/register/${gameId}/success`);
       };
 
@@ -433,7 +489,12 @@ export function RegistrationForm({
           toast.error(
             typeof data.message === "string" ? data.message : ALREADY_REGISTERED_MESSAGE,
           );
-          finishRegistrationSuccess(data?.player?._id);
+          finishRegistrationSuccess(data?.player?._id, {
+            showPlayerQr: data?.showPlayerQr,
+            personalQrCode: data?.player?.personalQrCode,
+            personalQrCodeDataUrl: data?.personalQrCodeDataUrl,
+            firstName: data?.player?.firstName,
+          });
           return;
         }
 
@@ -453,7 +514,12 @@ export function RegistrationForm({
         setSubmitting(false);
         return;
       }
-      finishRegistrationSuccess(data?.player?._id);
+      finishRegistrationSuccess(data?.player?._id, {
+        showPlayerQr: data?.showPlayerQr,
+        personalQrCode: data?.player?.personalQrCode,
+        personalQrCodeDataUrl: data?.personalQrCodeDataUrl,
+        firstName: data?.player?.firstName,
+      });
     } catch {
       toast.error("Registration failed. Please try again.");
       setSubmitting(false);
@@ -469,6 +535,22 @@ export function RegistrationForm({
 
   const inputClass = (name: string) =>
     cn("register-input", fieldErrors[name] && "border-destructive ring-destructive/30");
+
+  if (pendingQrReveal) {
+    return (
+      <main className="register-page">
+        <section className="register-shell">
+          <PlayerQrReveal
+            firstName={pendingQrReveal.firstName}
+            personalQrCode={pendingQrReveal.personalQrCode}
+            personalQrCodeDataUrl={pendingQrReveal.personalQrCodeDataUrl}
+            gameId={gameId}
+            onContinue={() => router.push(`/register/${gameId}/success`)}
+          />
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="register-page">
@@ -524,7 +606,8 @@ export function RegistrationForm({
               <div
                 className={cn(
                   "register-role-grid",
-                  isGenericForm && "register-role-grid--single",
+                  isGenericForm && !qrIdEnabled && "register-role-grid--single",
+                  qrIdEnabled && "register-role-grid--qr-id",
                 )}
               >
                 <Button
@@ -565,7 +648,26 @@ export function RegistrationForm({
                     )}
                   </Button>
                 ) : null}
+                {qrIdEnabled ? (
+                  <Button
+                    type="button"
+                    size="lg"
+                    variant="outline"
+                    className="register-role-btn"
+                    disabled={statusLoading || submitting || pendingRole !== null}
+                    onClick={() => void selectRole("upload-qr")}
+                  >
+                    <QrCode className="mr-2 h-4 w-4" aria-hidden />
+                    Upload QR ID
+                  </Button>
+                ) : null}
               </div>
+            ) : role === "upload-qr" ? (
+              <UploadQrIdFlow
+                gameId={gameId}
+                formVariant={formVariant}
+                onBack={resetToRoleSelection}
+              />
             ) : (
               <>
                 <Button

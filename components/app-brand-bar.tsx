@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
+import { PlayerSessionMenu } from "@/components/player/player-session-menu";
+import { RegisteredPlayersHeaderLink } from "@/components/registered-players-header-link";
 import { ThemeMenu } from "@/components/theme-menu";
 import { UserMenu } from "@/components/user-menu";
+import { getSpectateGameIdFromPath } from "@/lib/player-session";
 import { APP_NAME } from "@/lib/app-config";
 import { getBrandShellClasses, isPublicAppPath, isSpectatorPath, shouldHideAppBrandBar } from "@/lib/app-shell";
 import { dispatchRegistrationReset } from "@/lib/registration-reset";
@@ -52,6 +55,7 @@ export function AppBrandBar() {
   const fromParam = searchParams.get("from");
   const { pad, container } = getBrandShellClasses(pathname);
   const showThemeOnly = isPublicAppPath(pathname, fromParam);
+  const spectateGameId = getSpectateGameIdFromPath(pathname);
 
   if (shouldHideAppBrandBar(pathname)) {
     return null;
@@ -63,7 +67,18 @@ export function AppBrandBar() {
         <div className={cn("app-brand-bar__inner mx-auto flex w-full items-center justify-between gap-3", container)}>
           <BrandTitle pathname={pathname} fromParam={fromParam} />
           <div className="app-brand-actions flex shrink-0 items-center gap-2">
-            {showThemeOnly ? <ThemeMenu /> : <UserMenu />}
+            {showThemeOnly ? (
+              spectateGameId ? (
+                <PlayerSessionMenu gameId={spectateGameId} fallback={<ThemeMenu />} />
+              ) : (
+                <ThemeMenu />
+              )
+            ) : (
+              <>
+                <RegisteredPlayersHeaderLink />
+                <UserMenu />
+              </>
+            )}
           </div>
         </div>
       </div>

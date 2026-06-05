@@ -20,7 +20,7 @@ export function getBrandShellClasses(pathname: string) {
 }
 
 export function isSpectatorPath(pathname: string, fromParam: string | null) {
-  if (pathname.endsWith("/spectate")) return true;
+  if (/^\/games\/[^/]+\/spectate(?:\/.*)?$/.test(pathname)) return true;
   if (pathname.startsWith("/leaderboard/") && fromParam === "spectator") return true;
   return false;
 }

@@ -6,14 +6,25 @@ import {
   LOSER_SCORE_TOO_HIGH_MESSAGE,
   MAX_MATCH_SCORE,
 } from "@/lib/match-score-validation";
+import { validateOpenPlayTimeRangeString } from "@/lib/open-play-time-range";
 import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
 
 const openPlayTypeSchema = z.enum(OPEN_PLAY_TYPES);
+
+const openPlayDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Open play date is required.");
 
 export const createGameSchema = z
   .object({
     title: z.string().min(2, "Game title is required.").max(80),
     openPlayType: openPlayTypeSchema,
+    openPlayDate: openPlayDateSchema,
+    openPlayTimeRange: z
+      .string()
+      .trim()
+      .min(3, "Open play time range is required.")
+      .max(80, "Time range must be 80 characters or less."),
     courtCount: z.coerce.number().int().min(1).max(20),
     expectedPlayers: z.coerce.number().int().min(1).max(300),
     strictPlayerCount: z.boolean().default(false),
@@ -22,6 +33,15 @@ export const createGameSchema = z
     allowQrRegistration: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
+    const timeRangeValidation = validateOpenPlayTimeRangeString(data.openPlayTimeRange);
+    if (!timeRangeValidation.ok) {
+      ctx.addIssue({
+        code: "custom",
+        message: timeRangeValidation.message,
+        path: ["openPlayTimeRange"],
+      });
+    }
+
     if (data.registrationMode === "owner") {
       const count = data.preRegisteredPlayerNames?.length ?? 0;
       if (count < 1) {
@@ -172,6 +192,16 @@ export type GenericPlayerInput = z.infer<typeof genericPlayerSchema>;
 export type ExistingPlayerInput = z.infer<typeof existingPlayerSchema>;
 export type VolunteerExistingPlayerInput = z.infer<typeof volunteerExistingPlayerSchema>;
 
+export const genericExistingPlayerSchema = z.object({
+  gameId: z.string().min(4),
+  personalQrCode: z
+    .string()
+    .min(1, "Personal QR code is required.")
+    .min(4, "Enter your personal QR code."),
+});
+
+export type GenericExistingPlayerInput = z.infer<typeof genericExistingPlayerSchema>;
+
 export const existingPlayerSchema = z
   .object({
     gameId: z.string().min(4),
@@ -242,3 +272,71 @@ export const cancelCourtAssignmentSchema = z.object({
   gameId: z.string().min(4),
   courtNumber: z.coerce.number().int().min(1),
 });
+
+const profileGenderSchema = z.enum(["male", "female", "prefer_not_to_say", ""]);
+const profilePickleballLevelSchema = z.enum([
+  "beginner",
+  "low_intermediate",
+  "high_intermediate",
+  "advanced",
+  "pro",
+  "",
+]);
+
+export const profileBaseSchema = z.object({
+  firstName: z.string().min(1, "First name is required."),
+  lastName: z.string().min(1, "Last name is required."),
+  mobileNumber: z
+    .string()
+    .trim()
+    .min(1, "Mobile number is required.")
+    .min(7, "Enter a valid mobile number (at least 7 digits)."),
+  gender: profileGenderSchema.optional().default(""),
+  birthdate: z
+    .string()
+    .trim()
+    .optional()
+    .default("")
+    .refine((value) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value), {
+      message: "Enter a valid birthdate.",
+    }),
+  biography: z
+    .string()
+    .trim()
+    .max(500, "Biography must be 500 characters or less.")
+    .optional()
+    .default(""),
+  pickleballLevel: profilePickleballLevelSchema.optional().default(""),
+});
+
+export const profileCcfFieldsSchema = z
+  .object({
+    isPartOfDgroup: z.boolean(),
+    wantsToJoinDgroup: z.boolean().nullable().optional(),
+    attendedEvents: z
+      .array(z.string())
+      .min(1, "Answer whether you have attended other CCF events."),
+    attendedEventsOther: z.string().optional().default(""),
+  })
+  .superRefine(refineCcfQuestionnaire);
+
+export const profileUpdateSchema = profileBaseSchema;
+
+export type ProfileUpdateInput = z.infer<typeof profileBaseSchema>;
+export type ProfileCcfFieldsInput = z.infer<typeof profileCcfFieldsSchema>;
+
+export const removePlayerFromGameSchema = z
+  .object({
+    gameId: z.string().min(4),
+    playerId: z.string().trim().min(1).optional(),
+    queueEntryId: z.string().trim().min(1).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.playerId && !data.queueEntryId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "playerId or queueEntryId is required.",
+        path: ["playerId"],
+      });
+    }
+  });

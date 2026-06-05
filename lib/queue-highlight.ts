@@ -1,12 +1,28 @@
 const storageKey = (gameId: string) => `ccf-queue-highlight-player:${gameId}`;
 const activeHighlightKey = (gameId: string) => `ccf-queue-highlight-active:${gameId}`;
 
+function readActiveHighlightRaw(gameId: string): string | null {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(activeHighlightKey(gameId));
+}
+
+function writeActiveHighlightRaw(gameId: string, raw: string | null) {
+  if (typeof window === "undefined") return;
+  const key = activeHighlightKey(gameId);
+  if (raw == null) {
+    sessionStorage.removeItem(key);
+    return;
+  }
+  sessionStorage.setItem(key, raw);
+}
+
 /** Avoid re-running highlight on React Strict Mode remount or queue refetch. */
 const appliedHighlightGames = new Set<string>();
 
 /** Remember which player to highlight after registration → game queue. */
 export function setQueueHighlightPlayerId(gameId: string, playerId: string) {
   if (typeof window === "undefined") return;
+  appliedHighlightGames.delete(gameId);
   sessionStorage.setItem(storageKey(gameId), playerId);
 }
 
@@ -34,16 +50,40 @@ export function hasQueueHighlightBeenApplied(gameId: string) {
   return appliedHighlightGames.has(gameId);
 }
 
-/** Keeps self-registration highlight until the player clears browser data for this site. */
+function isVisibleElement(element: HTMLElement) {
+  if (element.getClientRects().length === 0) return false;
+  const style = window.getComputedStyle(element);
+  return style.display !== "none" && style.visibility !== "hidden";
+}
+
+/** Scroll to a queue row that is actually visible on screen. */
+export function scrollToQueueEntry(entryId: string): boolean {
+  if (typeof document === "undefined") return false;
+  const selector = `#queue-entry-${CSS.escape(String(entryId))}`;
+  const nodes = document.querySelectorAll(selector);
+  const visible = [...nodes].filter(
+    (node): node is HTMLElement => node instanceof HTMLElement && isVisibleElement(node),
+  );
+  if (visible.length === 0) return false;
+
+  const target =
+    visible.find((element) => element.closest('[role="tabpanel"]')) ??
+    visible.find((element) => !element.closest(".hidden")) ??
+    visible[0];
+
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  return true;
+}
+
+/** Tied to the browser tab session — cleared when the tab or browser closes. */
 export function persistActiveQueueHighlight(gameId: string, playerId: string) {
   if (typeof window === "undefined") return;
-  const key = activeHighlightKey(gameId);
-  const raw = localStorage.getItem(key);
+  const raw = readActiveHighlightRaw(gameId);
   const normalized = playerId.trim();
   if (!normalized) return;
   const ids = parseActiveHighlightIds(raw);
   if (!ids.includes(normalized)) ids.push(normalized);
-  localStorage.setItem(key, JSON.stringify(ids));
+  writeActiveHighlightRaw(gameId, JSON.stringify(ids));
 }
 
 export function getActiveQueueHighlightPlayerId(gameId: string): string | null {
@@ -54,25 +94,36 @@ export function getActiveQueueHighlightPlayerId(gameId: string): string | null {
 
 export function getActiveQueueHighlightPlayerIds(gameId: string): string[] {
   if (typeof window === "undefined") return [];
-  return parseActiveHighlightIds(localStorage.getItem(activeHighlightKey(gameId)));
+  return parseActiveHighlightIds(readActiveHighlightRaw(gameId));
 }
 
 export function removeActiveQueueHighlightPlayerId(gameId: string, playerId: string) {
   if (typeof window === "undefined") return;
   const normalized = playerId.trim();
   if (!normalized) return;
-  const key = activeHighlightKey(gameId);
   const next = getActiveQueueHighlightPlayerIds(gameId).filter((id) => id !== normalized);
   if (next.length === 0) {
-    localStorage.removeItem(key);
+    writeActiveHighlightRaw(gameId, null);
     return;
   }
-  localStorage.setItem(key, JSON.stringify(next));
+  writeActiveHighlightRaw(gameId, JSON.stringify(next));
 }
 
 export function clearActiveQueueHighlight(gameId: string) {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(activeHighlightKey(gameId));
+  writeActiveHighlightRaw(gameId, null);
+}
+
+/** Move pre-sessionStorage linked-player data into the tab session, then drop localStorage. */
+export function migrateLegacyActiveHighlightToSession(gameId: string) {
+  if (typeof window === "undefined" || !gameId) return;
+  const key = activeHighlightKey(gameId);
+  const legacy = localStorage.getItem(key);
+  if (!legacy) return;
+  if (!sessionStorage.getItem(key)) {
+    sessionStorage.setItem(key, legacy);
+  }
+  localStorage.removeItem(key);
 }
 
 function parseActiveHighlightIds(raw: string | null): string[] {

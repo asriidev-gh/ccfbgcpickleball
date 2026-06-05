@@ -1,25 +1,35 @@
+import type { RegistrationFeature } from "@/lib/registration-feature";
 import type { RegistrationFormVariant } from "@/lib/registration-variant";
 import { connectToDatabase } from "@/lib/db";
+import { resolveGameRegistrationFeature } from "@/lib/resolve-game-registration-feature";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
-import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
+import { isEmailBlockedForGame, ORGANIZER_BLOCKED_REGISTRATION_MESSAGE } from "@/lib/organizer-blocked-player";
+import {
+  ALREADY_REGISTERED_MESSAGE,
+  CHECKED_OUT_RE_REGISTER_MESSAGE,
+} from "@/lib/registration-messages";
+
+const ACTIVE_QUEUE_STATUSES = ["queued", "on_court", "done"] as const;
 
 export class RegistrationLimitError extends Error {
   status: number;
   playerId?: string;
   alreadyRegistered?: boolean;
+  checkedOut?: boolean;
 
   constructor(
     message: string,
     status = 403,
-    options?: { playerId?: string; alreadyRegistered?: boolean },
+    options?: { playerId?: string; alreadyRegistered?: boolean; checkedOut?: boolean },
   ) {
     super(message);
     this.name = "RegistrationLimitError";
     this.status = status;
     this.playerId = options?.playerId;
     this.alreadyRegistered = options?.alreadyRegistered;
+    this.checkedOut = options?.checkedOut;
   }
 }
 
@@ -31,6 +41,7 @@ export async function getGameRegistrationCount(gameId: string) {
 export type GameRegistrationStatus = {
   gameId: string;
   formVariant: RegistrationFormVariant;
+  registrationFeature: RegistrationFeature;
   strictPlayerCount: boolean;
   allowQrRegistration: boolean;
   expectedPlayers: number;
@@ -50,8 +61,11 @@ export async function getGameRegistrationStatus(
   );
   if (!game) return null;
 
-  const formVariant = await resolveGameRegistrationFormVariant(gameId);
-  if (!formVariant) return null;
+  const [formVariant, registrationFeature] = await Promise.all([
+    resolveGameRegistrationFormVariant(gameId),
+    resolveGameRegistrationFeature(gameId),
+  ]);
+  if (!formVariant || !registrationFeature) return null;
 
   const registeredCount = await getGameRegistrationCount(gameId);
   const strict = game.strictPlayerCount === true;
@@ -63,6 +77,7 @@ export async function getGameRegistrationStatus(
   return {
     gameId: game.gameId,
     formVariant,
+    registrationFeature,
     strictPlayerCount: strict,
     allowQrRegistration,
     expectedPlayers: game.expectedPlayers,
@@ -77,7 +92,7 @@ export async function getGameRegistrationStatus(
 
 export async function assertGameRegistrationAllowed(
   gameId: string,
-  options?: { playerId?: string },
+  options?: { playerId?: string; email?: string },
 ) {
   await connectToDatabase();
 
@@ -91,15 +106,33 @@ export async function assertGameRegistrationAllowed(
     throw new RegistrationLimitError("Registration is closed for this session.", 403);
   }
 
+  if (options?.email && (await isEmailBlockedForGame(gameId, options.email))) {
+    throw new RegistrationLimitError(ORGANIZER_BLOCKED_REGISTRATION_MESSAGE, 403);
+  }
+
   if (options?.playerId) {
-    const alreadyRegistered = await QueueEntry.exists({
+    const activeEntry = await QueueEntry.exists({
       gameId,
       playerId: options.playerId,
+      status: { $in: ACTIVE_QUEUE_STATUSES },
     });
-    if (alreadyRegistered) {
+    if (activeEntry) {
       throw new RegistrationLimitError(ALREADY_REGISTERED_MESSAGE, 409, {
         playerId: options.playerId,
         alreadyRegistered: true,
+      });
+    }
+
+    const checkedOutEntry = await QueueEntry.exists({
+      gameId,
+      playerId: options.playerId,
+      status: "checked_out",
+    });
+    if (checkedOutEntry) {
+      throw new RegistrationLimitError(CHECKED_OUT_RE_REGISTER_MESSAGE, 409, {
+        playerId: options.playerId,
+        alreadyRegistered: true,
+        checkedOut: true,
       });
     }
   }

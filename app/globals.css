@@ -1073,6 +1073,28 @@
     @apply overflow-hidden rounded-xl border border-border/80 bg-card/60 shadow-sm;
   }
 
+  @media (max-width: 1023px) {
+    .queue-waiting-group-card {
+      @apply rounded-xl border-2 border-primary/35 bg-primary/[0.05] shadow-[0_2px_14px_rgba(0,0,0,0.08)];
+    }
+
+    .queue-waiting-group-list > .queue-waiting-group-card:first-child {
+      @apply border-amber-400/55 bg-amber-400/[0.07] shadow-[0_0_22px_rgba(250,204,21,0.14)];
+    }
+
+    .queue-waiting-group-list > .queue-waiting-group-card:not(:first-child) {
+      @apply border-primary/25 bg-muted/30;
+    }
+
+    .queue-waiting-group-card-header {
+      @apply bg-muted/45;
+    }
+
+    .queue-waiting-group-list > .queue-waiting-group-card:first-child .queue-waiting-group-card-header {
+      @apply border-amber-400/25 bg-amber-400/10;
+    }
+  }
+
   .queue-waiting-group-card-header {
     @apply flex items-start justify-between gap-2 border-b border-border/60 bg-muted/30 px-3 py-2.5;
   }
@@ -1357,6 +1379,10 @@
 
   .queue-check-back-in-btn {
     @apply border-primary/40 bg-background text-foreground hover:bg-primary/10;
+  }
+
+  .queue-item[id^="queue-entry-"] {
+    scroll-margin-top: 5.5rem;
   }
 
   /* Self-registration highlight — uses --primary so it matches the active theme */
@@ -2262,11 +2288,97 @@
   }
 
   .game-dashboard-header-content {
-    @apply flex flex-col;
+    @apply flex flex-col p-3 sm:p-4;
   }
 
   .game-dashboard-header-top {
-    @apply w-full;
+    @apply w-full min-w-0;
+  }
+
+  .game-dashboard-header-main {
+    @apply min-w-0;
+  }
+
+  .game-dashboard--spectator .game-dashboard-header-main {
+    @apply pr-[6.75rem] sm:pr-[7.5rem] lg:pr-48;
+  }
+
+  .game-dashboard--operator .game-dashboard-header-main {
+    @apply pr-[5.25rem] sm:pr-[11rem] lg:pr-56;
+  }
+
+  .game-dashboard-header-actions {
+    @apply absolute top-3 right-3 z-10 flex items-center gap-1.5 sm:top-4 sm:right-4 sm:gap-2;
+  }
+
+  .game-dashboard-meta {
+    @apply mt-2 flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 lg:flex-nowrap;
+  }
+
+  .game-dashboard-meta-badge {
+    @apply h-auto min-h-5 w-fit shrink-0 px-2 py-1 text-[11px] leading-tight sm:text-xs;
+  }
+
+  @media (min-width: 1024px) {
+    .game-dashboard-meta-badge {
+      @apply h-5 py-0.5;
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .game-dashboard--operator .game-toolbar {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+    }
+
+    .game-dashboard--operator .game-toolbar > a,
+    .game-dashboard--operator .game-toolbar > button {
+      width: 100%;
+    }
+
+    .game-dashboard--operator .game-toolbar [data-slot="button"] {
+      @apply h-9 w-full justify-center px-2 text-xs;
+    }
+
+    .game-dashboard--operator .game-toolbar [data-slot="button"] svg {
+      @apply mr-1.5 h-3.5 w-3.5;
+    }
+  }
+
+  .game-dashboard-leaderboard-btn {
+    @apply ring-1 ring-primary/25 transition-all duration-200 ease-out;
+  }
+
+  .game-dashboard-leaderboard-icon {
+    @apply transition-transform duration-200 ease-out;
+  }
+
+  .game-dashboard-header-leaderboard:hover .game-dashboard-leaderboard-btn {
+    @apply -translate-y-0.5 bg-primary/90 shadow-lg ring-2 ring-primary/35;
+    filter: brightness(1.06);
+  }
+
+  .game-dashboard-header-leaderboard:hover .game-dashboard-leaderboard-icon {
+    transform: scale(1.12) rotate(-10deg);
+  }
+
+  .game-dashboard-header-leaderboard:active .game-dashboard-leaderboard-btn {
+    @apply translate-y-0 shadow-md ring-1 ring-primary/25;
+    filter: brightness(1);
+  }
+
+  .game-dashboard-header-leaderboard:active .game-dashboard-leaderboard-icon {
+    transform: scale(1.02) rotate(-4deg);
+  }
+
+  @media (max-width: 1023px) {
+    .game-dashboard--spectator .spectator-mobile-tablist {
+      position: sticky;
+      top: 0.75rem;
+      z-index: 30;
+      backdrop-filter: blur(12px);
+    }
   }
 
   .dashboard-account-menu {
@@ -2276,6 +2388,55 @@
   [data-theme="cupertino"] .game-dashboard-header [data-slot="card-content"] {
     @apply border-0 bg-card px-4 py-4;
     background-color: var(--cupertino-surface-raised);
+  }
+
+  [data-theme="cupertino"] .game-dashboard-leaderboard-btn {
+    border-radius: 9999px;
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 12%),
+      0 2px 8px rgb(0 0 0 / 10%);
+    transition:
+      transform 200ms ease,
+      box-shadow 200ms ease,
+      filter 200ms ease;
+  }
+
+  @media (max-width: 1023px) {
+    [data-theme="cupertino"] .game-dashboard-leaderboard-btn {
+      height: 32px;
+      min-height: 32px;
+      padding-inline: 0.625rem;
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    [data-theme="cupertino"] .game-dashboard-leaderboard-btn {
+      height: 44px;
+      min-height: 44px;
+      padding-inline: 1.25rem;
+      font-size: 17px;
+      line-height: 22px;
+      font-weight: 600;
+      letter-spacing: -0.022em;
+    }
+  }
+
+  [data-theme="cupertino"] .game-dashboard-header-leaderboard:hover .game-dashboard-leaderboard-btn {
+    transform: translateY(-2px);
+    box-shadow:
+      0 4px 12px rgb(0 0 0 / 16%),
+      0 8px 20px rgb(0 0 0 / 12%);
+  }
+
+  [data-theme="cupertino"] .game-dashboard-header-leaderboard:active .game-dashboard-leaderboard-btn {
+    transform: translateY(0);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 12%),
+      0 2px 6px rgb(0 0 0 / 10%);
   }
 
   [data-theme="cupertino"] .game-toolbar {
@@ -4031,12 +4192,125 @@
     @apply text-xs leading-snug text-muted-foreground;
   }
 
+  .game-notification-menu__header {
+    @apply mb-0.5 flex items-center justify-between gap-1 px-2 py-1;
+  }
+
+  .game-notification-menu__title {
+    @apply text-[11px] font-semibold tracking-wide text-foreground uppercase;
+  }
+
+  .game-notification-menu__count {
+    @apply inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive/15 px-1 text-[10px] font-semibold text-destructive;
+  }
+
+  .game-notification-menu__mark-all {
+    @apply text-muted-foreground hover:text-foreground;
+  }
+
+  .game-notification-menu__divider {
+    @apply my-0.5;
+  }
+
+  .game-notification-menu__item {
+    @apply flex items-start gap-2 whitespace-normal focus:bg-muted/70;
+  }
+
+  .game-notification-menu__icon {
+    @apply mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full;
+  }
+
+  .game-notification-menu__icon--checkout {
+    @apply bg-muted text-muted-foreground;
+  }
+
+  .game-notification-menu__icon--checkin {
+    @apply bg-destructive/12 text-destructive;
+  }
+
+  .game-notification-menu__content {
+    @apply flex flex-col gap-0.5;
+  }
+
+  .game-notification-menu__row {
+    @apply flex items-baseline justify-between gap-2;
+  }
+
+  .game-notification-menu__name {
+    @apply text-xs font-semibold leading-tight text-foreground;
+  }
+
+  .game-notification-menu__time {
+    @apply text-[10px] leading-none text-muted-foreground;
+  }
+
+  .game-notification-menu__detail {
+    @apply text-[11px] leading-snug text-muted-foreground;
+  }
+
+  .game-notification-menu__empty {
+    @apply min-h-0 justify-center opacity-100;
+  }
+
+  .register-checked-out-alert {
+    @apply relative flex items-center gap-2 overflow-hidden rounded-lg border px-3 py-2.5;
+    border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+    background-color: var(--card);
+    color: var(--foreground);
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--foreground) 10%, transparent),
+      0 4px 14px color-mix(in srgb, var(--foreground) 6%, transparent);
+  }
+
+  .register-checked-out-alert::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 0.25rem;
+    background: var(--primary);
+  }
+
+  .register-checked-out-alert__badge {
+    @apply absolute top-2 right-2 h-2 w-2 rounded-full bg-destructive ring-2 ring-card;
+  }
+
+  .register-checked-out-alert__icon {
+    @apply flex h-7 w-7 shrink-0 items-center justify-center rounded-full border;
+    border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+    background-color: color-mix(in srgb, var(--primary) 10%, var(--card));
+    color: var(--foreground);
+  }
+
+  .register-checked-out-alert__text {
+    @apply min-w-0 flex-1 pr-3 text-xs leading-snug;
+  }
+
+  .register-checked-out-alert__label {
+    @apply text-[10px] font-semibold tracking-wide text-muted-foreground uppercase;
+  }
+
+  .register-checked-out-alert__separator {
+    @apply mx-1 text-muted-foreground;
+  }
+
+  .register-checked-out-alert__message {
+    @apply font-medium text-foreground;
+  }
+
   .register-role-grid {
     @apply mx-auto grid w-full max-w-md grid-cols-1 justify-items-stretch gap-3 max-sm:my-4 sm:my-0 sm:grid-cols-2;
   }
 
   .register-role-grid--single {
     @apply max-w-xs sm:grid-cols-1;
+  }
+
+  .register-role-grid--qr-id {
+    @apply max-w-lg sm:grid-cols-2;
+  }
+
+  .register-role-grid--qr-id:not(.register-role-grid--single) {
+    @apply lg:grid-cols-3;
   }
 
   .register-role-btn {

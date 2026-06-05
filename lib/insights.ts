@@ -100,7 +100,7 @@ export async function getUsersList(
     .sort({ createdAt: -1 })
     .limit(limit)
     .select(
-      "name email userType googleId createdAt registeredDevice lastLoginAt lastLoginDevice isBlocked",
+      "name email userType registrationFeature googleId createdAt registeredDevice lastLoginAt lastLoginDevice isBlocked",
     )
     .lean();
 
@@ -114,6 +114,7 @@ async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
     name: string;
     email: string;
     userType?: string;
+    registrationFeature?: string;
     googleId?: string | null;
     createdAt?: Date;
     registeredDevice?: string | null;
@@ -133,6 +134,8 @@ async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
     name: doc.name,
     email: doc.email,
     userType: doc.userType ?? "default",
+    registrationFeature:
+      doc.registrationFeature === "qr_id" ? "qr_id" : ("default" as const),
     hasGoogle: Boolean(doc.googleId),
     openPlayCount: counts.get(doc._id.toString()) ?? 0,
     demoOpenPlayCount: demoCounts.get(doc._id.toString()) ?? 0,
@@ -159,7 +162,7 @@ export async function getUsersByMonth(monthKey: string, limit = 500): Promise<Us
     .sort({ createdAt: -1 })
     .limit(limit)
     .select(
-      "name email userType googleId createdAt registeredDevice lastLoginAt lastLoginDevice isBlocked",
+      "name email userType registrationFeature googleId createdAt registeredDevice lastLoginAt lastLoginDevice isBlocked",
     )
     .lean();
 

@@ -13,6 +13,8 @@ import {
   ChevronUp,
   Loader2,
   Eye,
+  CalendarDays,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -25,7 +27,14 @@ import { LeaderboardPageContent } from "@/components/game/leaderboard-page-conte
 import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
-import { MatchHistoryList, type MatchHistoryView } from "@/components/game/match-history-list";
+import {
+  MatchHistoryList,
+  MatchHistoryScopeToggle,
+  type MatchHistoryScope,
+  type MatchHistoryView,
+} from "@/components/game/match-history-list";
+import { filterMatchesForViewer } from "@/lib/match-history-filter";
+import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { FillCourtConfirmDialog } from "@/components/game/fill-court-confirm-dialog";
 import {
   ReplacePlayerDialog,
@@ -42,6 +51,7 @@ import {
 } from "@/components/game/sortable-queue-list";
 import {
   WaitingLineGroupView,
+  GAME_QUEUE_DESKTOP_MEDIA,
   WaitingLineViewToggle,
   loadWaitingLineViewMode,
   saveWaitingLineViewMode,
@@ -71,6 +81,7 @@ import {
   persistActiveQueueHighlight,
   queueEntryPlayerId,
   removeActiveQueueHighlightPlayerId,
+  scrollToQueueEntry,
 } from "@/lib/queue-highlight";
 import {
   getMatchScoreInputError,
@@ -79,8 +90,13 @@ import {
 } from "@/lib/match-score-validation";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 import { useSpectatorPresence } from "@/hooks/use-spectator-presence";
+import { useSpectatorSessionCleanup } from "@/hooks/use-spectator-session-cleanup";
+import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
+import { dispatchSpectatorCheckoutNotification } from "@/lib/spectator-checkout-notifications";
 
 export type GameDashboardMode = "operator" | "spectator";
+
+type SpectatorMobileTab = "queue" | "courts" | "history";
 
 type GamePayload = {
   game: {
@@ -89,6 +105,8 @@ type GamePayload = {
     courtCount: number;
     gameId: string;
     status: "draft" | "active" | "ended";
+    openPlayDate?: string | null;
+    openPlayTimeRange?: string | null;
     registerUrl?: string;
     publicQrCodeDataUrl?: string;
   };
@@ -159,6 +177,8 @@ type QueueCheckedOutListProps = {
   onToggle: () => void;
   onCheckBackIn: (entry: QueueEntryView) => void;
   checkBackInPendingId: string | null;
+  onRemovePlayer?: (entry: QueueEntryView) => void;
+  removePlayerPendingId?: string | null;
 };
 
 function QueueCheckedOutList({
@@ -167,6 +187,8 @@ function QueueCheckedOutList({
   onToggle,
   onCheckBackIn,
   checkBackInPendingId,
+  onRemovePlayer,
+  removePlayerPendingId,
 }: QueueCheckedOutListProps) {
   const [showAllCheckedOut, setShowAllCheckedOut] = useState(false);
 
@@ -232,6 +254,13 @@ function QueueCheckedOutList({
                   checkedOut
                   onCheckBackIn={() => onCheckBackIn(entry)}
                   checkBackInPending={checkBackInPendingId === entry._id}
+                  onRemovePlayer={
+                    onRemovePlayer ? () => onRemovePlayer(entry) : undefined
+                  }
+                  removePlayerPending={
+                    removePlayerPendingId != null &&
+                    queueEntryPlayerId(entry) === removePlayerPendingId
+                  }
                 />
               ))}
             </div>
@@ -318,6 +347,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [showCheckedOutList, setShowCheckedOutList] = useState(true);
   const [showMatchHistory, setShowMatchHistory] = useState(true);
   const [showCourts, setShowCourts] = useState(true);
+  const [spectatorMobileTab, setSpectatorMobileTab] = useState<SpectatorMobileTab>("queue");
+  const [uiPrefsHydrated, setUiPrefsHydrated] = useState(false);
+  const [isLgViewport, setIsLgViewport] = useState<boolean | null>(null);
+  const [matchHistoryScope, setMatchHistoryScope] = useState<MatchHistoryScope>("mine");
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
   const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);
@@ -347,6 +380,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     setShowCheckedOutList(loadShowCheckedOutList());
     setShowMatchHistory(loadShowMatchHistory());
     setShowCourts(loadShowCourts());
+    setUiPrefsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia(GAME_QUEUE_DESKTOP_MEDIA);
+    const apply = () => setIsLgViewport(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
   }, []);
 
   const { data, isLoading, error } = useQuery({
@@ -361,6 +403,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   });
 
   useSpectatorPresence(gameId, isSpectator && data?.game?.status !== "ended");
+  useSpectatorSessionCleanup(gameId, isSpectator);
 
   const { data: spectatorPresence } = useQuery({
     queryKey: ["game", gameId, "spectator-count"],
@@ -625,6 +668,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       queueEntryId: string;
       checkedOutPlayerId: string;
       selfPlayerIds?: string[];
+      playerName?: string;
     }) => {
       const response = await fetch(`/api/games/${gameId}/remove-from-queue`, {
         method: "POST",
@@ -641,8 +685,35 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       }
       toast.success(payload.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isSpectator && gameId && variables.playerName) {
+        dispatchSpectatorCheckoutNotification(gameId, {
+          id: variables.queueEntryId,
+          kind: "checkout",
+          playerName: variables.playerName,
+          checkedOutAt: new Date().toISOString(),
+        });
+      }
     },
-    onError: (error) => toast.error(error.message),
+  });
+
+  const removePlayerFromGameMutation = useMutation({
+    mutationFn: async (input: { playerId: string }) => {
+      const response = await fetch(`/api/games/${gameId}/remove-player`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: input.playerId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onSuccess: (payload, variables) => {
+      if (gameId) {
+        removeActiveQueueHighlightPlayerId(gameId, variables.playerId);
+      }
+      toast.success(payload.message);
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
   });
 
   const checkBackInMutation = useMutation({
@@ -660,7 +731,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       toast.success(payload.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) => toast.error(error.message),
   });
 
   const confirmRemoveFromQueue = async (entry: QueueEntryView) => {
@@ -668,22 +738,104 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       entry.playerId.firstName,
       entry.playerId.lastName,
     );
+    const isSelfCheckout =
+      isSpectator && selfPlayerIds.includes(queueEntryPlayerId(entry));
     const result = await Swal.fire({
       ...alertBaseOptions,
       title: "Check out?",
-      html: `<strong>${playerName}</strong> will be checked out of the queue. Their registration and match history are kept.`,
+      html: isSelfCheckout
+        ? `<strong>${playerName}</strong>, you will be checked out of the queue, but your registration and match history are kept.`
+        : `<strong>${playerName}</strong> will be checked out of the queue. Their registration and match history are kept.`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Yes, check out",
       cancelButtonText: "Cancel",
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
+        try {
+          return await removeMutation.mutateAsync({
+            queueEntryId: entry._id,
+            checkedOutPlayerId: queueEntryPlayerId(entry),
+            selfPlayerIds,
+            playerName,
+          });
+        } catch (error) {
+          Swal.showValidationMessage(
+            error instanceof Error ? error.message : "Failed to check out player.",
+          );
+          return false;
+        }
+      },
     });
-    if (result.isConfirmed) {
-      removeMutation.mutate({
-        queueEntryId: entry._id,
-        checkedOutPlayerId: queueEntryPlayerId(entry),
-        selfPlayerIds,
+
+    if (!result.isConfirmed) return;
+  };
+
+  const confirmCheckBackIn = async (entry: QueueEntryView) => {
+    const playerName = formatPlayerDisplayName(
+      entry.playerId.firstName,
+      entry.playerId.lastName,
+    );
+
+    void Swal.fire({
+      ...alertBaseOptions,
+      title: "Checking back in…",
+      html: `<strong>${playerName}</strong> is rejoining the queue.`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    try {
+      await checkBackInMutation.mutateAsync(entry._id);
+      Swal.close();
+    } catch (error) {
+      Swal.fire({
+        ...alertBaseOptions,
+        icon: "error",
+        title: "Check-in failed",
+        text: error instanceof Error ? error.message : "Failed to check player back in.",
+        confirmButtonText: "OK",
       });
     }
+  };
+
+  const confirmRemovePlayerFromGame = async (entry: QueueEntryView) => {
+    const playerId = queueEntryPlayerId(entry);
+    if (!playerId) return;
+
+    const playerName = formatPlayerDisplayName(
+      entry.playerId.firstName,
+      entry.playerId.lastName,
+    );
+
+    const result = await Swal.fire({
+      ...alertBaseOptions,
+      title: "Remove player?",
+      html: `<strong>${playerName}</strong> will be removed from this open play entirely (queue, court assignments, and match history).`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, remove player",
+      cancelButtonText: "Cancel",
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
+        try {
+          return await removePlayerFromGameMutation.mutateAsync({ playerId });
+        } catch (error) {
+          Swal.showValidationMessage(
+            error instanceof Error ? error.message : "Failed to remove player.",
+          );
+          return false;
+        }
+      },
+    });
+
+    if (!result.isConfirmed) return;
   };
 
   const playerSessionStats = useMemo(
@@ -728,7 +880,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   }, [data?.courts]);
 
   useEffect(() => {
-    if (!gameId || !data?.queue?.length) return;
+    if (!uiPrefsHydrated || isLgViewport === null || isLoading || !gameId || !data?.queue?.length) {
+      return;
+    }
+    if (hasQueueHighlightBeenApplied(gameId)) return;
 
     const fromRegistration = peekQueueHighlightPlayerId(gameId);
     if (!fromRegistration) return;
@@ -738,26 +893,66 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     );
     if (queueIndex < 0) return;
 
-    markQueueHighlightApplied(gameId);
-    clearQueueHighlightPlayerId(gameId);
     persistActiveQueueHighlight(gameId, fromRegistration);
 
-    if (queueIndex >= 4) {
-      setShowWaitingList(true);
-      saveShowWaitingList(true);
+    if (isSpectator && !isLgViewport && spectatorMobileTab !== "queue") {
+      setSpectatorMobileTab("queue");
+      return;
+    }
+
+    const inWaitingLine = queueIndex >= 4;
+    if (inWaitingLine) {
+      if (!showWaitingList) {
+        setShowWaitingList(true);
+        saveShowWaitingList(true);
+        return;
+      }
+      if (waitingLineView !== "list") {
+        setWaitingLineView("list");
+        saveWaitingLineViewMode("list");
+        return;
+      }
     }
 
     const entry = data.queue[queueIndex];
-    const scrollTimer = window.setTimeout(() => {
-      document
-        .getElementById(`queue-entry-${entry._id}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 200);
+    const delayMs = inWaitingLine ? 500 : 300;
+    const timers: number[] = [];
+
+    const finishHighlightScroll = () => {
+      markQueueHighlightApplied(gameId);
+      clearQueueHighlightPlayerId(gameId);
+    };
+
+    const attemptScroll = (attempt: number) => {
+      if (scrollToQueueEntry(entry._id)) {
+        finishHighlightScroll();
+        return;
+      }
+      if (attempt >= 16) {
+        finishHighlightScroll();
+        return;
+      }
+      timers.push(window.setTimeout(() => attemptScroll(attempt + 1), 175));
+    };
+
+    timers.push(window.setTimeout(() => attemptScroll(1), delayMs));
 
     return () => {
-      window.clearTimeout(scrollTimer);
+      for (const timer of timers) {
+        window.clearTimeout(timer);
+      }
     };
-  }, [gameId, data?.queue]);
+  }, [
+    uiPrefsHydrated,
+    isLgViewport,
+    isLoading,
+    gameId,
+    data?.queue,
+    showWaitingList,
+    waitingLineView,
+    spectatorMobileTab,
+    isSpectator,
+  ]);
 
   const readOnly = isSpectator;
   const loadingLabel = isSpectator ? "Loading spectator view..." : "Loading game dashboard...";
@@ -776,6 +971,39 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const { game, courts, matches, recap } = data;
 
+  const spectatorMatchHistory =
+    !isSpectator || matchHistoryScope === "all"
+      ? matches
+      : filterMatchesForViewer(matches, selfPlayerIds);
+
+  const spectatorMatchHistoryCaption = (() => {
+    if (!isSpectator) {
+      return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
+    }
+    if (matchHistoryScope === "all") {
+      return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
+    }
+    if (selfPlayerIds.length === 0) {
+      return "Register for this game to see your matches";
+    }
+    const mineCount = spectatorMatchHistory.length;
+    if (matches.length === mineCount) {
+      return `${mineCount} ${mineCount === 1 ? "match" : "matches"} with you`;
+    }
+    return `${mineCount} of ${matches.length} matches with you`;
+  })();
+
+  const spectatorMatchHistoryEmptyMessage =
+    matchHistoryScope === "all"
+      ? "No matches recorded for this session yet."
+      : selfPlayerIds.length === 0
+        ? "Register for this open play to link your player and see matches you played here."
+        : "You have not played a match in this session yet.";
+
+  const leaderboardHref = isSpectator
+    ? `/leaderboard/${game.gameId}?from=spectator`
+    : `/leaderboard/${game.gameId}`;
+
   const isCourtRematch = (court: CourtView) =>
     court.isRematch === true || rematchCourtNumbers.has(court.courtNumber);
 
@@ -788,6 +1016,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     );
   }, 0);
   const totalSessionPlayers = queueWithStats.length + playersOnCourtsCount;
+  const openPlayDateLabel = formatOpenPlayDate(game.openPlayDate);
+  const openPlayTimeLabel = game.openPlayTimeRange?.trim() || null;
   const isPastGame = game.status === "ended";
   const showSpectatorEndedRecap = isSpectator && isPastGame;
   const canResetGame = isDemoOpenPlayTitle(game.title) || isGameResetEnabled();
@@ -832,6 +1062,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           canRemoveEntry(entry) &&
           removeMutation.isPending &&
           removeMutation.variables?.queueEntryId === entry._id
+        }
+        onRemovePlayer={
+          !hideControls && queueEntryPlayerId(entry)
+            ? () => confirmRemovePlayerFromGame(entry)
+            : undefined
+        }
+        removePlayerPending={
+          removePlayerFromGameMutation.isPending &&
+          removePlayerFromGameMutation.variables?.playerId === queueEntryPlayerId(entry)
         }
         highlighted={
           selfHighlightPlayerId != null &&
@@ -904,11 +1143,352 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       ? Math.max(0, endGameWinnerScoreParsed - 1)
       : undefined;
 
+  const activeCourtCount = courts.filter((court) => court.status === "active").length;
+
+  const renderQueuePanel = () => (
+    <Card className="glass-panel">
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardTitle>Queue</CardTitle>
+        {!hideControls ? (
+          <Button
+            onClick={() => {
+              if (!canFillNextCourt) {
+                if (queueWithStats.length < 4) {
+                  toast.error("Not enough players in the queue. At least 4 are required.");
+                } else {
+                  toast.error("No empty court available.");
+                }
+                return;
+              }
+              setFillCourtDialogOpen(true);
+            }}
+            disabled={startMutation.isPending || !canFillNextCourt}
+          >
+            {startMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                Filling…
+              </>
+            ) : (
+              <>
+                <Play className="mr-2 h-4 w-4" aria-hidden />
+                Fill next court
+              </>
+            )}
+          </Button>
+        ) : null}
+      </CardHeader>
+      <CardContent className="queue-list">
+        {queueWithStats.length === 0 && checkedOutWithStats.length === 0 ? (
+          <p className="text-muted-foreground">Queue is empty.</p>
+        ) : (
+          <>
+            {queueWithStats.length > 0 ? (
+              <SortableQueueList
+                entryIds={sortableQueueEntryIds}
+                enabled={canReorderQueue}
+                onReorder={(orderedEntryIds) => reorderQueueMutation.mutate(orderedEntryIds)}
+              >
+                <QueueDndZone zone="next-up" className="queue-next-up-group">
+                  <div className="queue-next-up-banner">
+                    <div className="flex items-center gap-2">
+                      <span className="queue-next-up-icon">
+                        <Zap className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="queue-next-up-title">
+                          <span className="xl:hidden">Next</span>
+                          <span className="hidden xl:inline">Next on court</span>
+                        </p>
+                        <p className="caption hidden xl:block">
+                          Top {Math.min(4, queueWithStats.length)}{" "}
+                          {Math.min(4, queueWithStats.length) === 1 ? "player" : "players"} — ready to
+                          play
+                          {canReorderQueue ? " · drag to reorder" : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className="badge-next-up-count">
+                      {Math.min(4, queueWithStats.length)} / 4
+                    </Badge>
+                  </div>
+                  <div className="queue-next-up-slots">
+                    {queueWithStats.slice(0, 4).map((entry, index) => renderQueuedEntry(entry, index))}
+                  </div>
+                </QueueDndZone>
+                {queueWithStats.length > 4 ? (
+                  <QueueDndZone zone="waiting" className="queue-waiting-group">
+                    <div className="queue-waiting-header">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="queue-waiting-toggle mb-2"
+                        onClick={() => {
+                          const next = !showWaitingList;
+                          setShowWaitingList(next);
+                          saveShowWaitingList(next);
+                        }}
+                        aria-expanded={showWaitingList}
+                        aria-controls="queue-waiting-list"
+                      >
+                        {showWaitingList ? (
+                          <>
+                            <ChevronUp className="mr-1.5 h-4 w-4" />
+                            Hide waiting list
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="mr-1.5 h-4 w-4" />
+                            Show waiting list ({queueWithStats.length - 4})
+                          </>
+                        )}
+                      </Button>
+                      <div className="queue-divider" role="separator">
+                        <span>Waiting in line</span>
+                      </div>
+                      {showWaitingList ? (
+                        <div className="queue-waiting-view-bar mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <WaitingLineViewToggle
+                            view={waitingLineView}
+                            onViewChange={(mode) => {
+                              setWaitingLineView(mode);
+                              saveWaitingLineViewMode(mode);
+                            }}
+                          />
+                          {waitingLineView === "group" && canReorderQueue ? (
+                            <p className="caption text-muted-foreground">
+                              Switch to list view to drag and reorder.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div id="queue-waiting-list" className={cn(!showWaitingList && "hidden")}>
+                      {waitingLineView === "list" ? (
+                        <div className="space-y-2">
+                          {waitingLineEntries.map((entry, offset) =>
+                            renderQueuedEntry(entry, offset + 4),
+                          )}
+                        </div>
+                      ) : (
+                        <WaitingLineGroupView
+                          waitingEntries={waitingLineEntries}
+                          renderEntry={(entry, queueIndex) =>
+                            renderQueuedEntry(entry, queueIndex, {
+                              sortable: false,
+                              compactName: true,
+                            })
+                          }
+                        />
+                      )}
+                    </div>
+                  </QueueDndZone>
+                ) : null}
+              </SortableQueueList>
+            ) : null}
+            {!readOnly && !isPastGame ? (
+              <QueueCheckedOutList
+                entries={checkedOutWithStats}
+                expanded={showCheckedOutList}
+                onToggle={() => {
+                  const next = !showCheckedOutList;
+                  setShowCheckedOutList(next);
+                  saveShowCheckedOutList(next);
+                }}
+                onCheckBackIn={(entry) => confirmCheckBackIn(entry)}
+                checkBackInPendingId={
+                  checkBackInMutation.isPending
+                    ? (checkBackInMutation.variables ?? null)
+                    : null
+                }
+                onRemovePlayer={(entry) => confirmRemovePlayerFromGame(entry)}
+                removePlayerPendingId={
+                  removePlayerFromGameMutation.isPending
+                    ? (removePlayerFromGameMutation.variables?.playerId ?? null)
+                    : null
+                }
+              />
+            ) : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const renderCourtsPanel = (inSpectatorMobileTab = false) => (
+    <Card className="glass-panel courts-panel">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+        <div>
+          <CardTitle>Courts</CardTitle>
+          <CourtsSummary courts={courts} />
+        </div>
+        {!inSpectatorMobileTab && !isSpectator ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="courts-toggle shrink-0 lg:hidden"
+            onClick={() => {
+              const next = !showCourts;
+              setShowCourts(next);
+              saveShowCourts(next);
+            }}
+            aria-expanded={showCourts}
+            aria-controls="courts-list"
+          >
+            {showCourts ? (
+              <>
+                <ChevronUp className="mr-1.5 h-4 w-4" />
+                Hide courts
+              </>
+            ) : (
+              <>
+                <ChevronDown className="mr-1.5 h-4 w-4" />
+                Show courts
+              </>
+            )}
+          </Button>
+        ) : null}
+      </CardHeader>
+      <CardContent
+        id={inSpectatorMobileTab ? "courts-list-mobile" : "courts-list"}
+        className={cn(
+          "court-grid court-grid--list grid grid-cols-1 gap-3",
+          !inSpectatorMobileTab && !showCourts && "hidden lg:grid",
+        )}
+      >
+        {courts.map((court) => (
+          <CourtCard
+            key={court._id}
+            court={court}
+            playerSessionStats={playerSessionStats}
+            canReplacePlayers={
+              !hideControls && court.status === "active" && queueWithStats.length > 0
+            }
+            onReplacePlayer={
+              hideControls
+                ? undefined
+                : ({ courtNumber, team, slotIndex, player }) =>
+                    setReplaceDialog({
+                      kind: "court",
+                      courtNumber,
+                      team,
+                      slotIndex,
+                      player,
+                    })
+            }
+            replacePendingKey={courtReplacePendingKey}
+            hideEndGame={hideControls}
+            onEndGame={
+              hideControls
+                ? () => {}
+                : () => {
+                    setPendingWinner(null);
+                    setTeamAScore("");
+                    setTeamBScore("");
+                    setEndTargetCourt(court.courtNumber);
+                  }
+            }
+            onSwapTeams={
+              hideControls ? undefined : () => swapCourtMutation.mutate(court.courtNumber)
+            }
+            swapPending={
+              swapCourtMutation.isPending && swapCourtMutation.variables === court.courtNumber
+            }
+            onCancelAssignment={
+              hideControls || court.status !== "active" || isCourtRematch(court)
+                ? undefined
+                : () => setCancelCourtTarget(court.courtNumber)
+            }
+            cancelPending={
+              cancelCourtMutation.isPending &&
+              cancelCourtMutation.variables === court.courtNumber
+            }
+            onCancelRematch={
+              hideControls || court.status !== "active" || !isCourtRematch(court)
+                ? undefined
+                : () => setCancelRematchTarget(court.courtNumber)
+            }
+            cancelRematchPending={
+              cancelRematchMutation.isPending &&
+              cancelRematchMutation.variables === court.courtNumber
+            }
+            isFilling={fillingCourtNumber != null && court.courtNumber === fillingCourtNumber}
+          />
+        ))}
+      </CardContent>
+    </Card>
+  );
+
+  const renderMatchHistoryPanel = (inSpectatorMobileTab = false) => {
+    const historyMatches = isSpectator ? spectatorMatchHistory : matches;
+    const panelVisible = isSpectator || inSpectatorMobileTab || showMatchHistory;
+
+    return (
+      <Card className="glass-panel match-history-panel">
+        <CardHeader className="flex flex-col gap-3">
+          <div className="match-history-panel-header flex w-full flex-nowrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <CardTitle>Match History</CardTitle>
+              <p className="caption">{spectatorMatchHistoryCaption}</p>
+            </div>
+            {!inSpectatorMobileTab && !isSpectator ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="match-history-toggle ml-auto shrink-0 self-center"
+                onClick={() => {
+                  const next = !showMatchHistory;
+                  setShowMatchHistory(next);
+                  saveShowMatchHistory(next);
+                }}
+                aria-expanded={showMatchHistory}
+                aria-controls="match-history-list"
+              >
+                {showMatchHistory ? (
+                  <>
+                    <ChevronUp className="mr-1.5 h-4 w-4" />
+                    Hide match history
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="mr-1.5 h-4 w-4" />
+                    Show match history
+                  </>
+                )}
+              </Button>
+            ) : null}
+          </div>
+          {isSpectator && panelVisible ? (
+            <MatchHistoryScopeToggle
+              scope={matchHistoryScope}
+              onScopeChange={setMatchHistoryScope}
+            />
+          ) : null}
+        </CardHeader>
+        {panelVisible ? (
+          <CardContent id={inSpectatorMobileTab ? "match-history-list-mobile" : "match-history-list"}>
+            <MatchHistoryList
+              key={isSpectator ? matchHistoryScope : "operator"}
+              matches={historyMatches}
+              gameId={gameId}
+              editable={!hideControls}
+              showNameFilter={!isSpectator}
+              emptyMessage={isSpectator ? spectatorMatchHistoryEmptyMessage : undefined}
+            />
+          </CardContent>
+        ) : null}
+      </Card>
+    );
+  };
+
   return (
     <main
       className={cn(
         "relative min-h-screen p-4 md:p-6",
-        isSpectator && "game-dashboard--spectator",
+        isSpectator ? "game-dashboard--spectator" : "game-dashboard--operator",
       )}
     >
       {endOpenPlayMutation.isPending ? (
@@ -925,47 +1505,81 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       ) : null}
       <section className="mx-auto flex max-w-[1600px] flex-col gap-4">
         <Card className="glass-panel game-dashboard-header">
-          <CardContent className="game-dashboard-header-content p-4">
-            <div className="game-dashboard-header-top">
-              <div className="min-w-0">
-                <h1 className="page-title">{game.title}</h1>
-                {isSpectator ? (
-                  <p className="caption mt-1 text-muted-foreground">
-                    {showSpectatorEndedRecap
-                      ? "Session ended — view awards, standings, and match history below"
-                      : "View only — live queue and courts update automatically"}
-                  </p>
-                ) : null}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {isSpectator ? (
-                    <Badge variant="secondary" className="spectator-badge">
-                      Spectator view
-                    </Badge>
-                  ) : null}
-                  <Badge>{game.openPlayType}</Badge>
-                  <Badge variant="outline">Courts: {game.courtCount}</Badge>
-                  <Badge variant="outline">
-                    Players: {totalSessionPlayers}
-                  </Badge>
-                  <Badge variant={game.status === "ended" ? "destructive" : "outline"}>
-                    Status: {game.status}
-                  </Badge>
-                  <Badge variant="outline">
-                    <Eye className="mr-1 h-3 w-3" />
-                    Spectators: {spectatorPresence?.count ?? data?.spectatorCount ?? 0}
-                  </Badge>
-                </div>
-              </div>
-            </div>
+          <CardContent className="game-dashboard-header-content relative">
             {!showSpectatorEndedRecap ? (
-            <div className="game-toolbar mt-4 flex flex-wrap items-center gap-2">
-              {!isSpectator ? (
-                <Link href="/">
-                  <Button size="lg" variant="outline">
-                    <House className="mr-2 h-4 w-4" /> Home
+              <div className="game-dashboard-header-actions">
+                {!isSpectator ? <GameCheckoutNotificationBell gameId={gameId} /> : null}
+                <Link
+                  href={leaderboardHref}
+                  className="game-dashboard-header-leaderboard group/leaderboard inline-flex rounded-lg"
+                >
+                  <Button
+                    size="sm"
+                    variant="default"
+                    aria-label="Leaderboard"
+                    className="game-dashboard-leaderboard-btn h-8 gap-1 px-2 text-xs font-semibold shadow-md sm:gap-1.5 sm:px-2.5 lg:h-11 lg:gap-2 lg:px-5 lg:text-base"
+                  >
+                    <Trophy
+                      className="game-dashboard-leaderboard-icon h-3.5 w-3.5 shrink-0 lg:h-5 lg:w-5"
+                      aria-hidden
+                    />
+                    <span className="hidden sm:inline">Leaderboard</span>
                   </Button>
                 </Link>
-              ) : null}
+              </div>
+            ) : null}
+            <div className="game-dashboard-header-top">
+              <div className="game-dashboard-header-main min-w-0">
+                <h1 className={cn("page-title", isSpectator && "mb-[13px]")}>{game.title}</h1>
+                {isSpectator && showSpectatorEndedRecap ? (
+                  <p className="caption mt-1 text-muted-foreground">
+                    Session ended — view awards, standings, and match history below
+                  </p>
+                ) : null}
+              </div>
+              <div className="game-dashboard-meta">
+                <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
+                  {game.openPlayType}
+                </Badge>
+                {openPlayDateLabel ? (
+                  <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
+                    <CalendarDays className="mr-1 h-3 w-3 shrink-0" aria-hidden />
+                    {openPlayDateLabel}
+                  </Badge>
+                ) : null}
+                {openPlayTimeLabel ? (
+                  <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
+                    <Clock className="mr-1 h-3 w-3 shrink-0" aria-hidden />
+                    {openPlayTimeLabel}
+                  </Badge>
+                ) : null}
+                <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
+                  Courts: {game.courtCount}
+                </Badge>
+                <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
+                  Players: {totalSessionPlayers}
+                </Badge>
+                {!(isSpectator && game.status === "active") ? (
+                  <Badge
+                    variant={game.status === "ended" ? "destructive" : "outline"}
+                    className="game-dashboard-meta-badge w-fit"
+                  >
+                    Status: {game.status}
+                  </Badge>
+                ) : null}
+                <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
+                  <Eye className="mr-1 h-3 w-3" />
+                  Spectators: {spectatorPresence?.count ?? data?.spectatorCount ?? 0}
+                </Badge>
+              </div>
+            </div>
+            {!showSpectatorEndedRecap && !isSpectator ? (
+            <div className="game-toolbar mt-4 flex flex-wrap items-center gap-2">
+              <Link href="/">
+                <Button size="lg" variant="outline">
+                  <House className="mr-2 h-4 w-4" /> Home
+                </Button>
+              </Link>
               {!readOnly && !isPastGame && game.publicQrCodeDataUrl && game.registerUrl ? (
                 <Button
                   size="lg"
@@ -976,19 +1590,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   <QrCode className="mr-2 h-4 w-4" />
                   {qrDialogLoading ? "Checking…" : "QR Registration"}
                 </Button>
-              ) : null}
-              {!showSpectatorEndedRecap ? (
-                <Link
-                  href={
-                    isSpectator
-                      ? `/leaderboard/${game.gameId}?from=spectator`
-                      : `/leaderboard/${game.gameId}`
-                  }
-                >
-                  <Button size="lg" variant="outline">
-                    <Trophy className="mr-2 h-4 w-4" /> Leaderboard
-                  </Button>
-                </Link>
               ) : null}
               {!readOnly && !isPastGame ? (
                 <Button
@@ -1045,327 +1646,81 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             insights={recap?.insights ?? []}
             rows={recap?.rows ?? []}
           />
-        ) : (
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
-          <Card className="glass-panel">
-            <CardHeader className="flex flex-row items-center justify-between gap-3">
-              <CardTitle>Queue</CardTitle>
-              {!hideControls ? (
-                <Button
-                  onClick={() => {
-                    if (!canFillNextCourt) {
-                      if (queueWithStats.length < 4) {
-                        toast.error("Not enough players in the queue. At least 4 are required.");
-                      } else {
-                        toast.error("No empty court available.");
-                      }
-                      return;
-                    }
-                    setFillCourtDialogOpen(true);
-                  }}
-                  disabled={startMutation.isPending || !canFillNextCourt}
-                >
-                  {startMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                      Filling…
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 h-4 w-4" aria-hidden />
-                      Fill next court
-                    </>
-                  )}
-                </Button>
-              ) : null}
-            </CardHeader>
-            <CardContent className="queue-list">
-              {queueWithStats.length === 0 && checkedOutWithStats.length === 0 ? (
-                <p className="text-muted-foreground">Queue is empty.</p>
-              ) : (
-                <>
-                  {queueWithStats.length > 0 ? (
-                    <SortableQueueList
-                      entryIds={sortableQueueEntryIds}
-                      enabled={canReorderQueue}
-                      onReorder={(orderedEntryIds) =>
-                        reorderQueueMutation.mutate(orderedEntryIds)
-                      }
-                    >
-                      <QueueDndZone zone="next-up" className="queue-next-up-group">
-                        <div className="queue-next-up-banner">
-                          <div className="flex items-center gap-2">
-                            <span className="queue-next-up-icon">
-                              <Zap className="h-4 w-4" />
-                            </span>
-                            <div>
-                              <p className="queue-next-up-title">
-                                <span className="xl:hidden">Next</span>
-                                <span className="hidden xl:inline">Next on court</span>
-                              </p>
-                              <p className="caption hidden xl:block">
-                                Top {Math.min(4, queueWithStats.length)}{" "}
-                                {Math.min(4, queueWithStats.length) === 1 ? "player" : "players"} — ready to play
-                                {canReorderQueue ? " · drag to reorder" : ""}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge className="badge-next-up-count">
-                            {Math.min(4, queueWithStats.length)} / 4
-                          </Badge>
-                        </div>
-                        <div className="queue-next-up-slots">
-                          {queueWithStats.slice(0, 4).map((entry, index) =>
-                            renderQueuedEntry(entry, index),
-                          )}
-                        </div>
-                      </QueueDndZone>
-                      {queueWithStats.length > 4 ? (
-                        <QueueDndZone zone="waiting" className="queue-waiting-group">
-                          <div className="queue-waiting-header">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="queue-waiting-toggle mb-2"
-                              onClick={() => {
-                                const next = !showWaitingList;
-                                setShowWaitingList(next);
-                                saveShowWaitingList(next);
-                              }}
-                              aria-expanded={showWaitingList}
-                              aria-controls="queue-waiting-list"
-                            >
-                              {showWaitingList ? (
-                                <>
-                                  <ChevronUp className="mr-1.5 h-4 w-4" />
-                                  Hide waiting list
-                                </>
-                              ) : (
-                                <>
-                                  <ChevronDown className="mr-1.5 h-4 w-4" />
-                                  Show waiting list ({queueWithStats.length - 4})
-                                </>
-                              )}
-                            </Button>
-                            <div className="queue-divider" role="separator">
-                              <span>Waiting in line</span>
-                            </div>
-                            {showWaitingList ? (
-                              <div className="queue-waiting-view-bar mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                <WaitingLineViewToggle
-                                  view={waitingLineView}
-                                  onViewChange={(mode) => {
-                                    setWaitingLineView(mode);
-                                    saveWaitingLineViewMode(mode);
-                                  }}
-                                />
-                                {waitingLineView === "group" && canReorderQueue ? (
-                                  <p className="caption text-muted-foreground">
-                                    Switch to list view to drag and reorder.
-                                  </p>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
-                          <div
-                            id="queue-waiting-list"
-                            className={cn(!showWaitingList && "hidden")}
-                          >
-                            {waitingLineView === "list" ? (
-                              <div className="space-y-2">
-                                {waitingLineEntries.map((entry, offset) =>
-                                  renderQueuedEntry(entry, offset + 4),
-                                )}
-                              </div>
-                            ) : (
-                              <WaitingLineGroupView
-                                waitingEntries={waitingLineEntries}
-                                renderEntry={(entry, queueIndex) =>
-                                  renderQueuedEntry(entry, queueIndex, {
-                                    sortable: false,
-                                    compactName: true,
-                                  })
-                                }
-                              />
-                            )}
-                          </div>
-                        </QueueDndZone>
-                      ) : null}
-                    </SortableQueueList>
-                  ) : null}
-                  {!readOnly && !isPastGame ? (
-                    <QueueCheckedOutList
-                      entries={checkedOutWithStats}
-                      expanded={showCheckedOutList}
-                      onToggle={() => {
-                        const next = !showCheckedOutList;
-                        setShowCheckedOutList(next);
-                        saveShowCheckedOutList(next);
-                      }}
-                      onCheckBackIn={(entry) => checkBackInMutation.mutate(entry._id)}
-                      checkBackInPendingId={
-                        checkBackInMutation.isPending
-                          ? (checkBackInMutation.variables ?? null)
-                          : null
-                      }
-                    />
-                  ) : null}
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="glass-panel courts-panel">
-            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-              <div>
-                <CardTitle>Courts</CardTitle>
-                <CourtsSummary courts={courts} />
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="courts-toggle shrink-0 lg:hidden"
-                onClick={() => {
-                  const next = !showCourts;
-                  setShowCourts(next);
-                  saveShowCourts(next);
-                }}
-                aria-expanded={showCourts}
-                aria-controls="courts-list"
+        ) : isSpectator ? (
+          isLgViewport === true ? (
+            <>
+              <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
+                {renderQueuePanel()}
+                {renderCourtsPanel()}
+              </section>
+              {renderMatchHistoryPanel()}
+            </>
+          ) : (
+            <div className="spectator-mobile-tabs mt-2 flex flex-col gap-4">
+              <div
+                role="tablist"
+                aria-label="Spectator sections"
+                className="spectator-mobile-tablist grid grid-cols-3 gap-1.5 rounded-lg bg-muted p-1.5"
               >
-                {showCourts ? (
-                  <>
-                    <ChevronUp className="mr-1.5 h-4 w-4" />
-                    Hide courts
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="mr-1.5 h-4 w-4" />
-                    Show courts
-                  </>
-                )}
-              </Button>
-            </CardHeader>
-            <CardContent
-              id="courts-list"
-              className={cn(
-                "court-grid court-grid--list grid grid-cols-1 gap-3",
-                !showCourts && "hidden lg:grid",
-              )}
-            >
-              {courts.map((court) => (
-                <CourtCard
-                  key={court._id}
-                  court={court}
-                  playerSessionStats={playerSessionStats}
-                  canReplacePlayers={
-                    !hideControls && court.status === "active" && queueWithStats.length > 0
-                  }
-                  onReplacePlayer={
-                    hideControls
-                      ? undefined
-                      : ({ courtNumber, team, slotIndex, player }) =>
-                          setReplaceDialog({
-                            kind: "court",
-                            courtNumber,
-                            team,
-                            slotIndex,
-                            player,
-                          })
-                  }
-                  replacePendingKey={courtReplacePendingKey}
-                  hideEndGame={hideControls}
-                  onEndGame={
-                    hideControls
-                      ? () => {}
-                      : () => {
-                          setPendingWinner(null);
-                          setTeamAScore("");
-                          setTeamBScore("");
-                          setEndTargetCourt(court.courtNumber);
-                        }
-                  }
-                  onSwapTeams={
-                    hideControls ? undefined : () => swapCourtMutation.mutate(court.courtNumber)
-                  }
-                  swapPending={
-                    swapCourtMutation.isPending &&
-                    swapCourtMutation.variables === court.courtNumber
-                  }
-                  onCancelAssignment={
-                    hideControls ||
-                    court.status !== "active" ||
-                    isCourtRematch(court)
-                      ? undefined
-                      : () => setCancelCourtTarget(court.courtNumber)
-                  }
-                  cancelPending={
-                    cancelCourtMutation.isPending &&
-                    cancelCourtMutation.variables === court.courtNumber
-                  }
-                  onCancelRematch={
-                    hideControls ||
-                    court.status !== "active" ||
-                    !isCourtRematch(court)
-                      ? undefined
-                      : () => setCancelRematchTarget(court.courtNumber)
-                  }
-                  cancelRematchPending={
-                    cancelRematchMutation.isPending &&
-                    cancelRematchMutation.variables === court.courtNumber
-                  }
-                  isFilling={
-                    fillingCourtNumber != null && court.courtNumber === fillingCourtNumber
-                  }
-                />
-              ))}
-            </CardContent>
-          </Card>
-        </section>
-        )}
-
-        <Card className="glass-panel match-history-panel">
-          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle>Match History</CardTitle>
-              <p className="caption">
-                {matches.length} {matches.length === 1 ? "match" : "matches"} recorded
-              </p>
+                {(
+                  [
+                    { id: "queue" as const, label: "Queue", count: queueWithStats.length },
+                    { id: "courts" as const, label: "Courts", count: activeCourtCount },
+                    { id: "history" as const, label: "History", count: matches.length },
+                  ] as const
+                ).map((tab) => {
+                  const selected = spectatorMobileTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      id={`spectator-tab-${tab.id}`}
+                      aria-selected={selected}
+                      aria-controls={`spectator-panel-${tab.id}`}
+                      onClick={() => setSpectatorMobileTab(tab.id)}
+                      className={cn(
+                        "inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-md px-2 py-2.5 text-xs font-medium transition-colors sm:text-sm",
+                        selected
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <span>{tab.label}</span>
+                      {tab.count > 0 ? (
+                        <Badge
+                          variant="secondary"
+                          className="px-1.5 py-0 text-[10px] sm:text-xs"
+                        >
+                          {tab.count}
+                        </Badge>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                role="tabpanel"
+                id={`spectator-panel-${spectatorMobileTab}`}
+                aria-labelledby={`spectator-tab-${spectatorMobileTab}`}
+              >
+                {spectatorMobileTab === "queue"
+                  ? renderQueuePanel()
+                  : spectatorMobileTab === "courts"
+                    ? renderCourtsPanel(true)
+                    : renderMatchHistoryPanel(true)}
+              </div>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="match-history-toggle shrink-0"
-              onClick={() => {
-                const next = !showMatchHistory;
-                setShowMatchHistory(next);
-                saveShowMatchHistory(next);
-              }}
-              aria-expanded={showMatchHistory}
-              aria-controls="match-history-list"
-            >
-              {showMatchHistory ? (
-                <>
-                  <ChevronUp className="mr-1.5 h-4 w-4" />
-                  Hide match history
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="mr-1.5 h-4 w-4" />
-                  Show match history
-                </>
-              )}
-            </Button>
-          </CardHeader>
-          {showMatchHistory ? (
-            <CardContent id="match-history-list">
-              <MatchHistoryList matches={matches} gameId={gameId} editable={!hideControls} />
-            </CardContent>
-          ) : null}
-        </Card>
+          )
+        ) : (
+          <>
+            <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
+              {renderQueuePanel()}
+              {renderCourtsPanel()}
+            </section>
+            {renderMatchHistoryPanel()}
+          </>
+        )}
       </section>
 
       {!readOnly ? (

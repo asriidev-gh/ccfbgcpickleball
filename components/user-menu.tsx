@@ -1,10 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CircleUser, LogOut, TrendingUp } from "lucide-react";
+import { CircleUser, LogOut, QrCode, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
 import { ThemeMenuItems } from "@/components/theme-menu";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,12 @@ export function UserMenu() {
     queryFn: async () => {
       const response = await fetch("/api/auth/me");
       const payload = (await response.json()) as {
-        user: { name: string; email: string; isSuperAdmin?: boolean } | null;
+        user: {
+          name: string;
+          email: string;
+          isSuperAdmin?: boolean;
+          registrationFeature?: string;
+        } | null;
         message?: string;
       };
       if (response.status === 403) {
@@ -78,13 +84,22 @@ export function UserMenu() {
             </DropdownMenuItem>
           </>
         ) : null}
+        {data?.user && isQrIdRegistrationEnabled(data.user.registrationFeature) ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/settings/player-qr")}>
+              <QrCode />
+              QR download settings
+            </DropdownMenuItem>
+          </>
+        ) : null}
+        <DropdownMenuSeparator />
+        <ThemeMenuItems />
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>
           <LogOut />
           Logout
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <ThemeMenuItems />
       </DropdownMenuContent>
     </DropdownMenu>
   );

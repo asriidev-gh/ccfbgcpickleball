@@ -20,6 +20,18 @@ const playerSchema = new Schema(
     lastAttendedAt: { type: Date },
     photoUrl: { type: String, default: "" },
     photoPublicId: { type: String, default: "" },
+    gender: {
+      type: String,
+      enum: ["male", "female", "prefer_not_to_say", ""],
+      default: "",
+    },
+    birthdate: { type: Date },
+    biography: { type: String, trim: true, maxlength: 500, default: "" },
+    pickleballLevel: {
+      type: String,
+      enum: ["beginner", "low_intermediate", "high_intermediate", "advanced", "pro", ""],
+      default: "",
+    },
   },
   { timestamps: true }
 );

@@ -1,3 +1,5 @@
+export const REGISTRATION_PHOTO_REQUIRED_MESSAGE = "A photo is required.";
+
 export const MAX_REGISTRATION_PHOTO_BYTES = 5 * 1024 * 1024;
 
 export const REGISTRATION_PHOTO_ACCEPT_TYPES = [

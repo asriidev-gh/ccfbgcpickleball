@@ -6,27 +6,42 @@ import {
   RegistrationLimitError,
 } from "@/lib/game-registration-limit";
 import { formatZodError } from "@/lib/format-zod-error";
+import { recordCheckinAttemptNotification } from "@/lib/organizer-notifications";
+import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
+import { formatPlayerDisplayName } from "@/lib/utils";
+import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import {
   existingPlayerSchema,
+  genericExistingPlayerSchema,
   type ExistingPlayerInput,
   volunteerExistingPlayerSchema,
+  type VolunteerExistingPlayerInput,
 } from "@/lib/validations";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 import { Volunteer } from "@/models/Volunteer";
 
 export async function POST(request: Request) {
+  let body: Record<string, unknown> | null = null;
   try {
     await connectToDatabase();
-    const body = await request.json();
+    body = await request.json();
     const isVolunteer =
       body?.volunteerType === "Pickleball" ||
       body?.volunteerType === "Running" ||
       body?.volunteerType === "Badminton" ||
       body?.volunteerType === "Other";
+    const formVariant = await resolveGameRegistrationFormVariant(
+      typeof body?.gameId === "string" ? body.gameId : "",
+    );
+    const isGenericForm = formVariant === "generic";
+    const isQrUploadCheckIn = body?.registrationSource === QR_UPLOAD_REGISTRATION_SOURCE;
+
     const parsed = isVolunteer
       ? volunteerExistingPlayerSchema.safeParse(body)
-      : existingPlayerSchema.safeParse(body);
+      : isGenericForm || isQrUploadCheckIn
+        ? genericExistingPlayerSchema.safeParse(body)
+        : existingPlayerSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
     }
@@ -38,10 +53,11 @@ export async function POST(request: Request) {
     }
 
     await assertGameRegistrationAllowed(payload.gameId, {
+      email: player.email,
       playerId: String(player._id),
     });
 
-    if (!isVolunteer) {
+    if (!isVolunteer && !isGenericForm && !isQrUploadCheckIn) {
       const playerPayload = payload as ExistingPlayerInput;
       player.isPartOfDgroup = playerPayload.isPartOfDgroup;
       player.wantsToJoinDgroup = playerPayload.wantsToJoinDgroup ?? null;
@@ -58,14 +74,15 @@ export async function POST(request: Request) {
       queueType: "normal",
     });
 
-    if (payload.volunteerType) {
+    if (isVolunteer) {
+      const volunteerPayload = payload as VolunteerExistingPlayerInput;
       await Volunteer.findOneAndUpdate(
         { playerId: player._id, gameId: payload.gameId },
         {
           playerId: player._id,
           gameId: payload.gameId,
-          volunteerType: payload.volunteerType,
-          volunteerTypeOther: payload.volunteerTypeOther,
+          volunteerType: volunteerPayload.volunteerType,
+          volunteerTypeOther: volunteerPayload.volunteerTypeOther,
         },
         { upsert: true, new: true }
       );
@@ -74,10 +91,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ player, message: "Welcome back! Added to queue." });
   } catch (error) {
     if (error instanceof RegistrationLimitError) {
+      if (error.checkedOut && typeof body?.gameId === "string" && error.playerId) {
+        const checkedOutPlayer = await Player.findById(error.playerId).select("firstName lastName");
+        if (checkedOutPlayer) {
+          await recordCheckinAttemptNotification({
+            gameId: body.gameId,
+            playerId: error.playerId,
+            playerName: formatPlayerDisplayName(
+              checkedOutPlayer.firstName,
+              checkedOutPlayer.lastName,
+            ),
+          });
+        }
+      }
+
       return NextResponse.json(
         {
           message: error.message,
           alreadyRegistered: error.alreadyRegistered ?? false,
+          checkedOut: error.checkedOut ?? false,
           ...(error.playerId ? { player: { _id: error.playerId } } : {}),
         },
         { status: error.status },

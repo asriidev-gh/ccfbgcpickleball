@@ -1,4 +1,4 @@
-import { Clock, Link2, LogOut } from "lucide-react";
+import { Clock, Link2, LogOut, UserX } from "lucide-react";
 
 import { PlayerNameWithPhoto } from "@/components/game/player-avatar";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
@@ -21,9 +21,19 @@ type DeckPlayerProps = {
   hideControls?: boolean;
   onRemove?: () => void;
   removePending?: boolean;
+  onRemovePlayer?: () => void;
+  removePlayerPending?: boolean;
 };
 
-function DeckPlayer({ entry, highlighted, hideControls, onRemove, removePending }: DeckPlayerProps) {
+function DeckPlayer({
+  entry,
+  highlighted,
+  hideControls,
+  onRemove,
+  removePending,
+  onRemovePlayer,
+  removePlayerPending,
+}: DeckPlayerProps) {
   return (
     <div
       id={`queue-entry-${entry._id}`}
@@ -38,18 +48,32 @@ function DeckPlayer({ entry, highlighted, hideControls, onRemove, removePending 
         </Badge>
       </div>
       <p className="caption text-muted-foreground">{formatLastMatchLine(entry.lastMatchResult)}</p>
-      {!hideControls && onRemove ? (
-        <div className="mt-2 flex justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            className="queue-remove-btn border-destructive/50 text-destructive"
-            onClick={onRemove}
-            disabled={removePending}
-          >
-            <LogOut className="mr-1.5 h-3.5 w-3.5" />
-            Check Out
-          </Button>
+      {!hideControls && (onRemove || onRemovePlayer) ? (
+        <div className="mt-2 flex flex-wrap justify-end gap-1">
+          {onRemove ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="queue-remove-btn border-destructive/50 text-destructive"
+              onClick={onRemove}
+              disabled={removePending}
+            >
+              <LogOut className="mr-1.5 h-3.5 w-3.5" />
+              Check Out
+            </Button>
+          ) : null}
+          {onRemovePlayer ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="queue-remove-player-btn border-destructive/50 text-destructive"
+              onClick={onRemovePlayer}
+              disabled={removePlayerPending}
+            >
+              <UserX className="mr-1.5 h-3.5 w-3.5" />
+              Remove player
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -61,6 +85,8 @@ type QueueBracketDeckContainerProps = {
   hideControls?: boolean;
   onRemove?: (entry: QueueEntryView) => void;
   removePendingEntryId?: string | null;
+  onRemovePlayer?: (entry: QueueEntryView) => void;
+  removePlayerPendingEntryId?: string | null;
   highlightedPlayerId?: string | null;
 };
 
@@ -69,6 +95,8 @@ export function QueueBracketDeckContainer({
   hideControls,
   onRemove,
   removePendingEntryId,
+  onRemovePlayer,
+  removePlayerPendingEntryId,
   highlightedPlayerId,
 }: QueueBracketDeckContainerProps) {
   const isWinner = deck.queueType === "winner";
@@ -121,6 +149,8 @@ export function QueueBracketDeckContainer({
                     hideControls={hideControls}
                     onRemove={onRemove ? () => onRemove(entry) : undefined}
                     removePending={removePendingEntryId === entry._id}
+                    onRemovePlayer={onRemovePlayer ? () => onRemovePlayer(entry) : undefined}
+                    removePlayerPending={removePlayerPendingEntryId === entry._id}
                   />
                 </div>
               ))}
@@ -152,6 +182,8 @@ export function QueueBracketDeckContainer({
                     hideControls={hideControls}
                     onRemove={onRemove ? () => onRemove(entry) : undefined}
                     removePending={removePendingEntryId === entry._id}
+                    onRemovePlayer={onRemovePlayer ? () => onRemovePlayer(entry) : undefined}
+                    removePlayerPending={removePlayerPendingEntryId === entry._id}
                   />
                 ))}
                 {slot.needsOpponent ? (

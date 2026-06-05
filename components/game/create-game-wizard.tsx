@@ -11,20 +11,119 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  formatOpenPlayTimeRange,
+  validateOpenPlayTimeOrder,
+  type OpenPlayMeridiem,
+} from "@/lib/open-play-time-range";
 import { defaultOpenPlayTitle, OPEN_PLAY_TYPES } from "@/lib/open-play-types";
 import { useUiStore } from "@/store/ui-store";
 
 const types = OPEN_PLAY_TYPES;
 
 type RegistrationMode = "self" | "owner";
+type Meridiem = OpenPlayMeridiem;
 
-const INITIAL_FORM = {
-  title: "",
-  openPlayType: "Beginner" as (typeof types)[number],
-  courtCount: 2,
-  expectedPlayers: 24,
-  strictPlayerCount: false,
-};
+const OPEN_PLAY_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const OPEN_PLAY_MERIDIEM_OPTIONS: Meridiem[] = ["AM", "PM"];
+
+function isOpenPlayTimeComplete(form: {
+  openPlayFromHour: string;
+  openPlayFromMeridiem: Meridiem | "";
+  openPlayToHour: string;
+  openPlayToMeridiem: Meridiem | "";
+}) {
+  return Boolean(
+    form.openPlayFromHour &&
+      form.openPlayFromMeridiem &&
+      form.openPlayToHour &&
+      form.openPlayToMeridiem,
+  );
+}
+
+function OpenPlayTimeField({
+  idPrefix,
+  label,
+  hour,
+  meridiem,
+  onHourChange,
+  onMeridiemChange,
+}: {
+  idPrefix: string;
+  label: string;
+  hour: string;
+  meridiem: Meridiem | "";
+  onHourChange: (hour: string) => void;
+  onMeridiemChange: (meridiem: Meridiem) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-base">{label}</Label>
+      <div className="grid grid-cols-2 gap-3">
+        <Select value={hour || null} onValueChange={(value) => onHourChange(value ?? "")}>
+          <SelectTrigger id={`${idPrefix}-hour`} className="h-11 w-full bg-background text-base">
+            <SelectValue placeholder="Hour" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover text-popover-foreground">
+            {OPEN_PLAY_HOUR_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={meridiem || null}
+          onValueChange={(value) => onMeridiemChange((value ?? "AM") as Meridiem)}
+        >
+          <SelectTrigger
+            id={`${idPrefix}-meridiem`}
+            className="h-11 w-full bg-background text-base"
+          >
+            <SelectValue placeholder="AM/PM" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover text-popover-foreground">
+            {OPEN_PLAY_MERIDIEM_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  );
+}
+
+function getTodayDateInputValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function createInitialForm() {
+  return {
+    title: "",
+    openPlayType: "Beginner" as (typeof types)[number],
+    openPlayDate: getTodayDateInputValue(),
+    openPlayFromHour: "7",
+    openPlayFromMeridiem: "PM",
+    openPlayToHour: "10",
+    openPlayToMeridiem: "PM",
+    courtCount: 2,
+    expectedPlayers: 24,
+    strictPlayerCount: false,
+  };
+}
 
 function defaultGameTitle(openPlayType: string) {
   return defaultOpenPlayTitle(openPlayType);
@@ -58,7 +157,8 @@ export function CreateGameWizard() {
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode | "">("self");
   const [playerNames, setPlayerNames] = useState<string[]>([""]);
   const [allowQrRegistration, setAllowQrRegistration] = useState(false);
-  const [form, setForm] = useState(INITIAL_FORM);
+  const [form, setForm] = useState(createInitialForm);
+  const [timeRangeError, setTimeRangeError] = useState("");
 
   const totalSteps = getTotalSteps(registrationMode);
   const stepKind = getStepKind(step, registrationMode);
@@ -74,11 +174,47 @@ export function CreateGameWizard() {
     setRegistrationMode("self");
     setPlayerNames([""]);
     setAllowQrRegistration(false);
-    setForm(INITIAL_FORM);
+    setForm(createInitialForm());
+    setTimeRangeError("");
     setLoading(false);
   }, [createGameWizardOpen]);
 
+  useEffect(() => {
+    if (stepKind !== "openPlayType" || !isOpenPlayTimeComplete(form)) {
+      setTimeRangeError("");
+      return;
+    }
+
+    const validation = validateOpenPlayTimeOrder(
+      form.openPlayFromHour,
+      form.openPlayFromMeridiem,
+      form.openPlayToHour,
+      form.openPlayToMeridiem,
+    );
+    setTimeRangeError(validation.ok ? "" : validation.message);
+  }, [
+    stepKind,
+    form.openPlayFromHour,
+    form.openPlayFromMeridiem,
+    form.openPlayToHour,
+    form.openPlayToMeridiem,
+  ]);
+
+  const getOpenPlayTimeValidation = () => {
+    if (!isOpenPlayTimeComplete(form)) return null;
+    return validateOpenPlayTimeOrder(
+      form.openPlayFromHour,
+      form.openPlayFromMeridiem,
+      form.openPlayToHour,
+      form.openPlayToMeridiem,
+    );
+  };
+
   const canGoNext = () => {
+    if (stepKind === "openPlayType") {
+      if (!isOpenPlayTimeComplete(form)) return false;
+      return getOpenPlayTimeValidation()?.ok ?? false;
+    }
     if (stepKind === "registrationMode") return registrationMode !== "";
     if (stepKind === "playerNames") return trimmedPlayerNames.length > 0;
     return true;
@@ -86,12 +222,27 @@ export function CreateGameWizard() {
 
   const goNext = () => {
     if (!canGoNext()) {
-      if (stepKind === "registrationMode") {
+      if (stepKind === "openPlayType") {
+        if (!isOpenPlayTimeComplete(form)) {
+          toast.error("Select from and to times.");
+        } else {
+          const validation = getOpenPlayTimeValidation();
+          const message =
+            validation && !validation.ok
+              ? validation.message
+              : "Select from and to times.";
+          setTimeRangeError(validation && !validation.ok ? validation.message : "");
+          toast.error(message);
+        }
+      } else if (stepKind === "registrationMode") {
         toast.error("Choose how players will be registered.");
       } else if (stepKind === "playerNames") {
         toast.error("Enter at least one player name.");
       }
       return;
+    }
+    if (stepKind === "openPlayType") {
+      setTimeRangeError("");
     }
     setStep((prev) => Math.min(totalSteps, prev + 1));
   };
@@ -101,10 +252,32 @@ export function CreateGameWizard() {
   };
 
   const submit = async () => {
+    const timeValidation = getOpenPlayTimeValidation();
+    if (!timeValidation?.ok) {
+      const message = timeValidation?.message ?? "Select from and to times.";
+      setTimeRangeError(message);
+      toast.error(message);
+      return;
+    }
+
     try {
       setLoading(true);
+      const {
+        openPlayFromHour,
+        openPlayFromMeridiem,
+        openPlayToHour,
+        openPlayToMeridiem,
+        ...formRest
+      } = form;
+
       const body: Record<string, unknown> = {
-        ...form,
+        ...formRest,
+        openPlayTimeRange: formatOpenPlayTimeRange(
+          openPlayFromHour,
+          openPlayFromMeridiem as Meridiem,
+          openPlayToHour,
+          openPlayToMeridiem as Meridiem,
+        ),
         title: form.title.trim() || defaultGameTitle(form.openPlayType),
         registrationMode: registrationMode || undefined,
       };
@@ -150,20 +323,67 @@ export function CreateGameWizard() {
 
         <div className="min-h-[280px] flex-1 overflow-y-auto px-6 py-6">
           {stepKind === "openPlayType" ? (
-            <div className="space-y-4">
-              <Label className="text-base">Open Play Type</Label>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {types.map((type) => (
-                  <Button
-                    key={type}
-                    variant={form.openPlayType === type ? "default" : "outline"}
-                    size="sm"
-                    className="min-h-12 w-full px-2 py-2.5 text-center text-sm leading-snug"
-                    onClick={() => setForm((prev) => ({ ...prev, openPlayType: type }))}
-                  >
-                    {type}
-                  </Button>
-                ))}
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <Label className="text-base">Players Level</Label>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {types.map((type) => (
+                    <Button
+                      key={type}
+                      variant={form.openPlayType === type ? "default" : "outline"}
+                      size="sm"
+                      className="min-h-12 w-full px-2 py-2.5 text-center text-sm leading-snug"
+                      onClick={() => setForm((prev) => ({ ...prev, openPlayType: type }))}
+                    >
+                      {type}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="mx-auto w-full max-w-md space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="openPlayDate" className="text-base">
+                    Open Play Date
+                  </Label>
+                  <Input
+                    id="openPlayDate"
+                    type="date"
+                    className="h-11 text-base"
+                    value={form.openPlayDate}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, openPlayDate: event.target.value }))
+                    }
+                  />
+                </div>
+                <OpenPlayTimeField
+                  idPrefix="openPlayFrom"
+                  label="From Time"
+                  hour={form.openPlayFromHour}
+                  meridiem={form.openPlayFromMeridiem}
+                  onHourChange={(openPlayFromHour) =>
+                    setForm((prev) => ({ ...prev, openPlayFromHour }))
+                  }
+                  onMeridiemChange={(openPlayFromMeridiem) =>
+                    setForm((prev) => ({ ...prev, openPlayFromMeridiem }))
+                  }
+                />
+                <OpenPlayTimeField
+                  idPrefix="openPlayTo"
+                  label="To Time"
+                  hour={form.openPlayToHour}
+                  meridiem={form.openPlayToMeridiem}
+                  onHourChange={(openPlayToHour) =>
+                    setForm((prev) => ({ ...prev, openPlayToHour }))
+                  }
+                  onMeridiemChange={(openPlayToMeridiem) =>
+                    setForm((prev) => ({ ...prev, openPlayToMeridiem }))
+                  }
+                />
+                {timeRangeError ? (
+                  <p className="text-sm text-destructive" role="alert">
+                    {timeRangeError}
+                  </p>
+                ) : null}
               </div>
             </div>
           ) : null}

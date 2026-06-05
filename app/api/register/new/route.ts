@@ -20,6 +20,12 @@ import {
   parseGenericPlayerPayloadFromFormData,
   parseNewPlayerPayloadFromFormData,
 } from "@/lib/parse-registration-form";
+import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
+import { buildPlayerQrDataUrlWithBranding } from "@/lib/player-qr";
+import { resolvePlayerQrBrandingForGame } from "@/lib/player-qr-branding";
+import { resolveGameRegistrationFeature } from "@/lib/resolve-game-registration-feature";
+import { REGISTRATION_PHOTO_REQUIRED_MESSAGE } from "@/lib/registration-photo";
+import { isRegistrationPhotoRequired } from "@/lib/registration-variant";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import {
   genericPlayerSchema,
@@ -94,7 +100,14 @@ export async function POST(request: Request) {
       payload = parsed.data;
     }
 
-    await assertGameRegistrationAllowed(payload.gameId);
+    if (isRegistrationPhotoRequired(formVariant) && !photoFile) {
+      return NextResponse.json(
+        { message: REGISTRATION_PHOTO_REQUIRED_MESSAGE },
+        { status: 400 },
+      );
+    }
+
+    await assertGameRegistrationAllowed(payload.gameId, { email: payload.email });
 
     const duplicatePlayer = await findPlayerAlreadyRegisteredForGame(payload.gameId, {
       firstName: payload.firstName,
@@ -181,9 +194,26 @@ export async function POST(request: Request) {
       });
     }
 
+    const registrationFeature = await resolveGameRegistrationFeature(payload.gameId);
+    const showPlayerQr =
+      registrationFeature != null && isQrIdRegistrationEnabled(registrationFeature);
+    const branding = showPlayerQr ? await resolvePlayerQrBrandingForGame(payload.gameId) : null;
+    const personalQrCodeDataUrl =
+      showPlayerQr && branding
+        ? await buildPlayerQrDataUrlWithBranding(player.personalQrCode, {
+            registrantFirstName: player.firstName,
+            registrantLastName: player.lastName,
+            branding,
+          })
+        : undefined;
+
     return NextResponse.json({
       player,
-      message: `Registration complete. QR email queued to ${player.email}.`,
+      showPlayerQr,
+      personalQrCodeDataUrl,
+      message: showPlayerQr
+        ? "Registration complete. Save your personal QR for next time."
+        : `Registration complete. QR email queued to ${player.email}.`,
     });
   } catch (error) {
     if (error instanceof RegistrationLimitError) {
@@ -191,6 +221,7 @@ export async function POST(request: Request) {
         {
           message: error.message,
           alreadyRegistered: error.alreadyRegistered ?? false,
+          checkedOut: error.checkedOut ?? false,
           ...(error.playerId ? { player: { _id: error.playerId } } : {}),
         },
         { status: error.status },

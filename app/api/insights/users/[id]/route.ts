@@ -39,27 +39,94 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const { id } = await params;
-    if (id === authUser.userId) {
-      return NextResponse.json({ message: "You can't block your own account." }, { status: 400 });
+    const body = await request.json();
+    const updates: Record<string, boolean | string> = {};
+
+    if (typeof body?.blocked === "boolean") {
+      if (id === authUser.userId) {
+        return NextResponse.json({ message: "You can't block your own account." }, { status: 400 });
+      }
+      updates.isBlocked = body.blocked;
+    }
+    if (body?.registrationFeature === "default" || body?.registrationFeature === "qr_id") {
+      updates.registrationFeature = body.registrationFeature;
+    }
+    if (body?.userType === "default" || body?.userType === "ccf") {
+      updates.userType = body.userType;
     }
 
-    const body = await request.json();
-    if (typeof body?.blocked !== "boolean") {
-      return NextResponse.json({ message: "blocked (boolean) is required." }, { status: 400 });
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(
+        {
+          message:
+            "Provide blocked (boolean), registrationFeature (default | qr_id), and/or userType (default | ccf).",
+        },
+        { status: 400 },
+      );
     }
 
     await connectToDatabase();
-    const user = await User.findByIdAndUpdate(
-      id,
-      { $set: { isBlocked: body.blocked } },
-      { new: true },
-    ).select("name isBlocked");
+    const user = await User.findByIdAndUpdate(id, { $set: updates }, { new: true }).select(
+      "name isBlocked registrationFeature userType",
+    );
 
     if (!user) return NextResponse.json({ message: "User not found." }, { status: 404 });
 
+    if (typeof body?.blocked === "boolean" && Object.keys(updates).length === 1) {
+      return NextResponse.json({
+        message: body.blocked ? "User blocked." : "User unblocked.",
+        user: {
+          id: user._id.toString(),
+          name: user.name,
+          isBlocked: user.isBlocked,
+          registrationFeature: user.registrationFeature ?? "default",
+          userType: user.userType ?? "default",
+        },
+      });
+    }
+
+    if (
+      body?.registrationFeature === "default" ||
+      body?.registrationFeature === "qr_id"
+    ) {
+      return NextResponse.json({
+        message:
+          body.registrationFeature === "qr_id"
+            ? "Registration set to QR ID."
+            : "Registration set to default.",
+        user: {
+          id: user._id.toString(),
+          name: user.name,
+          isBlocked: user.isBlocked,
+          registrationFeature: user.registrationFeature ?? "default",
+          userType: user.userType ?? "default",
+        },
+      });
+    }
+
+    if (body?.userType === "default" || body?.userType === "ccf") {
+      return NextResponse.json({
+        message:
+          body.userType === "ccf" ? "User type set to CCF." : "User type set to default.",
+        user: {
+          id: user._id.toString(),
+          name: user.name,
+          isBlocked: user.isBlocked,
+          registrationFeature: user.registrationFeature ?? "default",
+          userType: user.userType ?? "default",
+        },
+      });
+    }
+
     return NextResponse.json({
-      message: body.blocked ? "User blocked." : "User unblocked.",
-      user: { id: user._id.toString(), name: user.name, isBlocked: user.isBlocked },
+      message: "User updated.",
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        isBlocked: user.isBlocked,
+        registrationFeature: user.registrationFeature ?? "default",
+        userType: user.userType ?? "default",
+      },
     });
   } catch (error) {
     return NextResponse.json(

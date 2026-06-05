@@ -92,6 +92,62 @@ export async function uploadRegistrationPhoto(
   };
 }
 
+export async function uploadProfilePhoto(
+  file: File,
+  options: { gameId: string; playerId: string; firstName: string; lastName: string },
+): Promise<RegistrationPhotoUpload> {
+  const config = getCloudinaryConfig();
+  if (!config) {
+    throw new Error("Photo upload is not configured. Contact support.");
+  }
+
+  if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    throw new Error("Please use a JPG, PNG, WebP, or GIF photo.");
+  }
+
+  if (file.size > MAX_REGISTRATION_PHOTO_BYTES) {
+    throw new Error("Photo must be 5 MB or smaller.");
+  }
+
+  cloudinary.config(config);
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const nameSlug = slugify(`${options.firstName}-${options.lastName}`) || "profile";
+  const publicId = `${Date.now()}-${nameSlug}`;
+
+  const result = await new Promise<{
+    secure_url: string;
+    public_id: string;
+  }>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: `paddleflow/player-profiles/${options.gameId}/${options.playerId}`,
+        public_id: publicId,
+        resource_type: "image",
+        overwrite: false,
+        transformation: [{ width: 1200, height: 1200, crop: "limit", quality: "auto:good" }],
+      },
+      (error, uploadResult) => {
+        if (error || !uploadResult?.secure_url || !uploadResult.public_id) {
+          reject(error ?? new Error("Photo upload failed."));
+          return;
+        }
+        resolve({
+          secure_url: uploadResult.secure_url,
+          public_id: uploadResult.public_id,
+        });
+      },
+    );
+    stream.end(buffer);
+  });
+
+  return {
+    photoUrl: result.secure_url,
+    photoPublicId: result.public_id,
+  };
+}
+
 /** Removes uploaded registration images from Cloudinary (no-op if not configured). */
 export async function deleteRegistrationPhotos(publicIds: Iterable<string>) {
   const config = getCloudinaryConfig();

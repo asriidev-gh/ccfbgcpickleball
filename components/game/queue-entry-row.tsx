@@ -1,4 +1,4 @@
-import { ArrowLeftRight, LogIn, LogOut, Trophy } from "lucide-react";
+import { ArrowLeftRight, LogIn, LogOut, UserX, Trophy } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
@@ -87,6 +87,8 @@ type QueueEntryRowProps = {
   hideReplacePanel?: boolean;
   onRemove?: () => void;
   removePending?: boolean;
+  onRemovePlayer?: () => void;
+  removePlayerPending?: boolean;
   /** Read-only row for players who left the waiting queue. */
   checkedOut?: boolean;
   onCheckBackIn?: () => void;
@@ -111,6 +113,8 @@ export function QueueEntryRow({
   hideReplacePanel = false,
   onRemove,
   removePending = false,
+  onRemovePlayer,
+  removePlayerPending = false,
   checkedOut = false,
   onCheckBackIn,
   checkBackInPending = false,
@@ -266,19 +270,58 @@ export function QueueEntryRow({
                 Check Out
               </Button>
             ) : null}
+            {onRemovePlayer ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="queue-remove-player-btn h-7 min-h-7 gap-0.5 border-destructive/50 px-2 text-[11px] leading-tight text-destructive xl:h-9 xl:min-h-9 xl:px-3 xl:text-sm"
+                onClick={onRemovePlayer}
+                disabled={removePlayerPending}
+              >
+                <UserX className="size-3 shrink-0 xl:size-3.5" />
+                Remove player
+              </Button>
+            ) : null}
           </div>
         </div>
-      ) : !checkedOut && onRemove ? (
+      ) : !checkedOut && (onRemove || onRemovePlayer) ? (
+        <div className="mt-2 flex flex-wrap justify-end gap-1">
+          {onRemove ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="queue-remove-btn border-destructive/50 text-destructive"
+              onClick={onRemove}
+              disabled={removePending}
+            >
+              <LogOut className="mr-1.5 h-3.5 w-3.5" />
+              Check Out
+            </Button>
+          ) : null}
+          {onRemovePlayer ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="queue-remove-player-btn border-destructive/50 text-destructive"
+              onClick={onRemovePlayer}
+              disabled={removePlayerPending}
+            >
+              <UserX className="mr-1.5 h-3.5 w-3.5" />
+              Remove player
+            </Button>
+          ) : null}
+        </div>
+      ) : checkedOut && onRemovePlayer ? (
         <div className="mt-2 flex justify-end">
           <Button
             size="sm"
             variant="outline"
-            className="queue-remove-btn border-destructive/50 text-destructive"
-            onClick={onRemove}
-            disabled={removePending}
+            className="queue-remove-player-btn border-destructive/50 text-destructive"
+            onClick={onRemovePlayer}
+            disabled={removePlayerPending}
           >
-            <LogOut className="mr-1.5 h-3.5 w-3.5" />
-            Check Out
+            <UserX className="mr-1.5 h-3.5 w-3.5" />
+            Remove player
           </Button>
         </div>
       ) : null}

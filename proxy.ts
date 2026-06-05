@@ -5,14 +5,16 @@ const AUTH_COOKIE = "ccf_auth";
 
 export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
-  const isSpectatorGameRoute = /^\/games\/[^/]+\/spectate\/?$/.test(pathname);
+  const isSpectatorGameRoute = /^\/games\/[^/]+\/spectate(?:\/.*)?$/.test(pathname);
   const isSpectatorLeaderboard =
     pathname.startsWith("/leaderboard/") && searchParams.get("from") === "spectator";
   const isProtectedRoute =
     (pathname === "/" ||
       pathname.startsWith("/games") ||
       pathname.startsWith("/leaderboard") ||
-      pathname.startsWith("/insights")) &&
+      pathname.startsWith("/insights") ||
+      pathname.startsWith("/settings") ||
+      pathname.startsWith("/users")) &&
     !isSpectatorGameRoute &&
     !isSpectatorLeaderboard;
   const isAuthRoute = pathname.startsWith("/login");
@@ -30,5 +32,13 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/games/:path*", "/leaderboard/:path*", "/insights/:path*", "/login"],
+  matcher: [
+    "/",
+    "/games/:path*",
+    "/leaderboard/:path*",
+    "/insights/:path*",
+    "/settings/:path*",
+    "/users",
+    "/login",
+  ],
 };
