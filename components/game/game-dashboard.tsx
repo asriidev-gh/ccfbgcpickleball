@@ -15,6 +15,7 @@ import {
   Eye,
   CalendarDays,
   Clock,
+  Volume2,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -25,6 +26,7 @@ import Swal from "sweetalert2";
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
 import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import {
@@ -70,7 +72,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
-import { isGameResetEnabled } from "@/lib/feature-flags";
 import {
   clearQueueHighlightPlayerId,
   getActiveQueueHighlightPlayerId,
@@ -88,6 +89,7 @@ import {
   MAX_MATCH_SCORE,
   sanitizeScoreInput,
 } from "@/lib/match-score-validation";
+import { announceCourtEnded, announceNextCourtPlayers } from "@/lib/call-names-speech";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 import { useSpectatorPresence } from "@/hooks/use-spectator-presence";
 import { useSpectatorSessionCleanup } from "@/hooks/use-spectator-session-cleanup";
@@ -96,7 +98,7 @@ import { dispatchSpectatorCheckoutNotification } from "@/lib/spectator-checkout-
 
 export type GameDashboardMode = "operator" | "spectator";
 
-type SpectatorMobileTab = "queue" | "courts" | "history";
+type DashboardMobileTab = "queue" | "courts" | "history";
 
 type GamePayload = {
   game: {
@@ -343,11 +345,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [teamAScore, setTeamAScore] = useState("");
   const [teamBScore, setTeamBScore] = useState("");
   const [showWaitingList, setShowWaitingList] = useState(true);
+  const [callingNames, setCallingNames] = useState(false);
   const [waitingLineView, setWaitingLineView] = useState<WaitingLineViewMode>("list");
   const [showCheckedOutList, setShowCheckedOutList] = useState(true);
   const [showMatchHistory, setShowMatchHistory] = useState(true);
   const [showCourts, setShowCourts] = useState(true);
-  const [spectatorMobileTab, setSpectatorMobileTab] = useState<SpectatorMobileTab>("queue");
+  const [mobileDashboardTab, setMobileDashboardTab] = useState<DashboardMobileTab>("queue");
   const [uiPrefsHydrated, setUiPrefsHydrated] = useState(false);
   const [isLgViewport, setIsLgViewport] = useState<boolean | null>(null);
   const [matchHistoryScope, setMatchHistoryScope] = useState<MatchHistoryScope>("mine");
@@ -469,6 +472,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       closeEndDialog();
       toast.success(data.message ?? "Court updated.");
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      void announceCourtEnded(variables.courtNumber, {
+        onStart: () => setCallingNames(false),
+      });
     },
     onError: (error) => toast.error(error.message),
   });
@@ -895,8 +901,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
     persistActiveQueueHighlight(gameId, fromRegistration);
 
-    if (isSpectator && !isLgViewport && spectatorMobileTab !== "queue") {
-      setSpectatorMobileTab("queue");
+    if (!isLgViewport && mobileDashboardTab !== "queue") {
+      setMobileDashboardTab("queue");
       return;
     }
 
@@ -950,8 +956,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     data?.queue,
     showWaitingList,
     waitingLineView,
-    spectatorMobileTab,
-    isSpectator,
+    mobileDashboardTab,
   ]);
 
   const readOnly = isSpectator;
@@ -1020,12 +1025,41 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const openPlayTimeLabel = game.openPlayTimeRange?.trim() || null;
   const isPastGame = game.status === "ended";
   const showSpectatorEndedRecap = isSpectator && isPastGame;
-  const canResetGame = isDemoOpenPlayTitle(game.title) || isGameResetEnabled();
+  const canResetGame = isDemoOpenPlayTitle(game.title);
   const hideControls = readOnly || isPastGame;
   const canReorderQueue =
     !hideControls && queueWithStats.length >= 2 && !reorderQueueMutation.isPending;
   const queueEntryIds = queueWithStats.map((entry) => entry._id);
   const canCheckoutFromQueue = !isPastGame;
+  const showOperatorMobileNav = !showSpectatorEndedRecap && !isSpectator;
+  const showQrRegistration =
+    !readOnly && !isPastGame && Boolean(game.publicQrCodeDataUrl && game.registerUrl);
+
+  const handleEndOpenPlay = async () => {
+    const result = await Swal.fire({
+      ...alertBaseOptions,
+      title: "End Open Play?",
+      text: "This will mark this game as ended.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, end it",
+      cancelButtonText: "Cancel",
+    });
+    if (result.isConfirmed) endOpenPlayMutation.mutate();
+  };
+
+  const handleResetGame = async () => {
+    const result = await Swal.fire({
+      ...alertBaseOptions,
+      title: "Reset Game?",
+      text: "This clears matches and the leaderboard, then rebuilds the queue.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, reset",
+      cancelButtonText: "Cancel",
+    });
+    if (result.isConfirmed) resetMutation.mutate();
+  };
 
   const renderQueueEntryRow = (
     entry: QueueEntryView,
@@ -1145,6 +1179,31 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const activeCourtCount = courts.filter((court) => court.status === "active").length;
 
+  const startPlayerAnnouncement = (
+    teamA: QueueEntryView[],
+    teamB: QueueEntryView[],
+  ) => {
+    if (callingNames) return;
+
+    setCallingNames(true);
+    void announceNextCourtPlayers(
+      teamA.map((entry) => entry.playerId),
+      teamB.map((entry) => entry.playerId),
+      {
+        onComplete: () => setCallingNames(false),
+      },
+    ).then((started) => {
+      if (!started) {
+        setCallingNames(false);
+        toast.error("Text-to-speech is not available in this browser.");
+      }
+    });
+  };
+
+  const handleCallNextNames = () => {
+    startPlayerAnnouncement(fillCourtTeamA, fillCourtTeamB);
+  };
+
   const renderQueuePanel = () => (
     <Card className="glass-panel">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -1208,9 +1267,28 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                         </p>
                       </div>
                     </div>
-                    <Badge className="badge-next-up-count">
-                      {Math.min(4, queueWithStats.length)} / 4
-                    </Badge>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {!hideControls ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className={cn(
+                            "call-names-btn h-8 shrink-0 px-3 text-xs tracking-wide xl:h-9 xl:px-4 xl:text-sm",
+                            callingNames && "call-names-btn--calling",
+                            nextEmptyCourt != null && !callingNames && "call-names-btn--glow",
+                          )}
+                          onClick={handleCallNextNames}
+                          disabled={callingNames}
+                          aria-label="Call next player names aloud"
+                        >
+                          <Volume2 className="call-names-btn-icon mr-1.5 h-3.5 w-3.5 xl:h-4 xl:w-4" aria-hidden />
+                          {callingNames ? "Calling…" : "Call Names"}
+                        </Button>
+                      ) : null}
+                      <Badge className="badge-next-up-count">
+                        {Math.min(4, queueWithStats.length)} / 4
+                      </Badge>
+                    </div>
                   </div>
                   <div className="queue-next-up-slots">
                     {queueWithStats.slice(0, 4).map((entry, index) => renderQueuedEntry(entry, index))}
@@ -1489,6 +1567,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       className={cn(
         "relative min-h-screen p-4 md:p-6",
         isSpectator ? "game-dashboard--spectator" : "game-dashboard--operator",
+        showOperatorMobileNav && "pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-6",
       )}
     >
       {endOpenPlayMutation.isPending ? (
@@ -1574,13 +1653,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               </div>
             </div>
             {!showSpectatorEndedRecap && !isSpectator ? (
-            <div className="game-toolbar mt-4 flex flex-wrap items-center gap-2">
+            <div className="game-toolbar mt-4 hidden flex-wrap items-center gap-2 lg:flex">
               <Link href="/">
                 <Button size="lg" variant="outline">
                   <House className="mr-2 h-4 w-4" /> Home
                 </Button>
               </Link>
-              {!readOnly && !isPastGame && game.publicQrCodeDataUrl && game.registerUrl ? (
+              {showQrRegistration ? (
                 <Button
                   size="lg"
                   variant="outline"
@@ -1596,18 +1675,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   size="lg"
                   variant="outline"
                   className="border-destructive/50 text-destructive"
-                  onClick={async () => {
-                    const result = await Swal.fire({
-                      ...alertBaseOptions,
-                      title: "End Open Play?",
-                      text: "This will mark this game as ended.",
-                      icon: "warning",
-                      showCancelButton: true,
-                      confirmButtonText: "Yes, end it",
-                      cancelButtonText: "Cancel",
-                    });
-                    if (result.isConfirmed) endOpenPlayMutation.mutate();
-                  }}
+                  onClick={handleEndOpenPlay}
                   disabled={endOpenPlayMutation.isPending}
                 >
                   <Flag className="mr-2 h-4 w-4" />
@@ -1618,18 +1686,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <Button
                   size="lg"
                   variant="destructive"
-                  onClick={async () => {
-                    const result = await Swal.fire({
-                      ...alertBaseOptions,
-                      title: "Reset Game?",
-                      text: "This clears matches and the leaderboard, then rebuilds the queue.",
-                      icon: "warning",
-                      showCancelButton: true,
-                      confirmButtonText: "Yes, reset",
-                      cancelButtonText: "Cancel",
-                    });
-                    if (result.isConfirmed) resetMutation.mutate();
-                  }}
+                  onClick={handleResetGame}
                   disabled={resetMutation.isPending}
                 >
                   <RotateCcw className="mr-2 h-4 w-4" />
@@ -1646,73 +1703,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             insights={recap?.insights ?? []}
             rows={recap?.rows ?? []}
           />
-        ) : isSpectator ? (
-          isLgViewport === true ? (
-            <>
-              <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
-                {renderQueuePanel()}
-                {renderCourtsPanel()}
-              </section>
-              {renderMatchHistoryPanel()}
-            </>
-          ) : (
-            <div className="spectator-mobile-tabs mt-2 flex flex-col gap-4">
-              <div
-                role="tablist"
-                aria-label="Spectator sections"
-                className="spectator-mobile-tablist grid grid-cols-3 gap-1.5 rounded-lg bg-muted p-1.5"
-              >
-                {(
-                  [
-                    { id: "queue" as const, label: "Queue", count: queueWithStats.length },
-                    { id: "courts" as const, label: "Courts", count: activeCourtCount },
-                    { id: "history" as const, label: "History", count: matches.length },
-                  ] as const
-                ).map((tab) => {
-                  const selected = spectatorMobileTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      id={`spectator-tab-${tab.id}`}
-                      aria-selected={selected}
-                      aria-controls={`spectator-panel-${tab.id}`}
-                      onClick={() => setSpectatorMobileTab(tab.id)}
-                      className={cn(
-                        "inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-md px-2 py-2.5 text-xs font-medium transition-colors sm:text-sm",
-                        selected
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      <span>{tab.label}</span>
-                      {tab.count > 0 ? (
-                        <Badge
-                          variant="secondary"
-                          className="px-1.5 py-0 text-[10px] sm:text-xs"
-                        >
-                          {tab.count}
-                        </Badge>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-              <div
-                role="tabpanel"
-                id={`spectator-panel-${spectatorMobileTab}`}
-                aria-labelledby={`spectator-tab-${spectatorMobileTab}`}
-              >
-                {spectatorMobileTab === "queue"
-                  ? renderQueuePanel()
-                  : spectatorMobileTab === "courts"
-                    ? renderCourtsPanel(true)
-                    : renderMatchHistoryPanel(true)}
-              </div>
-            </div>
-          )
-        ) : (
+        ) : isLgViewport === true ? (
           <>
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
               {renderQueuePanel()}
@@ -1720,6 +1711,59 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             </section>
             {renderMatchHistoryPanel()}
           </>
+        ) : (
+          <div className="dashboard-mobile-tabs mt-2 flex flex-col gap-4">
+            <div
+              role="tablist"
+              aria-label="Game dashboard sections"
+              className="dashboard-mobile-tablist grid grid-cols-3 gap-1.5 rounded-lg bg-muted p-1.5"
+            >
+              {(
+                [
+                  { id: "queue" as const, label: "Queue", count: queueWithStats.length },
+                  { id: "courts" as const, label: "Courts", count: activeCourtCount },
+                  { id: "history" as const, label: "History", count: matches.length },
+                ] as const
+              ).map((tab) => {
+                const selected = mobileDashboardTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={`dashboard-tab-${tab.id}`}
+                    aria-selected={selected}
+                    aria-controls={`dashboard-panel-${tab.id}`}
+                    onClick={() => setMobileDashboardTab(tab.id)}
+                    className={cn(
+                      "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-1 rounded-md px-2 py-2.5 text-xs font-medium transition-colors sm:text-sm",
+                      selected
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span>{tab.label}</span>
+                    {tab.count > 0 ? (
+                      <Badge variant="secondary" className="px-1.5 py-0 text-[10px] sm:text-xs">
+                        {tab.count}
+                      </Badge>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+            <div
+              role="tabpanel"
+              id={`dashboard-panel-${mobileDashboardTab}`}
+              aria-labelledby={`dashboard-tab-${mobileDashboardTab}`}
+            >
+              {mobileDashboardTab === "queue"
+                ? renderQueuePanel()
+                : mobileDashboardTab === "courts"
+                  ? renderCourtsPanel(true)
+                  : renderMatchHistoryPanel(true)}
+            </div>
+          </div>
         )}
       </section>
 
@@ -1727,7 +1771,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         <>
           <FillCourtConfirmDialog
             open={fillCourtDialogOpen}
-            onOpenChange={setFillCourtDialogOpen}
+            onOpenChange={(open) => {
+              setFillCourtDialogOpen(open);
+              if (!open && callingNames) {
+                window.speechSynthesis?.cancel();
+                setCallingNames(false);
+              }
+            }}
+            callingNames={callingNames}
+            onCallNames={startPlayerAnnouncement}
             courtNumber={nextEmptyCourt?.courtNumber ?? null}
             teamA={fillCourtTeamA}
             teamB={fillCourtTeamB}
@@ -2084,6 +2136,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             )}
           </DialogContent>
         </Dialog>
+      ) : null}
+
+      {showOperatorMobileNav ? (
+        <GameDashboardMobileNav
+          showQr={showQrRegistration}
+          qrLoading={qrDialogLoading}
+          onQrClick={openQrRegistrationDialog}
+          showEndOpenPlay={!readOnly && !isPastGame}
+          endOpenPlayPending={endOpenPlayMutation.isPending}
+          onEndOpenPlay={handleEndOpenPlay}
+          showReset={!readOnly && canResetGame}
+          resetPending={resetMutation.isPending}
+          onReset={handleResetGame}
+        />
       ) : null}
     </main>
   );

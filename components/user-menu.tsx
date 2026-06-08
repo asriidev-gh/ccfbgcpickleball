@@ -3,8 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { CircleUser, LogOut, QrCode, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 
+import {
+  CallNamesVoiceMenuEntry,
+  CallNamesVoiceSettingsDialog,
+} from "@/components/game/call-names-voice-settings";
 import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
 import { ThemeMenuItems } from "@/components/theme-menu";
 import { Button } from "@/components/ui/button";
@@ -20,6 +25,8 @@ import {
 
 export function UserMenu() {
   const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["auth-me"],
@@ -53,7 +60,8 @@ export function UserMenu() {
   };
 
   return (
-    <DropdownMenu>
+    <>
+    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger
         render={
           <Button
@@ -84,6 +92,12 @@ export function UserMenu() {
             </DropdownMenuItem>
           </>
         ) : null}
+        <CallNamesVoiceMenuEntry
+          onOpenSettings={() => {
+            setMenuOpen(false);
+            setVoiceSettingsOpen(true);
+          }}
+        />
         {data?.user && isQrIdRegistrationEnabled(data.user.registrationFeature) ? (
           <>
             <DropdownMenuSeparator />
@@ -102,5 +116,10 @@ export function UserMenu() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <CallNamesVoiceSettingsDialog
+      open={voiceSettingsOpen}
+      onOpenChange={setVoiceSettingsOpen}
+    />
+    </>
   );
 }

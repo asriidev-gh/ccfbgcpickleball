@@ -6,7 +6,7 @@ export function getBrandShellClasses(pathname: string) {
     };
   }
 
-  if (pathname === "/") {
+  if (pathname === "/" || pathname === "/my-games") {
     return {
       pad: "px-6 lg:px-10",
       container: "max-w-7xl",

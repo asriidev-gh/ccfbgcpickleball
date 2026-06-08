@@ -138,6 +138,17 @@ export function openPlayScheduleFieldsFromStored(
   };
 }
 
+export function formatOpenPlayStartTimeDisplay(
+  timeRange: string | null | undefined,
+): string | null {
+  if (!timeRange?.trim()) return null;
+
+  const parsed = parseOpenPlayTimeRange(timeRange.trim());
+  if (!parsed) return timeRange.trim();
+
+  return `${parsed.fromHour}:00 ${parsed.fromMeridiem}`;
+}
+
 export function formatOpenPlayDate(value: string | Date | null | undefined): string | null {
   if (!value) return null;
 

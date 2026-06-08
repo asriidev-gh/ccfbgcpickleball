@@ -13,6 +13,12 @@ import {
 } from "@/components/theme/theme-manager";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
@@ -53,6 +59,46 @@ export function ThemeMenuItems() {
         </DropdownMenuItem>
       ))}
     </DropdownMenuGroup>
+  );
+}
+
+export function ThemePickerDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { theme, updateTheme } = useThemeState();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+            Change Theme
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-1 py-1">
+          {APP_THEMES.map((option) => (
+            <Button
+              key={option.value}
+              type="button"
+              variant={theme === option.value ? "default" : "outline"}
+              className="h-10 w-full justify-start gap-2"
+              onClick={() => {
+                updateTheme(option.value);
+                onOpenChange(false);
+              }}
+            >
+              {theme === option.value ? <Check className="h-4 w-4 shrink-0" aria-hidden /> : null}
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

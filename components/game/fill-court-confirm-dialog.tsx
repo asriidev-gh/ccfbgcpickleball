@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, Loader2, Play, Shuffle } from "lucide-react";
+import { ArrowLeftRight, Loader2, Play, Shuffle, Volume2 } from "lucide-react";
 
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { PlayerAvatar } from "@/components/game/player-avatar";
@@ -31,6 +31,8 @@ type FillCourtConfirmDialogProps = {
   onConfirmFill: () => void;
   fillPending?: boolean;
   onShuffle: () => Promise<void>;
+  callingNames?: boolean;
+  onCallNames?: (teamA: QueueEntryView[], teamB: QueueEntryView[]) => void;
 };
 
 type TeamPreview = { teamA: QueueEntryView[]; teamB: QueueEntryView[] };
@@ -168,6 +170,8 @@ export function FillCourtConfirmDialog({
   onConfirmFill,
   fillPending = false,
   onShuffle,
+  callingNames = false,
+  onCallNames,
 }: FillCourtConfirmDialogProps) {
   const [isShuffling, setIsShuffling] = useState(false);
   const [isRevealing, setIsRevealing] = useState(false);
@@ -319,15 +323,25 @@ export function FillCourtConfirmDialog({
           />
         </div>
 
-        <DialogFooter className="!mx-0 !mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-muted/30 px-5 py-4 sm:flex-row sm:justify-end">
+        <DialogFooter className="!mx-0 !mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-muted/30 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <Button
             type="button"
-            variant="outline"
-            className="w-full sm:w-auto"
-            onClick={() => onOpenChange(false)}
-            disabled={actionsDisabled}
+            className={cn(
+              "call-names-btn h-11 w-full px-5 text-sm tracking-wide sm:min-w-[11rem] sm:w-auto",
+              callingNames && "call-names-btn--calling",
+              courtNumber != null && !callingNames && "call-names-btn--glow",
+            )}
+            onClick={() => onCallNames?.(displayTeamA, displayTeamB)}
+            disabled={
+              !onCallNames ||
+              actionsDisabled ||
+              callingNames ||
+              displayTeamA.length + displayTeamB.length === 0
+            }
+            aria-label="Call player names aloud"
           >
-            Cancel
+            <Volume2 className="call-names-btn-icon mr-2 h-4 w-4" aria-hidden />
+            {callingNames ? "Calling…" : "Call Names"}
           </Button>
           <Button
             type="button"
@@ -338,12 +352,12 @@ export function FillCourtConfirmDialog({
             {fillPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                Filling…
+                Confirming…
               </>
             ) : (
               <>
                 <Play className="mr-2 h-4 w-4" aria-hidden />
-                Confirm & fill court
+                Confirm
               </>
             )}
           </Button>

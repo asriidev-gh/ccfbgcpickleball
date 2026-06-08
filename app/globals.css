@@ -1019,7 +1019,8 @@
     }
 
     .queue-next-up .queue-swap-panel .queue-replace-btn,
-    .queue-next-up .queue-swap-panel .queue-remove-btn {
+    .queue-next-up .queue-swap-panel .queue-remove-btn,
+    .queue-next-up .queue-swap-panel .queue-remove-player-btn {
       height: 1.5rem;
       min-height: 1.5rem;
       padding-inline: 0.375rem;
@@ -1028,7 +1029,8 @@
     }
 
     .queue-next-up .queue-swap-panel .queue-replace-btn svg,
-    .queue-next-up .queue-swap-panel .queue-remove-btn svg {
+    .queue-next-up .queue-swap-panel .queue-remove-btn svg,
+    .queue-next-up .queue-swap-panel .queue-remove-player-btn svg {
       width: 0.6875rem;
       height: 0.6875rem;
     }
@@ -1988,6 +1990,87 @@
     @apply text-amber-300;
   }
 
+  .call-names-btn {
+    @apply relative overflow-hidden !border-0 !bg-gradient-to-r !from-amber-400 !via-yellow-300 !to-amber-500 !font-bold !text-slate-950 shadow-[0_0_10px_rgba(251,191,36,0.2)] transition-[transform,box-shadow,filter] duration-200;
+  }
+
+  .call-names-btn--glow {
+    animation: call-names-glow 2.2s ease-in-out infinite;
+  }
+
+  .call-names-btn:hover:not(:disabled) {
+    @apply !from-amber-300 !via-amber-200 !to-amber-400;
+  }
+
+  .call-names-btn--glow:hover:not(:disabled) {
+    @apply shadow-[0_0_30px_rgba(251,191,36,0.7)];
+    transform: scale(1.03);
+  }
+
+  .call-names-btn:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .call-names-btn:disabled {
+    @apply !cursor-not-allowed !opacity-45 !shadow-none grayscale-[0.35];
+    animation: none;
+    pointer-events: none;
+    transform: none;
+  }
+
+  .call-names-btn--calling {
+    animation: call-names-calling 0.9s ease-in-out infinite;
+  }
+
+  .call-names-btn-icon {
+    @apply shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)];
+  }
+
+  .call-names-btn--calling .call-names-btn-icon {
+    animation: call-names-icon-pulse 0.9s ease-in-out infinite;
+  }
+
+  @keyframes call-names-glow {
+    0%,
+    100% {
+      box-shadow: 0 0 16px rgb(251 191 36 / 0.4);
+    }
+
+    50% {
+      box-shadow: 0 0 32px rgb(251 191 36 / 0.75);
+    }
+  }
+
+  @keyframes call-names-calling {
+    0%,
+    100% {
+      filter: brightness(1);
+    }
+
+    50% {
+      filter: brightness(1.1);
+    }
+  }
+
+  @keyframes call-names-icon-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+
+    50% {
+      transform: scale(1.15);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .call-names-btn--glow,
+    .call-names-btn--calling,
+    .call-names-btn--calling .call-names-btn-icon {
+      animation: none;
+    }
+  }
+
   /* Fill-court shuffle roulette */
   .fill-court-teams--shuffling .fill-court-team-section {
     @apply border-primary/25 shadow-[0_0_24px_-4px] shadow-primary/20;
@@ -2312,7 +2395,7 @@
   }
 
   .game-dashboard-meta {
-    @apply mt-2 flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 lg:flex-nowrap;
+    @apply mt-[10px] flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:gap-2 lg:flex-nowrap;
   }
 
   .game-dashboard-meta-badge {
@@ -2326,23 +2409,18 @@
   }
 
   @media (max-width: 1023px) {
+    .mobile-bottom-nav,
+    .game-mobile-bottom-nav {
+      box-shadow: 0 -4px 24px rgb(0 0 0 / 8%);
+    }
+
+    .mobile-bottom-nav__item:focus-visible,
+    .game-mobile-bottom-nav__item:focus-visible {
+      @apply outline-2 outline-offset-2 outline-ring;
+    }
+
     .game-dashboard--operator .game-toolbar {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.5rem;
-    }
-
-    .game-dashboard--operator .game-toolbar > a,
-    .game-dashboard--operator .game-toolbar > button {
-      width: 100%;
-    }
-
-    .game-dashboard--operator .game-toolbar [data-slot="button"] {
-      @apply h-9 w-full justify-center px-2 text-xs;
-    }
-
-    .game-dashboard--operator .game-toolbar [data-slot="button"] svg {
-      @apply mr-1.5 h-3.5 w-3.5;
+      display: none !important;
     }
   }
 
@@ -2373,7 +2451,8 @@
   }
 
   @media (max-width: 1023px) {
-    .game-dashboard--spectator .spectator-mobile-tablist {
+    .game-dashboard--spectator .dashboard-mobile-tablist,
+    .game-dashboard--operator .dashboard-mobile-tablist {
       position: sticky;
       top: 0.75rem;
       z-index: 30;
@@ -4461,5 +4540,22 @@
   [data-theme="cosmos"] .register-choice-btn,
   [data-theme="cosmos"] .register-toggle-btn {
     @apply rounded-xl;
+  }
+
+  .home-dashboard-sessions {
+    @apply bg-sky-500/5 dark:bg-sky-400/5;
+  }
+
+  .home-session-summary {
+    @apply bg-background/80;
+  }
+
+  [data-theme="neon"] .home-dashboard-tile:not([class*="border-primary"]) {
+    @apply bg-primary/8;
+  }
+
+  [data-slot="tabs-trigger"],
+  [role="tablist"] [role="tab"]:not(:disabled):not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 }
