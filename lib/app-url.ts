@@ -31,6 +31,16 @@ export function getGameSpectatorUrl(baseUrl: string, gameId: string) {
   return `${baseUrl}/games/${gameId}/spectate`;
 }
 
+/** Client-side spectator link for sharing (uses public env or current origin). */
+export function getClientSpectatorShareUrl(gameId: string) {
+  const publicEnv = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
+  const base =
+    typeof window !== "undefined"
+      ? publicEnv || window.location.origin
+      : getPublicAppBaseUrl();
+  return getGameSpectatorUrl(base, gameId);
+}
+
 export function isLocalhostAppUrl(url: string) {
   try {
     const { hostname } = new URL(url);

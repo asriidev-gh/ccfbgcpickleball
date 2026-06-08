@@ -38,6 +38,7 @@ import {
 import { GameListQrMode } from "@/components/game/game-list-qr-mode";
 import { GameQrRegistrationButton } from "@/components/game/game-qr-registration-button";
 import { GameQrRegistrationSlot } from "@/components/game/game-qr-registration-slot";
+import { GameSpectatorShareButton } from "@/components/game/game-spectator-share-button";
 import { HomeMobileNav } from "@/components/home-mobile-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -204,37 +205,62 @@ function GameListInfoGrouped({
   );
 }
 
+const gameListToolbarIconClass = "size-8 shrink-0 rounded-full";
+
 function GameListIconToolbar({
   game,
   onEdit,
   onDelete,
   deletingGameId,
   includeQr = false,
+  className,
 }: {
   game: GameCard;
   onEdit: (game: GameCard) => void;
   onDelete: (game: GameCard) => void;
   deletingGameId: string | null;
   includeQr?: boolean;
+  className?: string;
 }) {
   return (
     <div
-      className="game-list-card-toolbar inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5"
+      className={cn(
+        "game-list-card-toolbar inline-flex shrink-0 items-center gap-0.5 rounded-full border border-border/70 bg-background/90 p-1 shadow-sm",
+        className,
+      )}
       role="toolbar"
       aria-label={`Quick actions for ${game.title}`}
     >
       {includeQr ? (
-        <span className="md:max-[1366px]:hidden">
-          <GameQrRegistrationButton gameId={game.gameId} gameTitle={game.title} iconOnly />
-        </span>
+        <SimpleTooltip label="Show QR code">
+          <span>
+            <GameQrRegistrationButton
+              gameId={game.gameId}
+              gameTitle={game.title}
+              iconOnly
+              className={gameListToolbarIconClass}
+            />
+          </span>
+        </SimpleTooltip>
       ) : null}
-      <GameExportButton gameId={game.gameId} gameTitle={game.title} iconOnly />
+      <GameSpectatorShareButton
+        gameId={game.gameId}
+        gameTitle={game.title}
+        iconOnly
+        className={gameListToolbarIconClass}
+      />
+      <GameExportButton
+        gameId={game.gameId}
+        gameTitle={game.title}
+        iconOnly
+        className={gameListToolbarIconClass}
+      />
       <SimpleTooltip label="Edit Open Session">
         <Button
           type="button"
           variant="ghost"
-          size="icon"
-          className="size-9 shrink-0"
+          size="icon-sm"
+          className="size-8 shrink-0 rounded-full"
           aria-label={`Edit ${game.title}`}
           onClick={() => onEdit(game)}
         >
@@ -244,8 +270,8 @@ function GameListIconToolbar({
       <Button
         type="button"
         variant="ghost"
-        size="icon"
-        className="size-9 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+        size="icon-sm"
+        className="size-8 shrink-0 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
         aria-label={`Delete ${game.title}`}
         disabled={deletingGameId === game.gameId}
         onClick={() => onDelete(game)}
@@ -264,6 +290,7 @@ function GameListActions({
   deletingGameId,
   userType,
   compact = false,
+  hideToolbarOnMobile = false,
 }: {
   game: GameCard;
   variant: "active" | "past";
@@ -272,77 +299,88 @@ function GameListActions({
   deletingGameId: string | null;
   userType?: string | null;
   compact?: boolean;
+  hideToolbarOnMobile?: boolean;
 }) {
   const isDemo = isDemoOpenPlayTitle(game.title);
+  const dashboardHref = `/games/${game.gameId}`;
+  const leaderboardHref = `/leaderboard/${game.gameId}`;
+  const dashboardLabel = variant === "active" ? "Open Dashboard" : "View Dashboard";
+  const dashboardShortLabel = variant === "active" ? "Dashboard" : "View";
+
+  const dashboardButton = (
+    <Link href={dashboardHref} className="min-w-0 flex-1">
+      <Button
+        variant={variant === "active" ? "default" : "outline"}
+        size="sm"
+        className="game-list-action-btn h-10 w-full gap-1.5 px-2 sm:px-3"
+      >
+        <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="truncate sm:hidden">{dashboardShortLabel}</span>
+        <span className="hidden truncate sm:inline">{dashboardLabel}</span>
+      </Button>
+    </Link>
+  );
+
+  const leaderboardButton = (
+    <Link href={leaderboardHref} className="min-w-0 flex-1">
+      <Button variant="outline" size="sm" className="game-list-action-btn h-10 w-full gap-1.5 px-2 sm:px-3">
+        <Trophy className="h-4 w-4 shrink-0" aria-hidden />
+        <span className="truncate">Leaderboard</span>
+      </Button>
+    </Link>
+  );
+
+  const iconToolbar = (
+    <GameListIconToolbar
+      game={game}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      deletingGameId={deletingGameId}
+    />
+  );
+
+  const toolbarPlacementClass = hideToolbarOnMobile ? "hidden md:flex" : "flex";
 
   if (compact) {
     return (
-      <div className="flex w-full flex-col gap-2.5">
+      <div className="game-list-actions game-list-actions--compact flex w-full flex-col gap-2.5">
         {isDemo ? <WatchDemoButton className="w-full" userType={userType ?? undefined} /> : null}
-        {variant === "active" ? (
-          <Link href={`/games/${game.gameId}`} className="mb-2 w-full">
-            <Button className="w-full">
-              <LayoutDashboard className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-              Open Dashboard
-            </Button>
-          </Link>
-        ) : (
-          <Link href={`/games/${game.gameId}`} className="mb-2 w-full">
-            <Button variant="outline" className="w-full">
-              <LayoutDashboard className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-              View Dashboard
-            </Button>
-          </Link>
-        )}
-        <div className="flex items-stretch gap-2">
-          <Link href={`/leaderboard/${game.gameId}`} className="min-w-0 flex-1">
-            <Button variant="outline" className="w-full">
-              <Trophy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-              Leaderboard
-            </Button>
-          </Link>
-          <GameListIconToolbar
-            game={game}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            deletingGameId={deletingGameId}
-          />
+        <Link href={dashboardHref} className="w-full">
+          <Button
+            variant={variant === "active" ? "default" : "outline"}
+            size="sm"
+            className="game-list-action-btn h-10 w-full gap-1.5"
+          >
+            <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">{dashboardLabel}</span>
+          </Button>
+        </Link>
+        <div
+          className={cn(
+            "items-center gap-2",
+            hideToolbarOnMobile
+              ? "grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto]"
+              : "grid grid-cols-[minmax(0,1fr)_auto]",
+          )}
+        >
+          {leaderboardButton}
+          <div className={cn("justify-center", toolbarPlacementClass)}>{iconToolbar}</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[17rem] flex-col items-center gap-2">
-      {isDemo ? <WatchDemoButton className="w-full" userType={userType ?? undefined} /> : null}
-      {variant === "active" ? (
-        <Link href={`/games/${game.gameId}`} className="w-full">
-          <Button className="w-full">
-            <LayoutDashboard className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-            Open Dashboard
-          </Button>
-        </Link>
-      ) : (
-        <Link href={`/games/${game.gameId}`} className="w-full">
-          <Button variant="outline" className="w-full">
-            <LayoutDashboard className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-            View Dashboard
-          </Button>
-        </Link>
-      )}
-      <div className="flex items-stretch gap-2">
-        <Link href={`/leaderboard/${game.gameId}`} className="min-w-0 flex-1">
-          <Button variant="outline" className="w-full">
-            <Trophy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-            Leaderboard
-          </Button>
-        </Link>
-        <GameListIconToolbar
-          game={game}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          deletingGameId={deletingGameId}
-        />
+    <div className="game-list-actions w-full min-w-0 md:mx-auto md:max-w-[16rem]">
+      {isDemo ? (
+        <WatchDemoButton className="mb-0.5 w-full" userType={userType ?? undefined} />
+      ) : null}
+      <div className="game-list-actions__primary grid grid-cols-2 gap-2">
+        {dashboardButton}
+        {leaderboardButton}
+      </div>
+      <div className={cn("game-list-actions__toolbar mt-2 justify-center", toolbarPlacementClass)}>
+        {iconToolbar}
       </div>
     </div>
   );
@@ -381,10 +419,19 @@ function GameList({
         {games.map((game) => (
           <Card
             key={game._id}
-            className="game-list-card flex h-full flex-col border-border/80 bg-card/80 shadow-sm transition-shadow hover:shadow-md"
+            className="game-list-card relative flex h-full flex-col border-border/80 bg-card/80 shadow-sm transition-shadow hover:shadow-md"
           >
-            <CardHeader className="flex-1 gap-2 pb-3">
-              <div className="grid grid-cols-[minmax(0,7fr)_minmax(0,3fr)] items-start gap-3">
+            <div className="game-list-mobile-toolbar absolute top-3 right-3 z-10 md:hidden">
+              <GameListIconToolbar
+                game={game}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                deletingGameId={deletingGameId}
+                includeQr
+              />
+            </div>
+            <CardHeader className="flex-1 gap-2 pb-3 pr-[11rem] md:pr-0">
+              <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
                 <div className="game-list-card-details min-w-0 space-y-2">
                   <div className="flex flex-wrap items-start gap-2">
                     <CardTitle className="min-w-0 flex-1 text-lg font-semibold md:text-xl">
@@ -398,7 +445,7 @@ function GameList({
                   </div>
                   <GameMeta game={game} variant={variant} />
                 </div>
-                <div className="game-list-card-register flex w-full min-w-0 justify-center">
+                <div className="game-list-card-register hidden w-full min-w-0 justify-center md:flex">
                   <GameQrRegistrationSlot
                     key={`${game.gameId}-${game.updatedAt ?? ""}-${game.status}-${game.allowQrRegistration ?? true}`}
                     gameId={game.gameId}
@@ -418,6 +465,7 @@ function GameList({
                 deletingGameId={deletingGameId}
                 userType={userType ?? undefined}
                 compact
+                hideToolbarOnMobile
               />
             </CardFooter>
           </Card>
@@ -431,13 +479,25 @@ function GameList({
       {games.map((game) => (
         <div
           key={game._id}
-          className="game-list-row surface-muted grid grid-cols-1 items-center gap-4 rounded-xl p-4 md:grid-cols-[minmax(0,4fr)_minmax(0,3fr)_minmax(0,3fr)] md:gap-5 lg:gap-6"
+          className="game-list-row surface-muted relative grid grid-cols-1 overflow-hidden rounded-xl border border-border/50 md:grid-cols-[minmax(0,4fr)_minmax(0,3fr)_minmax(0,3fr)] md:items-center md:gap-5 md:border-0 md:p-4 lg:gap-6"
         >
-          <section className="game-list-col-details min-w-0" aria-label={`Details for ${game.title}`}>
+          <div className="game-list-mobile-toolbar absolute top-3 right-3 z-10 md:hidden">
+            <GameListIconToolbar
+              game={game}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              deletingGameId={deletingGameId}
+              includeQr
+            />
+          </div>
+          <section
+            className="game-list-col-details min-w-0 px-4 pt-4 pr-[11rem] pb-3 md:p-0 md:pr-0"
+            aria-label={`Details for ${game.title}`}
+          >
             <GameListInfoGrouped game={game} variant={variant} />
           </section>
           <section
-            className="game-list-col-actions flex flex-col items-center justify-center"
+            className="game-list-col-actions flex min-w-0 flex-col justify-center border-t border-border/50 bg-muted/25 px-4 py-3 md:border-t-0 md:bg-transparent md:px-0 md:py-0"
             aria-label={`Actions for ${game.title}`}
           >
             <GameListActions
@@ -447,10 +507,11 @@ function GameList({
               onDelete={onDelete}
               deletingGameId={deletingGameId}
               userType={userType ?? undefined}
+              hideToolbarOnMobile
             />
           </section>
           <section
-            className="game-list-col-register flex min-w-0 justify-center md:justify-end"
+            className="game-list-col-register hidden min-w-0 justify-center border-t border-border/50 px-4 py-3 md:flex md:justify-end md:border-t-0 md:px-0 md:py-0"
             aria-label={`Registration for ${game.title}`}
           >
             <GameQrRegistrationSlot

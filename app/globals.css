@@ -4558,4 +4558,26 @@
   [role="tablist"] [role="tab"]:not(:disabled):not([aria-disabled="true"]) {
     cursor: pointer;
   }
+
+  .game-list-action-btn {
+    @apply font-medium shadow-sm;
+  }
+
+  .game-list-actions__toolbar {
+    @apply border-t border-border/40 pt-2.5 md:border-t-0 md:pt-2;
+  }
+
+  .game-list-mobile-toolbar {
+    @apply pointer-events-auto;
+  }
+
+  @media (max-width: 767px) {
+    .game-list-col-actions .game-list-actions__primary {
+      @apply gap-2.5;
+    }
+
+    .game-list-col-actions .game-list-action-btn {
+      @apply h-11;
+    }
+  }
 }
