@@ -150,6 +150,7 @@ export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
 
   const userName = authData?.user?.name?.trim();
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
+  const showRegisteredPlayers = Boolean(authData?.user);
   const sessionGames = sessionTab === "active" ? activeGames : pastGames;
 
   return (
@@ -163,7 +164,11 @@ export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
       <div
         className={cn(
           "home-dashboard-tiles grid gap-3",
-          isSuperAdmin ? "grid-cols-2" : "grid-cols-1 sm:max-w-xs",
+          showRegisteredPlayers
+            ? "grid-cols-2 sm:max-w-xl"
+            : isSuperAdmin
+              ? "grid-cols-2"
+              : "grid-cols-1 sm:max-w-xs",
         )}
       >
         <Link
@@ -174,6 +179,16 @@ export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
           <span className="text-sm font-semibold text-foreground">My Games</span>
         </Link>
 
+        {showRegisteredPlayers ? (
+          <Link
+            href="/users"
+            className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
+          >
+            <Users className="h-6 w-6 text-primary" aria-hidden />
+            <span className="text-sm font-semibold text-foreground">Registered players</span>
+          </Link>
+        ) : null}
+
         {isSuperAdmin ? (
           <button
             type="button"
@@ -182,6 +197,7 @@ export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
               panel === "statistics"
                 ? "border-primary/50 bg-primary/10 shadow-sm"
                 : "border-border/70 bg-sky-500/8 hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15",
+              showRegisteredPlayers ? "sm:col-span-2" : null,
             )}
             onClick={() => setPanel(panel === "statistics" ? "sessions" : "statistics")}
           >

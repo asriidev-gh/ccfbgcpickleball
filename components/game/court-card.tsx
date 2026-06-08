@@ -5,7 +5,7 @@ import { CourtInPlayElapsedPanel } from "@/components/game/court-play-timer";
 
 import {
   PlayerAvatar,
-  PlayerPhotoTrigger,
+  PlayerProfileTrigger,
   type PlayerPhotoRef,
 } from "@/components/game/player-avatar";
 import {
@@ -84,10 +84,10 @@ function TeamPlayers({
             <PlayerAvatar player={player} />
             <div className="min-w-0 flex-1">
               <div className="body-lg min-w-0">
-                <PlayerPhotoTrigger player={player} className="court-player-name min-w-0 truncate">
+                <PlayerProfileTrigger player={player} className="court-player-name min-w-0 truncate">
                   <span className="court-player-name--first">{firstName || courtName}</span>
                   <span className="court-player-name--full">{courtName}</span>
-                </PlayerPhotoTrigger>
+                </PlayerProfileTrigger>
               </div>
               <p className="court-player-session-record">
                 {formatSessionRecordLabel(stats)}

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import {
   compressRegistrationPhoto,
   shouldCompressRegistrationPhoto,
@@ -124,6 +125,23 @@ export function RegistrationPhotoField({
           <div className="register-photo-preview-frame">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={displayPhotoUrl} alt="Registration preview" className="register-photo-preview" />
+            {fileName ? (
+              <div className="absolute right-2 top-2">
+                <SimpleTooltip label="Cancel selected upload">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full bg-background/70 backdrop-blur"
+                    disabled={inputsDisabled}
+                    aria-label="Cancel selected upload"
+                    onClick={clearPhoto}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </SimpleTooltip>
+              </div>
+            ) : null}
           </div>
           {fileName ? (
             <p className="caption min-w-0 truncate text-muted-foreground">{fileName}</p>
@@ -163,19 +181,6 @@ export function RegistrationPhotoField({
           <ImagePlus className="mr-2 h-4 w-4" />
           Upload photo
         </Button>
-        {displayPhotoUrl ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            disabled={inputsDisabled}
-            aria-label="Remove photo"
-            onClick={clearPhoto}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        ) : null}
       </div>
 
       <input

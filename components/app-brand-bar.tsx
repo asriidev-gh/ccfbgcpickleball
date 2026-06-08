@@ -75,7 +75,7 @@ export function AppBrandBar() {
               )
             ) : (
               <>
-                <RegisteredPlayersHeaderLink />
+                {pathname === "/" ? null : <RegisteredPlayersHeaderLink />}
                 <UserMenu />
               </>
             )}

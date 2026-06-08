@@ -1,14 +1,26 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { PlayerProfileForm } from "@/components/player/player-profile-form";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getLinkedPlayerIdForGame } from "@/lib/player-session";
 import { cn } from "@/lib/utils";
+
+function BackToGameDashboardLink({ gameId }: { gameId: string }) {
+  return (
+    <Link href={`/games/${gameId}/spectate`}>
+      <Button variant="outline" size="sm" className="inline-flex">
+        <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+        Back to game dashboard
+      </Button>
+    </Link>
+  );
+}
 
 export default function PlayerProfilePage() {
   const params = useParams<{ id: string }>();
@@ -23,7 +35,7 @@ export default function PlayerProfilePage() {
 
   if (!hydrated) {
     return (
-      <main className="mx-auto w-full max-w-2xl px-6 py-8">
+      <main className="mx-auto w-full max-w-2xl px-4 py-4 sm:px-6 sm:py-6">
         <p className="text-muted-foreground">Loading…</p>
       </main>
     );
@@ -31,7 +43,10 @@ export default function PlayerProfilePage() {
 
   if (!playerId) {
     return (
-      <main className="mx-auto w-full max-w-2xl px-6 py-8">
+      <main className="mx-auto w-full max-w-2xl px-4 py-4 sm:px-6 sm:py-6">
+        <div className="mb-4">
+          <BackToGameDashboardLink gameId={gameId} />
+        </div>
         <Card className="glass-panel">
           <CardContent className="space-y-4 py-8">
             <p className="text-foreground">
@@ -44,12 +59,6 @@ export default function PlayerProfilePage() {
               >
                 Register
               </Link>
-              <Link
-                href={`/games/${gameId}/spectate`}
-                className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}
-              >
-                Back to open play
-              </Link>
             </div>
           </CardContent>
         </Card>
@@ -58,8 +67,11 @@ export default function PlayerProfilePage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-6 py-8">
-      <PlayerProfileForm gameId={gameId} playerId={playerId} />
+    <main className="mx-auto w-full max-w-2xl px-4 py-4 sm:px-6 sm:py-6">
+      <div className="mb-4">
+        <BackToGameDashboardLink gameId={gameId} />
+      </div>
+      <PlayerProfileForm gameId={gameId} playerId={playerId} compact />
     </main>
   );
 }

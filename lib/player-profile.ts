@@ -69,6 +69,7 @@ type PlayerProfileDoc = {
   wantsToJoinDgroup?: boolean | null;
   attendedEvents?: string[] | null;
   attendedEventsOther?: string | null;
+  personalQrCode?: string | null;
 };
 
 export function serializePlayerProfile(
@@ -94,6 +95,7 @@ export function serializePlayerProfile(
     ccfEventsBefore: showCcfQuestionnaire
       ? deriveCcfEventsBefore(player.attendedEvents)
       : null,
+    personalQrCode: player.personalQrCode?.trim() ?? "",
   };
 }
 

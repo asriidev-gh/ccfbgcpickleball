@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import Swal from "sweetalert2";
 
-import { PlayerPhotoTrigger } from "@/components/game/player-avatar";
+import { PlayerPhotoTrigger, PlayerProfileTrigger } from "@/components/game/player-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -111,9 +111,9 @@ function TeamPanel({
                     </AvatarFallback>
                   </Avatar>
                 </PlayerPhotoTrigger>
-                <PlayerPhotoTrigger player={player} className="min-w-0 flex-1">
+                <PlayerProfileTrigger player={player} className="min-w-0 flex-1">
                   <span className="min-w-0 truncate text-sm font-medium">{name}</span>
-                </PlayerPhotoTrigger>
+                </PlayerProfileTrigger>
               </li>
             );
           })

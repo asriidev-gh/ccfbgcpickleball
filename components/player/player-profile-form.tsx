@@ -10,6 +10,7 @@ import { ZodError } from "zod";
 
 import { CcfQuestionnaireSection } from "@/components/register/ccf-questionnaire-section";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
+import { PlayerPersonalQrSection } from "@/components/player/player-personal-qr-section";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,6 +58,7 @@ type ProfileResponse = {
   attendedEvents: string[];
   attendedEventsOther: string;
   ccfEventsBefore: CcfEventsBeforeAnswer | null;
+  personalQrCode: string;
   message?: string;
 };
 
@@ -120,9 +122,11 @@ function ProfileSelectField({
 export function PlayerProfileForm({
   gameId,
   playerId,
+  compact = false,
 }: {
   gameId: string;
   playerId: string;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -159,6 +163,8 @@ export function PlayerProfileForm({
       return payload;
     },
   });
+
+  const formSpacingClass = compact ? "space-y-4" : "space-y-6";
 
   useEffect(() => {
     if (!data) return;
@@ -365,7 +371,7 @@ export function PlayerProfileForm({
       </CardHeader>
       <CardContent>
         <form
-          className="space-y-6"
+          className={formSpacingClass}
           onSubmit={(event) => {
             event.preventDefault();
             saveMutation.mutate();
@@ -507,9 +513,10 @@ export function PlayerProfileForm({
                 id="profile-biography"
                 value={form.biography}
                 maxLength={500}
-                rows={4}
+                rows={compact ? 3 : 4}
                 placeholder="Tell others a little about yourself…"
                 aria-invalid={Boolean(fieldErrors.biography)}
+                className="border-border bg-background"
                 onChange={(event) => {
                   clearFieldError("biography");
                   setForm((prev) => ({ ...prev, biography: event.target.value }));
@@ -557,24 +564,60 @@ export function PlayerProfileForm({
             </div>
           ) : null}
 
-          <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={saveMutation.isPending}>
-              {saveMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                  Saving…
-                </>
-              ) : (
-                "Save profile"
-              )}
-            </Button>
-            <Link
-              href={spectateHref}
-              className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}
-            >
-              Back to open play
-            </Link>
-          </div>
+          <PlayerPersonalQrSection
+            firstName={form.firstName || data?.firstName || ""}
+            lastName={form.lastName || data?.lastName || ""}
+            personalQrCode={data?.personalQrCode ?? ""}
+            gameId={gameId}
+            compact={compact}
+          />
+
+          {compact ? (
+            <div className="border-t border-border/60 pt-4">
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button type="submit" disabled={saveMutation.isPending} className="w-full sm:flex-1">
+                  {saveMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      Saving…
+                    </>
+                  ) : (
+                    "Save profile"
+                  )}
+                </Button>
+                <Link
+                  href={spectateHref}
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "inline-flex w-full sm:flex-1",
+                  )}
+                >
+                  Back to open play
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="border-t border-border/60 pt-4">
+              <div className="flex flex-wrap gap-3">
+                <Button type="submit" disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      Saving…
+                    </>
+                  ) : (
+                    "Save profile"
+                  )}
+                </Button>
+                <Link
+                  href={spectateHref}
+                  className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}
+                >
+                  Back to open play
+                </Link>
+              </div>
+            </div>
+          )}
         </form>
       </CardContent>
     </Card>

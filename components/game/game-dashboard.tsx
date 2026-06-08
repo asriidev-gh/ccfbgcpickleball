@@ -24,6 +24,7 @@ import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
+import { GamePlayerProfileProvider } from "@/components/game/game-player-profile-context";
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
 import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
@@ -1564,6 +1565,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   };
 
   return (
+    <GamePlayerProfileProvider profileEnabled={!isSpectator}>
     <main
       className={cn(
         "relative min-h-screen p-4 md:p-6",
@@ -2153,5 +2155,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         />
       ) : null}
     </main>
+    </GamePlayerProfileProvider>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Copy, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 
+import { PlayerQrDialog } from "@/components/game/player-qr-dialog";
 import { CcfQuestionnaireSection } from "@/components/register/ccf-questionnaire-section";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,13 @@ import { profileBaseSchema, profileCcfFieldsSchema } from "@/lib/validations";
 
 type CcfEventsBeforeAnswer = "yes" | "not_yet";
 type FieldErrors = Record<string, string>;
+
+type PlayerQrPayload = {
+  firstName: string;
+  personalQrCode: string;
+  personalQrCodeDataUrl: string;
+  message?: string;
+};
 
 function formatMobileNumberInput(value: string, forcePrefix = false): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -133,6 +141,7 @@ export function OwnerPlayerDetailsDialog({
   const [showCcf, setShowCcf] = useState(false);
   const [photoUrl, setPhotoUrl] = useState("");
   const [isBlocked, setIsBlocked] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["owner-player-profile", playerId],
@@ -145,6 +154,20 @@ export function OwnerPlayerDetailsDialog({
       if (!response.ok) throw new Error(payload.message ?? "Failed to load player profile.");
       return payload;
     },
+  });
+
+  const qrQuery = useQuery({
+    queryKey: ["owner-player-qr", playerId],
+    enabled: Boolean(player),
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/owner/registered-players/${encodeURIComponent(playerId)}/qr`,
+      );
+      const payload = (await response.json()) as PlayerQrPayload;
+      if (!response.ok) throw new Error(payload.message ?? "Failed to load player QR code.");
+      return payload;
+    },
+    retry: false,
   });
 
   useEffect(() => {
@@ -320,7 +343,19 @@ export function OwnerPlayerDetailsDialog({
     }));
   };
 
+  const copyQrCode = async () => {
+    const code = qrQuery.data?.personalQrCode?.trim();
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success("Personal QR ID copied.");
+    } catch {
+      toast.error("Could not copy QR ID.");
+    }
+  };
+
   return (
+    <>
     <Dialog open={Boolean(player)} onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden sm:max-w-xl">
         <DialogHeader className="shrink-0">
@@ -552,6 +587,49 @@ export function OwnerPlayerDetailsDialog({
                   />
                 </div>
               ) : null}
+
+              <section className="space-y-3 border-t border-border/60 pt-6">
+                <h3 className="text-sm font-semibold text-foreground">Personal QR code</h3>
+                {qrQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden />
+                  </div>
+                ) : qrQuery.isError ? (
+                  <p className="text-sm text-muted-foreground">
+                    {qrQuery.error instanceof Error
+                      ? qrQuery.error.message
+                      : "QR code unavailable."}
+                  </p>
+                ) : qrQuery.data?.personalQrCodeDataUrl ? (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      className="player-profile-view-qr mx-auto flex w-fit cursor-pointer items-center justify-center rounded-xl bg-white p-3 shadow-sm outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`View full QR code for ${player?.name ?? "player"}`}
+                      onClick={() => setQrOpen(true)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={qrQuery.data.personalQrCodeDataUrl}
+                        alt={`Personal QR for ${player?.name ?? "player"}`}
+                        className="mx-auto block size-48 max-w-full object-contain"
+                      />
+                    </button>
+                    <p className="break-all text-center text-sm text-muted-foreground">
+                      {qrQuery.data.personalQrCode}
+                    </p>
+                    <Button type="button" variant="outline" className="w-full" onClick={copyQrCode}>
+                      <Copy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                      Copy QR ID
+                    </Button>
+                    <p className="text-center text-xs leading-relaxed text-muted-foreground">
+                      Tap the QR code to zoom in, or use the button to copy the personal QR ID.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No personal QR code on file.</p>
+                )}
+              </section>
             </form>
           )}
         </div>
@@ -579,5 +657,15 @@ export function OwnerPlayerDetailsDialog({
         ) : null}
       </DialogContent>
     </Dialog>
+    {qrQuery.data?.personalQrCodeDataUrl ? (
+      <PlayerQrDialog
+        displayName={player?.name ?? "Player"}
+        personalQrCode={qrQuery.data.personalQrCode}
+        personalQrCodeDataUrl={qrQuery.data.personalQrCodeDataUrl}
+        open={qrOpen}
+        onOpenChange={setQrOpen}
+      />
+    ) : null}
+    </>
   );
 }
