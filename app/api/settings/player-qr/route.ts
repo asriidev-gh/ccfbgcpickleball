@@ -10,7 +10,6 @@ import {
   MAX_PLAYER_QR_TITLE_LENGTH,
 } from "@/lib/player-qr-branding";
 import { buildPlayerQrDataUrlWithBranding } from "@/lib/player-qr";
-import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
 import { User } from "@/models/User";
 
 const updatePlayerQrSettingsSchema = z.object({
@@ -23,12 +22,10 @@ const updatePlayerQrSettingsSchema = z.object({
     ),
 });
 
-async function getAuthorizedQrUser(userId: string) {
+async function getQrSettingsUser(userId: string) {
   await connectToDatabase();
-  const user = await User.findById(userId).select("registrationFeature playerQrTitle name").lean();
-  if (!user) return null;
-  if (!isQrIdRegistrationEnabled(user.registrationFeature)) return null;
-  return user;
+  const user = await User.findById(userId).select("playerQrTitle name").lean();
+  return user ?? null;
 }
 
 export async function GET(request: Request) {
@@ -36,12 +33,9 @@ export async function GET(request: Request) {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
-    const user = await getAuthorizedQrUser(authUser.userId);
+    const user = await getQrSettingsUser(authUser.userId);
     if (!user) {
-      return NextResponse.json(
-        { message: "QR download settings are not enabled for your account." },
-        { status: 403 },
-      );
+      return NextResponse.json({ message: "User not found." }, { status: 404 });
     }
 
     const playerQrTitle =
@@ -77,12 +71,9 @@ export async function PATCH(request: Request) {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
-    const user = await getAuthorizedQrUser(authUser.userId);
+    const user = await getQrSettingsUser(authUser.userId);
     if (!user) {
-      return NextResponse.json(
-        { message: "QR download settings are not enabled for your account." },
-        { status: 403 },
-      );
+      return NextResponse.json({ message: "User not found." }, { status: 404 });
     }
 
     const body = await request.json();

@@ -1,4 +1,4 @@
-import { formatPlayerDisplayName } from "@/lib/utils";
+import { capitalizeNameWords, formatPlayerDisplayName } from "@/lib/utils";
 
 const DEFAULT_PAUSE_MS = 500;
 const DEFAULT_REPEAT_COUNT = 2;
@@ -11,7 +11,11 @@ const HAVE_FUN_EXCITED_RATE = 1.15;
 const HAVE_FUN_EXCITED_PITCH = 1.4;
 export const CALL_NAMES_HAVE_FUN_PHRASE = "Have fun!";
 export const CALL_NAMES_VOICE_STORAGE_KEY = "ccf-call-names-voice-uri";
+export const CALL_NAMES_NAME_MODE_STORAGE_KEY = "ccf-call-names-name-mode";
 export const CALL_NAMES_PREFERRED_VOICE_NAME = "Google US English";
+
+export type CallNamesNameMode = "first_name" | "full_name";
+export const DEFAULT_CALL_NAMES_NAME_MODE: CallNamesNameMode = "first_name";
 
 export type CallNamesVoiceOption = {
   voiceURI: string;
@@ -134,16 +138,40 @@ export function buildNextCourtCallPhrasesFromTeams(
   return steps;
 }
 
+function formatCallNamePlayer(
+  player: PlayerNameRef,
+  rank: number | undefined,
+  mode: CallNamesNameMode,
+): string {
+  const fullName = formatPlayerDisplayName(player.firstName, player.lastName, rank);
+  if (mode === "full_name") return fullName;
+  if (fullName.startsWith("Rank ")) return fullName;
+  const firstName = capitalizeNameWords(player.firstName).trim();
+  return firstName || fullName;
+}
+
+export function loadCallNamesNameMode(): CallNamesNameMode {
+  if (typeof window === "undefined") return DEFAULT_CALL_NAMES_NAME_MODE;
+  const stored = localStorage.getItem(CALL_NAMES_NAME_MODE_STORAGE_KEY);
+  return stored === "full_name" ? "full_name" : DEFAULT_CALL_NAMES_NAME_MODE;
+}
+
+export function saveCallNamesNameMode(mode: CallNamesNameMode) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CALL_NAMES_NAME_MODE_STORAGE_KEY, mode);
+}
+
 export function buildNextCourtCallPhrasesFromEntries(
   teamA: PlayerNameRef[],
   teamB: PlayerNameRef[],
   courtNumber?: number | null,
 ): CallPhraseStep[] {
+  const nameMode = loadCallNamesNameMode();
   const teamANames = teamA.map((player, index) =>
-    formatPlayerDisplayName(player.firstName, player.lastName, index + 1),
+    formatCallNamePlayer(player, index + 1, nameMode),
   );
   const teamBNames = teamB.map((player, index) =>
-    formatPlayerDisplayName(player.firstName, player.lastName, teamA.length + index + 1),
+    formatCallNamePlayer(player, teamA.length + index + 1, nameMode),
   );
   return buildNextCourtCallPhrasesFromTeams(teamANames, teamBNames, courtNumber);
 }

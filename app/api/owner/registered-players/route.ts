@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { getOwnerRegisteredPlayers } from "@/lib/owner-registered-players";
 import { OWNER_REGISTERED_PLAYERS_PAGE_SIZE } from "@/lib/owner-registered-players-shared";
+import { isSuperAdmin } from "@/lib/superadmin";
 
 function parsePositiveInt(value: string | null, fallback: number) {
   const parsed = Number.parseInt(value ?? "", 10);
@@ -23,10 +24,19 @@ export async function GET(request: Request) {
     const query = url.searchParams.get("q")?.trim() ?? "";
 
     const result = await getOwnerRegisteredPlayers(authUser.userId, { page, pageSize, query });
+    const showEmailStatus = isSuperAdmin(authUser.email);
 
     return NextResponse.json({
       count: result.total,
       ...result,
+      players: showEmailStatus
+        ? result.players
+        : result.players.map((player) => ({
+            ...player,
+            welcomeEmailStatus: "" as const,
+            welcomeEmailError: "",
+            welcomeEmailSentAt: null,
+          })),
     });
   } catch (error) {
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
+import { REGISTRATION_FEATURE_QR_ID } from "@/lib/registration-feature";
 import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
 import { BLOCKED_LOGIN_MESSAGE, isUserBlocked } from "@/lib/user-block";
 import { getRegistrationDevice } from "@/lib/user-auth-audit";
@@ -97,6 +98,7 @@ export async function GET(request: Request) {
         googleId: profile.sub,
         image: profile.picture,
         userType: USER_TYPE_DEFAULT,
+        registrationFeature: REGISTRATION_FEATURE_QR_ID,
         registeredDevice: device,
         lastLoginAt: now,
         lastLoginDevice: device,

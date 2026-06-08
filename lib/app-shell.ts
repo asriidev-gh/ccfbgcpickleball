@@ -44,7 +44,9 @@ const REGISTERED_PLAYERS_HEADER_HIDDEN_PATHS = new Set([
   "/insights",
 ]);
 
-/** Dashboard and dedicated pages already expose registered players navigation. */
+/** Dashboard, game, and dedicated pages already expose registered players navigation. */
 export function shouldShowRegisteredPlayersHeaderLink(pathname: string) {
-  return !REGISTERED_PLAYERS_HEADER_HIDDEN_PATHS.has(pathname);
+  if (REGISTERED_PLAYERS_HEADER_HIDDEN_PATHS.has(pathname)) return false;
+  if (pathname.startsWith("/games/")) return false;
+  return true;
 }

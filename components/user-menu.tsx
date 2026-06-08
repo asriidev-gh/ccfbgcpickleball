@@ -10,7 +10,6 @@ import {
   CallNamesVoiceMenuEntry,
   CallNamesVoiceSettingsDialog,
 } from "@/components/game/call-names-voice-settings";
-import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
 import { ThemeMenuItems } from "@/components/theme-menu";
 import { Button } from "@/components/ui/button";
 import {
@@ -98,7 +97,7 @@ export function UserMenu() {
             setVoiceSettingsOpen(true);
           }}
         />
-        {data?.user && isQrIdRegistrationEnabled(data.user.registrationFeature) ? (
+        {data?.user ? (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push("/settings/player-qr")}>

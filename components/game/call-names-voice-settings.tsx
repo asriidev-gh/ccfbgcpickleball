@@ -21,13 +21,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  type CallNamesNameMode,
   type CallNamesVoiceOption,
+  DEFAULT_CALL_NAMES_NAME_MODE,
   isCallNamesSpeechSupported,
+  loadCallNamesNameMode,
   primeCallNamesVoices,
   resolveStoredCallNamesVoiceURI,
+  saveCallNamesNameMode,
   saveCallNamesVoiceURI,
   subscribeCallNamesVoices,
 } from "@/lib/call-names-speech";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type CallNamesVoiceMenuEntryProps = {
   onOpenSettings: () => void;
@@ -65,6 +70,12 @@ export function CallNamesVoiceSettingsDialog({
   const [voicesReady, setVoicesReady] = useState(false);
   const [draftVoiceURI, setDraftVoiceURI] = useState<string | null>(null);
   const [savedVoiceURI, setSavedVoiceURI] = useState<string | null>(null);
+  const [draftNameMode, setDraftNameMode] = useState<CallNamesNameMode>(
+    DEFAULT_CALL_NAMES_NAME_MODE,
+  );
+  const [savedNameMode, setSavedNameMode] = useState<CallNamesNameMode>(
+    DEFAULT_CALL_NAMES_NAME_MODE,
+  );
 
   useEffect(() => {
     if (!isCallNamesSpeechSupported()) return;
@@ -80,25 +91,31 @@ export function CallNamesVoiceSettingsDialog({
     primeCallNamesVoices();
 
     const currentURI = voices.length > 0 ? resolveStoredCallNamesVoiceURI(voices) : null;
+    const currentNameMode = loadCallNamesNameMode();
     setSavedVoiceURI(currentURI);
     setDraftVoiceURI(currentURI);
+    setSavedNameMode(currentNameMode);
+    setDraftNameMode(currentNameMode);
   }, [open, voices]);
 
   const selectedVoice = voices.find((voice) => voice.voiceURI === draftVoiceURI) ?? null;
-  const hasChanges = draftVoiceURI !== savedVoiceURI;
+  const hasChanges = draftVoiceURI !== savedVoiceURI || draftNameMode !== savedNameMode;
 
   const handleConfirm = () => {
     if (!draftVoiceURI || !selectedVoice) return;
 
     saveCallNamesVoiceURI(draftVoiceURI);
+    saveCallNamesNameMode(draftNameMode);
     setSavedVoiceURI(draftVoiceURI);
-    toast.success(`Voice updated to ${selectedVoice.name}`);
+    setSavedNameMode(draftNameMode);
+    toast.success(`Voice settings updated (${selectedVoice.name})`);
     onOpenChange(false);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
       setDraftVoiceURI(savedVoiceURI);
+      setDraftNameMode(savedNameMode);
     }
     onOpenChange(nextOpen);
   };
@@ -141,6 +158,34 @@ export function CallNamesVoiceSettingsDialog({
               </SelectContent>
             </Select>
           )}
+        </div>
+
+        <div className="space-y-3 border-t border-border/60 pt-4">
+          <p className="text-sm font-medium">Player name announcement</p>
+          <RadioGroup
+            value={draftNameMode}
+            onValueChange={(value) => {
+              if (value === "first_name" || value === "full_name") {
+                setDraftNameMode(value);
+              }
+            }}
+            className="gap-3"
+          >
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 p-3 transition-colors has-[[data-checked]]:border-primary/50 has-[[data-checked]]:bg-primary/5">
+              <RadioGroupItem value="first_name" className="mt-0.5" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Call by first name only</span>
+                <span className="caption text-muted-foreground">Default — e.g. &quot;Alex&quot;</span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 p-3 transition-colors has-[[data-checked]]:border-primary/50 has-[[data-checked]]:bg-primary/5">
+              <RadioGroupItem value="full_name" className="mt-0.5" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">Call by full name</span>
+                <span className="caption text-muted-foreground">e.g. &quot;Alex Martinez&quot;</span>
+              </span>
+            </label>
+          </RadioGroup>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">

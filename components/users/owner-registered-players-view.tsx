@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { Ban, CalendarDays, Loader2, QrCode, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Ban, CalendarDays, Loader2, QrCode, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
@@ -17,6 +17,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -60,9 +61,13 @@ function formatSessionDate(value: string | null) {
 function WelcomeEmailStatusCell({
   player,
   onShowError,
+  onResend,
+  isResending,
 }: {
   player: OwnerRegisteredPlayerItem;
   onShowError: (player: OwnerRegisteredPlayerItem) => void;
+  onResend: (playerId: string) => void;
+  isResending: boolean;
 }) {
   if (player.welcomeEmailStatus === "success") {
     return (
@@ -72,15 +77,46 @@ function WelcomeEmailStatusCell({
     );
   }
 
-  if (player.welcomeEmailStatus === "failed" || player.welcomeEmailStatus === "skipped") {
+  if (player.welcomeEmailStatus === "failed") {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className="inline-flex cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          onClick={() => onShowError(player)}
+          aria-label={`View welcome email error for ${player.name}`}
+        >
+          <Badge variant="destructive">Failed</Badge>
+        </button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 px-2 text-xs"
+          disabled={isResending}
+          onClick={() => onResend(player.id)}
+          aria-label={`Resend welcome email to ${player.name}`}
+        >
+          {isResending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+          )}
+          Resend
+        </Button>
+      </div>
+    );
+  }
+
+  if (player.welcomeEmailStatus === "skipped") {
     return (
       <button
         type="button"
         className="inline-flex cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         onClick={() => onShowError(player)}
-        aria-label={`View welcome email error for ${player.name}`}
+        aria-label={`View welcome email skip reason for ${player.name}`}
       >
-        <Badge variant="destructive">Failed</Badge>
+        <Badge variant="outline">Skipped</Badge>
       </button>
     );
   }
@@ -294,6 +330,19 @@ export function OwnerRegisteredPlayersView() {
   const [qrPlayer, setQrPlayer] = useState<{ id: string; name: string } | null>(null);
   const [emailErrorPlayer, setEmailErrorPlayer] = useState<OwnerRegisteredPlayerItem | null>(null);
 
+  const { data: authData } = useQuery({
+    queryKey: ["auth-me"],
+    queryFn: async () => {
+      const response = await fetch("/api/auth/me");
+      if (!response.ok) return null;
+      return (await response.json()) as {
+        user: { name: string; isSuperAdmin?: boolean } | null;
+      };
+    },
+    staleTime: 60_000,
+  });
+  const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(searchInput.trim());
@@ -357,6 +406,46 @@ export function OwnerRegisteredPlayersView() {
     },
   });
 
+  const retryWelcomeEmailMutation = useMutation({
+    mutationFn: async (playerId: string) => {
+      const response = await fetch(
+        `/api/owner/registered-players/${encodeURIComponent(playerId)}/welcome-email`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as {
+        message?: string;
+        emailSent?: boolean;
+        welcomeEmailStatus?: OwnerRegisteredPlayerItem["welcomeEmailStatus"];
+        welcomeEmailError?: string;
+        welcomeEmailSentAt?: string | null;
+      };
+      if (!response.ok) throw new Error(payload.message ?? "Failed to resend welcome email.");
+      return payload;
+    },
+    onSuccess: (payload, playerId) => {
+      if (payload.emailSent) {
+        toast.success(payload.message ?? "Welcome email sent.");
+        setEmailErrorPlayer(null);
+      } else {
+        toast.error(payload.message ?? "Welcome email could not be sent.");
+        setEmailErrorPlayer((current) =>
+          current?.id === playerId
+            ? {
+                ...current,
+                welcomeEmailStatus: payload.welcomeEmailStatus ?? "failed",
+                welcomeEmailError: payload.welcomeEmailError ?? current.welcomeEmailError,
+                welcomeEmailSentAt: payload.welcomeEmailSentAt ?? current.welcomeEmailSentAt,
+              }
+            : current,
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ["owner-registered-players"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to resend welcome email.");
+    },
+  });
+
   const handleDelete = async (player: OwnerRegisteredPlayerItem) => {
     const result = await Swal.fire({
       ...alertOptions,
@@ -398,6 +487,9 @@ export function OwnerRegisteredPlayersView() {
 
   const pendingDeleteId = deleteMutation.isPending ? deleteMutation.variables : null;
   const pendingBlockId = blockMutation.isPending ? blockMutation.variables?.id : null;
+  const pendingResendId = retryWelcomeEmailMutation.isPending
+    ? retryWelcomeEmailMutation.variables
+    : null;
 
   return (
     <Card className="glass-panel">
@@ -452,7 +544,7 @@ export function OwnerRegisteredPlayersView() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Email status</TableHead>
+                {isSuperAdmin ? <TableHead>Email status</TableHead> : null}
                 <TableHead>Mobile</TableHead>
                 <TableHead className="text-right">Sessions</TableHead>
                 <TableHead>Last registered</TableHead>
@@ -493,12 +585,16 @@ export function OwnerRegisteredPlayersView() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{player.email}</TableCell>
-                  <TableCell>
-                    <WelcomeEmailStatusCell
-                      player={player}
-                      onShowError={setEmailErrorPlayer}
-                    />
-                  </TableCell>
+                  {isSuperAdmin ? (
+                    <TableCell>
+                      <WelcomeEmailStatusCell
+                        player={player}
+                        onShowError={setEmailErrorPlayer}
+                        onResend={(playerId) => retryWelcomeEmailMutation.mutate(playerId)}
+                        isResending={pendingResendId === player.id}
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell className="text-muted-foreground">{player.mobileNumber}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     <Button
@@ -609,6 +705,7 @@ export function OwnerRegisteredPlayersView() {
         onClose={() => setDetailsPlayer(null)}
       />
       <OwnerPlayerQrDialog player={qrPlayer} onClose={() => setQrPlayer(null)} />
+      {isSuperAdmin ? (
       <Dialog
         open={Boolean(emailErrorPlayer)}
         onOpenChange={(open) => {
@@ -632,8 +729,41 @@ export function OwnerRegisteredPlayersView() {
               </p>
             ) : null}
           </div>
+          {emailErrorPlayer?.welcomeEmailStatus === "failed" ? (
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEmailErrorPlayer(null)}
+                disabled={retryWelcomeEmailMutation.isPending}
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                disabled={retryWelcomeEmailMutation.isPending}
+                onClick={() => {
+                  if (!emailErrorPlayer) return;
+                  retryWelcomeEmailMutation.mutate(emailErrorPlayer.id);
+                }}
+              >
+                {retryWelcomeEmailMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                    Sending…
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" aria-hidden />
+                    Retry email
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          ) : null}
         </DialogContent>
       </Dialog>
+      ) : null}
     </Card>
   );
 }

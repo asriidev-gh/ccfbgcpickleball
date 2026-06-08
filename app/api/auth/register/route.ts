@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
+import { REGISTRATION_FEATURE_QR_ID } from "@/lib/registration-feature";
 import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
 import { getRegistrationDevice } from "@/lib/user-auth-audit";
 import { User } from "@/models/User";
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
       email,
       passwordHash,
       userType: USER_TYPE_DEFAULT,
+      registrationFeature: REGISTRATION_FEATURE_QR_ID,
       registeredDevice: device,
       lastLoginAt: now,
       lastLoginDevice: device,

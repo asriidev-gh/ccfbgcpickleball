@@ -16,7 +16,7 @@ const userSchema = new Schema(
     registrationFeature: {
       type: String,
       enum: ["default", "qr_id"],
-      default: "default",
+      default: "qr_id",
     },
     /** Custom header on player QR downloads (max 20 chars). Empty uses default branding. */
     playerQrTitle: { type: String, trim: true, maxlength: 20, default: "" },

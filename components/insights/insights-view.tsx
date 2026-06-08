@@ -12,7 +12,6 @@ import {
   Ban,
   KeyRound,
   LogIn,
-  QrCode,
   ShieldCheck,
   ShieldOff,
   Trash2,
@@ -521,27 +520,6 @@ function UserListPanel({ selection, onSelectFilter }: {
     blockMutation.mutate({ id: user.id, blocked: blocking });
   };
 
-  const handleRegistrationFeatureToggle = async (user: UserListItem) => {
-    const enabling = user.registrationFeature !== "qr_id";
-    const result = await Swal.fire({
-      ...deleteAlertOptions,
-      title: enabling ? "Enable QR ID registration?" : "Switch to default registration?",
-      html: enabling
-        ? `<strong>${user.name}</strong> (${user.email}) will show personal QR IDs to new players and allow QR ID check-in for their games.`
-        : `<strong>${user.name}</strong> (${user.email}) will use the standard registration flow without personal QR IDs.`,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: enabling ? "Enable QR ID" : "Use default",
-      cancelButtonText: "Cancel",
-      confirmButtonColor: enabling ? "#2563eb" : "#64748b",
-    });
-    if (!result.isConfirmed) return;
-    registrationFeatureMutation.mutate({
-      id: user.id,
-      registrationFeature: enabling ? "qr_id" : "default",
-    });
-  };
-
   const handleLoginAs = async (user: UserListItem) => {
     const newTab = window.open("about:blank", "_blank");
     if (!newTab) {
@@ -732,9 +710,42 @@ function UserListPanel({ selection, onSelectFilter }: {
                     </Select>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={user.registrationFeature === "qr_id" ? "default" : "outline"}>
-                      {user.registrationFeature === "qr_id" ? "QR ID" : "Default"}
-                    </Badge>
+                    <Select
+                      value={user.registrationFeature}
+                      disabled={
+                        registrationFeatureMutation.isPending &&
+                        registrationFeatureMutation.variables?.id === user.id
+                      }
+                      onValueChange={(value) => {
+                        const nextFeature = value as "default" | "qr_id";
+                        if (nextFeature === user.registrationFeature) return;
+                        registrationFeatureMutation.mutate({
+                          id: user.id,
+                          registrationFeature: nextFeature,
+                        });
+                      }}
+                    >
+                      <SelectTrigger
+                        className={cn(
+                          "h-6 w-fit cursor-pointer gap-1 rounded-full border-0 px-2.5 text-xs font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring",
+                          user.registrationFeature === "qr_id"
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                            : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+                        )}
+                        aria-label={`Change registration for ${user.name}`}
+                      >
+                        {registrationFeatureMutation.isPending &&
+                        registrationFeatureMutation.variables?.id === user.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                        ) : (
+                          <SelectValue />
+                        )}
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover text-popover-foreground">
+                        <SelectItem value="default">default</SelectItem>
+                        <SelectItem value="qr_id">QR ID</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {user.hasGoogle ? "Google" : "Password"}
@@ -833,39 +844,6 @@ function UserListPanel({ selection, onSelectFilter }: {
                           <KeyRound className="h-4 w-4" aria-hidden />
                         </Button>
                       ) : null}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          "size-8",
-                          user.registrationFeature === "qr_id"
-                            ? "text-primary hover:bg-primary/10 hover:text-primary"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                        )}
-                        aria-label={
-                          user.registrationFeature === "qr_id"
-                            ? `Set default registration for ${user.name}`
-                            : `Enable QR ID registration for ${user.name}`
-                        }
-                        title={
-                          user.registrationFeature === "qr_id"
-                            ? "Registration: QR ID"
-                            : "Registration: default"
-                        }
-                        disabled={
-                          registrationFeatureMutation.isPending &&
-                          registrationFeatureMutation.variables?.id === user.id
-                        }
-                        onClick={() => handleRegistrationFeatureToggle(user)}
-                      >
-                        {registrationFeatureMutation.isPending &&
-                        registrationFeatureMutation.variables?.id === user.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                        ) : (
-                          <QrCode className="h-4 w-4" aria-hidden />
-                        )}
-                      </Button>
                       <Button
                         type="button"
                         variant="ghost"
