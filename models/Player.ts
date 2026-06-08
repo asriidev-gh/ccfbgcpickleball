@@ -18,6 +18,13 @@ const playerSchema = new Schema(
     currentStreak: { type: Number, default: 0 },
     bestStreak: { type: Number, default: 0 },
     lastAttendedAt: { type: Date },
+    welcomeEmailStatus: {
+      type: String,
+      enum: ["success", "failed", "skipped", ""],
+      default: "",
+    },
+    welcomeEmailError: { type: String, trim: true, maxlength: 500, default: "" },
+    welcomeEmailSentAt: { type: Date },
     photoUrl: { type: String, default: "" },
     photoPublicId: { type: String, default: "" },
     gender: {

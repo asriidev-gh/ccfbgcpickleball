@@ -9,7 +9,7 @@ import { ThemeMenu } from "@/components/theme-menu";
 import { UserMenu } from "@/components/user-menu";
 import { getSpectateGameIdFromPath } from "@/lib/player-session";
 import { APP_NAME } from "@/lib/app-config";
-import { getBrandShellClasses, isPublicAppPath, isSpectatorPath, shouldHideAppBrandBar } from "@/lib/app-shell";
+import { getBrandShellClasses, isPublicAppPath, isSpectatorPath, shouldHideAppBrandBar, shouldShowRegisteredPlayersHeaderLink } from "@/lib/app-shell";
 import { dispatchRegistrationReset } from "@/lib/registration-reset";
 import { cn } from "@/lib/utils";
 
@@ -75,7 +75,9 @@ export function AppBrandBar() {
               )
             ) : (
               <>
-                {pathname === "/" ? null : <RegisteredPlayersHeaderLink />}
+                {shouldShowRegisteredPlayersHeaderLink(pathname) ? (
+                  <RegisteredPlayersHeaderLink />
+                ) : null}
                 <UserMenu />
               </>
             )}

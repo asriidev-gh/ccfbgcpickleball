@@ -152,6 +152,8 @@ export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
   const showRegisteredPlayers = Boolean(authData?.user);
   const sessionGames = sessionTab === "active" ? activeGames : pastGames;
+  const dashboardTileCount =
+    1 + (showRegisteredPlayers ? 1 : 0) + (isSuperAdmin ? 1 : 0);
 
   return (
     <div className="home-dashboard space-y-5">
@@ -163,12 +165,10 @@ export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
 
       <div
         className={cn(
-          "home-dashboard-tiles grid gap-3",
-          showRegisteredPlayers
-            ? "grid-cols-2 sm:max-w-xl"
-            : isSuperAdmin
-              ? "grid-cols-2"
-              : "grid-cols-1 sm:max-w-xs",
+          "home-dashboard-tiles grid gap-2 sm:gap-3",
+          dashboardTileCount === 3 && "grid-cols-3",
+          dashboardTileCount === 2 && "grid-cols-2 sm:max-w-xl",
+          dashboardTileCount === 1 && "grid-cols-1 sm:max-w-xs",
         )}
       >
         <Link
@@ -197,7 +197,6 @@ export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
               panel === "statistics"
                 ? "border-primary/50 bg-primary/10 shadow-sm"
                 : "border-border/70 bg-sky-500/8 hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15",
-              showRegisteredPlayers ? "sm:col-span-2" : null,
             )}
             onClick={() => setPanel(panel === "statistics" ? "sessions" : "statistics")}
           >

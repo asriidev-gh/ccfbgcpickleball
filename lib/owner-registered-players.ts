@@ -5,6 +5,7 @@ import {
   type OwnerRegisteredPlayerItem,
   type OwnerRegisteredPlayersPage,
 } from "@/lib/owner-registered-players-shared";
+import type { WelcomeEmailStatus } from "@/lib/welcome-email-status";
 import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import { formatPlayerTableName } from "@/lib/utils";
 import { PickleGame } from "@/models/PickleGame";
@@ -27,6 +28,9 @@ type PlayerDoc = {
   photoUrl?: string | null;
   photoPublicId?: string | null;
   createdAt?: Date;
+  welcomeEmailStatus?: WelcomeEmailStatus | "";
+  welcomeEmailError?: string;
+  welcomeEmailSentAt?: Date | null;
 };
 
 export type OwnerRegisteredPlayersQuery = {
@@ -94,7 +98,9 @@ export async function getOwnerRegisteredPlayers(
 
   const playerIds = entryAgg.map((row) => row._id);
   const playerDocs = (await Player.find({ _id: { $in: playerIds } })
-    .select("firstName lastName email mobileNumber personalQrCode photoUrl photoPublicId createdAt")
+    .select(
+      "firstName lastName email mobileNumber personalQrCode photoUrl photoPublicId createdAt welcomeEmailStatus welcomeEmailError welcomeEmailSentAt",
+    )
     .lean()) as PlayerDoc[];
 
   type Group = {
@@ -109,6 +115,9 @@ export async function getOwnerRegisteredPlayers(
     personalQrCode?: string;
     sessions: Set<string>;
     lastRegisteredAt: Date | null;
+    welcomeEmailStatus: WelcomeEmailStatus | "";
+    welcomeEmailError: string;
+    welcomeEmailSentAt: Date | null;
   };
 
   const groups = new Map<string, Group>();
@@ -135,6 +144,9 @@ export async function getOwnerRegisteredPlayers(
         personalQrCode: doc.personalQrCode,
         sessions: new Set<string>(),
         lastRegisteredAt: null,
+        welcomeEmailStatus: doc.welcomeEmailStatus ?? "",
+        welcomeEmailError: doc.welcomeEmailError?.trim() ?? "",
+        welcomeEmailSentAt: doc.welcomeEmailSentAt ? new Date(doc.welcomeEmailSentAt) : null,
       };
       groups.set(key, group);
     }
@@ -183,6 +195,11 @@ export async function getOwnerRegisteredPlayers(
       sessionsCount: group.sessions.size,
       lastRegisteredAt: group.lastRegisteredAt ? group.lastRegisteredAt.toISOString() : null,
       isBlocked: blockedEmails.has(group.email.trim().toLowerCase()),
+      welcomeEmailStatus: group.welcomeEmailStatus,
+      welcomeEmailError: group.welcomeEmailError,
+      welcomeEmailSentAt: group.welcomeEmailSentAt
+        ? group.welcomeEmailSentAt.toISOString()
+        : null,
     }));
 
   const filtered = searchQuery

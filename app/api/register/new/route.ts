@@ -24,6 +24,8 @@ import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
 import { buildPlayerQrDataUrlWithBranding } from "@/lib/player-qr";
 import { resolvePlayerQrBrandingForGame } from "@/lib/player-qr-branding";
 import { resolveGameRegistrationFeature } from "@/lib/resolve-game-registration-feature";
+import { sendRegistrationWelcomeEmail } from "@/lib/registration-welcome-email";
+import { buildWelcomeEmailPlayerUpdate } from "@/lib/welcome-email-status";
 import { REGISTRATION_PHOTO_REQUIRED_MESSAGE } from "@/lib/registration-photo";
 import { isRegistrationPhotoRequired } from "@/lib/registration-variant";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
@@ -41,6 +43,7 @@ function isVolunteerNewPlayerPayload(
   return "volunteerType" in payload && Boolean(payload.volunteerType);
 }
 import { Player } from "@/models/Player";
+import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
 import { Volunteer } from "@/models/Volunteer";
 
@@ -207,13 +210,35 @@ export async function POST(request: Request) {
           })
         : undefined;
 
+    const game = await PickleGame.findOne({ gameId: payload.gameId }).select("title").lean();
+    const emailResult = await sendRegistrationWelcomeEmail({
+      to: player.email,
+      firstName: player.firstName,
+      lastName: player.lastName,
+      personalQrCode: player.personalQrCode,
+      gameId: payload.gameId,
+      gameTitle: game?.title?.trim() || "Open play",
+    });
+
+    const emailTracking = buildWelcomeEmailPlayerUpdate(emailResult);
+    await Player.findByIdAndUpdate(player._id, emailTracking);
+    Object.assign(player, emailTracking);
+
+    const emailSent = emailResult.sent;
+    const message = emailSent
+      ? showPlayerQr
+        ? "Registration complete. Save your personal QR for next time — we also emailed your QR ID."
+        : "Registration complete. Welcome email sent with your personal QR ID."
+      : showPlayerQr
+        ? "Registration complete. Save your personal QR for next time."
+        : "Registration complete.";
+
     return NextResponse.json({
       player,
       showPlayerQr,
       personalQrCodeDataUrl,
-      message: showPlayerQr
-        ? "Registration complete. Save your personal QR for next time."
-        : `Registration complete. QR email queued to ${player.email}.`,
+      emailSent,
+      message,
     });
   } catch (error) {
     if (error instanceof RegistrationLimitError) {

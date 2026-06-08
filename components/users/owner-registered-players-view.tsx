@@ -57,6 +57,37 @@ function formatSessionDate(value: string | null) {
   });
 }
 
+function WelcomeEmailStatusCell({
+  player,
+  onShowError,
+}: {
+  player: OwnerRegisteredPlayerItem;
+  onShowError: (player: OwnerRegisteredPlayerItem) => void;
+}) {
+  if (player.welcomeEmailStatus === "success") {
+    return (
+      <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700">
+        Success
+      </Badge>
+    );
+  }
+
+  if (player.welcomeEmailStatus === "failed" || player.welcomeEmailStatus === "skipped") {
+    return (
+      <button
+        type="button"
+        className="inline-flex cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        onClick={() => onShowError(player)}
+        aria-label={`View welcome email error for ${player.name}`}
+      >
+        <Badge variant="destructive">Failed</Badge>
+      </button>
+    );
+  }
+
+  return <span className="text-muted-foreground">—</span>;
+}
+
 function OwnerPlayerSessionsDialog({
   player,
   onClose,
@@ -261,6 +292,7 @@ export function OwnerRegisteredPlayersView() {
   const [sessionsPlayer, setSessionsPlayer] = useState<{ id: string; name: string } | null>(null);
   const [detailsPlayer, setDetailsPlayer] = useState<{ id: string; name: string } | null>(null);
   const [qrPlayer, setQrPlayer] = useState<{ id: string; name: string } | null>(null);
+  const [emailErrorPlayer, setEmailErrorPlayer] = useState<OwnerRegisteredPlayerItem | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -420,6 +452,7 @@ export function OwnerRegisteredPlayersView() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Email status</TableHead>
                 <TableHead>Mobile</TableHead>
                 <TableHead className="text-right">Sessions</TableHead>
                 <TableHead>Last registered</TableHead>
@@ -460,6 +493,12 @@ export function OwnerRegisteredPlayersView() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{player.email}</TableCell>
+                  <TableCell>
+                    <WelcomeEmailStatusCell
+                      player={player}
+                      onShowError={setEmailErrorPlayer}
+                    />
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{player.mobileNumber}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     <Button
@@ -570,6 +609,31 @@ export function OwnerRegisteredPlayersView() {
         onClose={() => setDetailsPlayer(null)}
       />
       <OwnerPlayerQrDialog player={qrPlayer} onClose={() => setQrPlayer(null)} />
+      <Dialog
+        open={Boolean(emailErrorPlayer)}
+        onOpenChange={(open) => {
+          if (!open) setEmailErrorPlayer(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Welcome email failed</DialogTitle>
+            <DialogDescription>
+              {emailErrorPlayer?.name} · {emailErrorPlayer?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 leading-relaxed text-destructive">
+              {emailErrorPlayer?.welcomeEmailError?.trim() || "Unknown error."}
+            </p>
+            {emailErrorPlayer?.welcomeEmailSentAt ? (
+              <p className="text-muted-foreground">
+                Attempted {formatSessionDate(emailErrorPlayer.welcomeEmailSentAt)}
+              </p>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

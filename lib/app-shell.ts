@@ -36,3 +36,15 @@ export function isPublicAppPath(pathname: string, fromParam: string | null) {
   if (pathname.startsWith("/register")) return true;
   return false;
 }
+
+const REGISTERED_PLAYERS_HEADER_HIDDEN_PATHS = new Set([
+  "/",
+  "/users",
+  "/my-games",
+  "/insights",
+]);
+
+/** Dashboard and dedicated pages already expose registered players navigation. */
+export function shouldShowRegisteredPlayersHeaderLink(pathname: string) {
+  return !REGISTERED_PLAYERS_HEADER_HIDDEN_PATHS.has(pathname);
+}

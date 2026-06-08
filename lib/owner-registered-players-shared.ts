@@ -1,6 +1,7 @@
 // Client-safe types for organizer registered-player list.
 
 import type { GenderOption, PickleballLevel } from "@/lib/player-profile-shared";
+import type { WelcomeEmailStatus } from "@/lib/welcome-email-status";
 
 export const OWNER_REGISTERED_PLAYERS_PAGE_SIZE = 10;
 
@@ -26,6 +27,9 @@ export type OwnerRegisteredPlayerItem = {
   sessionsCount: number;
   lastRegisteredAt: string | null;
   isBlocked: boolean;
+  welcomeEmailStatus: WelcomeEmailStatus | "";
+  welcomeEmailError: string;
+  welcomeEmailSentAt: string | null;
 };
 
 export type OwnerPlayerSessionEntry = {
