@@ -5,6 +5,11 @@ const DEFAULT_REPEAT_COUNT = 2;
 const DEFAULT_REPEAT_PAUSE_MS = 1000;
 const SYNTH_RESET_MS = 100;
 const CHROME_KEEP_ALIVE_MS = 10_000;
+const DEFAULT_SPEECH_RATE = 0.95;
+const DEFAULT_SPEECH_PITCH = 1;
+const HAVE_FUN_EXCITED_RATE = 1.15;
+const HAVE_FUN_EXCITED_PITCH = 1.4;
+export const CALL_NAMES_HAVE_FUN_PHRASE = "Have fun!";
 export const CALL_NAMES_VOICE_STORAGE_KEY = "ccf-call-names-voice-uri";
 export const CALL_NAMES_PREFERRED_VOICE_NAME = "Google US English";
 
@@ -18,6 +23,7 @@ export type CallNamesSpeechOptions = {
   pauseMs?: number;
   repeatCount?: number;
   repeatPauseMs?: number;
+  courtNumber?: number | null;
   onStart?: () => void;
   onComplete?: () => void;
 };
@@ -27,49 +33,119 @@ type PlayerNameRef = {
   lastName: string;
 };
 
-export function buildNextCourtCallIntro(playerCount: number) {
-  if (playerCount <= 0) return "";
-  if (playerCount === 1) {
-    return "Attention! The following player is up next on court.";
-  }
-  return "Attention! The following players are up next on court.";
+export type CallPhraseStep = {
+  text: string;
+  /** Pause after this phrase before the next one. Defaults to `DEFAULT_PAUSE_MS`. Use `0` for no pause. */
+  pauseAfterMs?: number;
+  rate?: number;
+  pitch?: number;
+  volume?: number;
+};
+
+function phrase(
+  text: string,
+  options: Omit<CallPhraseStep, "text"> = {},
+): CallPhraseStep {
+  return { text, ...options };
 }
 
-/** Intro, then team A names, "versus", then team B names (matches fill-court pairing). */
-export function buildNextCourtCallPhrases(names: string[]) {
+function appendTeamPlayerSteps(steps: CallPhraseStep[], names: string[], pauseMs: number) {
+  if (names.length === 0) return;
+
+  steps.push(phrase(names[0], { pauseAfterMs: 0 }));
+
+  for (let index = 1; index < names.length; index += 1) {
+    steps.push(phrase("and", { pauseAfterMs: pauseMs }));
+    steps.push(phrase(names[index], { pauseAfterMs: 0 }));
+  }
+}
+
+export function buildTeamAnnouncementPhrases(teamANames: string[], teamBNames: string[]) {
+  const teamA = teamANames.map((name) => name.trim()).filter(Boolean);
+  const teamB = teamBNames.map((name) => name.trim()).filter(Boolean);
+  const steps: CallPhraseStep[] = [];
+
+  if (teamA.length === 0 && teamB.length === 0) {
+    return steps;
+  }
+
+  if (teamA.length > 0 && teamB.length > 0) {
+    steps.push(phrase("Team A players", { pauseAfterMs: DEFAULT_PAUSE_MS }));
+    appendTeamPlayerSteps(steps, teamA, DEFAULT_PAUSE_MS);
+    steps.push(phrase("versus Team B", { pauseAfterMs: DEFAULT_PAUSE_MS }));
+    appendTeamPlayerSteps(steps, teamB, DEFAULT_PAUSE_MS);
+    return steps;
+  }
+
+  if (teamA.length > 0) {
+    steps.push(phrase("Team A players", { pauseAfterMs: DEFAULT_PAUSE_MS }));
+    appendTeamPlayerSteps(steps, teamA, DEFAULT_PAUSE_MS);
+    return steps;
+  }
+
+  steps.push(phrase("Team B", { pauseAfterMs: DEFAULT_PAUSE_MS }));
+  appendTeamPlayerSteps(steps, teamB, DEFAULT_PAUSE_MS);
+  return steps;
+}
+
+/** Intro, team assignment with selective pauses, then an excited "Have fun!" */
+export function buildNextCourtCallIntro(playerCount: number, courtNumber?: number | null) {
+  if (playerCount <= 0) return "";
+
+  const courtLabel = courtNumber != null ? `court ${courtNumber}` : "court";
+  if (playerCount === 1) {
+    return `Attention! The following player is up next on ${courtLabel}.`;
+  }
+  return `Attention! The following players are up next on ${courtLabel}.`;
+}
+
+export function buildNextCourtCallPhrases(names: string[], courtNumber?: number | null) {
   const trimmedNames = names.map((name) => name.trim()).filter(Boolean);
   if (trimmedNames.length === 0) return [];
 
-  const phrases = [buildNextCourtCallIntro(trimmedNames.length)];
-
-  if (trimmedNames.length === 1) {
-    phrases.push(trimmedNames[0]);
-    return phrases;
-  }
-
   const teamSplitIndex = Math.ceil(trimmedNames.length / 2);
-  const teamA = trimmedNames.slice(0, teamSplitIndex);
-  const teamB = trimmedNames.slice(teamSplitIndex);
-
-  phrases.push(...teamA, "versus", ...teamB);
-  return phrases;
+  return buildNextCourtCallPhrasesFromTeams(
+    trimmedNames.slice(0, teamSplitIndex),
+    trimmedNames.slice(teamSplitIndex),
+    courtNumber,
+  );
 }
 
-export function buildNextCourtCallPhrasesFromTeams(teamANames: string[], teamBNames: string[]) {
-  return buildNextCourtCallPhrases([...teamANames, ...teamBNames]);
+export function buildNextCourtCallPhrasesFromTeams(
+  teamANames: string[],
+  teamBNames: string[],
+  courtNumber?: number | null,
+): CallPhraseStep[] {
+  const teamA = teamANames.map((name) => name.trim()).filter(Boolean);
+  const teamB = teamBNames.map((name) => name.trim()).filter(Boolean);
+  const playerCount = teamA.length + teamB.length;
+  if (playerCount === 0) return [];
+
+  const steps: CallPhraseStep[] = [
+    phrase(buildNextCourtCallIntro(playerCount, courtNumber), { pauseAfterMs: DEFAULT_PAUSE_MS }),
+    ...buildTeamAnnouncementPhrases(teamA, teamB),
+    phrase(CALL_NAMES_HAVE_FUN_PHRASE, {
+      pauseAfterMs: 0,
+      rate: HAVE_FUN_EXCITED_RATE,
+      pitch: HAVE_FUN_EXCITED_PITCH,
+    }),
+  ];
+
+  return steps;
 }
 
 export function buildNextCourtCallPhrasesFromEntries(
   teamA: PlayerNameRef[],
   teamB: PlayerNameRef[],
-) {
+  courtNumber?: number | null,
+): CallPhraseStep[] {
   const teamANames = teamA.map((player, index) =>
     formatPlayerDisplayName(player.firstName, player.lastName, index + 1),
   );
   const teamBNames = teamB.map((player, index) =>
     formatPlayerDisplayName(player.firstName, player.lastName, teamA.length + index + 1),
   );
-  return buildNextCourtCallPhrasesFromTeams(teamANames, teamBNames);
+  return buildNextCourtCallPhrasesFromTeams(teamANames, teamBNames, courtNumber);
 }
 
 export function isCallNamesSpeechSupported() {
@@ -264,13 +340,15 @@ function startSpeechKeepAlive(synth: SpeechSynthesis) {
 }
 
 function speakPhrase(
-  text: string,
+  step: CallPhraseStep,
   synth: SpeechSynthesis,
   voice: SpeechSynthesisVoice | null,
 ): Promise<boolean> {
   return new Promise((resolve) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
+    const utterance = new SpeechSynthesisUtterance(step.text);
+    utterance.rate = step.rate ?? DEFAULT_SPEECH_RATE;
+    utterance.pitch = step.pitch ?? DEFAULT_SPEECH_PITCH;
+    utterance.volume = step.volume ?? 1;
     if (voice) utterance.voice = voice;
 
     utterance.onend = () => resolve(true);
@@ -279,11 +357,19 @@ function speakPhrase(
   });
 }
 
+function normalizePhraseSteps(phrases: Array<string | CallPhraseStep>): CallPhraseStep[] {
+  return phrases
+    .map((entry) =>
+      typeof entry === "string" ? phrase(entry.trim()) : { ...entry, text: entry.text.trim() },
+    )
+    .filter((step) => step.text.length > 0);
+}
+
 async function speakPhrasesOnce(
-  phrases: string[],
+  steps: CallPhraseStep[],
   synth: SpeechSynthesis,
   voice: SpeechSynthesisVoice | null,
-  pauseMs: number,
+  defaultPauseMs: number,
 ): Promise<boolean> {
   synth.cancel();
   await delay(SYNTH_RESET_MS);
@@ -291,11 +377,15 @@ async function speakPhrasesOnce(
   const stopKeepAlive = startSpeechKeepAlive(synth);
 
   try {
-    for (let index = 0; index < phrases.length; index += 1) {
-      const spoken = await speakPhrase(phrases[index], synth, voice);
+    for (let index = 0; index < steps.length; index += 1) {
+      const step = steps[index];
+      const spoken = await speakPhrase(step, synth, voice);
       if (!spoken) return false;
-      if (index < phrases.length - 1) {
-        await delay(pauseMs);
+      if (index < steps.length - 1) {
+        const pauseAfter = step.pauseAfterMs ?? defaultPauseMs;
+        if (pauseAfter > 0) {
+          await delay(pauseAfter);
+        }
       }
     }
     return true;
@@ -305,13 +395,13 @@ async function speakPhrasesOnce(
 }
 
 export async function callNamesInSequence(
-  phrases: string[],
+  phrases: Array<string | CallPhraseStep>,
   options: CallNamesSpeechOptions = {},
 ): Promise<boolean> {
   if (!isCallNamesSpeechSupported()) return false;
 
-  const trimmedPhrases = phrases.map((phrase) => phrase.trim()).filter(Boolean);
-  if (trimmedPhrases.length === 0) return false;
+  const steps = normalizePhraseSteps(phrases);
+  if (steps.length === 0) return false;
 
   const synth = window.speechSynthesis;
   const pauseMs = options.pauseMs ?? DEFAULT_PAUSE_MS;
@@ -330,7 +420,7 @@ export async function callNamesInSequence(
         await delay(repeatPauseMs);
       }
 
-      const spoken = await speakPhrasesOnce(trimmedPhrases, synth, voice, pauseMs);
+      const spoken = await speakPhrasesOnce(steps, synth, voice, pauseMs);
       if (!spoken) return false;
     }
 
@@ -345,7 +435,11 @@ export async function announceNextCourtPlayers(
   teamB: PlayerNameRef[],
   options: CallNamesSpeechOptions = {},
 ): Promise<boolean> {
-  return callNamesInSequence(buildNextCourtCallPhrasesFromEntries(teamA, teamB), options);
+  const { courtNumber, ...speechOptions } = options;
+  return callNamesInSequence(
+    buildNextCourtCallPhrasesFromEntries(teamA, teamB, courtNumber),
+    speechOptions,
+  );
 }
 
 export function buildCourtEndedPhrase(courtNumber: number) {

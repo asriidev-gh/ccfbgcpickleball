@@ -1190,6 +1190,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       teamA.map((entry) => entry.playerId),
       teamB.map((entry) => entry.playerId),
       {
+        courtNumber: nextEmptyCourt?.courtNumber ?? null,
         onComplete: () => setCallingNames(false),
       },
     ).then((started) => {
