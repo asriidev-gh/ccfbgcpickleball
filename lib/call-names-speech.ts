@@ -100,10 +100,7 @@ export function buildNextCourtCallIntro(playerCount: number, courtNumber?: numbe
   if (playerCount <= 0) return "";
 
   const courtLabel = courtNumber != null ? `court ${courtNumber}` : "court";
-  if (playerCount === 1) {
-    return `Attention! The following player is up next on ${courtLabel}.`;
-  }
-  return `Attention! The following players are up next on ${courtLabel}.`;
+  return `Up next on ${courtLabel}.`;
 }
 
 export function buildNextCourtCallPhrases(names: string[], courtNumber?: number | null) {
