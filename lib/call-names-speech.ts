@@ -1,7 +1,6 @@
 import { capitalizeNameWords, formatPlayerDisplayName } from "@/lib/utils";
 
 const DEFAULT_PAUSE_MS = 500;
-const DEFAULT_REPEAT_COUNT = 2;
 const DEFAULT_REPEAT_PAUSE_MS = 1000;
 const SYNTH_RESET_MS = 100;
 const CHROME_KEEP_ALIVE_MS = 10_000;
@@ -12,10 +11,14 @@ const HAVE_FUN_EXCITED_PITCH = 1.4;
 export const CALL_NAMES_HAVE_FUN_PHRASE = "Have fun!";
 export const CALL_NAMES_VOICE_STORAGE_KEY = "ccf-call-names-voice-uri";
 export const CALL_NAMES_NAME_MODE_STORAGE_KEY = "ccf-call-names-name-mode";
+export const CALL_NAMES_CALL_COUNT_STORAGE_KEY = "ccf-call-names-call-count";
 export const CALL_NAMES_PREFERRED_VOICE_NAME = "Google US English";
 
 export type CallNamesNameMode = "first_name" | "full_name";
 export const DEFAULT_CALL_NAMES_NAME_MODE: CallNamesNameMode = "first_name";
+
+export type CallNamesCallCount = 1 | 2;
+export const DEFAULT_CALL_NAMES_CALL_COUNT: CallNamesCallCount = 1;
 
 export type CallNamesVoiceOption = {
   voiceURI: string;
@@ -159,6 +162,17 @@ export function loadCallNamesNameMode(): CallNamesNameMode {
 export function saveCallNamesNameMode(mode: CallNamesNameMode) {
   if (typeof window === "undefined") return;
   localStorage.setItem(CALL_NAMES_NAME_MODE_STORAGE_KEY, mode);
+}
+
+export function loadCallNamesCallCount(): CallNamesCallCount {
+  if (typeof window === "undefined") return DEFAULT_CALL_NAMES_CALL_COUNT;
+  const stored = localStorage.getItem(CALL_NAMES_CALL_COUNT_STORAGE_KEY);
+  return stored === "2" ? 2 : DEFAULT_CALL_NAMES_CALL_COUNT;
+}
+
+export function saveCallNamesCallCount(count: CallNamesCallCount) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CALL_NAMES_CALL_COUNT_STORAGE_KEY, String(count));
 }
 
 export function buildNextCourtCallPhrasesFromEntries(
@@ -433,7 +447,7 @@ export async function callNamesInSequence(
 
   const synth = window.speechSynthesis;
   const pauseMs = options.pauseMs ?? DEFAULT_PAUSE_MS;
-  const repeatCount = Math.max(1, options.repeatCount ?? DEFAULT_REPEAT_COUNT);
+  const repeatCount = Math.max(1, options.repeatCount ?? loadCallNamesCallCount());
   const repeatPauseMs = options.repeatPauseMs ?? DEFAULT_REPEAT_PAUSE_MS;
 
   synth.cancel();

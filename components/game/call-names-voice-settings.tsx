@@ -21,13 +21,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  type CallNamesCallCount,
   type CallNamesNameMode,
   type CallNamesVoiceOption,
+  DEFAULT_CALL_NAMES_CALL_COUNT,
   DEFAULT_CALL_NAMES_NAME_MODE,
   isCallNamesSpeechSupported,
+  loadCallNamesCallCount,
   loadCallNamesNameMode,
   primeCallNamesVoices,
   resolveStoredCallNamesVoiceURI,
+  saveCallNamesCallCount,
   saveCallNamesNameMode,
   saveCallNamesVoiceURI,
   subscribeCallNamesVoices,
@@ -76,6 +80,12 @@ export function CallNamesVoiceSettingsDialog({
   const [savedNameMode, setSavedNameMode] = useState<CallNamesNameMode>(
     DEFAULT_CALL_NAMES_NAME_MODE,
   );
+  const [draftCallCount, setDraftCallCount] = useState<CallNamesCallCount>(
+    DEFAULT_CALL_NAMES_CALL_COUNT,
+  );
+  const [savedCallCount, setSavedCallCount] = useState<CallNamesCallCount>(
+    DEFAULT_CALL_NAMES_CALL_COUNT,
+  );
 
   useEffect(() => {
     if (!isCallNamesSpeechSupported()) return;
@@ -92,22 +102,30 @@ export function CallNamesVoiceSettingsDialog({
 
     const currentURI = voices.length > 0 ? resolveStoredCallNamesVoiceURI(voices) : null;
     const currentNameMode = loadCallNamesNameMode();
+    const currentCallCount = loadCallNamesCallCount();
     setSavedVoiceURI(currentURI);
     setDraftVoiceURI(currentURI);
     setSavedNameMode(currentNameMode);
     setDraftNameMode(currentNameMode);
+    setSavedCallCount(currentCallCount);
+    setDraftCallCount(currentCallCount);
   }, [open, voices]);
 
   const selectedVoice = voices.find((voice) => voice.voiceURI === draftVoiceURI) ?? null;
-  const hasChanges = draftVoiceURI !== savedVoiceURI || draftNameMode !== savedNameMode;
+  const hasChanges =
+    draftVoiceURI !== savedVoiceURI ||
+    draftNameMode !== savedNameMode ||
+    draftCallCount !== savedCallCount;
 
   const handleConfirm = () => {
     if (!draftVoiceURI || !selectedVoice) return;
 
     saveCallNamesVoiceURI(draftVoiceURI);
     saveCallNamesNameMode(draftNameMode);
+    saveCallNamesCallCount(draftCallCount);
     setSavedVoiceURI(draftVoiceURI);
     setSavedNameMode(draftNameMode);
+    setSavedCallCount(draftCallCount);
     toast.success(`Voice settings updated (${selectedVoice.name})`);
     onOpenChange(false);
   };
@@ -116,6 +134,7 @@ export function CallNamesVoiceSettingsDialog({
     if (!nextOpen) {
       setDraftVoiceURI(savedVoiceURI);
       setDraftNameMode(savedNameMode);
+      setDraftCallCount(savedCallCount);
     }
     onOpenChange(nextOpen);
   };
@@ -183,6 +202,38 @@ export function CallNamesVoiceSettingsDialog({
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">Call by full name</span>
                 <span className="caption text-muted-foreground">e.g. &quot;Alex Martinez&quot;</span>
+              </span>
+            </label>
+          </RadioGroup>
+        </div>
+
+        <div className="space-y-3 border-t border-border/60 pt-4">
+          <p className="text-sm font-medium">Call count</p>
+          <RadioGroup
+            value={String(draftCallCount)}
+            onValueChange={(value) => {
+              if (value === "1" || value === "2") {
+                setDraftCallCount(Number(value) as CallNamesCallCount);
+              }
+            }}
+            className="gap-3"
+          >
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 p-3 transition-colors has-[[data-checked]]:border-primary/50 has-[[data-checked]]:bg-primary/5">
+              <RadioGroupItem value="1" className="mt-0.5" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">1</span>
+                <span className="caption text-muted-foreground">
+                  Default — announce player names once
+                </span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 p-3 transition-colors has-[[data-checked]]:border-primary/50 has-[[data-checked]]:bg-primary/5">
+              <RadioGroupItem value="2" className="mt-0.5" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">2</span>
+                <span className="caption text-muted-foreground">
+                  Repeat the full announcement once more
+                </span>
               </span>
             </label>
           </RadioGroup>

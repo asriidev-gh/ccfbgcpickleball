@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeftRight, ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import type { PlayerPhotoRef } from "@/components/game/player-avatar";
@@ -76,7 +76,6 @@ type ReplacePlayerDialogProps = {
   /** Full queued list (next on court + waiting) — used when replacing from a court. */
   courtReplaceEntries?: QueueEntryView[];
   onConfirm: (input: ReplacePlayerConfirmInput) => void;
-  isPending?: boolean;
 };
 
 export function ReplacePlayerDialog({
@@ -86,7 +85,6 @@ export function ReplacePlayerDialog({
   waitingEntries,
   courtReplaceEntries = [],
   onConfirm,
-  isPending = false,
 }: ReplacePlayerDialogProps) {
   const [selectedOffset, setSelectedOffset] = useState(0);
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -233,7 +231,7 @@ export function ReplacePlayerDialog({
                   className="size-9 shrink-0"
                   aria-label="Previous player"
                   onClick={goPrevious}
-                  disabled={isPending || candidateEntries.length <= 1}
+                  disabled={candidateEntries.length <= 1}
                 >
                   <ChevronLeft className="h-4 w-4" aria-hidden />
                 </Button>
@@ -252,7 +250,7 @@ export function ReplacePlayerDialog({
                   className="size-9 shrink-0"
                   aria-label="Next player"
                   onClick={goNext}
-                  disabled={isPending || candidateEntries.length <= 1}
+                  disabled={candidateEntries.length <= 1}
                 >
                   <ChevronRight className="h-4 w-4" aria-hidden />
                 </Button>
@@ -262,7 +260,7 @@ export function ReplacePlayerDialog({
             <Button
               type="button"
               className="h-9 w-full shrink-0 px-4 sm:w-auto sm:min-w-[7.75rem]"
-              disabled={isPending || !state || !selectedEntry}
+              disabled={!state || !selectedEntry}
               onClick={() => {
                 if (!state || !selectedEntry) return;
                 if (state.kind === "queue") {
@@ -282,14 +280,7 @@ export function ReplacePlayerDialog({
                 }
               }}
             >
-              {isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                  Swapping…
-                </>
-              ) : (
-                "Confirm swap"
-              )}
+              Confirm swap
             </Button>
           </div>
         </DialogFooter>

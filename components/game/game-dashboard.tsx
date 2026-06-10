@@ -330,6 +330,327 @@ async function getGame(id: string, spectator: boolean) {
   return data;
 }
 
+/** Instant UI while the fill-court API request is in flight. */
+function applyFillNextCourtOptimistic(payload: GamePayload): GamePayload | null {
+  if (payload.queue.length < 4) return null;
+
+  const emptyCourt = [...payload.courts]
+    .filter((court) => court.status === "empty")
+    .sort((a, b) => a.courtNumber - b.courtNumber)[0];
+  if (!emptyCourt) return null;
+
+  const nextFour = payload.queue.slice(0, 4);
+  const startedAt = new Date().toISOString();
+
+  return {
+    ...payload,
+    queue: payload.queue.slice(4),
+    courts: payload.courts.map((court) =>
+      court.courtNumber === emptyCourt.courtNumber
+        ? {
+            ...court,
+            status: "active",
+            startedAt,
+            isRematch: false,
+            teamA: { playerIds: nextFour.slice(0, 2).map((entry) => entry.playerId) },
+            teamB: { playerIds: nextFour.slice(2, 4).map((entry) => entry.playerId) },
+          }
+        : court,
+    ),
+  };
+}
+
+type EndGameMutationInput = {
+  courtNumber: number;
+  winnerTeam: "A" | "B";
+  teamAScore: number;
+  teamBScore: number;
+  rematch: boolean;
+};
+
+function buildOptimisticRequeueEntries(
+  teamA: PlayerPhotoRef[],
+  teamB: PlayerPhotoRef[],
+  winnerTeam: "A" | "B",
+  baseTime: number,
+): QueueEntryView[] {
+  const slots = [
+    { player: teamA[0], team: "A" as const },
+    { player: teamB[0], team: "B" as const },
+    { player: teamA[1], team: "A" as const },
+    { player: teamB[1], team: "B" as const },
+  ].filter((slot): slot is { player: PlayerPhotoRef; team: "A" | "B" } => Boolean(slot.player));
+
+  return slots.map((slot, index) => {
+    const isWinner = slot.team === winnerTeam;
+    return {
+      _id: `optimistic-requeue-${baseTime}-${index}`,
+      queueType: isWinner ? "winner" : "loser",
+      playerId: slot.player,
+      registeredAt: new Date(baseTime + index).toISOString(),
+      lastMatchResult: isWinner ? "win" : "loss",
+    };
+  });
+}
+
+/** Instant UI while the end-game API request is in flight. */
+function applyEndGameOptimistic(
+  payload: GamePayload,
+  input: EndGameMutationInput,
+): GamePayload | null {
+  const court = payload.courts.find((c) => c.courtNumber === input.courtNumber);
+  if (!court || court.status !== "active") return null;
+
+  if (input.rematch) {
+    return {
+      ...payload,
+      courts: payload.courts.map((c) =>
+        c.courtNumber === input.courtNumber
+          ? { ...c, startedAt: new Date().toISOString(), isRematch: true }
+          : c,
+      ),
+    };
+  }
+
+  const teamA = court.teamA?.playerIds ?? [];
+  const teamB = court.teamB?.playerIds ?? [];
+  if (teamA.length + teamB.length < 4) return null;
+
+  const baseTime = Date.now();
+  const requeueEntries = buildOptimisticRequeueEntries(
+    teamA,
+    teamB,
+    input.winnerTeam,
+    baseTime,
+  );
+
+  return {
+    ...payload,
+    queue: [...payload.queue, ...requeueEntries],
+    courts: payload.courts.map((c) =>
+      c.courtNumber === input.courtNumber
+        ? {
+            ...c,
+            status: "empty",
+            startedAt: null,
+            isRematch: false,
+            teamA: { playerIds: [] },
+            teamB: { playerIds: [] },
+          }
+        : c,
+    ),
+  };
+}
+
+function playerPhotoRefId(ref: PlayerPhotoRef): string {
+  if (ref._id == null) return "";
+  return typeof ref._id === "string" ? ref._id : ref._id.toString();
+}
+
+function isPlayerOnActiveCourt(courts: CourtView[], playerId: string): boolean {
+  return courts.some(
+    (court) =>
+      court.status === "active" &&
+      [...(court.teamA?.playerIds ?? []), ...(court.teamB?.playerIds ?? [])].some(
+        (player) => playerPhotoRefId(player) === playerId,
+      ),
+  );
+}
+
+function leaderboardRowPlayerId(row: LeaderboardGamesPlayedRow): string | null {
+  const playerId = row.playerId;
+  if (playerId == null) return null;
+  if (typeof playerId === "object" && "_id" in playerId && playerId._id != null) {
+    return String(playerId._id);
+  }
+  return String(playerId);
+}
+
+/** Instant UI while checkout API request is in flight. */
+function applyCheckoutOptimistic(payload: GamePayload, queueEntryId: string): GamePayload | null {
+  const entry = payload.queue.find((item) => item._id === queueEntryId);
+  if (!entry) return null;
+
+  const checkedOutAt = new Date().toISOString();
+  return {
+    ...payload,
+    queue: payload.queue.filter((item) => item._id !== queueEntryId),
+    checkedOut: [{ ...entry, checkedOutAt }, ...(payload.checkedOut ?? [])],
+  };
+}
+
+/** Instant UI while remove-player API request is in flight. */
+function applyRemovePlayerOptimistic(payload: GamePayload, playerId: string): GamePayload | null {
+  if (isPlayerOnActiveCourt(payload.courts, playerId)) return null;
+
+  const withoutPlayer = (entries: QueueEntryView[]) =>
+    entries.filter((entry) => queueEntryPlayerId(entry) !== playerId);
+
+  const matchIncludesPlayer = (match: MatchHistoryView) =>
+    match.teamAPlayerIds.some((player) => player._id === playerId) ||
+    match.teamBPlayerIds.some((player) => player._id === playerId);
+
+  return {
+    ...payload,
+    queue: withoutPlayer(payload.queue),
+    checkedOut: withoutPlayer(payload.checkedOut ?? []),
+    courts: payload.courts.map((court) => ({
+      ...court,
+      teamA: {
+        playerIds: court.teamA.playerIds.filter(
+          (player) => playerPhotoRefId(player) !== playerId,
+        ),
+      },
+      teamB: {
+        playerIds: court.teamB.playerIds.filter(
+          (player) => playerPhotoRefId(player) !== playerId,
+        ),
+      },
+    })),
+    matches: payload.matches.filter((match) => !matchIncludesPlayer(match)),
+    leaderboard: payload.leaderboard?.filter(
+      (row) => leaderboardRowPlayerId(row) !== playerId,
+    ),
+  };
+}
+
+type ReplaceQueueMutationInput = {
+  sourceIndex: number;
+  targetIndex: number;
+};
+
+type ReplaceCourtMutationInput = {
+  courtNumber: number;
+  team: "A" | "B";
+  slotIndex: number;
+  targetIndex: number;
+};
+
+function swapQueueEntriesAt(
+  queue: QueueEntryView[],
+  sourceIndex: number,
+  targetIndex: number,
+): QueueEntryView[] {
+  const next = [...queue];
+  const sourceRegisteredAt = next[sourceIndex].registeredAt;
+  const targetRegisteredAt = next[targetIndex].registeredAt;
+  [next[sourceIndex], next[targetIndex]] = [next[targetIndex], next[sourceIndex]];
+  next[sourceIndex] = { ...next[sourceIndex], registeredAt: sourceRegisteredAt };
+  next[targetIndex] = { ...next[targetIndex], registeredAt: targetRegisteredAt };
+  return next;
+}
+
+/** Instant UI while swapping a next-up player with the waiting line. */
+function applyQueueSwapOptimistic(
+  payload: GamePayload,
+  input: ReplaceQueueMutationInput,
+): GamePayload | null {
+  const { sourceIndex, targetIndex } = input;
+  if (sourceIndex < 0 || sourceIndex > 3) return null;
+  if (targetIndex < 4 || targetIndex >= payload.queue.length) return null;
+  if (sourceIndex === targetIndex) return null;
+
+  return {
+    ...payload,
+    queue: swapQueueEntriesAt(payload.queue, sourceIndex, targetIndex),
+  };
+}
+
+/** Instant UI while swapping an on-court player with someone in the queue. */
+function applyCourtReplaceOptimistic(
+  payload: GamePayload,
+  input: ReplaceCourtMutationInput,
+): GamePayload | null {
+  const { courtNumber, team, slotIndex, targetIndex } = input;
+  if (slotIndex < 0 || slotIndex > 1) return null;
+
+  const court = payload.courts.find(
+    (item) => item.courtNumber === courtNumber && item.status === "active",
+  );
+  if (!court) return null;
+  if (targetIndex < 0 || targetIndex >= payload.queue.length) return null;
+
+  const teamPlayers = team === "A" ? court.teamA.playerIds : court.teamB.playerIds;
+  if (slotIndex >= teamPlayers.length) return null;
+
+  const courtPlayer = teamPlayers[slotIndex];
+  const queuedEntry = payload.queue[targetIndex];
+  if (!courtPlayer || !queuedEntry) return null;
+
+  const requeuedEntry: QueueEntryView = {
+    _id: `optimistic-court-replace-${Date.now()}`,
+    queueType: "normal",
+    playerId: courtPlayer,
+    registeredAt: queuedEntry.registeredAt,
+    lastMatchResult: "none",
+  };
+
+  return {
+    ...payload,
+    queue: payload.queue.map((entry, index) =>
+      index === targetIndex ? requeuedEntry : entry,
+    ),
+    courts: payload.courts.map((item) => {
+      if (item.courtNumber !== courtNumber) return item;
+      if (team === "A") {
+        const playerIds = [...item.teamA.playerIds];
+        playerIds[slotIndex] = queuedEntry.playerId;
+        return { ...item, teamA: { playerIds } };
+      }
+      const playerIds = [...item.teamB.playerIds];
+      playerIds[slotIndex] = queuedEntry.playerId;
+      return { ...item, teamB: { playerIds } };
+    }),
+  };
+}
+
+/** Instant UI while cancelling a court assignment API request is in flight. */
+function applyCancelCourtAssignmentOptimistic(
+  payload: GamePayload,
+  courtNumber: number,
+): GamePayload | null {
+  const court = payload.courts.find(
+    (item) => item.courtNumber === courtNumber && item.status === "active",
+  );
+  if (!court) return null;
+
+  const teamA = court.teamA?.playerIds ?? [];
+  const teamB = court.teamB?.playerIds ?? [];
+  const courtPlayers = [teamA[0], teamA[1], teamB[0], teamB[1]].filter(Boolean);
+  if (courtPlayers.length < 4) return null;
+
+  const firstQueuedMs =
+    payload.queue.length > 0
+      ? new Date(payload.queue[0].registeredAt).getTime()
+      : Date.now();
+  const startMs = firstQueuedMs - courtPlayers.length * 1000;
+
+  const requeuedEntries: QueueEntryView[] = courtPlayers.map((player, index) => ({
+    _id: `optimistic-cancel-court-${startMs}-${index}`,
+    queueType: "normal",
+    playerId: player,
+    registeredAt: new Date(startMs + index * 1000).toISOString(),
+    lastMatchResult: "none",
+  }));
+
+  return {
+    ...payload,
+    queue: [...requeuedEntries, ...payload.queue],
+    courts: payload.courts.map((item) =>
+      item.courtNumber === courtNumber
+        ? {
+            ...item,
+            status: "empty",
+            startedAt: null,
+            isRematch: false,
+            teamA: { playerIds: [] },
+            teamB: { playerIds: [] },
+          }
+        : item,
+    ),
+  };
+}
+
 type GameDashboardProps = {
   mode?: GameDashboardMode;
 };
@@ -421,6 +742,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     refetchInterval: 2000,
   });
 
+  const gameQueryKey = ["game", gameId, isSpectator ? "spectator" : "operator"] as const;
+
   const startMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch(`/api/games/${gameId}/start`, { method: "POST" });
@@ -428,11 +751,27 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data;
     },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyFillNextCourtOptimistic(previous);
+      if (!optimistic) return { previous };
+
+      queryClient.setQueryData(gameQueryKey, optimistic);
+      return { previous };
+    },
     onSuccess: () => {
       toast.success("Next court filled from the queue.");
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error, _, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(gameQueryKey, context.previous);
+      }
+      toast.error(error.message);
+    },
   });
 
   const closeEndDialog = () => {
@@ -444,13 +783,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   };
 
   const endMutation = useMutation({
-    mutationFn: async (input: {
-      courtNumber: number;
-      winnerTeam: "A" | "B";
-      teamAScore: number;
-      teamBScore: number;
-      rematch: boolean;
-    }) => {
+    mutationFn: async (input: EndGameMutationInput) => {
       const response = await fetch(`/api/games/${gameId}/end`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -460,7 +793,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data as { message?: string; rematch?: boolean };
     },
-    onSuccess: (data, variables) => {
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyEndGameOptimistic(previous, variables);
+      if (!optimistic) return { previous };
+
+      queryClient.setQueryData(gameQueryKey, optimistic);
+
+      const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       if (variables.rematch) {
         setRematchCourtNumbers((prev) => new Set(prev).add(variables.courtNumber));
       } else {
@@ -470,14 +813,27 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           return next;
         });
       }
+
       closeEndDialog();
+
+      return { previous, previousRematchCourtNumbers };
+    },
+    onSuccess: (data, variables) => {
       toast.success(data.message ?? "Court updated.");
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
       void announceCourtEnded(variables.courtNumber, {
         onStart: () => setCallingNames(false),
       });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(gameQueryKey, context.previous);
+      }
+      if (context?.previousRematchCourtNumbers) {
+        setRematchCourtNumbers(context.previousRematchCourtNumbers);
+      }
+      toast.error(error.message);
+    },
   });
 
   const shuffleNextMutation = useMutation({
@@ -523,17 +879,39 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onSuccess: (data, courtNumber) => {
+    onMutate: async (courtNumber) => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
+      if (!optimistic) return { previous };
+
+      queryClient.setQueryData(gameQueryKey, optimistic);
+
+      const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       setRematchCourtNumbers((prev) => {
         const next = new Set(prev);
         next.delete(courtNumber);
         return next;
       });
-      toast.success(data.message);
       setCancelCourtTarget(null);
+
+      return { previous, previousRematchCourtNumbers };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error, _courtNumber, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(gameQueryKey, context.previous);
+      }
+      if (context?.previousRematchCourtNumbers) {
+        setRematchCourtNumbers(context.previousRematchCourtNumbers);
+      }
+      toast.error(error.message);
+    },
   });
 
   const cancelRematchMutation = useMutation({
@@ -607,7 +985,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   });
 
   const replaceMutation = useMutation({
-    mutationFn: async (input: { sourceIndex: number; targetIndex: number }) => {
+    mutationFn: async (input: ReplaceQueueMutationInput) => {
       const response = await fetch(`/api/games/${gameId}/swap-next`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -617,21 +995,32 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyQueueSwapOptimistic(previous, variables);
+      if (!optimistic) return { previous };
+
+      queryClient.setQueryData(gameQueryKey, optimistic);
+      setReplaceDialog(null);
+      return { previous };
+    },
     onSuccess: (payload) => {
       toast.success(payload.message);
-      setReplaceDialog(null);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(gameQueryKey, context.previous);
+      }
+      toast.error(error.message);
+    },
   });
 
   const replaceCourtMutation = useMutation({
-    mutationFn: async (input: {
-      courtNumber: number;
-      team: "A" | "B";
-      slotIndex: number;
-      targetIndex: number;
-    }) => {
+    mutationFn: async (input: ReplaceCourtMutationInput) => {
       const response = await fetch(`/api/games/${gameId}/replace-court-player`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -641,12 +1030,28 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyCourtReplaceOptimistic(previous, variables);
+      if (!optimistic) return { previous };
+
+      queryClient.setQueryData(gameQueryKey, optimistic);
+      setReplaceDialog(null);
+      return { previous };
+    },
     onSuccess: (payload) => {
       toast.success(payload.message);
-      setReplaceDialog(null);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(gameQueryKey, context.previous);
+      }
+      toast.error(error.message);
+    },
   });
 
   const handleReplaceConfirm = (input: ReplacePlayerConfirmInput) => {
@@ -686,6 +1091,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyCheckoutOptimistic(previous, variables.queueEntryId);
+      if (!optimistic) return { previous };
+
+      queryClient.setQueryData(gameQueryKey, optimistic);
+      return { previous };
+    },
     onSuccess: (payload, variables) => {
       if (gameId) {
         removeActiveQueueHighlightPlayerId(gameId, variables.checkedOutPlayerId);
@@ -701,6 +1117,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         });
       }
     },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(gameQueryKey, context.previous);
+      }
+      toast.error(error.message);
+    },
   });
 
   const removePlayerFromGameMutation = useMutation({
@@ -714,12 +1136,29 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyRemovePlayerOptimistic(previous, variables.playerId);
+      if (!optimistic) return { previous };
+
+      queryClient.setQueryData(gameQueryKey, optimistic);
+      return { previous };
+    },
     onSuccess: (payload, variables) => {
       if (gameId) {
         removeActiveQueueHighlightPlayerId(gameId, variables.playerId);
       }
       toast.success(payload.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(gameQueryKey, context.previous);
+      }
+      toast.error(error.message);
     },
   });
 
@@ -757,26 +1196,16 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       showCancelButton: true,
       confirmButtonText: "Yes, check out",
       cancelButtonText: "Cancel",
-      showLoaderOnConfirm: true,
-      allowOutsideClick: () => !Swal.isLoading(),
-      preConfirm: async () => {
-        try {
-          return await removeMutation.mutateAsync({
-            queueEntryId: entry._id,
-            checkedOutPlayerId: queueEntryPlayerId(entry),
-            selfPlayerIds,
-            playerName,
-          });
-        } catch (error) {
-          Swal.showValidationMessage(
-            error instanceof Error ? error.message : "Failed to check out player.",
-          );
-          return false;
-        }
-      },
     });
 
     if (!result.isConfirmed) return;
+
+    removeMutation.mutate({
+      queueEntryId: entry._id,
+      checkedOutPlayerId: queueEntryPlayerId(entry),
+      selfPlayerIds,
+      playerName,
+    });
   };
 
   const confirmCheckBackIn = async (entry: QueueEntryView) => {
@@ -828,21 +1257,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       showCancelButton: true,
       confirmButtonText: "Yes, remove player",
       cancelButtonText: "Cancel",
-      showLoaderOnConfirm: true,
-      allowOutsideClick: () => !Swal.isLoading(),
-      preConfirm: async () => {
-        try {
-          return await removePlayerFromGameMutation.mutateAsync({ playerId });
-        } catch (error) {
-          Swal.showValidationMessage(
-            error instanceof Error ? error.message : "Failed to remove player.",
-          );
-          return false;
-        }
-      },
     });
 
     if (!result.isConfirmed) return;
+
+    removePlayerFromGameMutation.mutate({ playerId });
   };
 
   const playerSessionStats = useMemo(
@@ -1810,13 +2229,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             state={replaceDialog}
             waitingEntries={waitingLineEntries}
             courtReplaceEntries={queueWithStats}
-            isPending={replaceMutation.isPending || replaceCourtMutation.isPending}
             onConfirm={handleReplaceConfirm}
           />
           <Dialog
             open={cancelCourtTarget !== null}
             onOpenChange={(open) => {
-              if (!open && !cancelCourtMutation.isPending) setCancelCourtTarget(null);
+              if (!open) setCancelCourtTarget(null);
             }}
           >
             <DialogContent className="cancel-court-dialog sm:max-w-md">
@@ -1830,30 +2248,18 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 within the first 5 minutes after filling the court.
               </p>
               <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={cancelCourtMutation.isPending}
-                  onClick={() => setCancelCourtTarget(null)}
-                >
+                <Button type="button" variant="outline" onClick={() => setCancelCourtTarget(null)}>
                   Keep on court
                 </Button>
                 <Button
                   type="button"
-                  disabled={cancelCourtMutation.isPending || cancelCourtTarget === null}
+                  disabled={cancelCourtTarget === null}
                   onClick={() => {
                     if (cancelCourtTarget === null) return;
                     cancelCourtMutation.mutate(cancelCourtTarget);
                   }}
                 >
-                  {cancelCourtMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                      Cancelling…
-                    </>
-                  ) : (
-                    "Yes, cancel assignment"
-                  )}
+                  Yes, cancel assignment
                 </Button>
               </div>
             </DialogContent>
@@ -2075,7 +2481,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                         size="sm"
                         variant={endGameRematch ? "outline" : "default"}
                         className="end-game-rematch-btn"
-                        disabled={endMutation.isPending}
                         onClick={() => setEndGameRematch(false)}
                       >
                         No
@@ -2085,7 +2490,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                         size="sm"
                         variant={endGameRematch ? "default" : "outline"}
                         className="end-game-rematch-btn"
-                        disabled={endMutation.isPending}
                         onClick={() => setEndGameRematch(true)}
                       >
                         Yes
@@ -2102,7 +2506,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={endMutation.isPending}
                     onClick={() => {
                       setPendingWinner(null);
                       setEndGameRematch(false);
@@ -2114,7 +2517,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   </Button>
                   <Button
                     type="button"
-                    disabled={endMutation.isPending || endGameScoreError != null}
+                    disabled={endGameScoreError != null}
                     onClick={() => {
                       if (!pendingWinner || endGameScoreError || endTargetCourt == null) return;
                       const a = teamAScore.trim();
@@ -2128,11 +2531,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                       });
                     }}
                   >
-                    {endMutation.isPending
-                      ? "Saving…"
-                      : endGameRematch
-                        ? "Start rematch"
-                        : "End game"}
+                    {endGameRematch ? "Start rematch" : "End game"}
                   </Button>
                 </div>
               </div>

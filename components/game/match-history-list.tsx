@@ -62,6 +62,33 @@ const deleteMatchAlertOptions = {
   cancelButtonColor: "#64748b",
 };
 
+type EditMatchScoreInput = {
+  matchId: string;
+  teamAScore: number;
+  teamBScore: number;
+};
+
+type GameMatchCachePayload = {
+  matches: MatchHistoryView[];
+};
+
+/** Instant UI while the edit-score API request is in flight. */
+function applyEditMatchScoreOptimistic(
+  payload: GameMatchCachePayload,
+  input: EditMatchScoreInput,
+): GameMatchCachePayload | null {
+  if (!payload.matches.some((match) => match._id === input.matchId)) return null;
+
+  return {
+    ...payload,
+    matches: payload.matches.map((match) =>
+      match._id === input.matchId
+        ? { ...match, teamAScore: input.teamAScore, teamBScore: input.teamBScore }
+        : match,
+    ),
+  };
+}
+
 function getInitials(firstName: string, lastName: string) {
   const first = firstName.trim()[0] ?? "";
   const last = lastName.trim()[0] ?? "";
@@ -233,7 +260,7 @@ export function MatchHistoryList({
   };
 
   const editScoreMutation = useMutation({
-    mutationFn: async (input: { matchId: string; teamAScore: number; teamBScore: number }) => {
+    mutationFn: async (input: EditMatchScoreInput) => {
       const response = await fetch(`/api/games/${gameId}/matches/${input.matchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -246,13 +273,31 @@ export function MatchHistoryList({
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: async (variables) => {
+      if (!gameId) return { previous: undefined as GameMatchCachePayload | undefined };
+
+      const gameQueryKey = ["game", gameId, "operator"] as const;
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = queryClient.getQueryData<GameMatchCachePayload>(gameQueryKey);
+      if (!previous) return { previous: undefined as GameMatchCachePayload | undefined };
+
+      const optimistic = applyEditMatchScoreOptimistic(previous, variables);
+      if (!optimistic) return { previous };
+
+      queryClient.setQueryData(gameQueryKey, optimistic);
+      closeEditScore();
+      return { previous, gameQueryKey };
+    },
     onSuccess: (data) => {
       toast.success(data.message);
       if (gameId) queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      closeEditScore();
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Failed to update score."),
+    onError: (error, _variables, context) => {
+      if (context?.previous && context.gameQueryKey) {
+        queryClient.setQueryData(context.gameQueryKey, context.previous);
+      }
+      toast.error(error instanceof Error ? error.message : "Failed to update score.");
+    },
   });
 
   const deleteMatchMutation = useMutation({
@@ -556,19 +601,14 @@ export function MatchHistoryList({
                 </p>
               ) : null}
               <div className="grid grid-cols-2 gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={editScoreMutation.isPending}
-                  onClick={closeEditScore}
-                >
+                <Button type="button" variant="outline" onClick={closeEditScore}>
                   Cancel
                 </Button>
                 <Button
                   type="button"
-                  disabled={editScoreMutation.isPending || editScoreError != null}
+                  disabled={editScoreError != null}
                   onClick={() => {
-                    if (editScoreError) return;
+                    if (editScoreError || !editingMatch) return;
                     editScoreMutation.mutate({
                       matchId: editingMatch._id,
                       teamAScore: editTeamAScore.trim() === "" ? 0 : Number(editTeamAScore),
@@ -576,7 +616,7 @@ export function MatchHistoryList({
                     });
                   }}
                 >
-                  {editScoreMutation.isPending ? "Saving…" : "Save score"}
+                  Save score
                 </Button>
               </div>
             </div>
