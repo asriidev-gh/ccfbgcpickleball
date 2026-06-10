@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 
 import { APP_NAME } from "@/lib/app-config";
+import { formatPublicAppPath, getPlayerLoginUrl } from "@/lib/app-url";
 import {
   buildPlayerQrDataUrlWithBranding,
   getPlayerQrDownloadFilename,
@@ -32,10 +33,14 @@ function buildWelcomeEmailHtml(input: {
   displayName: string;
   gameTitle: string;
   personalQrCode: string;
+  playerLoginUrl: string;
+  playerLoginLabel: string;
 }) {
   const safeName = escapeHtml(input.displayName);
   const safeGameTitle = escapeHtml(input.gameTitle);
   const safeQrCode = escapeHtml(input.personalQrCode);
+  const safePlayerLoginUrl = escapeHtml(input.playerLoginUrl);
+  const safePlayerLoginLabel = escapeHtml(input.playerLoginLabel);
 
   return `
 <!DOCTYPE html>
@@ -70,6 +75,10 @@ function buildWelcomeEmailHtml(input: {
                 <p style="margin:0 0 16px;font-size:18px;font-weight:700;letter-spacing:0.02em;color:#0f172a;word-break:break-all;">${safeQrCode}</p>
                 <p style="margin:0;font-size:14px;line-height:1.6;color:#64748b;">
                   Your QR image is attached to this email. Keep it on your phone or print it so you can check in faster next time.
+                </p>
+                <p style="margin:16px 0 0;font-size:14px;line-height:1.6;color:#334155;">
+                  To login your profile:
+                  <a href="${safePlayerLoginUrl}" style="color:#2563eb;text-decoration:underline;">${safePlayerLoginLabel}</a>
                 </p>
               </td>
             </tr>
@@ -107,6 +116,8 @@ export async function sendRegistrationWelcomeEmail(
   const qrBuffer = Buffer.from(base64, "base64");
   const displayName = formatPlayerDisplayName(input.firstName, input.lastName) || "Player";
   const filename = getPlayerQrDownloadFilename(input.firstName, input.personalQrCode);
+  const playerLoginUrl = getPlayerLoginUrl();
+  const playerLoginLabel = formatPublicAppPath(playerLoginUrl);
   const resend = new Resend(apiKey);
 
   try {
@@ -118,6 +129,8 @@ export async function sendRegistrationWelcomeEmail(
         displayName,
         gameTitle: input.gameTitle,
         personalQrCode: input.personalQrCode,
+        playerLoginUrl,
+        playerLoginLabel,
       }),
       attachments: [
         {

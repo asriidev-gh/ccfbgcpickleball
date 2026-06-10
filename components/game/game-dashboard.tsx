@@ -26,7 +26,7 @@ import Swal from "sweetalert2";
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
 import { GamePlayerProfileProvider } from "@/components/game/game-player-profile-context";
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
-import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import { PlayerAvatar, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
@@ -442,17 +442,12 @@ function applyEndGameOptimistic(
   };
 }
 
-function playerPhotoRefId(ref: PlayerPhotoRef): string {
-  if (ref._id == null) return "";
-  return typeof ref._id === "string" ? ref._id : ref._id.toString();
-}
-
 function isPlayerOnActiveCourt(courts: CourtView[], playerId: string): boolean {
   return courts.some(
     (court) =>
       court.status === "active" &&
       [...(court.teamA?.playerIds ?? []), ...(court.teamB?.playerIds ?? [])].some(
-        (player) => playerPhotoRefId(player) === playerId,
+        (player) => resolvePlayerId(player) === playerId,
       ),
   );
 }
@@ -498,12 +493,12 @@ function applyRemovePlayerOptimistic(payload: GamePayload, playerId: string): Ga
       ...court,
       teamA: {
         playerIds: court.teamA.playerIds.filter(
-          (player) => playerPhotoRefId(player) !== playerId,
+          (player) => resolvePlayerId(player) !== playerId,
         ),
       },
       teamB: {
         playerIds: court.teamB.playerIds.filter(
-          (player) => playerPhotoRefId(player) !== playerId,
+          (player) => resolvePlayerId(player) !== playerId,
         ),
       },
     })),

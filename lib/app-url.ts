@@ -31,6 +31,20 @@ export function getGameSpectatorUrl(baseUrl: string, gameId: string) {
   return `${baseUrl}/games/${gameId}/spectate`;
 }
 
+export function getPlayerLoginUrl(baseUrl?: string) {
+  return `${baseUrl ?? getPublicAppBaseUrl()}/player/login`;
+}
+
+/** Host + path for email copy, e.g. www.paddleflowj316.com/player/login */
+export function formatPublicAppPath(url: string) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.host}${parsed.pathname}`;
+  } catch {
+    return url.replace(/^https?:\/\//, "");
+  }
+}
+
 /** Client-side spectator link for sharing (uses public env or current origin). */
 export function getClientSpectatorShareUrl(gameId: string) {
   const publicEnv = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
