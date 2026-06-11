@@ -12,12 +12,23 @@ declare global {
 const cached = global.mongooseCache ?? { conn: null, promise: null };
 global.mongooseCache = cached;
 
-function getMongoOptions() {
+let connectedDatabaseName: string | null = null;
+
+export function resolveDatabaseName(dbNameOverride?: string) {
+  const override = dbNameOverride?.trim();
+  if (override) return override;
+  return process.env.MONGODB_DB?.trim() || "ccf_pickleball";
+}
+
+function getMongoOptions(dbNameOverride?: string) {
   return {
-    dbName: process.env.MONGODB_DB ?? "ccf_pickleball",
+    dbName: resolveDatabaseName(dbNameOverride),
     serverSelectionTimeoutMS: 10_000,
     socketTimeoutMS: 45_000,
-    maxPoolSize: 10,
+    // One connection per serverless instance — keeps Atlas Free tier under its 500-connection limit.
+    maxPoolSize: 1,
+    minPoolSize: 0,
+    maxIdleTimeMS: 10_000,
     bufferCommands: false,
   };
 }
@@ -29,9 +40,10 @@ function isConnectionReady(conn: typeof mongoose) {
 function resetCachedConnection() {
   cached.conn = null;
   cached.promise = null;
+  connectedDatabaseName = null;
 }
 
-export async function connectToDatabase() {
+export async function connectToDatabase(dbNameOverride?: string) {
   const mongodbUri = process.env.MONGODB_URI?.trim();
   if (!mongodbUri) {
     throw new Error(
@@ -39,17 +51,25 @@ export async function connectToDatabase() {
     );
   }
 
-  if (cached.conn && isConnectionReady(cached.conn)) {
+  const targetDatabaseName = resolveDatabaseName(dbNameOverride);
+  const hasMatchingConnection =
+    cached.conn &&
+    isConnectionReady(cached.conn) &&
+    connectedDatabaseName === targetDatabaseName;
+
+  if (hasMatchingConnection && cached.conn) {
     return cached.conn;
   }
 
-  if (cached.conn && !isConnectionReady(cached.conn)) {
+  if (cached.conn) {
+    await mongoose.disconnect();
     resetCachedConnection();
   }
 
   if (!cached.promise) {
+    connectedDatabaseName = targetDatabaseName;
     cached.promise = mongoose
-      .connect(mongodbUri, getMongoOptions())
+      .connect(mongodbUri, getMongoOptions(dbNameOverride))
       .then((conn) => {
         cached.conn = conn;
         return conn;
@@ -65,6 +85,13 @@ export async function connectToDatabase() {
   }
 
   return cached.promise;
+}
+
+export async function disconnectFromDatabase() {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+  resetCachedConnection();
 }
 
 export async function getDatabaseHealth() {

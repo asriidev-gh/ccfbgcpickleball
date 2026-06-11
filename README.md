@@ -37,6 +37,17 @@ npm run dev
 npm run seed
 ```
 
+5. Database backup / restore (moving between Atlas clusters):
+
+```bash
+npm run db:export ccf
+npm run db:restore -- ccf_2026-06-11_22-30-45 --force
+npm run db:export:collection -- players
+npm run db:restore:collection -- players_backup_2026-06-11_22-30-45 --force
+```
+
+See **[docs/database-migration.md](docs/database-migration.md)** for the full guide.
+
 Seed creates a demo owner account:
 
 - Email: `demo-admin@ccf.local`

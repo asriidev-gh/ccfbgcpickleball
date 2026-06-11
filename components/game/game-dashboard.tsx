@@ -96,6 +96,17 @@ import { useSpectatorPresence } from "@/hooks/use-spectator-presence";
 import { useSpectatorSessionCleanup } from "@/hooks/use-spectator-session-cleanup";
 import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
 import { dispatchSpectatorCheckoutNotification } from "@/lib/spectator-checkout-notifications";
+import {
+  mergeSpectatorGamePayload,
+  type SpectateDetailsPayload,
+  type SpectateLivePayload,
+} from "@/lib/spectate-payload";
+import {
+  OPERATOR_GAME_POLL_MS,
+  SPECTATOR_COUNT_POLL_MS,
+  SPECTATOR_DETAILS_POLL_MS,
+  SPECTATOR_LIVE_POLL_MS,
+} from "@/lib/spectator-polling";
 
 export type GameDashboardMode = "operator" | "spectator";
 
@@ -322,12 +333,18 @@ function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
   );
 }
 
-async function getGame(id: string, spectator: boolean) {
-  const path = spectator ? `/api/games/${id}/spectate` : `/api/games/${id}`;
-  const response = await fetch(path);
+async function getOperatorGame(id: string) {
+  const response = await fetch(`/api/games/${id}`);
   const data = await response.json();
   if (!response.ok) throw new Error(data.message);
-  return data;
+  return data as GamePayload;
+}
+
+async function getSpectateGame(id: string, scope: "live" | "details") {
+  const response = await fetch(`/api/games/${id}/spectate?scope=${scope}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message);
+  return data as SpectateLivePayload | SpectateDetailsPayload;
 }
 
 /** Instant UI while the fill-court API request is in flight. */
@@ -711,16 +728,51 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return () => media.removeEventListener("change", apply);
   }, []);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["game", gameId, isSpectator ? "spectator" : "operator"],
-    queryFn: () => getGame(gameId, isSpectator) as Promise<GamePayload>,
-    enabled: !!gameId,
+  const operatorGameQuery = useQuery({
+    queryKey: ["game", gameId, "operator"],
+    queryFn: () => getOperatorGame(gameId),
+    enabled: !!gameId && !isSpectator,
+    refetchInterval: OPERATOR_GAME_POLL_MS,
+  });
+
+  const spectatorLiveQuery = useQuery({
+    queryKey: ["game", gameId, "spectator", "live"],
+    queryFn: () => getSpectateGame(gameId, "live") as Promise<SpectateLivePayload>,
+    enabled: !!gameId && isSpectator,
     refetchInterval: (query) => {
       const status = query.state.data?.game?.status;
-      if (isSpectator && status === "ended") return false;
-      return 4000;
+      if (status === "ended") return false;
+      return SPECTATOR_LIVE_POLL_MS;
     },
   });
+
+  const spectatorGameStatus = spectatorLiveQuery.data?.game?.status;
+  const spectatorWantsDetails =
+    isSpectator &&
+    (spectatorGameStatus === "ended" ||
+      isLgViewport === true ||
+      mobileDashboardTab === "history");
+
+  const spectatorDetailsQuery = useQuery({
+    queryKey: ["game", gameId, "spectator", "details"],
+    queryFn: () => getSpectateGame(gameId, "details") as Promise<SpectateDetailsPayload>,
+    enabled: !!gameId && spectatorWantsDetails,
+    refetchInterval: spectatorGameStatus === "ended" ? false : SPECTATOR_DETAILS_POLL_MS,
+  });
+
+  const data = useMemo((): GamePayload | undefined => {
+    if (isSpectator) {
+      if (!spectatorLiveQuery.data) return undefined;
+      return mergeSpectatorGamePayload(
+        spectatorLiveQuery.data,
+        spectatorDetailsQuery.data,
+      ) as GamePayload;
+    }
+    return operatorGameQuery.data;
+  }, [isSpectator, operatorGameQuery.data, spectatorDetailsQuery.data, spectatorLiveQuery.data]);
+
+  const isLoading = isSpectator ? spectatorLiveQuery.isLoading : operatorGameQuery.isLoading;
+  const error = isSpectator ? spectatorLiveQuery.error : operatorGameQuery.error;
 
   useSpectatorPresence(gameId, isSpectator && data?.game?.status !== "ended");
   useSpectatorSessionCleanup(gameId, isSpectator);
@@ -734,10 +786,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       return payload as { count: number };
     },
     enabled: !!gameId && data?.game?.status !== "ended",
-    refetchInterval: 2000,
+    refetchInterval: SPECTATOR_COUNT_POLL_MS,
   });
 
-  const gameQueryKey = ["game", gameId, isSpectator ? "spectator" : "operator"] as const;
+  const gameQueryKey = (
+    isSpectator ? ["game", gameId, "spectator", "live"] : ["game", gameId, "operator"]
+  ) as readonly ["game", string, "spectator", "live"] | readonly ["game", string, "operator"];
 
   const startMutation = useMutation({
     mutationFn: async () => {

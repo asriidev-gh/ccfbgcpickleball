@@ -7,7 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "db:export": "tsx scripts/db-export.ts",
+    "db:restore": "tsx scripts/db-restore.ts",
+    "db:export:collection": "tsx scripts/db-export-collection.ts",
+    "db:restore:collection": "tsx scripts/db-restore-collection.ts",
+    "db:export:database": "tsx scripts/db-export-database.ts",
+    "db:restore:database": "tsx scripts/db-restore-database.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
