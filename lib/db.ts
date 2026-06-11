@@ -13,6 +13,19 @@ const cached = global.mongooseCache ?? { conn: null, promise: null };
 global.mongooseCache = cached;
 
 let connectedDatabaseName: string | null = null;
+let connectionEventsRegistered = false;
+
+function registerConnectionEvents() {
+  if (connectionEventsRegistered) return;
+  connectionEventsRegistered = true;
+
+  mongoose.connection.on("disconnected", () => {
+    resetCachedConnection();
+  });
+  mongoose.connection.on("error", () => {
+    resetCachedConnection();
+  });
+}
 
 export function resolveDatabaseName(dbNameOverride?: string) {
   const override = dbNameOverride?.trim();
@@ -28,7 +41,6 @@ function getMongoOptions(dbNameOverride?: string) {
     // One connection per serverless instance — keeps Atlas Free tier under its 500-connection limit.
     maxPoolSize: 1,
     minPoolSize: 0,
-    maxIdleTimeMS: 10_000,
     bufferCommands: false,
   };
 }
@@ -51,6 +63,8 @@ export async function connectToDatabase(dbNameOverride?: string) {
     );
   }
 
+  registerConnectionEvents();
+
   const targetDatabaseName = resolveDatabaseName(dbNameOverride);
   const hasMatchingConnection =
     cached.conn &&
@@ -61,8 +75,16 @@ export async function connectToDatabase(dbNameOverride?: string) {
     return cached.conn;
   }
 
-  if (cached.conn) {
-    await mongoose.disconnect();
+  const staleConnection =
+    cached.conn != null &&
+    (!isConnectionReady(cached.conn) || connectedDatabaseName !== targetDatabaseName);
+
+  if (staleConnection) {
+    try {
+      await mongoose.disconnect();
+    } catch {
+      // Stale or half-open sockets can throw during teardown — safe to continue reconnecting.
+    }
     resetCachedConnection();
   }
 
