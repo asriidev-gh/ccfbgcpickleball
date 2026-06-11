@@ -91,7 +91,6 @@ import {
 import { announceCourtEnded, announceNextCourtPlayers } from "@/lib/call-names-speech";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 import { useOperatorQueueRegistrationSync } from "@/hooks/use-operator-queue-registration-sync";
-import { useSpectatorPresence } from "@/hooks/use-spectator-presence";
 import { useSpectatorSessionCleanup } from "@/hooks/use-spectator-session-cleanup";
 import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
 import { dispatchSpectatorCheckoutNotification } from "@/lib/spectator-checkout-notifications";
@@ -112,7 +111,7 @@ import {
   type OperatorQueuePayload,
   type OperatorShellPayload,
 } from "@/lib/operator-payload";
-import { SPECTATOR_DETAILS_POLL_MS, SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
+import { SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
 
 export type GameDashboardMode = "operator" | "spectator";
 
@@ -132,6 +131,28 @@ const CHECKED_OUT_LIST_STORAGE_KEY = "ccf-queue-checked-out-visible";
 const MATCH_HISTORY_STORAGE_KEY = "ccf-match-history-visible";
 const COURTS_STORAGE_KEY = "ccf-courts-visible";
 const CHECKED_OUT_PREVIEW_COUNT = 2;
+
+function isSpectatorGameNotFoundError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  return /not found/i.test(message);
+}
+
+function SpectatorLoadingScreen() {
+  return (
+    <main className="game-dashboard--spectator relative min-h-screen">
+      <div
+        className="spectator-loading-overlay fixed inset-0 z-[100] flex flex-col items-center justify-center gap-3 bg-background/90 px-6 text-center backdrop-blur-sm"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
+        <p className="text-base font-medium text-foreground">Data is loading…</p>
+        <p className="caption text-muted-foreground">Please wait a moment.</p>
+      </div>
+    </main>
+  );
+}
 
 function loadShowWaitingList() {
   if (typeof window === "undefined") return true;
@@ -813,6 +834,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     queryKey: ["game", gameId, "spectator", "live"],
     queryFn: () => getSpectateGame(gameId, "live") as Promise<SpectateLivePayload>,
     enabled: !!gameId && isSpectator,
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error) =>
+      !isSpectatorGameNotFoundError(error) && failureCount < 8,
+    retryDelay: (attempt) => Math.min(750 * (attempt + 1), 5_000),
     refetchInterval: (query) => {
       const status = query.state.data?.game?.status;
       if (status === "ended") return false;
@@ -824,14 +849,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const spectatorWantsDetails =
     isSpectator &&
     (spectatorGameStatus === "ended" ||
-      isLgViewport === true ||
+      showMatchHistory ||
       mobileDashboardTab === "history");
 
   const spectatorDetailsQuery = useQuery({
     queryKey: ["game", gameId, "spectator", "details"],
     queryFn: () => getSpectateGame(gameId, "details") as Promise<SpectateDetailsPayload>,
     enabled: !!gameId && spectatorWantsDetails,
-    refetchInterval: spectatorGameStatus === "ended" ? false : SPECTATOR_DETAILS_POLL_MS,
+    refetchOnWindowFocus: false,
   });
 
   const data = useMemo((): GamePayload | undefined => {
@@ -862,7 +887,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     : operatorShellQuery.isLoading || operatorQueueQuery.isLoading;
   const error = isSpectator ? spectatorLiveQuery.error : operatorShellQuery.error ?? operatorQueueQuery.error;
 
-  useSpectatorPresence(gameId, isSpectator && data?.game?.status !== "ended");
   useSpectatorSessionCleanup(gameId, isSpectator);
 
 
@@ -1502,7 +1526,23 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   ]);
 
   const readOnly = isSpectator;
-  const loadingLabel = isSpectator ? "Loading spectator view..." : "Loading game dashboard...";
+  const loadingLabel = "Loading game dashboard...";
+
+  if (isSpectator && !spectatorLiveQuery.data) {
+    if (
+      spectatorLiveQuery.isError &&
+      !spectatorLiveQuery.isFetching &&
+      isSpectatorGameNotFoundError(spectatorLiveQuery.error)
+    ) {
+      return (
+        <main className="game-dashboard--spectator flex min-h-screen items-center justify-center p-8">
+          <p className="text-center text-base text-muted-foreground">This game could not be found.</p>
+        </main>
+      );
+    }
+
+    return <SpectatorLoadingScreen />;
+  }
 
   if (isLoading) {
     return <div className="p-8 text-base text-muted-foreground">{loadingLabel}</div>;
@@ -1531,9 +1571,18 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
   })();
 
+  const spectatorMatchHistoryPanelOpen =
+    showMatchHistory || (isSpectator && isLgViewport === false && mobileDashboardTab === "history");
+
   const spectatorMatchHistoryCaption = (() => {
     if (!isSpectator) {
       return operatorMatchHistoryCaption;
+    }
+    if (!spectatorMatchHistoryPanelOpen && game.status !== "ended") {
+      return "Expand to view match history";
+    }
+    if (spectatorDetailsQuery.isLoading && !spectatorDetailsQuery.data) {
+      return "Loading match history…";
     }
     if (matchHistoryScope === "all") {
       return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
@@ -1755,7 +1804,21 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <CardTitle>Queue</CardTitle>
-          {!hideControls ? (
+          {isSpectator && !isPastGame ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="queue-refresh-btn h-8 w-8 shrink-0 px-0"
+              onClick={() => void spectatorLiveQuery.refetch()}
+              disabled={spectatorLiveQuery.isFetching}
+              aria-label="Refresh queue"
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", spectatorLiveQuery.isFetching && "animate-spin")}
+              />
+            </Button>
+          ) : !hideControls ? (
             <Button
               type="button"
               variant="outline"
@@ -2064,7 +2127,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const renderMatchHistoryPanel = (inSpectatorMobileTab = false) => {
     const historyMatches = isSpectator ? spectatorMatchHistory : matches;
-    const panelVisible = isSpectator || inSpectatorMobileTab || showMatchHistory;
+    const panelVisible = inSpectatorMobileTab || showMatchHistory;
+    const detailsQuery = isSpectator ? spectatorDetailsQuery : operatorDetailsQuery;
 
     return (
       <Card className="glass-panel match-history-panel">
@@ -2074,52 +2138,50 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               <CardTitle>Match History</CardTitle>
               <p className="caption">{spectatorMatchHistoryCaption}</p>
             </div>
-            {!isSpectator ? (
-              <div className="ml-auto flex shrink-0 items-center gap-2 self-center">
-                {panelVisible ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="match-history-refresh"
-                    onClick={() => void operatorDetailsQuery.refetch()}
-                    disabled={operatorDetailsQuery.isFetching}
-                    aria-label="Refresh match history"
-                  >
-                    <RefreshCw
-                      className={cn("h-4 w-4", operatorDetailsQuery.isFetching && "animate-spin")}
-                    />
-                  </Button>
-                ) : null}
-                {!inSpectatorMobileTab ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="match-history-toggle"
-                    onClick={() => {
-                      const next = !showMatchHistory;
-                      setShowMatchHistory(next);
-                      saveShowMatchHistory(next);
-                    }}
-                    aria-expanded={showMatchHistory}
-                    aria-controls="match-history-list"
-                  >
-                    {showMatchHistory ? (
-                      <>
-                        <ChevronUp className="mr-1.5 h-4 w-4" />
-                        Hide match history
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="mr-1.5 h-4 w-4" />
-                        Show match history
-                      </>
-                    )}
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
+            <div className="ml-auto flex shrink-0 items-center gap-2 self-center">
+              {panelVisible ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="match-history-refresh"
+                  onClick={() => void detailsQuery.refetch()}
+                  disabled={detailsQuery.isFetching}
+                  aria-label="Refresh match history"
+                >
+                  <RefreshCw
+                    className={cn("h-4 w-4", detailsQuery.isFetching && "animate-spin")}
+                  />
+                </Button>
+              ) : null}
+              {!inSpectatorMobileTab ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="match-history-toggle"
+                  onClick={() => {
+                    const next = !showMatchHistory;
+                    setShowMatchHistory(next);
+                    saveShowMatchHistory(next);
+                  }}
+                  aria-expanded={showMatchHistory}
+                  aria-controls="match-history-list"
+                >
+                  {showMatchHistory ? (
+                    <>
+                      <ChevronUp className="mr-1.5 h-4 w-4" />
+                      Hide match history
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="mr-1.5 h-4 w-4" />
+                      Show match history
+                    </>
+                  )}
+                </Button>
+              ) : null}
+            </div>
           </div>
           {isSpectator && panelVisible ? (
             <MatchHistoryScopeToggle
@@ -2130,7 +2192,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         </CardHeader>
         {panelVisible ? (
           <CardContent id={inSpectatorMobileTab ? "match-history-list-mobile" : "match-history-list"}>
-            {!isSpectator && operatorDetailsQuery.isLoading && !operatorDetailsQuery.data ? (
+            {detailsQuery.isLoading && !detailsQuery.data ? (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
                 Loading match history…
@@ -2305,7 +2367,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   {
                     id: "history" as const,
                     label: "History",
-                    count: operatorDetailsQuery.data ? matches.length : undefined,
+                    count: (isSpectator ? spectatorDetailsQuery.data : operatorDetailsQuery.data)
+                      ? matches.length
+                      : undefined,
                   },
                 ] as const
               ).map((tab) => {
