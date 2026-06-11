@@ -19,6 +19,7 @@ export type { HomeGameSummary } from "./home-game-summary";
 type HomeDashboardProps = {
   activeGames: HomeGameSummary[];
   pastGames: HomeGameSummary[];
+  onSessionTabChange?: () => void;
 };
 
 type SessionTab = "active" | "past";
@@ -131,8 +132,17 @@ function StatisticsPanel({
   );
 }
 
-export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
+export function HomeDashboard({
+  activeGames,
+  pastGames,
+  onSessionTabChange,
+}: HomeDashboardProps) {
   const [sessionTab, setSessionTab] = useState<SessionTab>("active");
+
+  const handleSessionTabChange = (tab: SessionTab) => {
+    setSessionTab(tab);
+    onSessionTabChange?.();
+  };
   const [panel, setPanel] = useState<DashboardPanel>("sessions");
 
   const { data: authData } = useQuery({
@@ -231,7 +241,7 @@ export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-muted/60 text-muted-foreground hover:text-foreground",
                 )}
-                onClick={() => setSessionTab("active")}
+                onClick={() => handleSessionTabChange("active")}
               >
                 Active
                 {activeGames.length > 0 ? (
@@ -256,7 +266,7 @@ export function HomeDashboard({ activeGames, pastGames }: HomeDashboardProps) {
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-muted/60 text-muted-foreground hover:text-foreground",
                 )}
-                onClick={() => setSessionTab("past")}
+                onClick={() => handleSessionTabChange("past")}
               >
                 Past
                 {pastGames.length > 0 ? (

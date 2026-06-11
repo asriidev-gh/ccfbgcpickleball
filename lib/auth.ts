@@ -1,13 +1,13 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { isUserBlocked } from "@/lib/user-block";
 import { User } from "@/models/User";
 
 const AUTH_COOKIE = "ccf_auth";
 
-type AuthPayload = {
+export type AuthPayload = {
   userId: string;
   email: string;
   name: string;
@@ -27,16 +27,29 @@ export function verifyAuthToken(token: string): AuthPayload {
   return jwt.verify(token, getJwtSecret()) as AuthPayload;
 }
 
-export async function getAuthUserFromCookie() {
+export async function readAuthTokenPayload() {
   const cookieStore = await cookies();
   const token = cookieStore.get(AUTH_COOKIE)?.value;
   if (!token) return null;
   try {
-    const payload = verifyAuthToken(token);
-    await connectToDatabase();
-    const user = await User.findById(payload.userId).select("isBlocked").lean();
-    if (!user || isUserBlocked(user)) return null;
-    return payload;
+    return verifyAuthToken(token);
+  } catch {
+    return null;
+  }
+}
+
+/** Use inside runWithDatabase so auth shares the same connection as the route handler. */
+export async function authorizeAuthPayload(payload: AuthPayload) {
+  const user = await User.findById(payload.userId).select("isBlocked").lean();
+  if (!user || isUserBlocked(user)) return null;
+  return payload;
+}
+
+export async function getAuthUserFromCookie() {
+  const payload = await readAuthTokenPayload();
+  if (!payload) return null;
+  try {
+    return await runWithDatabase(() => authorizeAuthPayload(payload));
   } catch {
     return null;
   }

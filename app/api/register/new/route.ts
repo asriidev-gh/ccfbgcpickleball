@@ -14,7 +14,8 @@ import {
 import { formatZodError } from "@/lib/format-zod-error";
 import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
 import { findPlayerAlreadyRegisteredForGame } from "@/lib/registration-duplicate";
-import { capitalizeNameWords } from "@/lib/utils";
+import { capitalizeNameWords, formatPlayerDisplayName } from "@/lib/utils";
+import { recordPlayerRegisteredNotification } from "@/lib/organizer-notifications";
 import {
   getRegistrationPhotoFromFormData,
   parseGenericPlayerPayloadFromFormData,
@@ -186,6 +187,12 @@ export async function POST(request: Request) {
       playerId: player._id,
       status: "queued",
       queueType: "normal",
+    });
+
+    await recordPlayerRegisteredNotification({
+      gameId: payload.gameId,
+      playerId: String(player._id),
+      playerName: formatPlayerDisplayName(player.firstName, player.lastName),
     });
 
     if (formVariant !== "generic" && isVolunteerNewPlayerPayload(payload)) {

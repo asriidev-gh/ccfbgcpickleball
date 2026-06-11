@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import {
@@ -45,6 +45,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import { fetchOperatorQueue, fetchOperatorShell } from "@/lib/fetch-operator-game";
+import { useGamesList } from "@/hooks/use-games-list";
 import { useUiStore } from "@/store/ui-store";
 import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
 import { cn } from "@/lib/utils";
@@ -535,6 +537,7 @@ export function MyGamesView() {
   const [editingGame, setEditingGame] = useState<EditGameDialogGame | null>(null);
   const [listView, setListView] = useState<GameListViewMode>("cards");
   const [viewReady, setViewReady] = useState(false);
+  const [gamesTab, setGamesTab] = useState<"active" | "past">("active");
 
   useEffect(() => {
     const mq = window.matchMedia(GAME_LIST_DESKTOP_MEDIA);
@@ -561,19 +564,32 @@ export function MyGamesView() {
     saveGameListView(view);
   };
 
-  const { data } = useQuery({
-    queryKey: ["games"],
-    queryFn: async () => {
-      const response = await fetch("/api/games");
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message);
-      return payload as { games: GameCard[]; hasDemoOpenPlay: boolean; userType?: string };
-    },
-    refetchInterval: 5000,
-  });
+  const { data, refetch } = useGamesList();
+
+  const handleGamesTabChange = (value: string) => {
+    const tab = value === "past" ? "past" : "active";
+    setGamesTab(tab);
+    void refetch();
+  };
 
   const hasDemoOpenPlay = Boolean(data?.hasDemoOpenPlay);
   const userType = data?.userType;
+
+  useEffect(() => {
+    if (!data?.games) return;
+    for (const game of data.games.filter((item) => item.status !== "ended").slice(0, 3)) {
+      void queryClient.prefetchQuery({
+        queryKey: ["game", game.gameId, "operator", "shell"],
+        queryFn: () => fetchOperatorShell(game.gameId),
+        staleTime: Number.POSITIVE_INFINITY,
+      });
+      void queryClient.prefetchQuery({
+        queryKey: ["game", game.gameId, "operator", "queue"],
+        queryFn: () => fetchOperatorQueue(game.gameId),
+        staleTime: 30_000,
+      });
+    }
+  }, [data?.games, queryClient]);
 
   const generateTestGameMutation = useMutation({
     mutationFn: async () => {
@@ -680,7 +696,7 @@ export function MyGamesView() {
             <GameListViewToggle value={displayView} onChange={handleListViewChange} />
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="active" className="gap-4">
+            <Tabs value={gamesTab} onValueChange={handleGamesTabChange} className="gap-4">
               <TabsList>
                 <TabsTrigger value="active">
                   Active Games

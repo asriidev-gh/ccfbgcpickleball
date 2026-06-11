@@ -3,8 +3,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { QueueEntryView } from "@/components/game/queue-entry-row";
+import { fetchOrganizerNotifications } from "@/lib/fetch-organizer-notifications";
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
+import { ORGANIZER_NOTIFICATIONS_POLL_MS } from "@/lib/spectator-polling";
 import {
   loadReadCheckoutNotificationIds,
   saveReadCheckoutNotificationIds,
@@ -12,51 +13,29 @@ import {
   type SpectatorCheckoutEventDetail,
   type SpectatorCheckoutNotification,
 } from "@/lib/spectator-checkout-notifications";
-import { formatPlayerDisplayName } from "@/lib/utils";
 
-type SpectateCheckoutPayload = {
-  checkedOut?: QueueEntryView[];
-};
-
-async function fetchOperatorCheckouts(gameId: string): Promise<SpectateCheckoutPayload> {
-  const response = await fetch(`/api/games/${gameId}`);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message ?? "Failed to load game.");
-  return data as SpectateCheckoutPayload;
-}
-
-function toCheckoutNotification(entry: QueueEntryView): SpectatorCheckoutNotification {
-  const checkedOutAt = entry.checkedOutAt ?? entry.updatedAt ?? new Date().toISOString();
-  return {
-    id: String(entry._id),
-    kind: "checkout",
-    playerName: formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName),
-    checkedOutAt,
-  };
-}
-
-type OrganizerNotificationsPayload = {
-  notifications?: Array<{
-    id: string;
-    kind: "checkin_attempt";
-    playerName: string;
-    occurredAt: string;
-  }>;
-};
-
-async function fetchOrganizerNotifications(gameId: string): Promise<OrganizerNotificationsPayload> {
-  const response = await fetch(`/api/games/${gameId}/notifications`);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message ?? "Failed to load notifications.");
-  return data as OrganizerNotificationsPayload;
-}
-
-function toCheckinAttemptNotification(
-  item: NonNullable<OrganizerNotificationsPayload["notifications"]>[number],
-): SpectatorCheckoutNotification {
+function toCheckinAttemptNotification(item: {
+  id: string;
+  kind: "checkin_attempt" | "player_registered" | "player_checkout";
+  playerName: string;
+  occurredAt: string;
+}): SpectatorCheckoutNotification {
   return {
     id: item.id,
     kind: "checkin_attempt",
+    playerName: item.playerName,
+    checkedOutAt: item.occurredAt,
+  };
+}
+
+function toCheckoutNotification(item: {
+  id: string;
+  playerName: string;
+  occurredAt: string;
+}): SpectatorCheckoutNotification {
+  return {
+    id: item.id,
+    kind: "checkout",
     playerName: item.playerName,
     checkedOutAt: item.occurredAt,
   };
@@ -107,27 +86,21 @@ export function useSpectatorCheckoutNotifications(gameId: string | null) {
     gameId ? loadReadCheckoutNotificationIds(gameId) : new Set(),
   );
   const [notifications, setNotifications] = useState<SpectatorCheckoutNotification[]>([]);
-  const knownCheckoutIdsRef = useRef<Set<string>>(new Set());
+  const knownNotificationIdsRef = useRef<Set<string>>(new Set());
   const sessionStartedAtRef = useRef<number>(Date.now());
-
-  const { data } = useQuery({
-    queryKey: ["game", gameId, "operator"],
-    queryFn: () => fetchOperatorCheckouts(gameId!),
-    enabled,
-    refetchInterval: 4000,
-  });
 
   const { data: organizerNotificationData } = useQuery({
     queryKey: ["game", gameId, "notifications"],
     queryFn: () => fetchOrganizerNotifications(gameId!),
     enabled,
-    refetchInterval: 4000,
+    refetchInterval: ORGANIZER_NOTIFICATIONS_POLL_MS,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
     if (!gameId) return;
     setReadIds(loadReadCheckoutNotificationIds(gameId));
-    knownCheckoutIdsRef.current = new Set();
+    knownNotificationIdsRef.current = new Set();
     sessionStartedAtRef.current = Date.now();
   }, [gameId]);
 
@@ -141,7 +114,7 @@ export function useSpectatorCheckoutNotifications(gameId: string | null) {
       const { notification } = customEvent.detail;
       if (loadReadCheckoutNotificationIds(gameId).has(String(notification.id))) return;
 
-      knownCheckoutIdsRef.current.add(String(notification.id));
+      knownNotificationIdsRef.current.add(String(notification.id));
 
       setNotifications((previous) => {
         if (previous.some((item) => item.id === notification.id)) return previous;
@@ -154,49 +127,6 @@ export function useSpectatorCheckoutNotifications(gameId: string | null) {
   }, [gameId]);
 
   useEffect(() => {
-    if (!enabled || !data?.checkedOut) return;
-
-    const checkoutEntries = data.checkedOut;
-    const currentIds = new Set(checkoutEntries.map((entry) => String(entry._id)));
-    const sessionStartedAt = sessionStartedAtRef.current - CHECKOUT_NOTIFICATION_GRACE_MS;
-
-    for (const knownId of [...knownCheckoutIdsRef.current]) {
-      if (!currentIds.has(knownId)) {
-        knownCheckoutIdsRef.current.delete(knownId);
-      }
-    }
-
-    const readSnapshot = loadReadCheckoutNotificationIds(gameId!);
-    const nextNotifications: SpectatorCheckoutNotification[] = [];
-
-    for (const entry of checkoutEntries) {
-      const entryId = String(entry._id);
-      if (knownCheckoutIdsRef.current.has(entryId)) continue;
-
-      const checkedOutAt = entry.checkedOutAt ?? entry.updatedAt;
-      if (!checkedOutAt || new Date(checkedOutAt).getTime() < sessionStartedAt) {
-        knownCheckoutIdsRef.current.add(entryId);
-        continue;
-      }
-
-      knownCheckoutIdsRef.current.add(entryId);
-      if (!readSnapshot.has(entryId)) {
-        nextNotifications.push(toCheckoutNotification(entry));
-      }
-    }
-
-    if (nextNotifications.length === 0) return;
-
-    setNotifications((previous) => {
-      const byId = new Map(previous.map((item) => [item.id, item]));
-      for (const item of nextNotifications) {
-        byId.set(item.id, item);
-      }
-      return [...byId.values()].filter((item) => !readSnapshot.has(item.id));
-    });
-  }, [data?.checkedOut, enabled, gameId]);
-
-  useEffect(() => {
     if (!enabled || !organizerNotificationData?.notifications) return;
 
     const sessionStartedAt = sessionStartedAtRef.current - CHECKOUT_NOTIFICATION_GRACE_MS;
@@ -205,8 +135,18 @@ export function useSpectatorCheckoutNotifications(gameId: string | null) {
 
     for (const item of organizerNotificationData.notifications) {
       if (new Date(item.occurredAt).getTime() < sessionStartedAt) continue;
-      if (readSnapshot.has(item.id)) continue;
-      nextNotifications.push(toCheckinAttemptNotification(item));
+      if (readSnapshot.has(item.id) || knownNotificationIdsRef.current.has(item.id)) continue;
+
+      if (item.kind === "checkin_attempt") {
+        knownNotificationIdsRef.current.add(item.id);
+        nextNotifications.push(toCheckinAttemptNotification(item));
+        continue;
+      }
+
+      if (item.kind === "player_checkout") {
+        knownNotificationIdsRef.current.add(item.id);
+        nextNotifications.push(toCheckoutNotification(item));
+      }
     }
 
     if (nextNotifications.length === 0) return;

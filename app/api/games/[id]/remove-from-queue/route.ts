@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { connectToDatabase } from "@/lib/db";
 import { getAuthUserFromCookie } from "@/lib/auth";
+import { recordPlayerCheckoutNotification } from "@/lib/organizer-notifications";
+import { formatPlayerDisplayName } from "@/lib/utils";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
 import "@/models/Player";
@@ -73,8 +75,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    const player = entry.playerId as { firstName?: string; lastName?: string } | null;
-    const name = [player?.firstName, player?.lastName].filter(Boolean).join(" ").trim() || "Player";
+    const player = entry.playerId as {
+      _id?: { toString(): string };
+      firstName?: string;
+      lastName?: string;
+    } | null;
+    const name =
+      formatPlayerDisplayName(player?.firstName ?? "", player?.lastName ?? "") || "Player";
+
+    if (player?._id) {
+      await recordPlayerCheckoutNotification({
+        gameId,
+        playerId: String(player._id),
+        playerName: name,
+        queueEntryId: String(entry._id),
+      });
+    }
 
     return NextResponse.json({ message: `${name} checked out of the queue.` });
   } catch (error) {

@@ -1,5 +1,5 @@
-/** Operator dashboard: queue/courts must feel responsive on tablets. */
-export const OPERATOR_GAME_POLL_MS = 4_000;
+/** Organizer notifications — lightweight poll to detect new QR registrations. */
+export const ORGANIZER_NOTIFICATIONS_POLL_MS = 5_000;
 
 /** Spectator live view: queue + courts (still feels live, fewer server hits). */
 export const SPECTATOR_LIVE_POLL_MS = 7_000;

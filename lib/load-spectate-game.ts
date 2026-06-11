@@ -13,7 +13,7 @@ const LIVE_GAME_FIELDS =
 
 export type SpectateScope = "live" | "details" | "full";
 
-async function loadQueueCourtsAndCheckedOut(gameId: string) {
+export async function loadQueueCourtsAndCheckedOut(gameId: string) {
   const [queue, checkedOut, courts] = await Promise.all([
     QueueEntry.find({ gameId, status: "queued" })
       .sort({ registeredAt: 1 })

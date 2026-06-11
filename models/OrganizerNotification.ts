@@ -5,11 +5,12 @@ const organizerNotificationSchema = new Schema(
     gameId: { type: String, required: true, index: true },
     kind: {
       type: String,
-      enum: ["checkin_attempt"],
+      enum: ["checkin_attempt", "player_registered", "player_checkout"],
       required: true,
     },
     playerId: { type: Schema.Types.ObjectId, ref: "Player", required: true, index: true },
     playerName: { type: String, required: true, trim: true },
+    referenceId: { type: String, trim: true },
     occurredAt: { type: Date, required: true, default: Date.now, index: true },
   },
   { timestamps: false },

@@ -1,0 +1,84 @@
+import { ensureGameRegistrationQr } from "@/lib/game-qr";
+import { loadGameLeaderboardRecap } from "@/lib/game-leaderboard-recap";
+import { loadQueueCourtsAndCheckedOut } from "@/lib/load-spectate-game";
+import type {
+  OperatorDetailsPayload,
+  OperatorQueuePayload,
+  OperatorShellPayload,
+} from "@/lib/operator-payload";
+import { LeaderboardStats } from "@/models/LeaderboardStats";
+import { MatchHistory } from "@/models/MatchHistory";
+import { PickleGame } from "@/models/PickleGame";
+import "@/models/Player";
+
+const OPERATOR_LIVE_GAME_FIELDS =
+  "title openPlayType courtCount gameId status openPlayDate openPlayTimeRange allowQrRegistration";
+
+export type OperatorScope = "shell" | "queue" | "live" | "details" | "full";
+
+export async function loadOperatorShell(
+  gameId: string,
+  ownerId: string,
+): Promise<OperatorShellPayload | null> {
+  const game = await PickleGame.findOne({ gameId, ownerId }).select(OPERATOR_LIVE_GAME_FIELDS);
+  if (!game) return null;
+
+  return {
+    game: game.toObject() as OperatorShellPayload["game"],
+  };
+}
+
+export async function loadOperatorQueueState(
+  gameId: string,
+  ownerId: string,
+): Promise<OperatorQueuePayload | null> {
+  const game = await PickleGame.findOne({ gameId, ownerId }).select("status");
+  if (!game) return null;
+
+  const { queue, checkedOut, courts } = await loadQueueCourtsAndCheckedOut(gameId);
+
+  return {
+    status: game.status as OperatorQueuePayload["status"],
+    queue: queue as unknown as OperatorQueuePayload["queue"],
+    checkedOut: checkedOut as unknown as OperatorQueuePayload["checkedOut"],
+    courts: courts as unknown as OperatorQueuePayload["courts"],
+  };
+}
+
+export async function loadOperatorDetails(
+  gameId: string,
+  ownerId: string,
+): Promise<OperatorDetailsPayload | null> {
+  const game = await PickleGame.findOne({ gameId, ownerId });
+  if (!game) return null;
+
+  const [leaderboard, matches, recap, qr] = await Promise.all([
+    LeaderboardStats.find({ gameId }).sort({ wins: -1 }).populate("playerId"),
+    MatchHistory.find({ gameId })
+      .sort({ endedAt: -1 })
+      .populate(["teamAPlayerIds", "teamBPlayerIds"]),
+    game.status === "ended" ? loadGameLeaderboardRecap(gameId) : Promise.resolve(null),
+    ensureGameRegistrationQr(game),
+  ]);
+
+  return {
+    leaderboard: leaderboard as unknown as OperatorDetailsPayload["leaderboard"],
+    matches: matches as unknown as OperatorDetailsPayload["matches"],
+    recap: recap ?? undefined,
+    qr: {
+      registerUrl: qr.registerUrl,
+      publicQrCodeDataUrl: qr.publicQrCodeDataUrl,
+    },
+  };
+}
+
+export async function loadOperatorFull(gameId: string, ownerId: string) {
+  const [shell, queue, details] = await Promise.all([
+    loadOperatorShell(gameId, ownerId),
+    loadOperatorQueueState(gameId, ownerId),
+    loadOperatorDetails(gameId, ownerId),
+  ]);
+  if (!shell || !queue || !details) return null;
+
+  return { shell, queue, details };
+}

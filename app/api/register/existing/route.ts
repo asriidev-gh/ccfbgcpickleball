@@ -6,7 +6,10 @@ import {
   RegistrationLimitError,
 } from "@/lib/game-registration-limit";
 import { formatZodError } from "@/lib/format-zod-error";
-import { recordCheckinAttemptNotification } from "@/lib/organizer-notifications";
+import {
+  recordCheckinAttemptNotification,
+  recordPlayerRegisteredNotification,
+} from "@/lib/organizer-notifications";
 import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
@@ -72,6 +75,12 @@ export async function POST(request: Request) {
       playerId: player._id,
       status: "queued",
       queueType: "normal",
+    });
+
+    await recordPlayerRegisteredNotification({
+      gameId: payload.gameId,
+      playerId: String(player._id),
+      playerName: formatPlayerDisplayName(player.firstName, player.lastName),
     });
 
     if (isVolunteer) {

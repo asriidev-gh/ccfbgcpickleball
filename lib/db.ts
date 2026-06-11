@@ -12,17 +12,25 @@ declare global {
 const cached = global.mongooseCache ?? { conn: null, promise: null };
 global.mongooseCache = cached;
 
+const MAX_CONNECTION_ATTEMPTS = 3;
+const CONNECTION_VERIFY_TTL_MS = 3_000;
+const RUN_WITH_DATABASE_ATTEMPTS = 3;
+
 let connectedDatabaseName: string | null = null;
 let connectionEventsRegistered = false;
+let lastVerifiedAt = 0;
+let reconnectPromise: Promise<void> | null = null;
 
 function registerConnectionEvents() {
   if (connectionEventsRegistered) return;
   connectionEventsRegistered = true;
 
   mongoose.connection.on("disconnected", () => {
+    lastVerifiedAt = 0;
     resetCachedConnection();
   });
   mongoose.connection.on("error", () => {
+    lastVerifiedAt = 0;
     resetCachedConnection();
   });
 }
@@ -41,12 +49,31 @@ function getMongoOptions(dbNameOverride?: string) {
     // One connection per serverless instance — keeps Atlas Free tier under its 500-connection limit.
     maxPoolSize: 1,
     minPoolSize: 0,
-    bufferCommands: false,
+    // Buffer briefly while a stale socket reconnects instead of failing the whole request.
+    bufferCommands: true,
   };
 }
 
 function isConnectionReady(conn: typeof mongoose) {
   return conn.connection.readyState === 1;
+}
+
+function collectErrorMessages(error: unknown) {
+  const messages: string[] = [];
+  let current: unknown = error;
+  while (current instanceof Error) {
+    messages.push(current.message);
+    current = current.cause;
+  }
+  if (typeof current === "string") messages.push(current);
+  return messages;
+}
+
+function isTransientConnectionError(error: unknown) {
+  const text = collectErrorMessages(error).join(" ");
+  return /must be connected|not connected|connection closed|topology was destroyed|socket has been/i.test(
+    text,
+  );
 }
 
 function resetCachedConnection() {
@@ -55,37 +82,83 @@ function resetCachedConnection() {
   connectedDatabaseName = null;
 }
 
-export async function connectToDatabase(dbNameOverride?: string) {
+async function performReconnect(mongodbUri: string, dbNameOverride?: string) {
+  if (reconnectPromise) {
+    await reconnectPromise;
+    return;
+  }
+
+  reconnectPromise = (async () => {
+    try {
+      if (mongoose.connection.readyState !== 0) {
+        try {
+          await mongoose.disconnect();
+        } catch {
+          // Stale or half-open sockets can throw during teardown.
+        }
+      }
+      resetCachedConnection();
+      connectedDatabaseName = resolveDatabaseName(dbNameOverride);
+      const conn = await mongoose.connect(mongodbUri, getMongoOptions(dbNameOverride));
+      cached.conn = conn;
+      cached.promise = Promise.resolve(conn);
+      lastVerifiedAt = Date.now();
+    } finally {
+      reconnectPromise = null;
+    }
+  })();
+
+  await reconnectPromise;
+}
+
+async function verifyConnectionAlive(conn: typeof mongoose) {
+  if (!isConnectionReady(conn)) return false;
+  if (Date.now() - lastVerifiedAt < CONNECTION_VERIFY_TTL_MS) return true;
+  try {
+    await conn.connection.db?.admin().ping();
+    lastVerifiedAt = Date.now();
+    return true;
+  } catch {
+    lastVerifiedAt = 0;
+    return false;
+  }
+}
+
+function getMongoUri() {
   const mongodbUri = process.env.MONGODB_URI?.trim();
   if (!mongodbUri) {
     throw new Error(
       "Please set MONGODB_URI in your environment (for Vercel: Project Settings → Environment Variables).",
     );
   }
+  return mongodbUri;
+}
+
+export async function connectToDatabase(
+  dbNameOverride?: string,
+  attempt = 0,
+): Promise<typeof mongoose> {
+  const mongodbUri = getMongoUri();
+
+  if (attempt >= MAX_CONNECTION_ATTEMPTS) {
+    throw new Error("MongoDB connection failed after multiple attempts.");
+  }
 
   registerConnectionEvents();
 
   const targetDatabaseName = resolveDatabaseName(dbNameOverride);
-  const hasMatchingConnection =
-    cached.conn &&
-    isConnectionReady(cached.conn) &&
-    connectedDatabaseName === targetDatabaseName;
 
-  if (hasMatchingConnection && cached.conn) {
-    return cached.conn;
+  if (cached.conn && connectedDatabaseName === targetDatabaseName) {
+    if (await verifyConnectionAlive(cached.conn)) {
+      return cached.conn;
+    }
+    await performReconnect(mongodbUri, dbNameOverride);
+    return connectToDatabase(dbNameOverride, attempt + 1);
   }
 
-  const staleConnection =
-    cached.conn != null &&
-    (!isConnectionReady(cached.conn) || connectedDatabaseName !== targetDatabaseName);
-
-  if (staleConnection) {
-    try {
-      await mongoose.disconnect();
-    } catch {
-      // Stale or half-open sockets can throw during teardown — safe to continue reconnecting.
-    }
-    resetCachedConnection();
+  if (cached.conn && connectedDatabaseName !== targetDatabaseName) {
+    await performReconnect(mongodbUri, dbNameOverride);
+    return connectToDatabase(dbNameOverride, attempt + 1);
   }
 
   if (!cached.promise) {
@@ -94,10 +167,12 @@ export async function connectToDatabase(dbNameOverride?: string) {
       .connect(mongodbUri, getMongoOptions(dbNameOverride))
       .then((conn) => {
         cached.conn = conn;
+        lastVerifiedAt = Date.now();
         return conn;
       })
       .catch((error) => {
         resetCachedConnection();
+        lastVerifiedAt = 0;
         const reason = error instanceof Error ? error.message : "Unknown error";
         console.error("[db] MongoDB connection failed:", reason);
         throw new Error(
@@ -106,13 +181,54 @@ export async function connectToDatabase(dbNameOverride?: string) {
       });
   }
 
-  return cached.promise;
+  try {
+    const conn = await cached.promise;
+    if (connectedDatabaseName === targetDatabaseName && (await verifyConnectionAlive(conn))) {
+      return conn;
+    }
+
+    await performReconnect(mongodbUri, dbNameOverride);
+    return connectToDatabase(dbNameOverride, attempt + 1);
+  } catch (error) {
+    lastVerifiedAt = 0;
+    if (isTransientConnectionError(error)) {
+      await performReconnect(mongodbUri, dbNameOverride);
+      return connectToDatabase(dbNameOverride, attempt + 1);
+    }
+    throw error;
+  }
+}
+
+/** Connect, run queries, and transparently retry on stale serverless sockets. */
+export async function runWithDatabase<T>(
+  fn: () => Promise<T>,
+  dbNameOverride?: string,
+): Promise<T> {
+  const mongodbUri = getMongoUri();
+
+  for (let attempt = 0; attempt < RUN_WITH_DATABASE_ATTEMPTS; attempt++) {
+    try {
+      await connectToDatabase(dbNameOverride);
+      return await fn();
+    } catch (error) {
+      const shouldRetry =
+        attempt < RUN_WITH_DATABASE_ATTEMPTS - 1 && isTransientConnectionError(error);
+      if (!shouldRetry) throw error;
+
+      lastVerifiedAt = 0;
+      await performReconnect(mongodbUri, dbNameOverride);
+      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+    }
+  }
+
+  throw new Error("Database operation failed after retry.");
 }
 
 export async function disconnectFromDatabase() {
   if (mongoose.connection.readyState !== 0) {
     await mongoose.disconnect();
   }
+  lastVerifiedAt = 0;
   resetCachedConnection();
 }
 

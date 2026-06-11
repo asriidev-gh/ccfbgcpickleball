@@ -6,13 +6,13 @@ import {
   QrCode,
   Play,
   RotateCcw,
+  RefreshCw,
   House,
   Flag,
   Zap,
   ChevronDown,
   ChevronUp,
   Loader2,
-  Eye,
   CalendarDays,
   Clock,
   Volume2,
@@ -65,8 +65,6 @@ import {
   buildPlayerSessionStatsMap,
   type LeaderboardGamesPlayedRow,
 } from "@/lib/games-played-map";
-import type { GameLeaderboardRecapRow } from "@/lib/game-leaderboard-recap";
-import type { SessionInsight } from "@/lib/session-insights";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,6 +90,7 @@ import {
 } from "@/lib/match-score-validation";
 import { announceCourtEnded, announceNextCourtPlayers } from "@/lib/call-names-speech";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
+import { useOperatorQueueRegistrationSync } from "@/hooks/use-operator-queue-registration-sync";
 import { useSpectatorPresence } from "@/hooks/use-spectator-presence";
 import { useSpectatorSessionCleanup } from "@/hooks/use-spectator-session-cleanup";
 import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
@@ -102,39 +101,24 @@ import {
   type SpectateLivePayload,
 } from "@/lib/spectate-payload";
 import {
-  OPERATOR_GAME_POLL_MS,
-  SPECTATOR_COUNT_POLL_MS,
-  SPECTATOR_DETAILS_POLL_MS,
-  SPECTATOR_LIVE_POLL_MS,
-} from "@/lib/spectator-polling";
+  fetchOperatorDetails,
+  fetchOperatorQueue,
+  fetchOperatorShell,
+} from "@/lib/fetch-operator-game";
+import {
+  mergeOperatorGamePayload,
+  type OperatorDetailsPayload,
+  type OperatorFullPayload,
+  type OperatorQueuePayload,
+  type OperatorShellPayload,
+} from "@/lib/operator-payload";
+import { SPECTATOR_DETAILS_POLL_MS, SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
 
 export type GameDashboardMode = "operator" | "spectator";
 
 type DashboardMobileTab = "queue" | "courts" | "history";
 
-type GamePayload = {
-  game: {
-    title: string;
-    openPlayType: string;
-    courtCount: number;
-    gameId: string;
-    status: "draft" | "active" | "ended";
-    openPlayDate?: string | null;
-    openPlayTimeRange?: string | null;
-    registerUrl?: string;
-    publicQrCodeDataUrl?: string;
-  };
-  queue: QueueEntryView[];
-  checkedOut?: QueueEntryView[];
-  courts: CourtView[];
-  leaderboard?: LeaderboardGamesPlayedRow[];
-  matches: MatchHistoryView[];
-  spectatorCount?: number;
-  recap?: {
-    rows: GameLeaderboardRecapRow[];
-    insights: SessionInsight[];
-  };
-};
+type GamePayload = OperatorFullPayload;
 
 const alertBaseOptions = {
   background: "#0f172a",
@@ -168,8 +152,8 @@ function saveShowCheckedOutList(show: boolean) {
 }
 
 function loadShowMatchHistory() {
-  if (typeof window === "undefined") return true;
-  return localStorage.getItem(MATCH_HISTORY_STORAGE_KEY) !== "false";
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(MATCH_HISTORY_STORAGE_KEY) === "true";
 }
 
 function saveShowMatchHistory(show: boolean) {
@@ -333,11 +317,58 @@ function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
   );
 }
 
-async function getOperatorGame(id: string) {
-  const response = await fetch(`/api/games/${id}`);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message);
-  return data as GamePayload;
+function operatorShellQueryKey(gameId: string) {
+  return ["game", gameId, "operator", "shell"] as const;
+}
+
+function operatorQueueQueryKey(gameId: string) {
+  return ["game", gameId, "operator", "queue"] as const;
+}
+
+function operatorDetailsQueryKey(gameId: string) {
+  return ["game", gameId, "operator", "details"] as const;
+}
+
+function readOperatorPayload(
+  queryClient: ReturnType<typeof useQueryClient>,
+  gameId: string,
+): GamePayload | undefined {
+  const shell = queryClient.getQueryData<OperatorShellPayload>(operatorShellQueryKey(gameId));
+  if (!shell) return undefined;
+  const queue = queryClient.getQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId));
+  const details = queryClient.getQueryData<OperatorDetailsPayload>(operatorDetailsQueryKey(gameId));
+  return mergeOperatorGamePayload(shell, queue, details);
+}
+
+function writeOperatorPayload(
+  queryClient: ReturnType<typeof useQueryClient>,
+  gameId: string,
+  next: GamePayload,
+) {
+  const shell = queryClient.getQueryData<OperatorShellPayload>(operatorShellQueryKey(gameId));
+  if (shell) {
+    queryClient.setQueryData<OperatorShellPayload>(operatorShellQueryKey(gameId), {
+      game: { ...shell.game, status: next.game.status },
+    });
+  }
+  queryClient.setQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId), {
+    status: next.game.status,
+    queue: next.queue,
+    checkedOut: next.checkedOut ?? [],
+    courts: next.courts,
+  });
+  queryClient.setQueryData<OperatorDetailsPayload>(operatorDetailsQueryKey(gameId), {
+    leaderboard: next.leaderboard ?? [],
+    matches: next.matches ?? [],
+    recap: next.recap,
+    qr:
+      next.game.registerUrl && next.game.publicQrCodeDataUrl
+        ? {
+            registerUrl: next.game.registerUrl,
+            publicQrCodeDataUrl: next.game.publicQrCodeDataUrl,
+          }
+        : undefined,
+  });
 }
 
 async function getSpectateGame(id: string, scope: "live" | "details") {
@@ -682,7 +713,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [callingNames, setCallingNames] = useState(false);
   const [waitingLineView, setWaitingLineView] = useState<WaitingLineViewMode>("list");
   const [showCheckedOutList, setShowCheckedOutList] = useState(true);
-  const [showMatchHistory, setShowMatchHistory] = useState(true);
+  const [showMatchHistory, setShowMatchHistory] = useState(false);
   const [showCourts, setShowCourts] = useState(true);
   const [mobileDashboardTab, setMobileDashboardTab] = useState<DashboardMobileTab>("queue");
   const [uiPrefsHydrated, setUiPrefsHydrated] = useState(false);
@@ -697,13 +728,27 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   );
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
+  const [qrDialogData, setQrDialogData] = useState<{
+    registerUrl: string;
+    publicQrCodeDataUrl: string;
+  } | null>(null);
   const openQrRegistrationDialog = async () => {
     setQrDialogLoading(true);
     try {
       const canProceed = await promptIfRegistrationFull(gameId);
-      if (canProceed) {
-        setQrDialogOpen(true);
+      if (!canProceed) return;
+
+      if (!qrDialogData) {
+        const response = await fetch(`/api/games/${gameId}/qr`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message);
+        setQrDialogData({
+          registerUrl: payload.registerUrl,
+          publicQrCodeDataUrl: payload.publicQrCodeDataUrl,
+        });
       }
+
+      setQrDialogOpen(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not check registration status.");
     } finally {
@@ -728,11 +773,40 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return () => media.removeEventListener("change", apply);
   }, []);
 
-  const operatorGameQuery = useQuery({
-    queryKey: ["game", gameId, "operator"],
-    queryFn: () => getOperatorGame(gameId),
+  const operatorShellQuery = useQuery({
+    queryKey: operatorShellQueryKey(gameId),
+    queryFn: () => fetchOperatorShell(gameId),
     enabled: !!gameId && !isSpectator,
-    refetchInterval: OPERATOR_GAME_POLL_MS,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  const operatorQueueQuery = useQuery({
+    queryKey: operatorQueueQueryKey(gameId),
+    queryFn: () => fetchOperatorQueue(gameId),
+    enabled: !!gameId && !isSpectator && Boolean(operatorShellQuery.data),
+    refetchOnWindowFocus: false,
+  });
+
+  const operatorWantsMatchDetails =
+    !isSpectator && (showMatchHistory || mobileDashboardTab === "history");
+
+  const operatorDetailsQuery = useQuery({
+    queryKey: operatorDetailsQueryKey(gameId),
+    queryFn: () => fetchOperatorDetails(gameId),
+    enabled: !!gameId && Boolean(operatorShellQuery.data) && operatorWantsMatchDetails,
+    refetchOnWindowFocus: false,
+  });
+
+  useOperatorQueueRegistrationSync({
+    gameId,
+    enabled:
+      !!gameId &&
+      !isSpectator &&
+      operatorQueueQuery.data?.status !== "ended" &&
+      operatorQueueQuery.data?.status !== "draft",
+    queueQuery: operatorQueueQuery,
+    detailsQuery: operatorDetailsQuery,
+    refreshDetails: operatorWantsMatchDetails,
   });
 
   const spectatorLiveQuery = useQuery({
@@ -768,30 +842,29 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         spectatorDetailsQuery.data,
       ) as GamePayload;
     }
-    return operatorGameQuery.data;
-  }, [isSpectator, operatorGameQuery.data, spectatorDetailsQuery.data, spectatorLiveQuery.data]);
+    if (!operatorShellQuery.data) return undefined;
+    return mergeOperatorGamePayload(
+      operatorShellQuery.data,
+      operatorQueueQuery.data,
+      operatorDetailsQuery.data,
+    );
+  }, [
+    isSpectator,
+    operatorDetailsQuery.data,
+    operatorQueueQuery.data,
+    operatorShellQuery.data,
+    spectatorDetailsQuery.data,
+    spectatorLiveQuery.data,
+  ]);
 
-  const isLoading = isSpectator ? spectatorLiveQuery.isLoading : operatorGameQuery.isLoading;
-  const error = isSpectator ? spectatorLiveQuery.error : operatorGameQuery.error;
+  const isLoading = isSpectator
+    ? spectatorLiveQuery.isLoading
+    : operatorShellQuery.isLoading || operatorQueueQuery.isLoading;
+  const error = isSpectator ? spectatorLiveQuery.error : operatorShellQuery.error ?? operatorQueueQuery.error;
 
   useSpectatorPresence(gameId, isSpectator && data?.game?.status !== "ended");
   useSpectatorSessionCleanup(gameId, isSpectator);
 
-  const { data: spectatorPresence } = useQuery({
-    queryKey: ["game", gameId, "spectator-count"],
-    queryFn: async () => {
-      const response = await fetch(`/api/games/${gameId}/spectate/presence`);
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message);
-      return payload as { count: number };
-    },
-    enabled: !!gameId && data?.game?.status !== "ended",
-    refetchInterval: SPECTATOR_COUNT_POLL_MS,
-  });
-
-  const gameQueryKey = (
-    isSpectator ? ["game", gameId, "spectator", "live"] : ["game", gameId, "operator"]
-  ) as readonly ["game", string, "spectator", "live"] | readonly ["game", string, "operator"];
 
   const startMutation = useMutation({
     mutationFn: async () => {
@@ -802,13 +875,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      const previous = readOperatorPayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyFillNextCourtOptimistic(previous);
       if (!optimistic) return { previous };
 
-      queryClient.setQueryData(gameQueryKey, optimistic);
+      writeOperatorPayload(queryClient, gameId, optimistic);
       return { previous };
     },
     onSuccess: () => {
@@ -817,7 +890,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error, _, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(gameQueryKey, context.previous);
+        writeOperatorPayload(queryClient, gameId, context.previous);
       }
       toast.error(error.message);
     },
@@ -844,13 +917,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      const previous = readOperatorPayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyEndGameOptimistic(previous, variables);
       if (!optimistic) return { previous };
 
-      queryClient.setQueryData(gameQueryKey, optimistic);
+      writeOperatorPayload(queryClient, gameId, optimistic);
 
       const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       if (variables.rematch) {
@@ -876,7 +949,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(gameQueryKey, context.previous);
+        writeOperatorPayload(queryClient, gameId, context.previous);
       }
       if (context?.previousRematchCourtNumbers) {
         setRematchCourtNumbers(context.previousRematchCourtNumbers);
@@ -930,13 +1003,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (courtNumber) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      const previous = readOperatorPayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
       if (!optimistic) return { previous };
 
-      queryClient.setQueryData(gameQueryKey, optimistic);
+      writeOperatorPayload(queryClient, gameId, optimistic);
 
       const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       setRematchCourtNumbers((prev) => {
@@ -954,7 +1027,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error, _courtNumber, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(gameQueryKey, context.previous);
+        writeOperatorPayload(queryClient, gameId, context.previous);
       }
       if (context?.previousRematchCourtNumbers) {
         setRematchCourtNumbers(context.previousRematchCourtNumbers);
@@ -1046,13 +1119,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      const previous = readOperatorPayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyQueueSwapOptimistic(previous, variables);
       if (!optimistic) return { previous };
 
-      queryClient.setQueryData(gameQueryKey, optimistic);
+      writeOperatorPayload(queryClient, gameId, optimistic);
       setReplaceDialog(null);
       return { previous };
     },
@@ -1062,7 +1135,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(gameQueryKey, context.previous);
+        writeOperatorPayload(queryClient, gameId, context.previous);
       }
       toast.error(error.message);
     },
@@ -1081,13 +1154,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      const previous = readOperatorPayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyCourtReplaceOptimistic(previous, variables);
       if (!optimistic) return { previous };
 
-      queryClient.setQueryData(gameQueryKey, optimistic);
+      writeOperatorPayload(queryClient, gameId, optimistic);
       setReplaceDialog(null);
       return { previous };
     },
@@ -1097,7 +1170,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(gameQueryKey, context.previous);
+        writeOperatorPayload(queryClient, gameId, context.previous);
       }
       toast.error(error.message);
     },
@@ -1142,13 +1215,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      const previous = readOperatorPayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyCheckoutOptimistic(previous, variables.queueEntryId);
       if (!optimistic) return { previous };
 
-      queryClient.setQueryData(gameQueryKey, optimistic);
+      writeOperatorPayload(queryClient, gameId, optimistic);
       return { previous };
     },
     onSuccess: (payload, variables) => {
@@ -1168,7 +1241,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(gameQueryKey, context.previous);
+        writeOperatorPayload(queryClient, gameId, context.previous);
       }
       toast.error(error.message);
     },
@@ -1187,13 +1260,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = queryClient.getQueryData<GamePayload>(gameQueryKey);
+      const previous = readOperatorPayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyRemovePlayerOptimistic(previous, variables.playerId);
       if (!optimistic) return { previous };
 
-      queryClient.setQueryData(gameQueryKey, optimistic);
+      writeOperatorPayload(queryClient, gameId, optimistic);
       return { previous };
     },
     onSuccess: (payload, variables) => {
@@ -1205,7 +1278,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(gameQueryKey, context.previous);
+        writeOperatorPayload(queryClient, gameId, context.previous);
       }
       toast.error(error.message);
     },
@@ -1450,9 +1523,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       ? matches
       : filterMatchesForViewer(matches, selfPlayerIds);
 
+  const operatorMatchHistoryCaption = (() => {
+    if (!showMatchHistory) return "Expand to view match history";
+    if (operatorDetailsQuery.isLoading && !operatorDetailsQuery.data) {
+      return "Loading match history…";
+    }
+    return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
+  })();
+
   const spectatorMatchHistoryCaption = (() => {
     if (!isSpectator) {
-      return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
+      return operatorMatchHistoryCaption;
     }
     if (matchHistoryScope === "all") {
       return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
@@ -1481,15 +1562,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const isCourtRematch = (court: CourtView) =>
     court.isRematch === true || rematchCourtNumbers.has(court.courtNumber);
 
-  const playersOnCourtsCount = courts.reduce((total, court) => {
-    if (court.status !== "active") return total;
-    return (
-      total +
-      (court.teamA?.playerIds?.length ?? 0) +
-      (court.teamB?.playerIds?.length ?? 0)
-    );
-  }, 0);
-  const totalSessionPlayers = queueWithStats.length + playersOnCourtsCount;
   const openPlayDateLabel = formatOpenPlayDate(game.openPlayDate);
   const openPlayTimeLabel = game.openPlayTimeRange?.trim() || null;
   const isPastGame = game.status === "ended";
@@ -1501,8 +1573,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const queueEntryIds = queueWithStats.map((entry) => entry._id);
   const canCheckoutFromQueue = !isPastGame;
   const showOperatorMobileNav = !showSpectatorEndedRecap && !isSpectator;
-  const showQrRegistration =
-    !readOnly && !isPastGame && Boolean(game.publicQrCodeDataUrl && game.registerUrl);
+  const showQrRegistration = !readOnly && !isPastGame && game.allowQrRegistration !== false;
+  const resolvedQrDialogData =
+    qrDialogData ??
+    (game.registerUrl && game.publicQrCodeDataUrl
+      ? { registerUrl: game.registerUrl, publicQrCodeDataUrl: game.publicQrCodeDataUrl }
+      : null);
 
   const handleEndOpenPlay = async () => {
     const result = await Swal.fire({
@@ -1677,7 +1753,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const renderQueuePanel = () => (
     <Card className="glass-panel">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle>Queue</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle>Queue</CardTitle>
+          {!hideControls ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="queue-refresh-btn h-8 w-8 shrink-0 px-0"
+              onClick={() => void operatorQueueQuery.refetch()}
+              disabled={operatorQueueQuery.isFetching}
+              aria-label="Refresh queue"
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", operatorQueueQuery.isFetching && "animate-spin")}
+              />
+            </Button>
+          ) : null}
+        </div>
         {!hideControls ? (
           <Button
             onClick={() => {
@@ -1981,32 +2074,51 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               <CardTitle>Match History</CardTitle>
               <p className="caption">{spectatorMatchHistoryCaption}</p>
             </div>
-            {!inSpectatorMobileTab && !isSpectator ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="match-history-toggle ml-auto shrink-0 self-center"
-                onClick={() => {
-                  const next = !showMatchHistory;
-                  setShowMatchHistory(next);
-                  saveShowMatchHistory(next);
-                }}
-                aria-expanded={showMatchHistory}
-                aria-controls="match-history-list"
-              >
-                {showMatchHistory ? (
-                  <>
-                    <ChevronUp className="mr-1.5 h-4 w-4" />
-                    Hide match history
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="mr-1.5 h-4 w-4" />
-                    Show match history
-                  </>
-                )}
-              </Button>
+            {!isSpectator ? (
+              <div className="ml-auto flex shrink-0 items-center gap-2 self-center">
+                {panelVisible ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="match-history-refresh"
+                    onClick={() => void operatorDetailsQuery.refetch()}
+                    disabled={operatorDetailsQuery.isFetching}
+                    aria-label="Refresh match history"
+                  >
+                    <RefreshCw
+                      className={cn("h-4 w-4", operatorDetailsQuery.isFetching && "animate-spin")}
+                    />
+                  </Button>
+                ) : null}
+                {!inSpectatorMobileTab ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="match-history-toggle"
+                    onClick={() => {
+                      const next = !showMatchHistory;
+                      setShowMatchHistory(next);
+                      saveShowMatchHistory(next);
+                    }}
+                    aria-expanded={showMatchHistory}
+                    aria-controls="match-history-list"
+                  >
+                    {showMatchHistory ? (
+                      <>
+                        <ChevronUp className="mr-1.5 h-4 w-4" />
+                        Hide match history
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="mr-1.5 h-4 w-4" />
+                        Show match history
+                      </>
+                    )}
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </div>
           {isSpectator && panelVisible ? (
@@ -2018,14 +2130,21 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         </CardHeader>
         {panelVisible ? (
           <CardContent id={inSpectatorMobileTab ? "match-history-list-mobile" : "match-history-list"}>
-            <MatchHistoryList
-              key={isSpectator ? matchHistoryScope : "operator"}
-              matches={historyMatches}
-              gameId={gameId}
-              editable={!hideControls}
-              showNameFilter={!isSpectator}
-              emptyMessage={isSpectator ? spectatorMatchHistoryEmptyMessage : undefined}
-            />
+            {!isSpectator && operatorDetailsQuery.isLoading && !operatorDetailsQuery.data ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                Loading match history…
+              </div>
+            ) : (
+              <MatchHistoryList
+                key={isSpectator ? matchHistoryScope : "operator"}
+                matches={historyMatches}
+                gameId={gameId}
+                editable={!hideControls}
+                showNameFilter={!isSpectator}
+                emptyMessage={isSpectator ? spectatorMatchHistoryEmptyMessage : undefined}
+              />
+            )}
           </CardContent>
         ) : null}
       </Card>
@@ -2106,21 +2225,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
                   Courts: {game.courtCount}
                 </Badge>
-                <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
-                  Players: {totalSessionPlayers}
-                </Badge>
-                {!(isSpectator && game.status === "active") ? (
-                  <Badge
-                    variant={game.status === "ended" ? "destructive" : "outline"}
-                    className="game-dashboard-meta-badge w-fit"
-                  >
-                    Status: {game.status}
+                {game.status === "ended" ? (
+                  <Badge variant="destructive" className="game-dashboard-meta-badge w-fit">
+                    Status: ended
                   </Badge>
                 ) : null}
-                <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
-                  <Eye className="mr-1 h-3 w-3" />
-                  Spectators: {spectatorPresence?.count ?? data?.spectatorCount ?? 0}
-                </Badge>
               </div>
             </div>
             {!showSpectatorEndedRecap && !isSpectator ? (
@@ -2193,7 +2302,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 [
                   { id: "queue" as const, label: "Queue", count: queueWithStats.length },
                   { id: "courts" as const, label: "Courts", count: activeCourtCount },
-                  { id: "history" as const, label: "History", count: matches.length },
+                  {
+                    id: "history" as const,
+                    label: "History",
+                    count: operatorDetailsQuery.data ? matches.length : undefined,
+                  },
                 ] as const
               ).map((tab) => {
                 const selected = mobileDashboardTab === tab.id;
@@ -2214,7 +2327,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                     )}
                   >
                     <span>{tab.label}</span>
-                    {tab.count > 0 ? (
+                    {tab.count != null && tab.count > 0 ? (
                       <Badge variant="secondary" className="px-1.5 py-0 text-[10px] sm:text-xs">
                         {tab.count}
                       </Badge>
@@ -2362,13 +2475,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         </>
       ) : null}
 
-      {!readOnly && game.publicQrCodeDataUrl && game.registerUrl ? (
+      {!readOnly && resolvedQrDialogData ? (
         <GameQrDialog
           open={qrDialogOpen}
           onOpenChange={setQrDialogOpen}
           gameTitle={game.title}
-          registerUrl={game.registerUrl}
-          qrCodeDataUrl={game.publicQrCodeDataUrl}
+          registerUrl={resolvedQrDialogData.registerUrl}
+          qrCodeDataUrl={resolvedQrDialogData.publicQrCodeDataUrl}
         />
       ) : null}
 

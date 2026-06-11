@@ -1,16 +1,27 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { connectToDatabase, runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import { ensureGameRegistrationQr } from "@/lib/game-qr";
 import { getGameRegistrationCount } from "@/lib/game-registration-limit";
+import {
+  loadOperatorDetails,
+  loadOperatorFull,
+  loadOperatorQueueState,
+  loadOperatorShell,
+  type OperatorScope,
+} from "@/lib/load-operator-game";
+import { mergeOperatorGamePayload } from "@/lib/operator-payload";
 import {
   gameUsesOwnerRegistration,
   syncOwnerPreRegisteredPlayers,
 } from "@/lib/owner-pre-registered-players";
 import { updateGameSchema } from "@/lib/validations";
-import { getAuthUserFromCookie } from "@/lib/auth";
-import { getSpectatorCount } from "@/lib/spectator-presence";
+import {
+  authorizeAuthPayload,
+  getAuthUserFromCookie,
+  readAuthTokenPayload,
+} from "@/lib/auth";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -18,49 +29,70 @@ import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
 import "@/models/Player";
 
+function parseOperatorScope(value: string | null): OperatorScope {
+  if (
+    value === "shell" ||
+    value === "queue" ||
+    value === "live" ||
+    value === "details" ||
+    value === "full"
+  ) {
+    return value;
+  }
+  return "full";
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
-    const authUser = await getAuthUserFromCookie();
-    if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
     const { id } = await params;
+    const scope = parseOperatorScope(new URL(request.url).searchParams.get("scope"));
 
-    const [game, queue, checkedOut, courts, leaderboard, matches] = await Promise.all([
-      PickleGame.findOne({ gameId: id, ownerId: authUser.userId }),
-      QueueEntry.find({ gameId: id, status: "queued" })
-        .sort({ registeredAt: 1 })
-        .populate("playerId"),
-      QueueEntry.find({ gameId: id, status: "checked_out" })
-        .sort({ updatedAt: -1 })
-        .populate("playerId"),
-      Court.find({ gameId: id }).sort({ courtNumber: 1 }).populate([
-        "teamA.playerIds",
-        "teamB.playerIds",
-      ]),
-      LeaderboardStats.find({ gameId: id }).sort({ wins: -1 }).populate("playerId"),
-      MatchHistory.find({ gameId: id })
-        .sort({ endedAt: -1 })
-        .populate(["teamAPlayerIds", "teamBPlayerIds"]),
-    ]);
+    return await runWithDatabase(async () => {
+      const tokenPayload = await readAuthTokenPayload();
+      if (!tokenPayload) {
+        return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+      }
+      const authUser = await authorizeAuthPayload(tokenPayload);
+      if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
-    if (!game) return NextResponse.json({ message: "Game not found." }, { status: 404 });
+      if (scope === "shell") {
+        const payload = await loadOperatorShell(id, authUser.userId);
+        if (!payload) return NextResponse.json({ message: "Game not found." }, { status: 404 });
+        return NextResponse.json(payload);
+      }
 
-    const { registerUrl, publicQrCodeDataUrl } = await ensureGameRegistrationQr(game);
+      if (scope === "queue") {
+        const payload = await loadOperatorQueueState(id, authUser.userId);
+        if (!payload) return NextResponse.json({ message: "Game not found." }, { status: 404 });
+        return NextResponse.json(payload);
+      }
 
-    const gamePayload = {
-      ...game.toObject(),
-      registerUrl,
-      publicQrCodeDataUrl,
-    };
+      if (scope === "live") {
+        const [shell, queue] = await Promise.all([
+          loadOperatorShell(id, authUser.userId),
+          loadOperatorQueueState(id, authUser.userId),
+        ]);
+        if (!shell || !queue) {
+          return NextResponse.json({ message: "Game not found." }, { status: 404 });
+        }
+        return NextResponse.json(mergeOperatorGamePayload(shell, queue));
+      }
 
-    return NextResponse.json({
-      game: gamePayload,
-      queue,
-      checkedOut,
-      courts,
-      leaderboard,
-      matches,
-      spectatorCount: getSpectatorCount(id),
+      if (scope === "details") {
+        const payload = await loadOperatorDetails(id, authUser.userId);
+        if (!payload) return NextResponse.json({ message: "Game not found." }, { status: 404 });
+        return NextResponse.json(payload);
+      }
+
+      if (scope === "full") {
+        const payload = await loadOperatorFull(id, authUser.userId);
+        if (!payload) return NextResponse.json({ message: "Game not found." }, { status: 404 });
+        return NextResponse.json(
+          mergeOperatorGamePayload(payload.shell, payload.queue, payload.details),
+        );
+      }
+
+      return NextResponse.json({ message: "Invalid scope." }, { status: 400 });
     });
   } catch (error) {
     return NextResponse.json(
