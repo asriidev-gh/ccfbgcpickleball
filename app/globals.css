@@ -1036,6 +1036,203 @@
     }
   }
 
+  /* Split dashboard (40/60) — compact queue column at 1024×768 and similar */
+  @media (max-height: 768px), (min-width: 1024px) and (max-width: 1280px) {
+    .game-dashboard-split .glass-panel:has(.queue-list) [data-slot="card-header"] {
+      @apply gap-2 px-3 py-2.5;
+    }
+
+    .game-dashboard-split .glass-panel:has(.queue-list) [data-slot="card-title"] {
+      @apply text-base;
+    }
+
+    .game-dashboard-split .glass-panel:has(.queue-list) [data-slot="card-header"] [data-slot="button"]:not(.queue-refresh-btn) {
+      @apply h-8 gap-1 px-2.5 text-xs;
+    }
+
+    .game-dashboard-split .glass-panel:has(.queue-list) [data-slot="card-content"].queue-list,
+    .game-dashboard-split .queue-list {
+      @apply gap-3 py-2;
+    }
+
+    .game-dashboard-split .queue-next-up-group {
+      @apply gap-1.5 p-2;
+    }
+
+    .game-dashboard-split .queue-next-up-banner {
+      @apply px-2 py-1.5;
+    }
+
+    .game-dashboard-split .queue-next-up-icon {
+      @apply h-6 w-6;
+    }
+
+    .game-dashboard-split .call-names-btn {
+      @apply h-7 px-2 text-[10px];
+    }
+
+    .game-dashboard-split .call-names-btn-icon {
+      @apply mr-1 h-3 w-3;
+    }
+
+    .game-dashboard-split .badge-next-up-count {
+      @apply px-1.5 py-0 text-[10px];
+    }
+
+    .game-dashboard-split .queue-item {
+      @apply p-2;
+    }
+
+    .game-dashboard-split .queue-item .queue-entry-meta {
+      @apply mt-1 hidden;
+    }
+
+    .game-dashboard-split .queue-item .queue-item-layout {
+      @apply gap-1.5;
+    }
+
+    .game-dashboard-split .queue-item .player-identity .player-avatar,
+    .game-dashboard-split .queue-item .player-identity [data-slot="avatar"] {
+      width: 2rem !important;
+      height: 2rem !important;
+      min-width: 2rem;
+      min-height: 2rem;
+    }
+
+    .game-dashboard-split .queue-item:not(.queue-next-up) .queue-rank {
+      @apply h-7 w-7 text-xs;
+    }
+
+    .game-dashboard-split .queue-item .body-lg,
+    .game-dashboard-split .queue-item .player-identity span {
+      @apply text-sm;
+    }
+
+    .game-dashboard-split .queue-swap-panel {
+      @apply mt-1.5 p-1.5;
+    }
+
+    .game-dashboard-split .queue-divider {
+      @apply my-3;
+    }
+
+    .game-dashboard-split .queue-waiting-group {
+      @apply space-y-1.5;
+    }
+
+    .game-dashboard-split .queue-waiting-toggle {
+      @apply mb-1.5 h-8 px-2.5 text-xs;
+    }
+
+    .game-dashboard-split .queue-waiting-view-toggle [data-slot="button"] {
+      @apply h-7 px-2 text-[10px];
+    }
+
+    .game-dashboard-split .queue-waiting-view-bar {
+      @apply mt-1 gap-1.5;
+    }
+
+    .game-dashboard-split .queue-waiting-group-list {
+      @apply space-y-2;
+    }
+
+    .game-dashboard-split .queue-waiting-group-card-header {
+      @apply px-2 py-2;
+    }
+
+    .game-dashboard-split .queue-waiting-group-card-title {
+      @apply text-xs;
+    }
+
+    .game-dashboard-split .queue-waiting-group-card-body {
+      @apply gap-1.5 p-2;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .game-dashboard-split .queue-waiting-group-team {
+      min-width: 0;
+    }
+
+    .game-dashboard-split .queue-waiting-group-team-slots {
+      @apply space-y-1;
+    }
+
+    .game-dashboard-split .queue-waiting-group-vs {
+      @apply flex-row py-0;
+    }
+
+    .game-dashboard-split .queue-waiting-group-card-footer {
+      @apply px-2 py-1.5;
+    }
+
+    .game-dashboard-split .queue-waiting-group-team-label {
+      @apply mb-0.5 text-[10px];
+    }
+
+    .game-dashboard-split .queue-waiting-group-vs span {
+      @apply px-2 py-0.5 text-[10px];
+    }
+
+    .game-dashboard-split .queue-waiting-group-placeholder {
+      @apply gap-0.5 rounded-lg px-2 py-2;
+    }
+
+    .game-dashboard-split .queue-waiting-group-placeholder-icon {
+      @apply size-7;
+    }
+
+    .game-dashboard-split .queue-waiting-group-placeholder-title {
+      @apply text-xs;
+    }
+
+    .game-dashboard-split .queue-waiting-group-card .queue-item {
+      @apply p-1.5;
+    }
+
+    .game-dashboard-split .queue-waiting-group-card .queue-item .queue-item-layout {
+      @apply gap-1;
+    }
+
+    .game-dashboard-split .queue-waiting-group-card .queue-item .body-lg,
+    .game-dashboard-split .queue-waiting-group-card .queue-item .player-identity span {
+      @apply text-xs;
+    }
+
+    .game-dashboard-split .queue-waiting-group-card .queue-item > .mt-2 {
+      @apply mt-1;
+    }
+
+    .game-dashboard-split .queue-waiting-group-card .queue-remove-player-btn,
+    .game-dashboard-split .queue-waiting-group-card .queue-remove-btn {
+      @apply h-7 gap-0.5 px-2 text-[10px];
+    }
+
+    .game-dashboard-split .queue-waiting-group-card .queue-remove-player-btn svg,
+    .game-dashboard-split .queue-waiting-group-card .queue-remove-btn svg {
+      @apply mr-0 h-3 w-3;
+    }
+
+    .game-dashboard-split .queue-undefeated-badge {
+      @apply px-1.5 py-0;
+    }
+
+    .game-dashboard-split .queue-undefeated-badge-text {
+      @apply text-[9px];
+    }
+
+    .game-dashboard-split .queue-item .flex.shrink-0 [data-slot="badge"] {
+      @apply px-1.5 py-0 text-[10px];
+    }
+
+    .game-dashboard-split .queue-remove-player-label--short {
+      @apply inline;
+    }
+
+    .game-dashboard-split .queue-remove-player-label--full {
+      @apply hidden;
+    }
+  }
+
   @media (min-width: 1025px) and (min-height: 769px) {
     .queue-next-up .queue-entry-meta--next-up {
       @apply mt-1.5 text-xs;
@@ -1328,6 +1525,10 @@
     .queue-next-up .queue-swap-panel {
       display: flex;
     }
+  }
+
+  .queue-remove-player-label--short {
+    @apply hidden;
   }
 
   .queue-swap-hint {
@@ -1824,11 +2025,11 @@
   }
 
   .court-teams {
-    @apply grid grid-cols-1 items-stretch gap-2 sm:grid-cols-[1fr_auto_1fr];
+    @apply grid grid-cols-1 items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)];
   }
 
   .court-team {
-    @apply rounded-lg border border-border/80 bg-card/80 p-3;
+    @apply min-w-0 rounded-lg border border-border/80 bg-card/80 p-3;
   }
 
   .court-team-a {
@@ -2368,6 +2569,90 @@
   [data-theme="cupertino"] [data-slot="card-content"] {
     @apply bg-card px-4 pb-4 pt-3;
     background-color: var(--cupertino-surface-raised);
+  }
+
+  /* —— Dashboard panels: per-section fullscreen —— */
+  .dashboard-panel:fullscreen {
+    @apply flex max-h-screen flex-col overflow-hidden rounded-none bg-background;
+    width: 100%;
+    height: 100%;
+  }
+
+  .dashboard-panel:-webkit-full-screen {
+    @apply flex max-h-screen flex-col overflow-hidden rounded-none bg-background;
+    width: 100%;
+    height: 100%;
+  }
+
+  .dashboard-panel:fullscreen [data-slot="card-header"],
+  .dashboard-panel:-webkit-full-screen [data-slot="card-header"] {
+    @apply shrink-0;
+  }
+
+  .dashboard-panel:fullscreen .dashboard-panel-content,
+  .dashboard-panel:-webkit-full-screen .dashboard-panel-content {
+    @apply min-h-0 flex-1 overflow-y-auto;
+  }
+
+  /* Courts fullscreen — larger player photos for dedicated court displays */
+  .dashboard-panel--courts:fullscreen .court-player-row,
+  .dashboard-panel--courts:-webkit-full-screen .court-player-row {
+    @apply gap-3 sm:gap-4;
+  }
+
+  .dashboard-panel--courts:fullscreen .court-player-row .player-avatar,
+  .dashboard-panel--courts:-webkit-full-screen .court-player-row .player-avatar {
+    width: 5rem !important;
+    height: 5rem !important;
+    min-width: 5rem;
+    min-height: 5rem;
+  }
+
+  .dashboard-panel--courts:fullscreen .court-player-row .player-avatar [data-slot="avatar-fallback"],
+  .dashboard-panel--courts:-webkit-full-screen .court-player-row .player-avatar [data-slot="avatar-fallback"] {
+    @apply text-lg font-semibold;
+  }
+
+  .dashboard-panel--courts:fullscreen .court-card .body-lg,
+  .dashboard-panel--courts:-webkit-full-screen .court-card .body-lg,
+  .dashboard-panel--courts:fullscreen .court-card .court-player-name,
+  .dashboard-panel--courts:-webkit-full-screen .court-card .court-player-name {
+    @apply text-base sm:text-lg;
+  }
+
+  .dashboard-panel--courts:fullscreen .court-card .court-player-session-record,
+  .dashboard-panel--courts:-webkit-full-screen .court-card .court-player-session-record {
+    @apply text-xs sm:text-sm;
+  }
+
+  .dashboard-panel--courts:fullscreen .court-team,
+  .dashboard-panel--courts:-webkit-full-screen .court-team {
+    @apply p-4;
+  }
+
+  .dashboard-panel--courts:fullscreen .court-team-label,
+  .dashboard-panel--courts:-webkit-full-screen .court-team-label {
+    @apply mb-2 text-sm;
+  }
+
+  .dashboard-panel--courts:fullscreen .court-team-players-list,
+  .dashboard-panel--courts:-webkit-full-screen .court-team-players-list {
+    @apply space-y-3;
+  }
+
+  @media (min-height: 600px) {
+    .dashboard-panel--courts:fullscreen .court-player-row .player-avatar,
+    .dashboard-panel--courts:-webkit-full-screen .court-player-row .player-avatar {
+      width: 6.5rem !important;
+      height: 6.5rem !important;
+      min-width: 6.5rem;
+      min-height: 6.5rem;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-player-row .player-avatar [data-slot="avatar-fallback"],
+    .dashboard-panel--courts:-webkit-full-screen .court-player-row .player-avatar [data-slot="avatar-fallback"] {
+      @apply text-xl;
+    }
   }
 
   .game-dashboard-header-content {

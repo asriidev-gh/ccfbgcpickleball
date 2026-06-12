@@ -10,6 +10,17 @@ export function sanitizeScoreInput(raw: string): string {
   return raw.replace(/\D/g, "").slice(0, 2);
 }
 
+/** Parse a score field for stepper controls (invalid values become 0). */
+export function parseEndGameScoreField(raw: string): number {
+  const trimmed = raw.trim();
+  if (trimmed === "") return 0;
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value < 0 || value > MAX_MATCH_SCORE) {
+    return 0;
+  }
+  return value;
+}
+
 export function loserScoreExceedsWinner(
   winnerTeam: "A" | "B",
   teamAScore: number,

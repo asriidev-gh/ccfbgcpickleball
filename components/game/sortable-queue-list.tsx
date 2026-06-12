@@ -15,9 +15,11 @@ import {
 import {
   SortableContext,
   arrayMove,
+  defaultAnimateLayoutChanges,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
+  type AnimateLayoutChanges,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
@@ -40,6 +42,9 @@ const QueueDndContext = createContext<QueueDndContextValue>({
 function queueZoneForIndex(index: number): QueueDndZoneId {
   return index < 4 ? "next-up" : "waiting";
 }
+
+const animateLayoutChanges: AnimateLayoutChanges = (args) =>
+  defaultAnimateLayoutChanges({ ...args, wasDragging: true });
 
 export type QueueDragHandleProps = {
   attributes: ReturnType<typeof useSortable>["attributes"];
@@ -175,7 +180,7 @@ function SortableQueueItemInner({
   children: (drag?: QueueDragHandleProps) => ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id });
+    useSortable({ id, animateLayoutChanges });
 
   const style = {
     transform: CSS.Transform.toString(transform),

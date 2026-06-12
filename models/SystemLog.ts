@@ -13,7 +13,7 @@ const systemLogSchema = new Schema(
     userEmail: { type: String, trim: true },
     userName: { type: String, trim: true },
     metadata: { type: Schema.Types.Mixed },
-    occurredAt: { type: Date, required: true, default: Date.now, index: true },
+    occurredAt: { type: Date, required: true, default: Date.now },
   },
   { timestamps: false },
 );

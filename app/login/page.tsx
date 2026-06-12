@@ -56,7 +56,10 @@ function LoginForm() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
       toast.success(mode === "login" ? "Welcome back!" : "Account created.");
-      router.push("/");
+      const returnTo = searchParams.get("returnTo");
+      const destination =
+        returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
+      router.push(destination);
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Authentication failed.");

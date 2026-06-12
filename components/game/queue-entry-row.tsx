@@ -36,6 +36,15 @@ function NextOnCourtLabel() {
   );
 }
 
+function RemovePlayerLabel() {
+  return (
+    <>
+      <span className="queue-remove-player-label--short">Remove</span>
+      <span className="queue-remove-player-label--full">Remove player</span>
+    </>
+  );
+}
+
 function formatLastMatchResult(result: QueueEntryView["lastMatchResult"]) {
   if (result === "win") return "Win";
   if (result === "loss") return "Loss";
@@ -101,6 +110,8 @@ type QueueEntryRowProps = {
   dragHandle?: ReactNode;
   /** First name + last initial (e.g. "Alex M.") for dense layouts. */
   compactName?: boolean;
+  /** Hide win/loss badges (e.g. compact group view). */
+  hideSessionStats?: boolean;
 };
 
 export function QueueEntryRow({
@@ -122,6 +133,7 @@ export function QueueEntryRow({
   inWaitingLine = false,
   dragHandle,
   compactName = false,
+  hideSessionStats = false,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const checkedOutTime = entry.checkedOutAt ? new Date(entry.checkedOutAt) : null;
@@ -216,7 +228,7 @@ export function QueueEntryRow({
                 </Badge>
               </div>
             </>
-          ) : (
+          ) : hideSessionStats ? null : (
             <QueueSessionStatsBadges wins={sessionStats.wins} losses={sessionStats.losses} />
           )}
         </div>
@@ -277,9 +289,10 @@ export function QueueEntryRow({
                 className="queue-remove-player-btn h-7 min-h-7 gap-0.5 border-destructive/50 px-2 text-[11px] leading-tight text-destructive xl:h-9 xl:min-h-9 xl:px-3 xl:text-sm"
                 onClick={onRemovePlayer}
                 disabled={removePlayerPending}
+                aria-label="Remove player"
               >
                 <UserX className="size-3 shrink-0 xl:size-3.5" />
-                Remove player
+                <RemovePlayerLabel />
               </Button>
             ) : null}
           </div>
@@ -305,9 +318,10 @@ export function QueueEntryRow({
               className="queue-remove-player-btn border-destructive/50 text-destructive"
               onClick={onRemovePlayer}
               disabled={removePlayerPending}
+              aria-label="Remove player"
             >
               <UserX className="mr-1.5 h-3.5 w-3.5" />
-              Remove player
+              <RemovePlayerLabel />
             </Button>
           ) : null}
         </div>
@@ -319,9 +333,10 @@ export function QueueEntryRow({
             className="queue-remove-player-btn border-destructive/50 text-destructive"
             onClick={onRemovePlayer}
             disabled={removePlayerPending}
+            aria-label="Remove player"
           >
             <UserX className="mr-1.5 h-3.5 w-3.5" />
-            Remove player
+            <RemovePlayerLabel />
           </Button>
         </div>
       ) : null}

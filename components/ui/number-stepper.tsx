@@ -15,6 +15,8 @@ type NumberStepperProps = {
   step?: number;
   className?: string;
   inputClassName?: string;
+  buttonClassName?: string;
+  invalid?: boolean;
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -30,6 +32,8 @@ export function NumberStepper({
   step = 1,
   className,
   inputClassName,
+  buttonClassName,
+  invalid = false,
 }: NumberStepperProps) {
   const setValue = (next: number) => onChange(clamp(next, min, max));
 
@@ -39,7 +43,7 @@ export function NumberStepper({
         type="button"
         variant="outline"
         size="icon"
-        className="h-11 w-11 shrink-0"
+        className={cn("h-11 w-11 shrink-0", buttonClassName)}
         aria-label="Decrease"
         disabled={value <= min}
         onClick={() => setValue(value - step)}
@@ -53,6 +57,7 @@ export function NumberStepper({
         max={max}
         step={step}
         value={value}
+        aria-invalid={invalid}
         className={cn("h-11 text-center text-base tabular-nums", inputClassName)}
         onChange={(event) => {
           const parsed = Number.parseInt(event.target.value, 10);
@@ -70,7 +75,7 @@ export function NumberStepper({
         type="button"
         variant="outline"
         size="icon"
-        className="h-11 w-11 shrink-0"
+        className={cn("h-11 w-11 shrink-0", buttonClassName)}
         aria-label="Increase"
         disabled={value >= max}
         onClick={() => setValue(value + step)}

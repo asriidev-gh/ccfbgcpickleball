@@ -13,6 +13,10 @@ export type WaitingLineViewMode = "list" | "group";
 export const WAITING_LINE_VIEW_STORAGE_KEY = "ccf-queue-waiting-view";
 export const GAME_QUEUE_DESKTOP_MEDIA = "(min-width: 1024px)";
 
+/** Split dashboard queue column — e.g. 1024×768 with 40/60 layout */
+export const GAME_QUEUE_COMPACT_MEDIA =
+  "(max-height: 768px), (min-width: 1024px) and (max-width: 1280px)";
+
 export function isGameQueueDesktopViewport(): boolean {
   if (typeof window === "undefined") return true;
   return window.matchMedia(GAME_QUEUE_DESKTOP_MEDIA).matches;
@@ -63,14 +67,24 @@ function queueSlotRangeLabel(startQueueIndex: number) {
   return `#${startQueueIndex + 1}–${startQueueIndex + 4}`;
 }
 
-function WaitingLinePlaceholder({ slotNumber }: { slotNumber: number }) {
+function WaitingLinePlaceholder({
+  slotNumber,
+  compact = false,
+}: {
+  slotNumber: number;
+  compact?: boolean;
+}) {
   return (
     <div className="queue-waiting-group-placeholder" aria-label={`Slot ${slotNumber} open`}>
       <span className="queue-waiting-group-placeholder-icon" aria-hidden>
-        <UserPlus className="h-5 w-5" />
+        <UserPlus className={compact ? "h-4 w-4" : "h-5 w-5"} />
       </span>
-      <p className="queue-waiting-group-placeholder-title">Waiting for player</p>
-      <p className="queue-waiting-group-placeholder-slot">Slot {slotNumber}</p>
+      <p className="queue-waiting-group-placeholder-title">
+        {compact ? "Open slot" : "Waiting for player"}
+      </p>
+      {!compact ? (
+        <p className="queue-waiting-group-placeholder-slot">Slot {slotNumber}</p>
+      ) : null}
     </div>
   );
 }
@@ -78,16 +92,23 @@ function WaitingLinePlaceholder({ slotNumber }: { slotNumber: number }) {
 type WaitingLineGroupViewProps = {
   waitingEntries: QueueEntryView[];
   renderEntry: (entry: QueueEntryView, queueIndex: number) => ReactNode;
+  compact?: boolean;
 };
 
 export function WaitingLineGroupView({
   waitingEntries,
   renderEntry,
+  compact = false,
 }: WaitingLineGroupViewProps) {
   const blocks = buildWaitingLineBlocks(waitingEntries);
 
   return (
-    <div className="queue-waiting-group-list space-y-3">
+    <div
+      className={cn(
+        "queue-waiting-group-list space-y-3",
+        compact && "queue-waiting-group-list--compact",
+      )}
+    >
       {blocks.map((block) => {
         const filledCount = block.slots.filter(Boolean).length;
         const teamA = block.slots.slice(0, 2);
@@ -96,16 +117,22 @@ export function WaitingLineGroupView({
         return (
           <article
             key={`waiting-block-${block.startQueueIndex}`}
-            className="queue-waiting-group-card"
+            className={cn("queue-waiting-group-card", compact && "queue-waiting-group-card--compact")}
           >
             <header className="queue-waiting-group-card-header">
               <div className="min-w-0">
                 <h4 className="queue-waiting-group-card-title">
-                  Next court group {block.blockIndex + 1}
+                  {compact ? (
+                    <>Group {block.blockIndex + 1}</>
+                  ) : (
+                    <>Next court group {block.blockIndex + 1}</>
+                  )}
                 </h4>
-                <p className="caption text-muted-foreground">
-                  {filledCount} of 4 players · Queue {queueSlotRangeLabel(block.startQueueIndex)}
-                </p>
+                {!compact ? (
+                  <p className="caption text-muted-foreground">
+                    {filledCount} of 4 players · Queue {queueSlotRangeLabel(block.startQueueIndex)}
+                  </p>
+                ) : null}
               </div>
               <Badge variant="outline" className="shrink-0 tabular-nums">
                 {filledCount}/4
@@ -114,7 +141,13 @@ export function WaitingLineGroupView({
             <div className="queue-waiting-group-card-body">
               <div className="queue-waiting-group-team">
                 <p className="queue-waiting-group-team-label">
-                  Team A · #{block.startQueueIndex + 1}–{block.startQueueIndex + 2}
+                  {compact ? (
+                    <>Team A</>
+                  ) : (
+                    <>
+                      Team A · #{block.startQueueIndex + 1}–{block.startQueueIndex + 2}
+                    </>
+                  )}
                 </p>
                 <div className="queue-waiting-group-team-slots space-y-2">
                   {teamA.map((entry, slotOffset) => {
@@ -126,6 +159,7 @@ export function WaitingLineGroupView({
                       <WaitingLinePlaceholder
                         key={`ph-a-${slotNumber}`}
                         slotNumber={slotNumber}
+                        compact={compact}
                       />
                     );
                   })}
@@ -136,7 +170,13 @@ export function WaitingLineGroupView({
               </div>
               <div className="queue-waiting-group-team">
                 <p className="queue-waiting-group-team-label">
-                  Team B · #{block.startQueueIndex + 3}–{block.startQueueIndex + 4}
+                  {compact ? (
+                    <>Team B</>
+                  ) : (
+                    <>
+                      Team B · #{block.startQueueIndex + 3}–{block.startQueueIndex + 4}
+                    </>
+                  )}
                 </p>
                 <div className="queue-waiting-group-team-slots space-y-2">
                   {teamB.map((entry, slotOffset) => {
@@ -148,13 +188,14 @@ export function WaitingLineGroupView({
                       <WaitingLinePlaceholder
                         key={`ph-b-${slotNumber}`}
                         slotNumber={slotNumber}
+                        compact={compact}
                       />
                     );
                   })}
                 </div>
               </div>
             </div>
-            {filledCount < 4 ? (
+            {!compact && filledCount < 4 ? (
               <p className="queue-waiting-group-card-footer caption flex items-center gap-1.5 text-muted-foreground">
                 <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Open slots fill as more players join the line.

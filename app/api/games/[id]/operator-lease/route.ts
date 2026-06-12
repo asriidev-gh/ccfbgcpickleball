@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAuthUserFromCookie } from "@/lib/auth";
+import { authorizeAuthPayload, readAuthTokenPayload } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import {
   acquireOperatorDashboardLease,
@@ -25,7 +25,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id: gameId } = await params;
 
     return await runWithDatabase(async () => {
-      const authUser = await getAuthUserFromCookie();
+      const tokenPayload = await readAuthTokenPayload();
+      if (!tokenPayload) {
+        return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+      }
+      const authUser = await authorizeAuthPayload(tokenPayload);
       if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
       const ownsGame = await authorizeGameOwner(gameId, authUser.userId);
@@ -89,7 +93,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const { id: gameId } = await params;
 
     return await runWithDatabase(async () => {
-      const authUser = await getAuthUserFromCookie();
+      const tokenPayload = await readAuthTokenPayload();
+      if (!tokenPayload) {
+        return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+      }
+      const authUser = await authorizeAuthPayload(tokenPayload);
       if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
       const ownsGame = await authorizeGameOwner(gameId, authUser.userId);

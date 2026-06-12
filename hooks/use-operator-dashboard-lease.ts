@@ -9,12 +9,23 @@ const BLOCKED_RETRY_INTERVAL_MS = 15_000;
 type LeaseState =
   | { status: "loading" }
   | { status: "active" }
+  | { status: "unauthorized" }
   | {
       status: "blocked";
       deviceHint?: string;
       lastSeenAt?: string;
       takenOver?: boolean;
     };
+
+function redirectToLogin() {
+  if (typeof window === "undefined") return;
+  const returnTo = `${window.location.pathname}${window.location.search}`;
+  const loginUrl = new URL("/login", window.location.origin);
+  if (returnTo && returnTo !== "/login") {
+    loginUrl.searchParams.set("returnTo", returnTo);
+  }
+  window.location.assign(loginUrl.toString());
+}
 
 function storageKey(gameId: string) {
   return `ccf-operator-dashboard-lease-${gameId}`;
@@ -141,14 +152,28 @@ export function useOperatorDashboardLease(gameId: string, enabled: boolean) {
         return;
       }
 
-      if (response.status === 409 || payload.status === "blocked") {
-        markBlocked(payload);
+      if (response.status === 401) {
+        hasLeaseRef.current = false;
+        stopHeartbeat();
+        stopBlockedRetry();
+        setState({ status: "unauthorized" });
+        redirectToLogin();
         return;
       }
 
-      throw new Error(typeof payload.message === "string" ? payload.message : "Failed to open dashboard.");
+      if (response.status === 409 || payload.status === "blocked") {
+        markBlocked(payload);
+        startBlockedRetry();
+        return;
+      }
+
+      markBlocked({
+        deviceHint:
+          typeof payload.message === "string" ? payload.message : "Could not open dashboard.",
+      });
+      startBlockedRetry();
     },
-    [gameId, markBlocked, startHeartbeat, stopBlockedRetry],
+    [gameId, markBlocked, startBlockedRetry, startHeartbeat, stopBlockedRetry, stopHeartbeat],
   );
   tryAcquireRef.current = tryAcquire;
 
@@ -158,10 +183,20 @@ export function useOperatorDashboardLease(gameId: string, enabled: boolean) {
     const { response, payload } = await postLease(gameId, leaseIdRef.current, "renew");
     if (response.ok && payload.status === "active") return;
 
+    if (response.status === 401) {
+      hasLeaseRef.current = false;
+      stopHeartbeat();
+      stopBlockedRetry();
+      setState({ status: "unauthorized" });
+      redirectToLogin();
+      return;
+    }
+
     if (response.status === 409 || payload.status === "blocked") {
       markBlocked(payload);
+      startBlockedRetry();
     }
-  }, [gameId, markBlocked]);
+  }, [gameId, markBlocked, startBlockedRetry, stopBlockedRetry, stopHeartbeat]);
   renewLeaseRef.current = renewLease;
 
   const checkAgain = useCallback(async () => {
@@ -210,15 +245,9 @@ export function useOperatorDashboardLease(gameId: string, enabled: boolean) {
     void (async () => {
       try {
         await tryAcquire("acquire");
-        if (cancelled) return;
-        if (hasLeaseRef.current) {
-          startHeartbeat();
-        } else {
-          startBlockedRetry();
-        }
       } catch {
         if (!cancelled) {
-          setState({ status: "blocked", deviceHint: "Another device" });
+          setState({ status: "blocked", deviceHint: "Could not open dashboard." });
           startBlockedRetry();
         }
       }

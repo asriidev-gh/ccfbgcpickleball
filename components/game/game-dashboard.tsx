@@ -18,12 +18,13 @@ import {
   Volume2,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
+import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
 import { GamePlayerProfileProvider } from "@/components/game/game-player-profile-context";
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
 import { PlayerAvatar, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
@@ -54,6 +55,7 @@ import {
 } from "@/components/game/sortable-queue-list";
 import {
   WaitingLineGroupView,
+  GAME_QUEUE_COMPACT_MEDIA,
   GAME_QUEUE_DESKTOP_MEDIA,
   WaitingLineViewToggle,
   loadWaitingLineViewMode,
@@ -69,7 +71,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { NumberStepper } from "@/components/ui/number-stepper";
 import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
 import {
   clearQueueHighlightPlayerId,
@@ -86,7 +88,7 @@ import {
 import {
   getMatchScoreInputError,
   MAX_MATCH_SCORE,
-  sanitizeScoreInput,
+  parseEndGameScoreField,
 } from "@/lib/match-score-validation";
 import { announceCourtEnded, announceNextCourtPlayers } from "@/lib/call-names-speech";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
@@ -622,6 +624,37 @@ function swapQueueEntriesAt(
   return next;
 }
 
+/** Instant UI while drag-reordering the queue (mirrors persistQueueOrder on the server). */
+function applyQueueReorderOptimistic(
+  payload: GamePayload,
+  orderedEntryIds: string[],
+): GamePayload | null {
+  if (orderedEntryIds.length !== payload.queue.length) return null;
+
+  const byId = new Map(payload.queue.map((entry) => [entry._id, entry]));
+  const seen = new Set<string>();
+  const reordered: QueueEntryView[] = [];
+
+  for (const entryId of orderedEntryIds) {
+    if (seen.has(entryId)) return null;
+    seen.add(entryId);
+    const entry = byId.get(entryId);
+    if (!entry) return null;
+    reordered.push(entry);
+  }
+
+  const baseTime =
+    reordered.length > 0 ? new Date(reordered[0].registeredAt).getTime() : Date.now();
+
+  return {
+    ...payload,
+    queue: reordered.map((entry, index) => ({
+      ...entry,
+      registeredAt: new Date(baseTime + index * 1000).toISOString(),
+    })),
+  };
+}
+
 /** Instant UI while swapping a next-up player with the waiting line. */
 function applyQueueSwapOptimistic(
   payload: GamePayload,
@@ -757,6 +790,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [mobileDashboardTab, setMobileDashboardTab] = useState<DashboardMobileTab>("queue");
   const [uiPrefsHydrated, setUiPrefsHydrated] = useState(false);
   const [isLgViewport, setIsLgViewport] = useState<boolean | null>(null);
+  const [compactQueue, setCompactQueue] = useState(false);
+  const queuePanelRef = useRef<HTMLDivElement>(null);
+  const courtsPanelRef = useRef<HTMLDivElement>(null);
+  const matchHistoryPanelRef = useRef<HTMLDivElement>(null);
   const [matchHistoryScope, setMatchHistoryScope] = useState<MatchHistoryScope>("mine");
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
@@ -812,6 +849,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return () => media.removeEventListener("change", apply);
   }, []);
 
+  useEffect(() => {
+    const media = window.matchMedia(GAME_QUEUE_COMPACT_MEDIA);
+    const apply = () => setCompactQueue(media.matches);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, []);
+
   const {
     leaseState: operatorLeaseState,
     checkAgain: checkOperatorDashboardLease,
@@ -820,7 +865,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   } = useOperatorDashboardLease(gameId, !isSpectator);
 
   const operatorCanLoadData =
-    !isSpectator && operatorLeaseState.status !== "blocked";
+    !isSpectator &&
+    operatorLeaseState.status !== "blocked" &&
+    operatorLeaseState.status !== "unauthorized";
 
   const operatorShellQuery = useQuery({
     queryKey: operatorShellQueryKey(gameId),
@@ -1155,10 +1202,23 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    onMutate: async (orderedEntryIds) => {
+      await queryClient.cancelQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      const previous = readOperatorPayload(queryClient, gameId);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyQueueReorderOptimistic(previous, orderedEntryIds);
+      if (!optimistic) return { previous };
+
+      writeOperatorPayload(queryClient, gameId, optimistic);
+      return { previous };
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        writeOperatorPayload(queryClient, gameId, context.previous);
+      }
+      toast.error(error.message);
+    },
   });
 
   const replaceMutation = useMutation({
@@ -1579,6 +1639,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return <SpectatorLoadingScreen />;
   }
 
+  if (!isSpectator && operatorLeaseState.status === "unauthorized") {
+    return (
+      <main className="game-dashboard--operator flex min-h-screen items-center justify-center p-6">
+        <p className="text-sm text-muted-foreground">Redirecting to sign in…</p>
+      </main>
+    );
+  }
+
   if (!isSpectator && operatorLeaseState.status === "blocked") {
     return (
       <OperatorDashboardLeaseGate
@@ -1669,8 +1737,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     operatorLeasePending ||
     !hasDashboardLease ||
     operatorQueueLoading;
-  const canReorderQueue =
-    !hideControls && queueWithStats.length >= 2 && !reorderQueueMutation.isPending;
+  const canReorderQueue = !hideControls && queueWithStats.length >= 2;
   const queueEntryIds = queueWithStats.map((entry) => entry._id);
   const canCheckoutFromQueue = !isPastGame;
   const showOperatorMobileNav = !showSpectatorEndedRecap && !isSpectator;
@@ -1711,7 +1778,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     entry: QueueEntryView,
     index: number,
     drag?: QueueDragHandleProps,
-    options?: { compactName?: boolean },
+    options?: { compactName?: boolean; hideSessionStats?: boolean },
   ) => {
     const isNextUp = index < 4;
     return (
@@ -1757,6 +1824,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           queueEntryPlayerId(entry) === selfHighlightPlayerId
         }
         compactName={options?.compactName}
+        hideSessionStats={options?.hideSessionStats}
         dragHandle={
           drag ? (
             <QueueDragHandle
@@ -1772,7 +1840,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const renderQueuedEntry = (
     entry: QueueEntryView,
     index: number,
-    options?: { sortable?: boolean; compactName?: boolean },
+    options?: { sortable?: boolean; compactName?: boolean; hideSessionStats?: boolean },
   ) => {
     if (options?.sortable === false) {
       return (
@@ -1823,6 +1891,28 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       ? Math.max(0, endGameWinnerScoreParsed - 1)
       : undefined;
 
+  const handleTeamAScoreChange = (value: number) => {
+    setTeamAScore(String(value));
+    if (pendingWinner === "A") {
+      const maxLoser = Math.max(0, value - 1);
+      const loserScore = parseEndGameScoreField(teamBScore);
+      if (loserScore > maxLoser) {
+        setTeamBScore(String(maxLoser));
+      }
+    }
+  };
+
+  const handleTeamBScoreChange = (value: number) => {
+    setTeamBScore(String(value));
+    if (pendingWinner === "B") {
+      const maxLoser = Math.max(0, value - 1);
+      const loserScore = parseEndGameScoreField(teamAScore);
+      if (loserScore > maxLoser) {
+        setTeamAScore(String(maxLoser));
+      }
+    }
+  };
+
   const activeCourtCount = courts.filter((court) => court.status === "active").length;
 
   const startPlayerAnnouncement = (
@@ -1852,7 +1942,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   };
 
   const renderQueuePanel = () => (
-    <Card className="glass-panel">
+    <Card ref={queuePanelRef} className="glass-panel dashboard-panel dashboard-panel--queue">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <CardTitle>Queue</CardTitle>
@@ -1886,36 +1976,39 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             </Button>
           ) : null}
         </div>
-        {!hideControls ? (
-          <Button
-            onClick={() => {
-              if (!canFillNextCourt) {
-                if (queueWithStats.length < 4) {
-                  toast.error("Not enough players in the queue. At least 4 are required.");
-                } else {
-                  toast.error("No empty court available.");
+        <div className="flex shrink-0 items-center gap-2">
+          {!hideControls ? (
+            <Button
+              onClick={() => {
+                if (!canFillNextCourt) {
+                  if (queueWithStats.length < 4) {
+                    toast.error("Not enough players in the queue. At least 4 are required.");
+                  } else {
+                    toast.error("No empty court available.");
+                  }
+                  return;
                 }
-                return;
-              }
-              setFillCourtDialogOpen(true);
-            }}
-            disabled={startMutation.isPending || !canFillNextCourt}
-          >
-            {startMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                Filling…
-              </>
-            ) : (
-              <>
-                <Play className="mr-2 h-4 w-4" aria-hidden />
-                Fill next court
-              </>
-            )}
-          </Button>
-        ) : null}
+                setFillCourtDialogOpen(true);
+              }}
+              disabled={startMutation.isPending || !canFillNextCourt}
+            >
+              {startMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  Filling…
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" aria-hidden />
+                  Fill next court
+                </>
+              )}
+            </Button>
+          ) : null}
+          <DashboardPanelFullscreenButton containerRef={queuePanelRef} panelName="queue" />
+        </div>
       </CardHeader>
-      <CardContent className="queue-list">
+      <CardContent className="queue-list dashboard-panel-content">
         {operatorQueueLoading ? (
           <DashboardPanelLoading label="Loading queue…" />
         ) : operatorQueueQuery.isError && !operatorQueueQuery.data ? (
@@ -1978,7 +2071,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                     </div>
                   </div>
                   <div className="queue-next-up-slots">
-                    {queueWithStats.slice(0, 4).map((entry, index) => renderQueuedEntry(entry, index))}
+                    {queueWithStats.slice(0, 4).map((entry, index) =>
+                      renderQueuedEntry(entry, index, { compactName: compactQueue }),
+                    )}
                   </div>
                 </QueueDndZone>
                 {queueWithStats.length > 4 ? (
@@ -2033,16 +2128,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                       {waitingLineView === "list" ? (
                         <div className="space-y-2">
                           {waitingLineEntries.map((entry, offset) =>
-                            renderQueuedEntry(entry, offset + 4),
+                            renderQueuedEntry(entry, offset + 4, {
+                              compactName: compactQueue,
+                            }),
                           )}
                         </div>
                       ) : (
                         <WaitingLineGroupView
                           waitingEntries={waitingLineEntries}
+                          compact={compactQueue}
                           renderEntry={(entry, queueIndex) =>
                             renderQueuedEntry(entry, queueIndex, {
                               sortable: false,
                               compactName: true,
+                              hideSessionStats: compactQueue,
                             })
                           }
                         />
@@ -2082,12 +2181,16 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   );
 
   const renderCourtsPanel = (inSpectatorMobileTab = false) => (
-    <Card className="glass-panel courts-panel">
+    <Card
+      ref={courtsPanelRef}
+      className="glass-panel courts-panel dashboard-panel dashboard-panel--courts"
+    >
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div>
           <CardTitle>Courts</CardTitle>
           <CourtsSummary courts={courts} />
         </div>
+        <div className="flex shrink-0 items-center gap-2">
         {!inSpectatorMobileTab && !isSpectator ? (
           <Button
             type="button"
@@ -2115,11 +2218,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             )}
           </Button>
         ) : null}
+          <DashboardPanelFullscreenButton containerRef={courtsPanelRef} panelName="courts" />
+        </div>
       </CardHeader>
       <CardContent
         id={inSpectatorMobileTab ? "courts-list-mobile" : "courts-list"}
         className={cn(
-          "court-grid court-grid--list grid grid-cols-1 gap-3",
+          "court-grid court-grid--list dashboard-panel-content grid grid-cols-1 gap-3",
           !inSpectatorMobileTab && !showCourts && "hidden lg:grid",
         )}
       >
@@ -2205,7 +2310,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     const detailsQuery = isSpectator ? spectatorDetailsQuery : operatorDetailsQuery;
 
     return (
-      <Card className="glass-panel match-history-panel">
+      <Card
+        ref={matchHistoryPanelRef}
+        className="glass-panel match-history-panel dashboard-panel dashboard-panel--history"
+      >
         <CardHeader className="flex flex-col gap-3">
           <div className="match-history-panel-header flex w-full flex-nowrap items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -2255,6 +2363,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   )}
                 </Button>
               ) : null}
+              <DashboardPanelFullscreenButton
+                containerRef={matchHistoryPanelRef}
+                panelName="match history"
+              />
             </div>
           </div>
           {isSpectator && panelVisible ? (
@@ -2265,7 +2377,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           ) : null}
         </CardHeader>
         {panelVisible ? (
-          <CardContent id={inSpectatorMobileTab ? "match-history-list-mobile" : "match-history-list"}>
+          <CardContent
+            id={inSpectatorMobileTab ? "match-history-list-mobile" : "match-history-list"}
+            className="dashboard-panel-content"
+          >
             {detailsQuery.isLoading && !detailsQuery.data ? (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
@@ -2433,7 +2548,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           />
         ) : isLgViewport === true ? (
           <>
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1fr]">
+            <section className="game-dashboard-split grid grid-cols-1 gap-4 lg:grid-cols-[2fr_3fr] xl:grid-cols-2">
               {renderQueuePanel()}
               {renderCourtsPanel()}
             </section>
@@ -2727,22 +2842,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                           ? " (loser)"
                           : ""}
                     </label>
-                    <Input
+                    <NumberStepper
                       id="team-a-score"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      maxLength={2}
                       min={0}
                       max={
                         pendingWinner === "A"
                           ? MAX_MATCH_SCORE
                           : endGameLoserScoreMax ?? MAX_MATCH_SCORE
                       }
-                      placeholder="—"
-                      value={teamAScore}
-                      onChange={(event) => setTeamAScore(sanitizeScoreInput(event.target.value))}
-                      aria-invalid={endGameScoreError != null && pendingWinner === "B"}
+                      value={parseEndGameScoreField(teamAScore)}
+                      onChange={handleTeamAScoreChange}
+                      className="court-winner-score-stepper w-full gap-1"
+                      buttonClassName="h-9 w-9"
+                      inputClassName="h-9 min-w-0 flex-1 px-1"
+                      invalid={endGameScoreError != null && pendingWinner === "B"}
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -2760,22 +2873,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                           ? " (loser)"
                           : ""}
                     </label>
-                    <Input
+                    <NumberStepper
                       id="team-b-score"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      maxLength={2}
                       min={0}
                       max={
                         pendingWinner === "B"
                           ? MAX_MATCH_SCORE
                           : endGameLoserScoreMax ?? MAX_MATCH_SCORE
                       }
-                      placeholder="—"
-                      value={teamBScore}
-                      onChange={(event) => setTeamBScore(sanitizeScoreInput(event.target.value))}
-                      aria-invalid={endGameScoreError != null && pendingWinner === "A"}
+                      value={parseEndGameScoreField(teamBScore)}
+                      onChange={handleTeamBScoreChange}
+                      className="court-winner-score-stepper w-full gap-1"
+                      buttonClassName="h-9 w-9"
+                      inputClassName="h-9 min-w-0 flex-1 px-1"
+                      invalid={endGameScoreError != null && pendingWinner === "A"}
                     />
                   </div>
                 </div>
