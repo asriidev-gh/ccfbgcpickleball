@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
 import { runWithDatabase } from "@/lib/db";
+import { handleApiError } from "@/lib/handle-api-error";
 import { BLOCKED_LOGIN_MESSAGE, isUserBlocked } from "@/lib/user-block";
 import { recordUserLogin } from "@/lib/user-auth-audit";
 import { User } from "@/models/User";
@@ -45,10 +46,20 @@ export async function POST(request: Request) {
     });
     return response;
 
-    });} catch (error) {
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/mongodb|connection failed|must be connected/i.test(message)) {
+      return handleApiError(error, {
+        source: "api/auth/login",
+        request,
+        status: 503,
+        message: "Unable to sign in right now. Please try again in a moment.",
+      });
+    }
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to log in." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 }

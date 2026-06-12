@@ -90,6 +90,13 @@ function buildLogPayload(input: RecordSystemLogInput, actor?: SystemLogActor | n
   };
 }
 
+function shouldSkipDatabasePersist(input: RecordSystemLogInput) {
+  if (input.source === "db") return true;
+  return /mongodb connection failed|connection failed after|must be connected|client was closed/i.test(
+    input.message,
+  );
+}
+
 function writeConsoleLog(payload: ReturnType<typeof buildLogPayload>) {
   const userSuffix = payload.userEmail
     ? ` [user: ${payload.userName ?? payload.userEmail} <${payload.userEmail}>]`
@@ -111,6 +118,8 @@ export function recordSystemLog(input: RecordSystemLogInput) {
     const actor = await resolveRequestActor();
     const payload = buildLogPayload(input, actor);
     writeConsoleLog(payload);
+
+    if (shouldSkipDatabasePersist(input)) return;
 
     try {
       const { runWithDatabase } = await import("@/lib/db");
@@ -162,6 +171,8 @@ export function logApiError(input: {
     );
 
     writeConsoleLog(payload);
+
+    if (shouldSkipDatabasePersist(payload)) return;
 
     try {
       const { runWithDatabase } = await import("@/lib/db");

@@ -90,7 +90,9 @@ import {
 } from "@/lib/match-score-validation";
 import { announceCourtEnded, announceNextCourtPlayers } from "@/lib/call-names-speech";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
+import { useOperatorDashboardLease } from "@/hooks/use-operator-dashboard-lease";
 import { useOperatorQueueRegistrationSync } from "@/hooks/use-operator-queue-registration-sync";
+import { OperatorDashboardLeaseGate } from "@/components/game/operator-dashboard-lease-gate";
 import { useSpectatorSessionCleanup } from "@/hooks/use-spectator-session-cleanup";
 import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
 import { dispatchSpectatorCheckoutNotification } from "@/lib/spectator-checkout-notifications";
@@ -794,17 +796,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return () => media.removeEventListener("change", apply);
   }, []);
 
+  const {
+    leaseState: operatorLeaseState,
+    checkAgain: checkOperatorDashboardLease,
+    takeOver: takeOverOperatorDashboard,
+    hasDashboardLease,
+  } = useOperatorDashboardLease(gameId, !isSpectator);
+
   const operatorShellQuery = useQuery({
     queryKey: operatorShellQueryKey(gameId),
     queryFn: () => fetchOperatorShell(gameId),
-    enabled: !!gameId && !isSpectator,
+    enabled: !!gameId && !isSpectator && hasDashboardLease,
     staleTime: Number.POSITIVE_INFINITY,
   });
 
   const operatorQueueQuery = useQuery({
     queryKey: operatorQueueQueryKey(gameId),
     queryFn: () => fetchOperatorQueue(gameId),
-    enabled: !!gameId && !isSpectator && Boolean(operatorShellQuery.data),
+    enabled: !!gameId && !isSpectator && hasDashboardLease && Boolean(operatorShellQuery.data),
     refetchOnWindowFocus: false,
   });
 
@@ -823,6 +832,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     enabled:
       !!gameId &&
       !isSpectator &&
+      hasDashboardLease &&
       operatorQueueQuery.data?.status !== "ended" &&
       operatorQueueQuery.data?.status !== "draft",
     queueQuery: operatorQueueQuery,
@@ -1542,6 +1552,26 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     }
 
     return <SpectatorLoadingScreen />;
+  }
+
+  if (!isSpectator && operatorLeaseState.status !== "active") {
+    return (
+      <OperatorDashboardLeaseGate
+        loading={operatorLeaseState.status === "loading"}
+        deviceHint={
+          operatorLeaseState.status === "blocked" ? operatorLeaseState.deviceHint : undefined
+        }
+        lastSeenAt={
+          operatorLeaseState.status === "blocked" ? operatorLeaseState.lastSeenAt : undefined
+        }
+        takenOver={
+          operatorLeaseState.status === "blocked" ? operatorLeaseState.takenOver : undefined
+        }
+        onCheckAgain={() => void checkOperatorDashboardLease()}
+        onTakeOver={() => void takeOverOperatorDashboard()}
+        checking={operatorLeaseState.status === "loading"}
+      />
+    );
   }
 
   if (isLoading) {
