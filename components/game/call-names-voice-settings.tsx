@@ -26,13 +26,17 @@ import {
   type CallNamesVoiceOption,
   DEFAULT_CALL_NAMES_CALL_COUNT,
   DEFAULT_CALL_NAMES_NAME_MODE,
+  DEFAULT_CALL_NAMES_VOLUME,
   isCallNamesSpeechSupported,
   loadCallNamesCallCount,
   loadCallNamesNameMode,
+  loadCallNamesVolume,
+  previewCallNamesVoice,
   primeCallNamesVoices,
   resolveStoredCallNamesVoiceURI,
   saveCallNamesCallCount,
   saveCallNamesNameMode,
+  saveCallNamesVolume,
   saveCallNamesVoiceURI,
   subscribeCallNamesVoices,
 } from "@/lib/call-names-speech";
@@ -86,6 +90,9 @@ export function CallNamesVoiceSettingsDialog({
   const [savedCallCount, setSavedCallCount] = useState<CallNamesCallCount>(
     DEFAULT_CALL_NAMES_CALL_COUNT,
   );
+  const [draftVolume, setDraftVolume] = useState(DEFAULT_CALL_NAMES_VOLUME);
+  const [savedVolume, setSavedVolume] = useState(DEFAULT_CALL_NAMES_VOLUME);
+  const [previewingVoice, setPreviewingVoice] = useState(false);
 
   useEffect(() => {
     if (!isCallNamesSpeechSupported()) return;
@@ -103,19 +110,29 @@ export function CallNamesVoiceSettingsDialog({
     const currentURI = voices.length > 0 ? resolveStoredCallNamesVoiceURI(voices) : null;
     const currentNameMode = loadCallNamesNameMode();
     const currentCallCount = loadCallNamesCallCount();
+    const currentVolume = loadCallNamesVolume();
     setSavedVoiceURI(currentURI);
     setDraftVoiceURI(currentURI);
     setSavedNameMode(currentNameMode);
     setDraftNameMode(currentNameMode);
     setSavedCallCount(currentCallCount);
     setDraftCallCount(currentCallCount);
+    setSavedVolume(currentVolume);
+    setDraftVolume(currentVolume);
   }, [open, voices]);
+
+  useEffect(() => {
+    if (open) return;
+    window.speechSynthesis?.cancel();
+    setPreviewingVoice(false);
+  }, [open]);
 
   const selectedVoice = voices.find((voice) => voice.voiceURI === draftVoiceURI) ?? null;
   const hasChanges =
     draftVoiceURI !== savedVoiceURI ||
     draftNameMode !== savedNameMode ||
-    draftCallCount !== savedCallCount;
+    draftCallCount !== savedCallCount ||
+    draftVolume !== savedVolume;
 
   const handleConfirm = () => {
     if (!draftVoiceURI || !selectedVoice) return;
@@ -123,9 +140,11 @@ export function CallNamesVoiceSettingsDialog({
     saveCallNamesVoiceURI(draftVoiceURI);
     saveCallNamesNameMode(draftNameMode);
     saveCallNamesCallCount(draftCallCount);
+    saveCallNamesVolume(draftVolume);
     setSavedVoiceURI(draftVoiceURI);
     setSavedNameMode(draftNameMode);
     setSavedCallCount(draftCallCount);
+    setSavedVolume(draftVolume);
     toast.success(`Voice settings updated (${selectedVoice.name})`);
     onOpenChange(false);
   };
@@ -135,8 +154,26 @@ export function CallNamesVoiceSettingsDialog({
       setDraftVoiceURI(savedVoiceURI);
       setDraftNameMode(savedNameMode);
       setDraftCallCount(savedCallCount);
+      setDraftVolume(savedVolume);
     }
     onOpenChange(nextOpen);
+  };
+
+  const draftVolumePercent = Math.round(draftVolume * 100);
+
+  const handleTryVoice = async () => {
+    if (!draftVoiceURI || previewingVoice) return;
+
+    setPreviewingVoice(true);
+    window.speechSynthesis?.cancel();
+    try {
+      const played = await previewCallNamesVoice(draftVoiceURI, draftVolume);
+      if (!played) {
+        toast.error("Could not preview that voice. Try another one.");
+      }
+    } finally {
+      setPreviewingVoice(false);
+    }
   };
 
   if (!isCallNamesSpeechSupported()) return null;
@@ -154,29 +191,65 @@ export function CallNamesVoiceSettingsDialog({
           </p>
         </DialogHeader>
 
-        <div className="space-y-2 py-1">
-          <label htmlFor="call-names-voice-select" className="text-sm font-medium">
-            Announcement voice
-          </label>
-          {!voicesReady ? (
-            <p className="text-sm text-muted-foreground">Loading voices…</p>
-          ) : (
-            <Select
-              value={draftVoiceURI ?? undefined}
-              onValueChange={(value) => setDraftVoiceURI(value ?? null)}
-            >
-              <SelectTrigger id="call-names-voice-select" className="w-full bg-background">
-                <SelectValue placeholder="Select a voice" />
-              </SelectTrigger>
-              <SelectContent className="max-h-64 bg-popover text-popover-foreground">
-                {voices.map((voice) => (
-                  <SelectItem key={voice.voiceURI} value={voice.voiceURI}>
-                    {voice.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+        <div className="space-y-4 py-1">
+          <div className="space-y-2">
+            <label htmlFor="call-names-voice-select" className="text-sm font-medium">
+              Announcement voice
+            </label>
+            {!voicesReady ? (
+              <p className="text-sm text-muted-foreground">Loading voices…</p>
+            ) : (
+              <div className="flex gap-2">
+                <Select
+                  value={draftVoiceURI ?? undefined}
+                  onValueChange={(value) => setDraftVoiceURI(value ?? null)}
+                >
+                  <SelectTrigger id="call-names-voice-select" className="min-w-0 flex-1 bg-background">
+                    <SelectValue placeholder="Select a voice" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 bg-popover text-popover-foreground">
+                    {voices.map((voice) => (
+                      <SelectItem key={voice.voiceURI} value={voice.voiceURI}>
+                        {voice.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => void handleTryVoice()}
+                  disabled={!draftVoiceURI || previewingVoice}
+                  aria-label="Preview selected announcement voice"
+                >
+                  {previewingVoice ? "Playing…" : "Try"}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="call-names-volume" className="text-sm font-medium">
+                Volume
+              </label>
+              <span className="caption tabular-nums text-muted-foreground">{draftVolumePercent}%</span>
+            </div>
+            <input
+              id="call-names-volume"
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={draftVolumePercent}
+              onChange={(event) => setDraftVolume(Number(event.target.value) / 100)}
+              className="h-2 w-full cursor-pointer accent-primary"
+            />
+            <p className="caption text-muted-foreground">
+              Louder helps on busy courts; lower if announcements feel too sharp.
+            </p>
+          </div>
         </div>
 
         <div className="space-y-3 border-t border-border/60 pt-4">

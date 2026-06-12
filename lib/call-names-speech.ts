@@ -8,13 +8,16 @@ const SYNTH_RESET_MS = 100;
 const CHROME_KEEP_ALIVE_MS = 10_000;
 const DEFAULT_SPEECH_RATE = 0.95;
 const DEFAULT_SPEECH_PITCH = 1;
+const DEFAULT_SPEECH_VOLUME = 1;
 const HAVE_FUN_EXCITED_RATE = 1.15;
 const HAVE_FUN_EXCITED_PITCH = 1.4;
 export const CALL_NAMES_HAVE_FUN_PHRASE = "Have fun!";
 export const CALL_NAMES_VOICE_STORAGE_KEY = "ccf-call-names-voice-uri";
 export const CALL_NAMES_NAME_MODE_STORAGE_KEY = "ccf-call-names-name-mode";
 export const CALL_NAMES_CALL_COUNT_STORAGE_KEY = "ccf-call-names-call-count";
+export const CALL_NAMES_VOLUME_STORAGE_KEY = "ccf-call-names-volume";
 export const CALL_NAMES_PREFERRED_VOICE_NAME = "Google US English";
+export const DEFAULT_CALL_NAMES_VOLUME = DEFAULT_SPEECH_VOLUME;
 
 export type CallNamesNameMode = "first_name" | "full_name";
 export const DEFAULT_CALL_NAMES_NAME_MODE: CallNamesNameMode = "first_name";
@@ -32,6 +35,7 @@ export type CallNamesSpeechOptions = {
   pauseMs?: number;
   repeatCount?: number;
   repeatPauseMs?: number;
+  volume?: number;
   courtNumber?: number | null;
   onStart?: () => void;
   onComplete?: () => void;
@@ -76,7 +80,7 @@ export function buildTeamAnnouncementPhrases(teamANames: string[], teamBNames: s
 
   if (teamAPhrase && teamBPhrase) {
     steps.push(phrase(teamAPhrase, { pauseAfterMs: 0 }));
-    steps.push(phrase("vs", { pauseAfterMs: VS_PAUSE_MS }));
+    steps.push(phrase("versus", { pauseAfterMs: VS_PAUSE_MS }));
     steps.push(phrase(teamBPhrase, { pauseAfterMs: 0 }));
     return steps;
   }
@@ -158,6 +162,23 @@ export function loadCallNamesCallCount(): CallNamesCallCount {
 export function saveCallNamesCallCount(count: CallNamesCallCount) {
   if (typeof window === "undefined") return;
   localStorage.setItem(CALL_NAMES_CALL_COUNT_STORAGE_KEY, String(count));
+}
+
+function clampSpeechVolume(volume: number) {
+  if (!Number.isFinite(volume)) return DEFAULT_CALL_NAMES_VOLUME;
+  return Math.min(1, Math.max(0, volume));
+}
+
+export function loadCallNamesVolume() {
+  if (typeof window === "undefined") return DEFAULT_CALL_NAMES_VOLUME;
+  const stored = localStorage.getItem(CALL_NAMES_VOLUME_STORAGE_KEY);
+  if (!stored) return DEFAULT_CALL_NAMES_VOLUME;
+  return clampSpeechVolume(Number(stored));
+}
+
+export function saveCallNamesVolume(volume: number) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CALL_NAMES_VOLUME_STORAGE_KEY, String(clampSpeechVolume(volume)));
 }
 
 export function buildNextCourtCallPhrasesFromEntries(
@@ -370,12 +391,13 @@ function speakPhrase(
   step: CallPhraseStep,
   synth: SpeechSynthesis,
   voice: SpeechSynthesisVoice | null,
+  defaultVolume: number,
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const utterance = new SpeechSynthesisUtterance(step.text);
     utterance.rate = step.rate ?? DEFAULT_SPEECH_RATE;
     utterance.pitch = step.pitch ?? DEFAULT_SPEECH_PITCH;
-    utterance.volume = step.volume ?? 1;
+    utterance.volume = step.volume ?? defaultVolume;
     if (voice) utterance.voice = voice;
 
     utterance.onend = () => resolve(true);
@@ -397,6 +419,7 @@ async function speakPhrasesOnce(
   synth: SpeechSynthesis,
   voice: SpeechSynthesisVoice | null,
   defaultPauseMs: number,
+  defaultVolume: number,
 ): Promise<boolean> {
   synth.cancel();
   await delay(SYNTH_RESET_MS);
@@ -406,7 +429,7 @@ async function speakPhrasesOnce(
   try {
     for (let index = 0; index < steps.length; index += 1) {
       const step = steps[index];
-      const spoken = await speakPhrase(step, synth, voice);
+      const spoken = await speakPhrase(step, synth, voice, defaultVolume);
       if (!spoken) return false;
       if (index < steps.length - 1) {
         const pauseAfter = step.pauseAfterMs ?? defaultPauseMs;
@@ -434,6 +457,7 @@ export async function callNamesInSequence(
   const pauseMs = options.pauseMs ?? DEFAULT_PAUSE_MS;
   const repeatCount = Math.max(1, options.repeatCount ?? loadCallNamesCallCount());
   const repeatPauseMs = options.repeatPauseMs ?? DEFAULT_REPEAT_PAUSE_MS;
+  const volume = clampSpeechVolume(options.volume ?? loadCallNamesVolume());
 
   synth.cancel();
   options.onStart?.();
@@ -447,13 +471,48 @@ export async function callNamesInSequence(
         await delay(repeatPauseMs);
       }
 
-      const spoken = await speakPhrasesOnce(steps, synth, voice, pauseMs);
+      const spoken = await speakPhrasesOnce(steps, synth, voice, pauseMs, volume);
       if (!spoken) return false;
     }
 
     return true;
   } finally {
     options.onComplete?.();
+  }
+}
+
+function buildCallNamesVoicePreviewPhrases(): CallPhraseStep[] {
+  return [
+    phrase(buildNextCourtCallIntro(4, 3), { pauseAfterMs: COURT_INTRO_PAUSE_MS }),
+    ...buildTeamAnnouncementPhrases(["Alex", "Jordan"], ["Sam", "Casey"]),
+  ];
+}
+
+export async function previewCallNamesVoice(
+  voiceURI: string,
+  volume = DEFAULT_CALL_NAMES_VOLUME,
+): Promise<boolean> {
+  if (!isCallNamesSpeechSupported() || !voiceURI.trim()) return false;
+
+  const synth = window.speechSynthesis;
+  const voices = await waitForSpeechVoices(synth);
+  const voice = voices.find((entry) => entry.voiceURI === voiceURI) ?? null;
+  if (!voice) return false;
+
+  synth.cancel();
+  await delay(SYNTH_RESET_MS);
+
+  const stopKeepAlive = startSpeechKeepAlive(synth);
+  try {
+    return speakPhrasesOnce(
+      buildCallNamesVoicePreviewPhrases(),
+      synth,
+      voice,
+      0,
+      clampSpeechVolume(volume),
+    );
+  } finally {
+    stopKeepAlive();
   }
 }
 
