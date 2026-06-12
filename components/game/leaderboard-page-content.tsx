@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
@@ -23,9 +24,30 @@ import { cn } from "@/lib/utils";
 type LeaderboardPageContentProps = {
   insights: SessionInsight[];
   rows: LeaderboardRow[];
+  loading?: boolean;
 };
 
-export function LeaderboardPageContent({ insights, rows }: LeaderboardPageContentProps) {
+function LeaderboardPanelLoading({ label }: { label: string }) {
+  return (
+    <Card className="glass-panel min-w-0">
+      <CardContent
+        className="flex flex-col items-center justify-center gap-3 py-12 text-sm text-muted-foreground"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+        <p>{label}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function LeaderboardPageContent({
+  insights,
+  rows,
+  loading = false,
+}: LeaderboardPageContentProps) {
   const [layout, setLayout] = useState<LeaderboardPageLayout>("stacked");
   const [isDesktop, setIsDesktop] = useState(false);
 
@@ -68,9 +90,15 @@ export function LeaderboardPageContent({ insights, rows }: LeaderboardPageConten
             : "flex flex-col",
         )}
       >
-        <SessionInsightsGrid insights={insights} compact={isSplit} />
+        {loading ? (
+          <LeaderboardPanelLoading label="Loading session awards…" />
+        ) : (
+          <SessionInsightsGrid insights={insights} compact={isSplit} />
+        )}
 
-        {rows.length === 0 ? (
+        {loading ? (
+          <LeaderboardPanelLoading label="Loading standings…" />
+        ) : rows.length === 0 ? (
           <Card className="glass-panel min-w-0">
             <CardContent className="p-6 text-muted-foreground">No leaderboard data yet.</CardContent>
           </Card>

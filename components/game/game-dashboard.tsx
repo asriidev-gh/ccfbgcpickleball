@@ -116,6 +116,7 @@ import {
   type OperatorQueuePayload,
   type OperatorShellPayload,
 } from "@/lib/operator-payload";
+import { prefetchLeaderboardRecap } from "@/lib/fetch-leaderboard";
 import {
   fetchSpectateGame,
   spectatorDetailsQueryKey,
@@ -2316,6 +2317,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <Link
                   href={leaderboardHref}
                   className="game-dashboard-header-leaderboard group/leaderboard inline-flex rounded-lg"
+                  onMouseEnter={() =>
+                    prefetchLeaderboardRecap(queryClient, gameId, isSpectator)
+                  }
+                  onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, isSpectator)}
                 >
                   <Button
                     size="sm"
