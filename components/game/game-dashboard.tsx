@@ -105,6 +105,9 @@ import {
   fetchOperatorDetails,
   fetchOperatorQueue,
   fetchOperatorShell,
+  operatorDetailsQueryKey,
+  operatorQueueQueryKey,
+  operatorShellQueryKey,
 } from "@/lib/fetch-operator-game";
 import {
   mergeOperatorGamePayload,
@@ -113,6 +116,11 @@ import {
   type OperatorQueuePayload,
   type OperatorShellPayload,
 } from "@/lib/operator-payload";
+import {
+  fetchSpectateGame,
+  spectatorDetailsQueryKey,
+  spectatorLiveQueryKey,
+} from "@/lib/fetch-spectate-game";
 import { SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
 
 export type GameDashboardMode = "operator" | "spectator";
@@ -154,6 +162,32 @@ function SpectatorLoadingScreen() {
       </div>
     </main>
   );
+}
+
+function DashboardPanelLoading({ label }: { label: string }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-3 py-12 text-sm text-muted-foreground"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
+      <p>{label}</p>
+    </div>
+  );
+}
+
+function operatorPlaceholderShell(gameId: string): OperatorShellPayload {
+  return {
+    game: {
+      title: "Loading session…",
+      gameId,
+      openPlayType: "—",
+      courtCount: 0,
+      status: "active",
+    },
+  };
 }
 
 function loadShowWaitingList() {
@@ -340,18 +374,6 @@ function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
   );
 }
 
-function operatorShellQueryKey(gameId: string) {
-  return ["game", gameId, "operator", "shell"] as const;
-}
-
-function operatorQueueQueryKey(gameId: string) {
-  return ["game", gameId, "operator", "queue"] as const;
-}
-
-function operatorDetailsQueryKey(gameId: string) {
-  return ["game", gameId, "operator", "details"] as const;
-}
-
 function readOperatorPayload(
   queryClient: ReturnType<typeof useQueryClient>,
   gameId: string,
@@ -392,13 +414,6 @@ function writeOperatorPayload(
           }
         : undefined,
   });
-}
-
-async function getSpectateGame(id: string, scope: "live" | "details") {
-  const response = await fetch(`/api/games/${id}/spectate?scope=${scope}`);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message);
-  return data as SpectateLivePayload | SpectateDetailsPayload;
 }
 
 /** Instant UI while the fill-court API request is in flight. */
@@ -803,17 +818,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     hasDashboardLease,
   } = useOperatorDashboardLease(gameId, !isSpectator);
 
+  const operatorCanLoadData =
+    !isSpectator && operatorLeaseState.status !== "blocked";
+
   const operatorShellQuery = useQuery({
     queryKey: operatorShellQueryKey(gameId),
     queryFn: () => fetchOperatorShell(gameId),
-    enabled: !!gameId && !isSpectator && hasDashboardLease,
+    enabled: !!gameId && operatorCanLoadData,
     staleTime: Number.POSITIVE_INFINITY,
   });
 
   const operatorQueueQuery = useQuery({
     queryKey: operatorQueueQueryKey(gameId),
     queryFn: () => fetchOperatorQueue(gameId),
-    enabled: !!gameId && !isSpectator && hasDashboardLease && Boolean(operatorShellQuery.data),
+    enabled: !!gameId && operatorCanLoadData,
     refetchOnWindowFocus: false,
   });
 
@@ -831,7 +849,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     gameId,
     enabled:
       !!gameId &&
-      !isSpectator &&
       hasDashboardLease &&
       operatorQueueQuery.data?.status !== "ended" &&
       operatorQueueQuery.data?.status !== "draft",
@@ -841,8 +858,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   });
 
   const spectatorLiveQuery = useQuery({
-    queryKey: ["game", gameId, "spectator", "live"],
-    queryFn: () => getSpectateGame(gameId, "live") as Promise<SpectateLivePayload>,
+    queryKey: spectatorLiveQueryKey(gameId),
+    queryFn: () => fetchSpectateGame(gameId, "live") as Promise<SpectateLivePayload>,
     enabled: !!gameId && isSpectator,
     refetchOnWindowFocus: false,
     retry: (failureCount, error) =>
@@ -863,8 +880,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       mobileDashboardTab === "history");
 
   const spectatorDetailsQuery = useQuery({
-    queryKey: ["game", gameId, "spectator", "details"],
-    queryFn: () => getSpectateGame(gameId, "details") as Promise<SpectateDetailsPayload>,
+    queryKey: spectatorDetailsQueryKey(gameId),
+    queryFn: () => fetchSpectateGame(gameId, "details") as Promise<SpectateDetailsPayload>,
     enabled: !!gameId && spectatorWantsDetails,
     refetchOnWindowFocus: false,
   });
@@ -877,13 +894,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         spectatorDetailsQuery.data,
       ) as GamePayload;
     }
-    if (!operatorShellQuery.data) return undefined;
+    const shell = operatorShellQuery.data ?? operatorPlaceholderShell(gameId);
     return mergeOperatorGamePayload(
-      operatorShellQuery.data,
+      shell,
       operatorQueueQuery.data,
       operatorDetailsQuery.data,
     );
   }, [
+    gameId,
     isSpectator,
     operatorDetailsQuery.data,
     operatorQueueQuery.data,
@@ -892,9 +910,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     spectatorLiveQuery.data,
   ]);
 
-  const isLoading = isSpectator
-    ? spectatorLiveQuery.isLoading
-    : operatorShellQuery.isLoading || operatorQueueQuery.isLoading;
+  const operatorQueueLoading =
+    !isSpectator && !operatorQueueQuery.data && operatorQueueQuery.isPending;
+  const operatorShellLoading =
+    !isSpectator && !operatorShellQuery.data && operatorShellQuery.isPending;
+  const isLoading = isSpectator ? spectatorLiveQuery.isLoading : false;
   const error = isSpectator ? spectatorLiveQuery.error : operatorShellQuery.error ?? operatorQueueQuery.error;
 
   useSpectatorSessionCleanup(gameId, isSpectator);
@@ -1462,9 +1482,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   }, [data?.courts]);
 
   useEffect(() => {
-    if (!uiPrefsHydrated || isLgViewport === null || isLoading || !gameId || !data?.queue?.length) {
+    if (!uiPrefsHydrated || isLgViewport === null || !gameId || !data?.queue?.length) {
       return;
     }
+    if (isSpectator && isLoading) return;
+    if (!isSpectator && operatorQueueLoading) return;
     if (hasQueueHighlightBeenApplied(gameId)) return;
 
     const fromRegistration = peekQueueHighlightPlayerId(gameId);
@@ -1528,6 +1550,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     uiPrefsHydrated,
     isLgViewport,
     isLoading,
+    operatorQueueLoading,
     gameId,
     data?.queue,
     showWaitingList,
@@ -1537,6 +1560,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const readOnly = isSpectator;
   const loadingLabel = "Loading game dashboard...";
+  const operatorLeasePending = !isSpectator && operatorLeaseState.status === "loading";
 
   if (isSpectator && !spectatorLiveQuery.data) {
     if (
@@ -1554,30 +1578,22 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return <SpectatorLoadingScreen />;
   }
 
-  if (!isSpectator && operatorLeaseState.status !== "active") {
+  if (!isSpectator && operatorLeaseState.status === "blocked") {
     return (
       <OperatorDashboardLeaseGate
-        loading={operatorLeaseState.status === "loading"}
-        deviceHint={
-          operatorLeaseState.status === "blocked" ? operatorLeaseState.deviceHint : undefined
-        }
-        lastSeenAt={
-          operatorLeaseState.status === "blocked" ? operatorLeaseState.lastSeenAt : undefined
-        }
-        takenOver={
-          operatorLeaseState.status === "blocked" ? operatorLeaseState.takenOver : undefined
-        }
+        deviceHint={operatorLeaseState.deviceHint}
+        lastSeenAt={operatorLeaseState.lastSeenAt}
+        takenOver={operatorLeaseState.takenOver}
         onCheckAgain={() => void checkOperatorDashboardLease()}
         onTakeOver={() => void takeOverOperatorDashboard()}
-        checking={operatorLeaseState.status === "loading"}
       />
     );
   }
 
-  if (isLoading) {
+  if (isSpectator && isLoading) {
     return <div className="p-8 text-base text-muted-foreground">{loadingLabel}</div>;
   }
-  if (error) {
+  if (isSpectator && error) {
     return (
       <div className="p-8 text-destructive">
         Failed to load game data: {error instanceof Error ? error.message : "Unknown error"}
@@ -1646,7 +1662,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const isPastGame = game.status === "ended";
   const showSpectatorEndedRecap = isSpectator && isPastGame;
   const canResetGame = isDemoOpenPlayTitle(game.title);
-  const hideControls = readOnly || isPastGame;
+  const hideControls =
+    readOnly ||
+    isPastGame ||
+    operatorLeasePending ||
+    !hasDashboardLease ||
+    operatorQueueLoading;
   const canReorderQueue =
     !hideControls && queueWithStats.length >= 2 && !reorderQueueMutation.isPending;
   const queueEntryIds = queueWithStats.map((entry) => entry._id);
@@ -1894,7 +1915,16 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         ) : null}
       </CardHeader>
       <CardContent className="queue-list">
-        {queueWithStats.length === 0 && checkedOutWithStats.length === 0 ? (
+        {operatorQueueLoading ? (
+          <DashboardPanelLoading label="Loading queue…" />
+        ) : operatorQueueQuery.isError && !operatorQueueQuery.data ? (
+          <p className="text-destructive">
+            Failed to load queue:{" "}
+            {operatorQueueQuery.error instanceof Error
+              ? operatorQueueQuery.error.message
+              : "Unknown error"}
+          </p>
+        ) : queueWithStats.length === 0 && checkedOutWithStats.length === 0 ? (
           <p className="text-muted-foreground">Queue is empty.</p>
         ) : (
           <>
@@ -2092,7 +2122,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           !inSpectatorMobileTab && !showCourts && "hidden lg:grid",
         )}
       >
-        {courts.map((court) => (
+        {operatorQueueLoading ? (
+          <DashboardPanelLoading label="Loading courts…" />
+        ) : operatorQueueQuery.isError && !operatorQueueQuery.data ? (
+          <p className="text-destructive">
+            Failed to load courts:{" "}
+            {operatorQueueQuery.error instanceof Error
+              ? operatorQueueQuery.error.message
+              : "Unknown error"}
+          </p>
+        ) : courts.length === 0 ? (
+          <p className="text-muted-foreground">No courts configured.</p>
+        ) : (
+          courts.map((court) => (
           <CourtCard
             key={court._id}
             court={court}
@@ -2150,7 +2192,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             }
             isFilling={fillingCourtNumber != null && court.courtNumber === fillingCourtNumber}
           />
-        ))}
+        ))
+        )}
       </CardContent>
     </Card>
   );
@@ -2291,7 +2334,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             ) : null}
             <div className="game-dashboard-header-top">
               <div className="game-dashboard-header-main min-w-0">
-                <h1 className={cn("page-title", isSpectator && "mb-[13px]")}>{game.title}</h1>
+                <h1 className={cn("page-title", isSpectator && "mb-[13px]")}>
+                  {operatorShellLoading ? "Loading session…" : game.title}
+                </h1>
+                {operatorLeasePending ? (
+                  <p className="caption mt-1 flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                    Securing operator dashboard…
+                  </p>
+                ) : null}
                 {isSpectator && showSpectatorEndedRecap ? (
                   <p className="caption mt-1 text-muted-foreground">
                     Session ended — view awards, standings, and match history below

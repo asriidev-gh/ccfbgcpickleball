@@ -14,6 +14,7 @@ import {
 } from "@/components/game/registration-capacity-prompt";
 import { PlayerQrReveal } from "@/components/register/player-qr-reveal";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
+import { useNavigateToSpectate } from "@/components/register/use-navigate-to-spectate";
 import { UploadQrIdFlow } from "@/components/register/upload-qr-id-flow";
 import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
 import {
@@ -91,6 +92,7 @@ export function RegistrationForm({
   initialMode?: RegistrationFormMode;
 }) {
   const router = useRouter();
+  const { navigateToSpectate, navigating: navigatingToSpectate } = useNavigateToSpectate(gameId);
   const isGenericForm = formVariant === "generic";
   const [role, setRole] = useState<"existing-player" | "new-player" | "volunteer" | "upload-qr" | "">(
     initialMode === "upload-qr" ? "upload-qr" : "",
@@ -579,12 +581,19 @@ export function RegistrationForm({
                   <p className="caption mt-1 text-muted-foreground">{gameTitle}</p>
                 ) : null}
               </div>
-              <Link
-                href={`/games/${gameId}/spectate`}
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                disabled={navigatingToSpectate}
+                onClick={() => void navigateToSpectate({ applyQueueHighlight: false })}
               >
+                {navigatingToSpectate ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
                 Go to Open play
-              </Link>
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="register-form-compact">

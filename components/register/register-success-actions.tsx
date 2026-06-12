@@ -1,19 +1,17 @@
 "use client";
 
-import { Eye, QrCode } from "lucide-react";
+import { Eye, Loader2, QrCode } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { fetchGameRegistrationStatus } from "@/components/game/registration-capacity-prompt";
 import { RegisterAnotherPlayerButton } from "@/components/register/register-another-player-button";
+import { useNavigateToSpectate } from "@/components/register/use-navigate-to-spectate";
 import { Button } from "@/components/ui/button";
 import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
-import {
-  getActiveQueueHighlightPlayerId,
-  setQueueHighlightPlayerId,
-} from "@/lib/queue-highlight";
 
 export function RegisterSuccessActions({ gameId }: { gameId: string }) {
+  const { navigateToSpectate, navigating } = useNavigateToSpectate(gameId);
   const [qrIdEnabled, setQrIdEnabled] = useState(false);
 
   useEffect(() => {
@@ -34,21 +32,22 @@ export function RegisterSuccessActions({ gameId }: { gameId: string }) {
     };
   }, [gameId]);
 
-  const handleProceedToQueue = () => {
-    const activePlayerId = getActiveQueueHighlightPlayerId(gameId);
-    if (activePlayerId) {
-      setQueueHighlightPlayerId(gameId, activePlayerId);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-3">
-      <Link href={`/games/${gameId}/spectate`} onClick={handleProceedToQueue}>
-        <Button size="lg" className="register-submit w-full">
-          <Eye className="mr-2 h-5 w-5" />
-          Proceed to the Game Queue!
-        </Button>
-      </Link>
+      <Button
+        type="button"
+        size="lg"
+        className="register-submit w-full"
+        disabled={navigating}
+        onClick={() => void navigateToSpectate()}
+      >
+        {navigating ? (
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
+        ) : (
+          <Eye className="mr-2 h-5 w-5" aria-hidden />
+        )}
+        {navigating ? "Loading queue…" : "Proceed to the Game Queue!"}
+      </Button>
       <RegisterAnotherPlayerButton gameId={gameId} />
       {qrIdEnabled ? (
         <Link href={`/register/${gameId}?mode=upload-qr`}>

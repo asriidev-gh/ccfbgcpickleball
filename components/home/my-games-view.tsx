@@ -45,7 +45,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { fetchOperatorQueue, fetchOperatorShell } from "@/lib/fetch-operator-game";
+import { prefetchOperatorDashboard } from "@/lib/fetch-operator-game";
 import { useGamesList } from "@/hooks/use-games-list";
 import { useUiStore } from "@/store/ui-store";
 import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
@@ -303,14 +303,26 @@ function GameListActions({
   compact?: boolean;
   hideToolbarOnMobile?: boolean;
 }) {
+  const queryClient = useQueryClient();
   const isDemo = isDemoOpenPlayTitle(game.title);
   const dashboardHref = `/games/${game.gameId}`;
   const leaderboardHref = `/leaderboard/${game.gameId}`;
   const dashboardLabel = variant === "active" ? "Open Dashboard" : "View Dashboard";
   const dashboardShortLabel = variant === "active" ? "Dashboard" : "View";
 
+  const warmDashboard = () => {
+    if (variant === "active") {
+      prefetchOperatorDashboard(queryClient, game.gameId);
+    }
+  };
+
   const dashboardButton = (
-    <Link href={dashboardHref} className="min-w-0 flex-1">
+    <Link
+      href={dashboardHref}
+      className="min-w-0 flex-1"
+      onMouseEnter={warmDashboard}
+      onFocus={warmDashboard}
+    >
       <Button
         variant={variant === "active" ? "default" : "outline"}
         size="sm"
@@ -577,17 +589,8 @@ export function MyGamesView() {
 
   useEffect(() => {
     if (!data?.games) return;
-    for (const game of data.games.filter((item) => item.status !== "ended").slice(0, 3)) {
-      void queryClient.prefetchQuery({
-        queryKey: ["game", game.gameId, "operator", "shell"],
-        queryFn: () => fetchOperatorShell(game.gameId),
-        staleTime: Number.POSITIVE_INFINITY,
-      });
-      void queryClient.prefetchQuery({
-        queryKey: ["game", game.gameId, "operator", "queue"],
-        queryFn: () => fetchOperatorQueue(game.gameId),
-        staleTime: 30_000,
-      });
+    for (const game of data.games.filter((item) => item.status !== "ended")) {
+      prefetchOperatorDashboard(queryClient, game.gameId);
     }
   }, [data?.games, queryClient]);
 
