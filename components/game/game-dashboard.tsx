@@ -15,7 +15,6 @@ import {
   Loader2,
   CalendarDays,
   Clock,
-  Volume2,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -40,6 +39,7 @@ import {
 import { filterMatchesForViewer } from "@/lib/match-history-filter";
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { FillCourtConfirmDialog } from "@/components/game/fill-court-confirm-dialog";
+import { FillCourtSelectDialog } from "@/components/game/fill-court-select-dialog";
 import {
   ReplacePlayerDialog,
   type ReplacePlayerConfirmInput,
@@ -420,12 +420,15 @@ function writeOperatorPayload(
 }
 
 /** Instant UI while the fill-court API request is in flight. */
-function applyFillNextCourtOptimistic(payload: GamePayload): GamePayload | null {
+function applyFillNextCourtOptimistic(
+  payload: GamePayload,
+  courtNumber: number,
+): GamePayload | null {
   if (payload.queue.length < 4) return null;
 
-  const emptyCourt = [...payload.courts]
-    .filter((court) => court.status === "empty")
-    .sort((a, b) => a.courtNumber - b.courtNumber)[0];
+  const emptyCourt = payload.courts.find(
+    (court) => court.courtNumber === courtNumber && court.status === "empty",
+  );
   if (!emptyCourt) return null;
 
   const nextFour = payload.queue.slice(0, 4);
@@ -797,6 +800,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [matchHistoryScope, setMatchHistoryScope] = useState<MatchHistoryScope>("mine");
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
+  const [fillCourtSelectDialogOpen, setFillCourtSelectDialogOpen] = useState(false);
+  const [fillCourtTarget, setFillCourtTarget] = useState<number | null>(null);
   const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);
   const [cancelRematchTarget, setCancelRematchTarget] = useState<number | null>(null);
   const [rematchCourtNumbers, setRematchCourtNumbers] = useState<Set<number>>(
@@ -969,18 +974,22 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
 
   const startMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`/api/games/${gameId}/start`, { method: "POST" });
+    mutationFn: async (courtNumber: number) => {
+      const response = await fetch(`/api/games/${gameId}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtNumber }),
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
       return data;
     },
-    onMutate: async () => {
+    onMutate: async (courtNumber) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
       const previous = readOperatorPayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
-      const optimistic = applyFillNextCourtOptimistic(previous);
+      const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
       if (!optimistic) return { previous };
 
       writeOperatorPayload(queryClient, gameId, optimistic);
@@ -995,6 +1004,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         writeOperatorPayload(queryClient, gameId, context.previous);
       }
       toast.error(error.message);
+    },
+    onSettled: () => {
+      setFillCourtTarget(null);
     },
   });
 
@@ -1861,14 +1873,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     selfPlayerIds.includes(queueEntryPlayerId(entry));
   const canRemoveEntry = (entry: QueueEntryView) =>
     !hideControls || (isSpectator && canCheckoutFromQueue && canSelfCheckoutEntry(entry));
-  const nextEmptyCourt =
-    [...courts]
-      .filter((c) => c.status === "empty")
-      .sort((a, b) => a.courtNumber - b.courtNumber)[0] ?? null;
+  const emptyCourts = [...courts]
+    .filter((c) => c.status === "empty")
+    .sort((a, b) => a.courtNumber - b.courtNumber);
+  const nextEmptyCourt = emptyCourts[0] ?? null;
+  const emptyCourtNumbers = emptyCourts.map((court) => court.courtNumber);
   const canFillNextCourt = queueWithStats.length >= 4 && nextEmptyCourt != null;
   const fillCourtTeamA = queueWithStats.slice(0, 2);
   const fillCourtTeamB = queueWithStats.slice(2, 4);
-  const fillingCourtNumber = startMutation.isPending ? nextEmptyCourt?.courtNumber ?? null : null;
+  const activeFillCourtNumber = fillCourtTarget ?? nextEmptyCourt?.courtNumber ?? null;
+  const fillingCourtNumber =
+    startMutation.isPending && startMutation.variables != null ? startMutation.variables : null;
   const endCourt =
     endTargetCourt != null ? courts.find((c) => c.courtNumber === endTargetCourt) : undefined;
   const winningPlayers =
@@ -1926,7 +1941,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       teamA.map((entry) => entry.playerId),
       teamB.map((entry) => entry.playerId),
       {
-        courtNumber: nextEmptyCourt?.courtNumber ?? null,
+        courtNumber: activeFillCourtNumber,
         onComplete: () => setCallingNames(false),
       },
     ).then((started) => {
@@ -1937,8 +1952,27 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     });
   };
 
-  const handleCallNextNames = () => {
-    startPlayerAnnouncement(fillCourtTeamA, fillCourtTeamB);
+  const openFillCourtConfirmDialog = (courtNumber: number) => {
+    setFillCourtTarget(courtNumber);
+    setFillCourtDialogOpen(true);
+  };
+
+  const handleFillNextCourtClick = () => {
+    if (!canFillNextCourt) {
+      if (queueWithStats.length < 4) {
+        toast.error("Not enough players in the queue. At least 4 are required.");
+      } else {
+        toast.error("No empty court available.");
+      }
+      return;
+    }
+
+    if (emptyCourtNumbers.length >= 2) {
+      setFillCourtSelectDialogOpen(true);
+      return;
+    }
+
+    openFillCourtConfirmDialog(emptyCourtNumbers[0]);
   };
 
   const renderQueuePanel = () => (
@@ -1979,17 +2013,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         <div className="flex shrink-0 items-center gap-2">
           {!hideControls ? (
             <Button
-              onClick={() => {
-                if (!canFillNextCourt) {
-                  if (queueWithStats.length < 4) {
-                    toast.error("Not enough players in the queue. At least 4 are required.");
-                  } else {
-                    toast.error("No empty court available.");
-                  }
-                  return;
-                }
-                setFillCourtDialogOpen(true);
-              }}
+              onClick={handleFillNextCourtClick}
               disabled={startMutation.isPending || !canFillNextCourt}
             >
               {startMutation.isPending ? (
@@ -2047,28 +2071,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                         </p>
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {!hideControls ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className={cn(
-                            "call-names-btn h-8 shrink-0 px-3 text-xs tracking-wide xl:h-9 xl:px-4 xl:text-sm",
-                            callingNames && "call-names-btn--calling",
-                            nextEmptyCourt != null && !callingNames && "call-names-btn--glow",
-                          )}
-                          onClick={handleCallNextNames}
-                          disabled={callingNames}
-                          aria-label="Call next player names aloud"
-                        >
-                          <Volume2 className="call-names-btn-icon mr-1.5 h-3.5 w-3.5 xl:h-4 xl:w-4" aria-hidden />
-                          {callingNames ? "Calling…" : "Call Names"}
-                        </Button>
-                      ) : null}
-                      <Badge className="badge-next-up-count">
-                        {Math.min(4, queueWithStats.length)} / 4
-                      </Badge>
-                    </div>
+                    <Badge className="badge-next-up-count shrink-0">
+                      {Math.min(4, queueWithStats.length)} / 4
+                    </Badge>
                   </div>
                   <div className="queue-next-up-slots">
                     {queueWithStats.slice(0, 4).map((entry, index) =>
@@ -2618,18 +2623,30 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
       {!readOnly ? (
         <>
+          <FillCourtSelectDialog
+            open={fillCourtSelectDialogOpen}
+            onOpenChange={setFillCourtSelectDialogOpen}
+            emptyCourtNumbers={emptyCourtNumbers}
+            onSelect={(courtNumber) => {
+              setFillCourtSelectDialogOpen(false);
+              openFillCourtConfirmDialog(courtNumber);
+            }}
+          />
           <FillCourtConfirmDialog
             open={fillCourtDialogOpen}
             onOpenChange={(open) => {
               setFillCourtDialogOpen(open);
-              if (!open && callingNames) {
-                window.speechSynthesis?.cancel();
-                setCallingNames(false);
+              if (!open) {
+                setFillCourtTarget(null);
+                if (callingNames) {
+                  window.speechSynthesis?.cancel();
+                  setCallingNames(false);
+                }
               }
             }}
             callingNames={callingNames}
             onCallNames={startPlayerAnnouncement}
-            courtNumber={nextEmptyCourt?.courtNumber ?? null}
+            courtNumber={activeFillCourtNumber}
             teamA={fillCourtTeamA}
             teamB={fillCourtTeamB}
             canReplace={waitingLineEntries.length > 0}
@@ -2640,8 +2657,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
             }
             onConfirmFill={() => {
+              const courtNumber = activeFillCourtNumber;
+              if (courtNumber == null) return;
+              startMutation.mutate(courtNumber);
               setFillCourtDialogOpen(false);
-              startMutation.mutate();
             }}
             fillPending={startMutation.isPending}
             onShuffle={async () => {

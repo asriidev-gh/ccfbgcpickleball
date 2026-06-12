@@ -1067,14 +1067,6 @@
       @apply h-6 w-6;
     }
 
-    .game-dashboard-split .call-names-btn {
-      @apply h-7 px-2 text-[10px];
-    }
-
-    .game-dashboard-split .call-names-btn-icon {
-      @apply mr-1 h-3 w-3;
-    }
-
     .game-dashboard-split .badge-next-up-count {
       @apply px-1.5 py-0 text-[10px];
     }

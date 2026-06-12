@@ -7,10 +7,17 @@ import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
 import { QueueEntry } from "@/models/QueueEntry";
 
-export async function startGameOnFirstAvailableCourt(gameId: string) {
-  const court = await Court.findOne({ gameId, status: "empty" }).sort({ courtNumber: 1 });
+export async function startGameOnCourt(gameId: string, courtNumber?: number) {
+  const court =
+    courtNumber != null
+      ? await Court.findOne({ gameId, courtNumber, status: "empty" })
+      : await Court.findOne({ gameId, status: "empty" }).sort({ courtNumber: 1 });
   if (!court) {
-    throw new Error("No empty court available.");
+    throw new Error(
+      courtNumber != null
+        ? `Court ${courtNumber} is not available.`
+        : "No empty court available.",
+    );
   }
 
   const entries = await QueueEntry.find({ gameId, status: "queued" }).sort({ registeredAt: 1 }).limit(4);
@@ -32,6 +39,10 @@ export async function startGameOnFirstAvailableCourt(gameId: string) {
   await court.save();
 
   return court;
+}
+
+export async function startGameOnFirstAvailableCourt(gameId: string) {
+  return startGameOnCourt(gameId);
 }
 
 type CourtSlot = { playerId: Types.ObjectId; queueEntryId: Types.ObjectId };

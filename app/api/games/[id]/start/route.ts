@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { runWithDatabase } from "@/lib/db";
-import { startGameOnFirstAvailableCourt } from "@/lib/queue-engine";
+import { startGameOnCourt } from "@/lib/queue-engine";
 import { PickleGame } from "@/models/PickleGame";
 import { getAuthUserFromCookie } from "@/lib/auth";
 
-export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
 
     return await runWithDatabase(async () => {
@@ -20,7 +20,18 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
         { status: 400 }
       );
     }
-    const court = await startGameOnFirstAvailableCourt(id);
+
+    let courtNumber: number | undefined;
+    const body = await request.json().catch(() => null);
+    if (body != null && typeof body === "object" && "courtNumber" in body) {
+      const parsed = Number((body as { courtNumber: unknown }).courtNumber);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        return NextResponse.json({ message: "Invalid court number." }, { status: 400 });
+      }
+      courtNumber = parsed;
+    }
+
+    const court = await startGameOnCourt(id, courtNumber);
     return NextResponse.json({ court });
 
     });} catch (error) {
