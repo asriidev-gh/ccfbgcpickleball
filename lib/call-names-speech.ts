@@ -1,6 +1,8 @@
 import { capitalizeNameWords, formatPlayerDisplayName } from "@/lib/utils";
 
 const DEFAULT_PAUSE_MS = 500;
+const COURT_INTRO_PAUSE_MS = 500;
+const VS_PAUSE_MS = 300;
 const DEFAULT_REPEAT_PAUSE_MS = 1000;
 const SYNTH_RESET_MS = 100;
 const CHROME_KEEP_ALIVE_MS = 10_000;
@@ -56,51 +58,37 @@ function phrase(
   return { text, ...options };
 }
 
-function appendTeamPlayerSteps(steps: CallPhraseStep[], names: string[], pauseMs: number) {
-  if (names.length === 0) return;
-
-  steps.push(phrase(names[0], { pauseAfterMs: 0 }));
-
-  for (let index = 1; index < names.length; index += 1) {
-    steps.push(phrase("and", { pauseAfterMs: pauseMs }));
-    steps.push(phrase(names[index], { pauseAfterMs: 0 }));
-  }
+function formatTeamPlayersPhrase(names: string[]): string {
+  const players = names.map((name) => name.trim()).filter(Boolean);
+  if (players.length === 0) return "";
+  if (players.length === 1) return players[0];
+  return players.join(" and ");
 }
 
 export function buildTeamAnnouncementPhrases(teamANames: string[], teamBNames: string[]) {
-  const teamA = teamANames.map((name) => name.trim()).filter(Boolean);
-  const teamB = teamBNames.map((name) => name.trim()).filter(Boolean);
+  const teamAPhrase = formatTeamPlayersPhrase(teamANames);
+  const teamBPhrase = formatTeamPlayersPhrase(teamBNames);
   const steps: CallPhraseStep[] = [];
 
-  if (teamA.length === 0 && teamB.length === 0) {
+  if (!teamAPhrase && !teamBPhrase) {
     return steps;
   }
 
-  if (teamA.length > 0 && teamB.length > 0) {
-    steps.push(phrase("Team A players", { pauseAfterMs: DEFAULT_PAUSE_MS }));
-    appendTeamPlayerSteps(steps, teamA, DEFAULT_PAUSE_MS);
-    steps.push(phrase("versus Team B", { pauseAfterMs: DEFAULT_PAUSE_MS }));
-    appendTeamPlayerSteps(steps, teamB, DEFAULT_PAUSE_MS);
+  if (teamAPhrase && teamBPhrase) {
+    steps.push(phrase(teamAPhrase, { pauseAfterMs: 0 }));
+    steps.push(phrase("vs", { pauseAfterMs: VS_PAUSE_MS }));
+    steps.push(phrase(teamBPhrase, { pauseAfterMs: 0 }));
     return steps;
   }
 
-  if (teamA.length > 0) {
-    steps.push(phrase("Team A players", { pauseAfterMs: DEFAULT_PAUSE_MS }));
-    appendTeamPlayerSteps(steps, teamA, DEFAULT_PAUSE_MS);
-    return steps;
-  }
-
-  steps.push(phrase("Team B", { pauseAfterMs: DEFAULT_PAUSE_MS }));
-  appendTeamPlayerSteps(steps, teamB, DEFAULT_PAUSE_MS);
+  const soloPhrase = teamAPhrase || teamBPhrase;
+  steps.push(phrase(soloPhrase, { pauseAfterMs: 0 }));
   return steps;
 }
 
-/** Intro, team assignment with selective pauses, then an excited "Have fun!" */
-export function buildNextCourtCallIntro(playerCount: number, courtNumber?: number | null) {
-  if (playerCount <= 0) return "";
-
-  const courtLabel = courtNumber != null ? `court ${courtNumber}` : "court";
-  return `Up next on ${courtLabel}.`;
+/** Court number intro, then team names with selective pauses, then an excited "Have fun!" */
+export function buildNextCourtCallIntro(_playerCount: number, courtNumber?: number | null) {
+  return courtNumber != null ? `Court ${courtNumber}` : "Court";
 }
 
 export function buildNextCourtCallPhrases(names: string[], courtNumber?: number | null) {
@@ -126,7 +114,7 @@ export function buildNextCourtCallPhrasesFromTeams(
   if (playerCount === 0) return [];
 
   const steps: CallPhraseStep[] = [
-    phrase(buildNextCourtCallIntro(playerCount, courtNumber), { pauseAfterMs: DEFAULT_PAUSE_MS }),
+    phrase(buildNextCourtCallIntro(playerCount, courtNumber), { pauseAfterMs: COURT_INTRO_PAUSE_MS }),
     ...buildTeamAnnouncementPhrases(teamA, teamB),
     phrase(CALL_NAMES_HAVE_FUN_PHRASE, {
       pauseAfterMs: 0,

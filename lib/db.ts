@@ -12,7 +12,6 @@ declare global {
 const cached = global.mongooseCache ?? { conn: null, promise: null };
 global.mongooseCache = cached;
 
-const CONNECTION_VERIFY_TTL_MS = 30_000;
 const RUN_WITH_DATABASE_ATTEMPTS = 5;
 
 let connectedDatabaseName: string | null = null;
@@ -23,11 +22,12 @@ let suppressDisconnectReset = false;
 let dbOperationChain: Promise<unknown> = Promise.resolve();
 let dbWorkDepth = 0;
 
-function runQueuedDatabaseWork<T>(work: () => Promise<T>): Promise<T> {
-  if (dbWorkDepth > 0) {
-    return work();
-  }
+/** True while a `runWithDatabase` / `runQueuedDatabaseWork` handler is executing. */
+export function isInDatabaseContext() {
+  return dbWorkDepth > 0;
+}
 
+function runQueuedDatabaseWork<T>(work: () => Promise<T>): Promise<T> {
   const task = dbOperationChain.then(async () => {
     dbWorkDepth += 1;
     try {
@@ -77,8 +77,6 @@ function getMongoOptions(dbNameOverride?: string) {
     // One connection per serverless instance — keeps Atlas Free tier under its 500-connection limit.
     maxPoolSize: 1,
     minPoolSize: 0,
-    // Buffer briefly while a stale socket reconnects instead of failing the whole request.
-    bufferCommands: true,
   };
 }
 
@@ -122,7 +120,6 @@ function getMongoUri() {
 
 async function verifyConnectionAlive() {
   if (!isConnectionReady()) return false;
-  if (Date.now() - lastVerifiedAt < CONNECTION_VERIFY_TTL_MS) return true;
 
   try {
     await mongoose.connection.db?.admin().ping();
@@ -131,6 +128,18 @@ async function verifyConnectionAlive() {
   } catch {
     lastVerifiedAt = 0;
     return false;
+  }
+}
+
+async function ensureDatabaseReady(dbNameOverride?: string) {
+  await connectToDatabaseOnce(dbNameOverride);
+  if (await verifyConnectionAlive()) return;
+
+  lastVerifiedAt = 0;
+  resetCachedConnection();
+  await connectToDatabaseOnce(dbNameOverride);
+  if (!(await verifyConnectionAlive())) {
+    throw new Error("MongoDB connection is not ready.");
   }
 }
 
@@ -214,10 +223,13 @@ export async function connectToDatabase(
   dbNameOverride?: string,
 ): Promise<typeof mongoose> {
   if (dbWorkDepth > 0) {
-    return connectToDatabaseOnce(dbNameOverride);
+    return mongoose;
   }
 
-  return runQueuedDatabaseWork(() => connectToDatabaseOnce(dbNameOverride));
+  return runQueuedDatabaseWork(async () => {
+    await ensureDatabaseReady(dbNameOverride);
+    return mongoose;
+  });
 }
 
 async function runWithDatabaseOnce<T>(
@@ -229,7 +241,7 @@ async function runWithDatabaseOnce<T>(
 
   for (let attempt = 0; attempt < RUN_WITH_DATABASE_ATTEMPTS; attempt++) {
     try {
-      await connectToDatabaseOnce(dbNameOverride);
+      await ensureDatabaseReady(dbNameOverride);
       return await fn();
     } catch (error) {
       lastError = error;
@@ -270,6 +282,9 @@ export async function runWithDatabase<T>(
   fn: () => Promise<T>,
   dbNameOverride?: string,
 ): Promise<T> {
+  if (dbWorkDepth > 0) {
+    return fn();
+  }
   return runQueuedDatabaseWork(() => runWithDatabaseOnce(fn, dbNameOverride));
 }
 

@@ -122,10 +122,14 @@ export function recordSystemLog(input: RecordSystemLogInput) {
     if (shouldSkipDatabasePersist(input)) return;
 
     try {
-      const { runWithDatabase } = await import("@/lib/db");
-      await runWithDatabase(async () => {
+      const { isInDatabaseContext, runWithDatabase } = await import("@/lib/db");
+      if (isInDatabaseContext()) {
         await SystemLog.create(payload);
-      });
+      } else {
+        await runWithDatabase(async () => {
+          await SystemLog.create(payload);
+        });
+      }
     } catch (persistError) {
       console.error(
         "[system-log] Failed to persist log entry:",
@@ -175,10 +179,14 @@ export function logApiError(input: {
     if (shouldSkipDatabasePersist(payload)) return;
 
     try {
-      const { runWithDatabase } = await import("@/lib/db");
-      await runWithDatabase(async () => {
+      const { isInDatabaseContext, runWithDatabase } = await import("@/lib/db");
+      if (isInDatabaseContext()) {
         await SystemLog.create(payload);
-      });
+      } else {
+        await runWithDatabase(async () => {
+          await SystemLog.create(payload);
+        });
+      }
     } catch (persistError) {
       console.error(
         "[system-log] Failed to persist log entry:",
