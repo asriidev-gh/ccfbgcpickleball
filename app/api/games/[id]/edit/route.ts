@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import {
   gameUsesOwnerRegistration,
@@ -10,7 +10,8 @@ import { PickleGame } from "@/models/PickleGame";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
@@ -38,7 +39,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       },
       ownerPlayers,
     });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to load game for editing." },
       { status: 400 },

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import {
   assertGameRegistrationAllowed,
   RegistrationLimitError,
@@ -25,10 +25,11 @@ import { QueueEntry } from "@/models/QueueEntry";
 import { Volunteer } from "@/models/Volunteer";
 
 export async function POST(request: Request) {
-  let body: Record<string, unknown> | null = null;
+  let gameIdFromRequest: string | null = null;
   try {
-    await connectToDatabase();
-    body = await request.json();
+    return await runWithDatabase(async () => {
+    const body = await request.json();
+    gameIdFromRequest = typeof body?.gameId === "string" ? body.gameId : null;
     const isVolunteer =
       body?.volunteerType === "Pickleball" ||
       body?.volunteerType === "Running" ||
@@ -98,20 +99,25 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ player, message: "Welcome back! Added to queue." });
+    });
   } catch (error) {
     if (error instanceof RegistrationLimitError) {
-      if (error.checkedOut && typeof body?.gameId === "string" && error.playerId) {
-        const checkedOutPlayer = await Player.findById(error.playerId).select("firstName lastName");
-        if (checkedOutPlayer) {
-          await recordCheckinAttemptNotification({
-            gameId: body.gameId,
-            playerId: error.playerId,
-            playerName: formatPlayerDisplayName(
-              checkedOutPlayer.firstName,
-              checkedOutPlayer.lastName,
-            ),
-          });
-        }
+      const gameId = gameIdFromRequest;
+      const playerId = error.playerId;
+      if (error.checkedOut && gameId && playerId) {
+        await runWithDatabase(async () => {
+          const checkedOutPlayer = await Player.findById(playerId).select("firstName lastName");
+          if (checkedOutPlayer) {
+            await recordCheckinAttemptNotification({
+              gameId,
+              playerId,
+              playerName: formatPlayerDisplayName(
+                checkedOutPlayer.firstName,
+                checkedOutPlayer.lastName,
+              ),
+            });
+          }
+        });
       }
 
       return NextResponse.json(

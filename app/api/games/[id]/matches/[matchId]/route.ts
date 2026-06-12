@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUserFromCookie } from "@/lib/auth";
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { loserScoreExceedsWinner, LOSER_SCORE_TOO_HIGH_MESSAGE } from "@/lib/match-score-validation";
 import { deleteMatchFromHistory } from "@/lib/match-history-delete";
 import { editMatchScoreSchema } from "@/lib/validations";
@@ -13,7 +13,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; matchId: string }> },
 ) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
@@ -38,7 +39,8 @@ export async function PATCH(
     if (!match) return NextResponse.json({ message: "Match not found." }, { status: 404 });
 
     return NextResponse.json({ message: "Score updated." });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to update score." },
       { status: 400 },
@@ -51,7 +53,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; matchId: string }> },
 ) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
@@ -62,7 +65,8 @@ export async function DELETE(
     await deleteMatchFromHistory({ gameId: id, matchId });
 
     return NextResponse.json({ message: "Match deleted." });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to delete match." },
       { status: 400 },

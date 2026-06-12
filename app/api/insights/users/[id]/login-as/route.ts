@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUserFromCookie, signImpersonationToken } from "@/lib/auth";
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { isSuperAdminUserId } from "@/lib/superadmin";
 import { BLOCKED_LOGIN_MESSAGE, isUserBlocked } from "@/lib/user-block";
 import { User } from "@/models/User";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) {
       return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
@@ -17,7 +19,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const { id } = await params;
-    await connectToDatabase();
     const user = await User.findById(id).select("name isBlocked").lean();
     if (!user) return NextResponse.json({ message: "User not found." }, { status: 404 });
     if (isUserBlocked(user)) {
@@ -30,7 +31,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       message: `Opening session for ${user.name}.`,
       token,
     });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to sign in as user." },
       { status: 400 },

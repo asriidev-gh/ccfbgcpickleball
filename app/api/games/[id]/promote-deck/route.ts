@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUserFromCookie } from "@/lib/auth";
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { promoteDeckMatchToOpenCourt } from "@/lib/queue-engine";
 import { PickleGame } from "@/models/PickleGame";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) {
       return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
@@ -46,7 +47,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     await promoteDeckMatchToOpenCourt({ gameId: id, teamAEntryIds, teamBEntryIds });
     return NextResponse.json({ message: "Matchup moved to the open-court line." });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       {
         message:

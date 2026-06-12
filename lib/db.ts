@@ -14,12 +14,36 @@ global.mongooseCache = cached;
 
 const MAX_CONNECTION_ATTEMPTS = 3;
 const CONNECTION_VERIFY_TTL_MS = 3_000;
-const RUN_WITH_DATABASE_ATTEMPTS = 3;
+const RUN_WITH_DATABASE_ATTEMPTS = 5;
 
 let connectedDatabaseName: string | null = null;
 let connectionEventsRegistered = false;
 let lastVerifiedAt = 0;
 let reconnectPromise: Promise<void> | null = null;
+let dbOperationChain: Promise<unknown> = Promise.resolve();
+let dbWorkDepth = 0;
+
+function runQueuedDatabaseWork<T>(work: () => Promise<T>): Promise<T> {
+  if (dbWorkDepth > 0) {
+    return work();
+  }
+
+  const task = dbOperationChain.then(async () => {
+    dbWorkDepth += 1;
+    try {
+      return await work();
+    } finally {
+      dbWorkDepth -= 1;
+    }
+  });
+
+  dbOperationChain = task.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return task;
+}
 
 function registerConnectionEvents() {
   if (connectionEventsRegistered) return;
@@ -71,7 +95,7 @@ function collectErrorMessages(error: unknown) {
 
 function isTransientConnectionError(error: unknown) {
   const text = collectErrorMessages(error).join(" ");
-  return /must be connected|not connected|connection closed|topology was destroyed|socket has been/i.test(
+  return /must be connected|not connected|connection closed|client was closed|operation interrupted|topology was destroyed|socket has been/i.test(
     text,
   );
 }
@@ -134,7 +158,7 @@ function getMongoUri() {
   return mongodbUri;
 }
 
-export async function connectToDatabase(
+async function connectToDatabaseOnce(
   dbNameOverride?: string,
   attempt = 0,
 ): Promise<typeof mongoose> {
@@ -153,12 +177,12 @@ export async function connectToDatabase(
       return cached.conn;
     }
     await performReconnect(mongodbUri, dbNameOverride);
-    return connectToDatabase(dbNameOverride, attempt + 1);
+    return connectToDatabaseOnce(dbNameOverride, attempt + 1);
   }
 
   if (cached.conn && connectedDatabaseName !== targetDatabaseName) {
     await performReconnect(mongodbUri, dbNameOverride);
-    return connectToDatabase(dbNameOverride, attempt + 1);
+    return connectToDatabaseOnce(dbNameOverride, attempt + 1);
   }
 
   if (!cached.promise) {
@@ -188,19 +212,29 @@ export async function connectToDatabase(
     }
 
     await performReconnect(mongodbUri, dbNameOverride);
-    return connectToDatabase(dbNameOverride, attempt + 1);
+    return connectToDatabaseOnce(dbNameOverride, attempt + 1);
   } catch (error) {
     lastVerifiedAt = 0;
     if (isTransientConnectionError(error)) {
       await performReconnect(mongodbUri, dbNameOverride);
-      return connectToDatabase(dbNameOverride, attempt + 1);
+      return connectToDatabaseOnce(dbNameOverride, attempt + 1);
     }
     throw error;
   }
 }
 
-/** Connect, run queries, and transparently retry on stale serverless sockets. */
-export async function runWithDatabase<T>(
+export async function connectToDatabase(
+  dbNameOverride?: string,
+  attempt = 0,
+): Promise<typeof mongoose> {
+  if (dbWorkDepth > 0) {
+    return connectToDatabaseOnce(dbNameOverride, attempt);
+  }
+
+  return runQueuedDatabaseWork(() => connectToDatabaseOnce(dbNameOverride, attempt));
+}
+
+async function runWithDatabaseOnce<T>(
   fn: () => Promise<T>,
   dbNameOverride?: string,
 ): Promise<T> {
@@ -208,45 +242,66 @@ export async function runWithDatabase<T>(
 
   for (let attempt = 0; attempt < RUN_WITH_DATABASE_ATTEMPTS; attempt++) {
     try {
-      await connectToDatabase(dbNameOverride);
+      await connectToDatabaseOnce(dbNameOverride);
       return await fn();
     } catch (error) {
       const shouldRetry =
         attempt < RUN_WITH_DATABASE_ATTEMPTS - 1 && isTransientConnectionError(error);
-      if (!shouldRetry) throw error;
+      if (!shouldRetry) {
+        const { recordSystemLog } = await import("@/lib/system-log");
+        recordSystemLog({
+          level: "error",
+          source: "db",
+          message: error instanceof Error ? error.message : "Database operation failed.",
+          stack: error instanceof Error ? error.stack : undefined,
+          metadata: {
+            attempt: attempt + 1,
+            transient: isTransientConnectionError(error),
+          },
+        });
+        throw error;
+      }
 
       lastVerifiedAt = 0;
       await performReconnect(mongodbUri, dbNameOverride);
-      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+      await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
     }
   }
 
   throw new Error("Database operation failed after retry.");
 }
 
+/** Connect, run queries, and transparently retry on stale serverless sockets. */
+export async function runWithDatabase<T>(
+  fn: () => Promise<T>,
+  dbNameOverride?: string,
+): Promise<T> {
+  return runQueuedDatabaseWork(() => runWithDatabaseOnce(fn, dbNameOverride));
+}
+
 export async function disconnectFromDatabase() {
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.disconnect();
-  }
-  lastVerifiedAt = 0;
-  resetCachedConnection();
+  return runQueuedDatabaseWork(async () => {
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+    }
+    lastVerifiedAt = 0;
+    resetCachedConnection();
+  });
 }
 
 export async function getDatabaseHealth() {
-  try {
-    const conn = await connectToDatabase();
+  return runWithDatabase(async () => {
+    const conn = await connectToDatabaseOnce();
     await conn.connection.db?.admin().ping();
     return {
       ok: true as const,
       dbName: conn.connection.name,
       readyState: conn.connection.readyState,
     };
-  } catch (error) {
-    return {
-      ok: false as const,
-      message: error instanceof Error ? error.message : "Database connection failed.",
-      hasMongoUri: Boolean(process.env.MONGODB_URI?.trim()),
-      dbName: process.env.MONGODB_DB ?? "ccf_pickleball",
-    };
-  }
+  }).catch((error) => ({
+    ok: false as const,
+    message: error instanceof Error ? error.message : "Database connection failed.",
+    hasMongoUri: Boolean(process.env.MONGODB_URI?.trim()),
+    dbName: process.env.MONGODB_DB ?? "ccf_pickleball",
+  }));
 }

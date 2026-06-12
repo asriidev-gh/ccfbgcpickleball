@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
@@ -8,7 +8,8 @@ import "@/models/Player";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
@@ -79,7 +80,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({
       message: `${name} checked back in at the end of the queue.`,
     });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to check player back in." },
       { status: 400 },

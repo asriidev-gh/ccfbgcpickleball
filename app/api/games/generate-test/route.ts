@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { createTestGame } from "@/lib/test-game";
@@ -10,7 +10,8 @@ const DEMO_OPEN_PLAY_TITLE_LABEL = "Test Open Play 1";
 
 export async function POST() {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
@@ -41,7 +42,8 @@ export async function POST() {
       playerCount,
       message: `Test game created with ${playerCount} players.`,
     });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to generate test game." },
       { status: 400 },

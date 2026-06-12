@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUserFromCookie } from "@/lib/auth";
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { assertPlayerRegisteredWithOwner, resolvePlayerSiblings } from "@/lib/owner-player-actions";
 import { buildPlayerQrDataUrlWithBranding } from "@/lib/player-qr";
 import { resolvePlayerQrBrandingForOwner } from "@/lib/player-qr-branding";
@@ -9,11 +9,12 @@ import { Player } from "@/models/Player";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
     const { id } = await params;
-    await connectToDatabase();
     await assertPlayerRegisteredWithOwner(authUser.userId, id);
 
     const resolved = await resolvePlayerSiblings(id);
@@ -47,7 +48,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       personalQrCode,
       personalQrCodeDataUrl,
     });
-  } catch (error) {
+
+    });} catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load player QR.";
     const status = message.includes("not registered") ? 403 : 400;
     return NextResponse.json({ message }, { status });

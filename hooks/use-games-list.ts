@@ -35,5 +35,7 @@ export function useGamesList() {
     queryKey: ["games"],
     queryFn: fetchGamesList,
     refetchOnWindowFocus: false,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1_000 * (attempt + 1), 5_000),
   });
 }

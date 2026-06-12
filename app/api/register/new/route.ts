@@ -6,7 +6,7 @@ import {
   GENERATED_AVATAR_PUBLIC_ID,
   getGeneratedAvatarUrl,
 } from "@/lib/player-avatar-url";
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import {
   assertGameRegistrationAllowed,
   RegistrationLimitError,
@@ -50,7 +50,9 @@ import { Volunteer } from "@/models/Volunteer";
 
 export async function POST(request: Request) {
   try {
-    await connectToDatabase();
+
+
+    return await runWithDatabase(async () => {
 
     const contentType = request.headers.get("content-type") ?? "";
     const isMultipart = contentType.includes("multipart/form-data");
@@ -247,7 +249,9 @@ export async function POST(request: Request) {
       emailSent,
       message,
     });
-  } catch (error) {
+
+
+    });} catch (error) {
     if (error instanceof RegistrationLimitError) {
       return NextResponse.json(
         {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { normalizePersonalQrCode } from "@/lib/normalize-personal-qr-code";
 import { getPlayerQrDownloadFilename, buildPlayerQrDataUrlWithBranding } from "@/lib/player-qr";
 import { resolvePlayerQrBrandingForPlayer } from "@/lib/player-qr-branding";
@@ -8,7 +8,9 @@ import { Player } from "@/models/Player";
 
 export async function GET(request: Request) {
   try {
-    await connectToDatabase();
+
+
+    return await runWithDatabase(async () => {
 
     const url = new URL(request.url);
     const code = url.searchParams.get("code")?.trim();
@@ -44,7 +46,9 @@ export async function GET(request: Request) {
         "Cache-Control": "no-store",
       },
     });
-  } catch (error) {
+
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to load player QR." },
       { status: 400 },

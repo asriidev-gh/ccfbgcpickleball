@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { runWithDatabase } from "@/lib/db";
+import { handleApiError } from "@/lib/handle-api-error";
 import {
   loadSpectateDetails,
   loadSpectateFull,
@@ -17,8 +18,8 @@ function parseScope(value: string | null): SpectateScope {
 
 /** Public read-only game state for spectator dashboard (no auth). */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
-    const { id } = await params;
     const scope = parseScope(new URL(request.url).searchParams.get("scope"));
 
     return await runWithDatabase(async () => {
@@ -39,9 +40,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json(payload);
     });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to load game." },
-      { status: 400 },
-    );
+    return handleApiError(error, {
+      source: "api/games/spectate",
+      request,
+      metadata: { gameId: id },
+      message: "Failed to load game.",
+    });
   }
 }

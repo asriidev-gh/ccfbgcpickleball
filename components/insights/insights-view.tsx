@@ -29,6 +29,7 @@ import Swal from "sweetalert2";
 import { toast } from "sonner";
 
 import { ChangeUserPasswordDialog } from "@/components/insights/change-user-password-dialog";
+import { SystemLogsPanel } from "@/components/insights/system-logs-panel";
 import { buildImpersonateUrl } from "@/lib/browser-origin";
 import { PlayerAvatar } from "@/components/game/player-avatar";
 import {
@@ -1180,7 +1181,7 @@ function PlayersPanel() {
   );
 }
 
-type InsightsTab = "overview" | "users" | "players";
+type InsightsTab = "overview" | "users" | "players" | "system-logs";
 
 export function InsightsView({ insights }: { insights: UserInsights }) {
   const [tab, setTab] = useState<InsightsTab>("overview");
@@ -1227,6 +1228,7 @@ export function InsightsView({ insights }: { insights: UserInsights }) {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">User List</TabsTrigger>
             <TabsTrigger value="players">Players Registered</TabsTrigger>
+            <TabsTrigger value="system-logs">System Logs</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="flex flex-col gap-6">
@@ -1311,6 +1313,10 @@ export function InsightsView({ insights }: { insights: UserInsights }) {
 
           <TabsContent value="players">
             <PlayersPanel />
+          </TabsContent>
+
+          <TabsContent value="system-logs">
+            <SystemLogsPanel />
           </TabsContent>
         </Tabs>
       </section>

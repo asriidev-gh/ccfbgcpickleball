@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getAuthUserFromCookie } from "@/lib/auth";
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import {
   buildPlayerQrBrandingFromTitle,
@@ -23,13 +23,14 @@ const updatePlayerQrSettingsSchema = z.object({
 });
 
 async function getQrSettingsUser(userId: string) {
-  await connectToDatabase();
   const user = await User.findById(userId).select("playerQrTitle name").lean();
   return user ?? null;
 }
 
 export async function GET(request: Request) {
   try {
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
@@ -58,7 +59,8 @@ export async function GET(request: Request) {
       maxTitleLength: MAX_PLAYER_QR_TITLE_LENGTH,
       previewDataUrl,
     });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to load QR settings." },
       { status: 400 },
@@ -68,6 +70,8 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
@@ -97,7 +101,8 @@ export async function PATCH(request: Request) {
       playerQrTitle,
       previewDataUrl,
     });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to save QR settings." },
       { status: 400 },

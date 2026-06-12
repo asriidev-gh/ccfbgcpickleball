@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { uploadProfilePhoto } from "@/lib/cloudinary";
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import {
   getProfilePhotoFromFormData,
@@ -34,6 +34,8 @@ function readPlayerId(request: Request, formData: FormData | null) {
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+
+    return await runWithDatabase(async () => {
     const { id: gameId } = await params;
     const playerId = readPlayerId(request, null);
     if (!playerId) {
@@ -42,7 +44,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     const { profile } = await loadPlayerProfileForGame(gameId, playerId);
     return NextResponse.json(profile);
-  } catch (error) {
+
+    });} catch (error) {
     if (error instanceof PlayerProfileAccessError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
@@ -55,6 +58,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+
+    return await runWithDatabase(async () => {
     const { id: gameId } = await params;
     const contentType = request.headers.get("content-type") ?? "";
     const isMultipart = contentType.includes("multipart/form-data");
@@ -68,8 +73,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!playerId || !isValidPlayerId(playerId)) {
       return NextResponse.json({ message: "Player session is required." }, { status: 400 });
     }
-
-    await connectToDatabase();
     const { showCcfQuestionnaire } = await loadPlayerProfileForGame(gameId, playerId);
     await assertPlayerRegisteredForGame(gameId, playerId);
 
@@ -149,7 +152,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       message: "Profile updated.",
       profile: serializePlayerProfile(player, showCcfQuestionnaire),
     });
-  } catch (error) {
+
+    });} catch (error) {
     if (error instanceof PlayerProfileAccessError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }

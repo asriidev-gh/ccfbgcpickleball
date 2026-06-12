@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { BLOCKED_LOGIN_MESSAGE, isUserBlocked } from "@/lib/user-block";
 import { recordUserLogin } from "@/lib/user-auth-audit";
 import { User } from "@/models/User";
@@ -9,7 +9,8 @@ import { getAuthCookieName, signAuthToken } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const body = await request.json();
     const email = String(body?.email ?? "").trim().toLowerCase();
     const password = String(body?.password ?? "");
@@ -43,7 +44,8 @@ export async function POST(request: Request) {
       maxAge: 60 * 60 * 24 * 7,
     });
     return response;
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to log in." },
       { status: 400 }

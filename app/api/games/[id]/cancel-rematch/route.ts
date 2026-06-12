@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { cancelRematch } from "@/lib/queue-engine";
 import { cancelCourtAssignmentSchema } from "@/lib/validations";
 import { getAuthUserFromCookie } from "@/lib/auth";
@@ -8,7 +8,8 @@ import { PickleGame } from "@/models/PickleGame";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
     const { id } = await params;
@@ -28,7 +29,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({
       message: `Court ${payload.courtNumber} rematch cancelled. Players returned to the queue.`,
     });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       {
         message: error instanceof Error ? error.message : "Failed to cancel rematch.",

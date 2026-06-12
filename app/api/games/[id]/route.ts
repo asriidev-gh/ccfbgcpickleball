@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase, runWithDatabase } from "@/lib/db";
+import { handleApiError } from "@/lib/handle-api-error";
+import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import { ensureGameRegistrationQr } from "@/lib/game-qr";
 import { getGameRegistrationCount } from "@/lib/game-registration-limit";
@@ -95,16 +96,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ message: "Invalid scope." }, { status: 400 });
     });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to load game." },
-      { status: 400 }
-    );
+    return handleApiError(error, {
+      source: "api/games/[id]",
+      request,
+      message: "Failed to load game.",
+    });
   }
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
     const { id: gameId } = await params;
@@ -218,17 +220,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     return NextResponse.json({ game: updatedGame, message: "Game updated." });
+    });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to update game." },
-      { status: 400 },
-    );
+    return handleApiError(error, {
+      source: "api/games/[id]",
+      request,
+      message: "Failed to update game.",
+    });
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
     const { id: gameId } = await params;
@@ -245,10 +249,12 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     ]);
 
     return NextResponse.json({ message: "Game deleted." });
+    });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to delete game." },
-      { status: 400 },
-    );
+    return handleApiError(error, {
+      source: "api/games/[id]",
+      request,
+      message: "Failed to delete game.",
+    });
   }
 }

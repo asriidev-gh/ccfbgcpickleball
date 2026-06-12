@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { REGISTRATION_FEATURE_QR_ID } from "@/lib/registration-feature";
 import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
 import { BLOCKED_LOGIN_MESSAGE, isUserBlocked } from "@/lib/user-block";
@@ -28,6 +28,8 @@ export async function GET(request: Request) {
     NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(message)}`);
 
   try {
+
+    return await runWithDatabase(async () => {
     const url = new URL(request.url);
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
@@ -80,8 +82,6 @@ export async function GET(request: Request) {
     if (!email || profile.email_verified === false) {
       return loginRedirect("Your Google account has no verified email.");
     }
-
-    await connectToDatabase();
 
     const device = getRegistrationDevice(request);
     const now = new Date();
@@ -136,7 +136,8 @@ export async function GET(request: Request) {
       maxAge: 0,
     });
     return response;
-  } catch (error) {
+
+    });} catch (error) {
     return loginRedirect(
       error instanceof Error ? error.message : "Google sign-in failed."
     );

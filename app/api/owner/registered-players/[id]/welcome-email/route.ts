@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUserFromCookie } from "@/lib/auth";
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { assertPlayerRegisteredWithOwner, resolvePlayerSiblings } from "@/lib/owner-player-actions";
 import { sendRegistrationWelcomeEmail } from "@/lib/registration-welcome-email";
 import { isSuperAdmin } from "@/lib/superadmin";
@@ -15,6 +15,8 @@ import { QueueEntry } from "@/models/QueueEntry";
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) {
       return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
@@ -25,7 +27,6 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
 
     const { id: playerId } = await params;
     await assertPlayerRegisteredWithOwner(authUser.userId, playerId);
-    await connectToDatabase();
 
     const player = await Player.findById(playerId).select(
       "firstName lastName email personalQrCode welcomeEmailStatus",
@@ -79,7 +80,8 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       welcomeEmailError: emailTracking.welcomeEmailError,
       welcomeEmailSentAt: emailTracking.welcomeEmailSentAt.toISOString(),
     });
-  } catch (error) {
+
+    });} catch (error) {
     const message = error instanceof Error ? error.message : "Failed to resend welcome email.";
     const status = message.includes("not registered") ? 403 : 400;
     return NextResponse.json({ message }, { status });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { recordPlayerCheckoutNotification } from "@/lib/organizer-notifications";
 import { formatPlayerDisplayName } from "@/lib/utils";
@@ -10,7 +10,8 @@ import "@/models/Player";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
 
     const { id: gameId } = await params;
@@ -93,7 +94,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     return NextResponse.json({ message: `${name} checked out of the queue.` });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to remove player from queue." },
       { status: 400 },

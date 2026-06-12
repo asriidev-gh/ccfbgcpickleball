@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { reorderQueuedPlayers } from "@/lib/queue-engine";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { PickleGame } from "@/models/PickleGame";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
@@ -44,7 +45,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await reorderQueuedPlayers(gameId, orderedEntryIds);
 
     return NextResponse.json({ message: "Queue order updated." });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       {
         message: error instanceof Error ? error.message : "Failed to reorder queue.",

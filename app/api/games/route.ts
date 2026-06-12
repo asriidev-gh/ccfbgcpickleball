@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { runWithDatabase } from "@/lib/db";
+import { handleApiError } from "@/lib/handle-api-error";
 import { DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
 import { PickleGame } from "@/models/PickleGame";
 import { User } from "@/models/User";
 import { authorizeAuthPayload, readAuthTokenPayload } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     return await runWithDatabase(async () => {
       const tokenPayload = await readAuthTokenPayload();
@@ -37,9 +38,11 @@ export async function GET() {
       });
     });
   } catch (error) {
-    return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to load games." },
-      { status: 400 }
-    );
+    return handleApiError(error, {
+      source: "api/games",
+      request,
+      status: 503,
+      message: "Unable to load games right now. Please try again.",
+    });
   }
 }

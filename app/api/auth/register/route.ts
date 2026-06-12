@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { REGISTRATION_FEATURE_QR_ID } from "@/lib/registration-feature";
 import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
 import { getRegistrationDevice } from "@/lib/user-auth-audit";
@@ -10,7 +10,8 @@ import { getAuthCookieName, signAuthToken } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const body = await request.json();
     const name = String(body?.name ?? "").trim();
     const email = String(body?.email ?? "").trim().toLowerCase();
@@ -50,7 +51,8 @@ export async function POST(request: Request) {
       maxAge: 60 * 60 * 24 * 7,
     });
     return response;
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to register." },
       { status: 400 }

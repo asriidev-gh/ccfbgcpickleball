@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { QueueEntry } from "@/models/QueueEntry";
 import { PickleGame } from "@/models/PickleGame";
 import { getAuthUserFromCookie } from "@/lib/auth";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
     const { id: gameId } = await params;
@@ -76,7 +77,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({
       message: `Swapped queue #${sourceIndex + 1} with #${targetIndex + 1}.`,
     });
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to swap players in the queue." },
       { status: 400 },

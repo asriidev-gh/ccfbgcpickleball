@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { connectToDatabase } from "@/lib/db";
+import { runWithDatabase } from "@/lib/db";
 import { getGameRegistrationStatus } from "@/lib/game-registration-limit";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await connectToDatabase();
+
+    return await runWithDatabase(async () => {
     const { id: gameId } = await params;
     const status = await getGameRegistrationStatus(gameId);
 
@@ -14,7 +15,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     }
 
     return NextResponse.json(status);
-  } catch (error) {
+
+    });} catch (error) {
     return NextResponse.json(
       {
         message:
