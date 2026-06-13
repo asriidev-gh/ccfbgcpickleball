@@ -1,6 +1,6 @@
 import type { z } from "zod";
 
-import { profileBaseSchema, profileCcfFieldsSchema } from "@/lib/validations";
+import { profileBaseSchema, profileCcfFieldsSchema, ownerProfileBaseSchema } from "@/lib/validations";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -38,6 +38,46 @@ export function getProfilePhotoFromFormData(formData: FormData) {
 
 type ProfilePayload = z.infer<typeof profileBaseSchema> &
   Partial<z.infer<typeof profileCcfFieldsSchema>>;
+
+type OwnerProfilePayload = z.infer<typeof ownerProfileBaseSchema> &
+  Partial<z.infer<typeof profileCcfFieldsSchema>>;
+
+export function parseOwnerProfilePayloadFromFormData(
+  formData: FormData,
+  includeCcf: boolean,
+): { success: true; data: OwnerProfilePayload } | { success: false; error: z.ZodError } {
+  const baseBody = {
+    firstName: formString(formData, "firstName"),
+    lastName: formString(formData, "lastName"),
+    email: formString(formData, "email"),
+    mobileNumber: formString(formData, "mobileNumber"),
+    gender: formString(formData, "gender"),
+    birthdate: formString(formData, "birthdate"),
+    biography: formString(formData, "biography"),
+    pickleballLevel: formString(formData, "pickleballLevel"),
+  };
+
+  const baseParsed = ownerProfileBaseSchema.safeParse(baseBody);
+  if (!baseParsed.success) return baseParsed;
+
+  if (!includeCcf) {
+    return { success: true, data: baseParsed.data };
+  }
+
+  const ccfBody = {
+    isPartOfDgroup: formBoolean(formData, "isPartOfDgroup"),
+    wantsToJoinDgroup: formNullableBoolean(formData, "wantsToJoinDgroup"),
+    attendedEvents: formStringArray(formData, "attendedEvents"),
+    attendedEventsOther: formString(formData, "attendedEventsOther"),
+  };
+  const ccfParsed = profileCcfFieldsSchema.safeParse(ccfBody);
+  if (!ccfParsed.success) return ccfParsed;
+
+  return {
+    success: true,
+    data: { ...baseParsed.data, ...ccfParsed.data },
+  };
+}
 
 export function parseProfilePayloadFromFormData(
   formData: FormData,

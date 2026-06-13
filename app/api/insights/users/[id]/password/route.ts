@@ -34,7 +34,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ message: "Passwords do not match." }, { status: 400 });
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.findByIdAndUpdate(id, { $set: { passwordHash } }, { new: true }).select(
+    const user = await User.findByIdAndUpdate(id, { $set: { passwordHash } }, { returnDocument: 'after' }).select(
       "name email",
     );
 

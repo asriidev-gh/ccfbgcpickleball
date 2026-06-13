@@ -1,4 +1,5 @@
 import { ensureGameRegistrationQr } from "@/lib/game-qr";
+import { resolveClubBranding } from "@/lib/club-branding";
 import { loadGameLeaderboardRecap } from "@/lib/game-leaderboard-recap";
 import { loadQueueCourtsAndCheckedOut } from "@/lib/load-spectate-game";
 import type {
@@ -9,6 +10,7 @@ import type {
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
 import { PickleGame } from "@/models/PickleGame";
+import { User } from "@/models/User";
 import "@/models/Player";
 
 const OPERATOR_LIVE_GAME_FIELDS =
@@ -20,11 +22,15 @@ export async function loadOperatorShell(
   gameId: string,
   ownerId: string,
 ): Promise<OperatorShellPayload | null> {
-  const game = await PickleGame.findOne({ gameId, ownerId }).select(OPERATOR_LIVE_GAME_FIELDS);
+  const [game, owner] = await Promise.all([
+    PickleGame.findOne({ gameId, ownerId }).select(OPERATOR_LIVE_GAME_FIELDS),
+    User.findById(ownerId).select("name clubName clubLogoUrl").lean(),
+  ]);
   if (!game) return null;
 
   return {
     game: game.toObject() as OperatorShellPayload["game"],
+    clubBranding: owner ? resolveClubBranding(owner) : null,
   };
 }
 

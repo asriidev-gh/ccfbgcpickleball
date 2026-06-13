@@ -69,7 +69,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         { status: 400 },
       );
     }
-    const user = await User.findByIdAndUpdate(id, { $set: updates }, { new: true }).select(
+    const user = await User.findByIdAndUpdate(id, { $set: updates }, { returnDocument: 'after' }).select(
       "name isBlocked registrationFeature userType",
     );
 

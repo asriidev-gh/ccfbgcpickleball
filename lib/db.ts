@@ -1,43 +1,74 @@
 import mongoose from "mongoose";
 
+type MongooseCache = {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+  connectedDatabaseName: string | null;
+  connectionEventsRegistered: boolean;
+  lastVerifiedAt: number;
+  reconnectPromise: Promise<typeof mongoose> | null;
+  suppressDisconnectReset: boolean;
+  dbOperationChain: Promise<unknown>;
+  dbWorkDepth: number;
+};
+
 declare global {
-  var mongooseCache:
-    | {
-        conn: typeof mongoose | null;
-        promise: Promise<typeof mongoose> | null;
-      }
-    | undefined;
+  var mongooseCache: MongooseCache | undefined;
 }
 
-const cached = global.mongooseCache ?? { conn: null, promise: null };
-global.mongooseCache = cached;
+function createMongooseCache(): MongooseCache {
+  return {
+    conn: null,
+    promise: null,
+    connectedDatabaseName: null,
+    connectionEventsRegistered: false,
+    lastVerifiedAt: 0,
+    reconnectPromise: null,
+    suppressDisconnectReset: false,
+    dbOperationChain: Promise.resolve(),
+    dbWorkDepth: 0,
+  };
+}
+
+function ensureMongooseCache(): MongooseCache {
+  const existing = global.mongooseCache;
+  if (
+    existing &&
+    "dbOperationChain" in existing &&
+    existing.dbOperationChain instanceof Promise
+  ) {
+    return existing;
+  }
+
+  const next = createMongooseCache();
+  if (existing) {
+    next.conn = existing.conn ?? null;
+    next.promise = existing.promise ?? null;
+  }
+  global.mongooseCache = next;
+  return next;
+}
+
+const cached = ensureMongooseCache();
 
 const RUN_WITH_DATABASE_ATTEMPTS = 5;
 
-let connectedDatabaseName: string | null = null;
-let connectionEventsRegistered = false;
-let lastVerifiedAt = 0;
-let reconnectPromise: Promise<typeof mongoose> | null = null;
-let suppressDisconnectReset = false;
-let dbOperationChain: Promise<unknown> = Promise.resolve();
-let dbWorkDepth = 0;
-
 /** True while a `runWithDatabase` / `runQueuedDatabaseWork` handler is executing. */
 export function isInDatabaseContext() {
-  return dbWorkDepth > 0;
+  return cached.dbWorkDepth > 0;
 }
 
 function runQueuedDatabaseWork<T>(work: () => Promise<T>): Promise<T> {
-  const task = dbOperationChain.then(async () => {
-    dbWorkDepth += 1;
+  const task = cached.dbOperationChain.then(async () => {
+    cached.dbWorkDepth += 1;
     try {
       return await work();
     } finally {
-      dbWorkDepth -= 1;
+      cached.dbWorkDepth -= 1;
     }
   });
 
-  dbOperationChain = task.then(
+  cached.dbOperationChain = task.then(
     () => undefined,
     () => undefined,
   );
@@ -46,18 +77,18 @@ function runQueuedDatabaseWork<T>(work: () => Promise<T>): Promise<T> {
 }
 
 function registerConnectionEvents() {
-  if (connectionEventsRegistered) return;
-  connectionEventsRegistered = true;
+  if (cached.connectionEventsRegistered) return;
+  cached.connectionEventsRegistered = true;
 
   mongoose.connection.on("disconnected", () => {
-    lastVerifiedAt = 0;
-    if (!suppressDisconnectReset) {
+    cached.lastVerifiedAt = 0;
+    if (!cached.suppressDisconnectReset) {
       resetCachedConnection();
     }
   });
   mongoose.connection.on("error", () => {
-    lastVerifiedAt = 0;
-    if (!suppressDisconnectReset) {
+    cached.lastVerifiedAt = 0;
+    if (!cached.suppressDisconnectReset) {
       resetCachedConnection();
     }
   });
@@ -105,7 +136,7 @@ function isTransientConnectionError(error: unknown) {
 function resetCachedConnection() {
   cached.conn = null;
   cached.promise = null;
-  connectedDatabaseName = null;
+  cached.connectedDatabaseName = null;
 }
 
 function getMongoUri() {
@@ -118,15 +149,30 @@ function getMongoUri() {
   return mongodbUri;
 }
 
+/** Reuse a live mongoose singleton after Turbopack HMR reloads this module. */
+function adoptExistingConnection(targetDatabaseName: string) {
+  if (!isConnectionReady()) return false;
+
+  const activeName = mongoose.connection.name?.trim();
+  if (!activeName || activeName !== targetDatabaseName) return false;
+
+  cached.connectedDatabaseName = targetDatabaseName;
+  cached.conn = mongoose;
+  if (!cached.promise) {
+    cached.promise = Promise.resolve(mongoose);
+  }
+  return true;
+}
+
 async function verifyConnectionAlive() {
   if (!isConnectionReady()) return false;
 
   try {
     await mongoose.connection.db?.admin().ping();
-    lastVerifiedAt = Date.now();
+    cached.lastVerifiedAt = Date.now();
     return true;
   } catch {
-    lastVerifiedAt = 0;
+    cached.lastVerifiedAt = 0;
     return false;
   }
 }
@@ -135,7 +181,7 @@ async function ensureDatabaseReady(dbNameOverride?: string) {
   await connectToDatabaseOnce(dbNameOverride);
   if (await verifyConnectionAlive()) return;
 
-  lastVerifiedAt = 0;
+  cached.lastVerifiedAt = 0;
   resetCachedConnection();
   await connectToDatabaseOnce(dbNameOverride);
   if (!(await verifyConnectionAlive())) {
@@ -147,13 +193,18 @@ async function openMongoConnection(
   mongodbUri: string,
   dbNameOverride?: string,
 ): Promise<typeof mongoose> {
-  if (reconnectPromise) {
-    return reconnectPromise;
+  if (cached.reconnectPromise) {
+    return cached.reconnectPromise;
   }
 
-  reconnectPromise = (async () => {
-    suppressDisconnectReset = true;
+  cached.reconnectPromise = (async () => {
+    cached.suppressDisconnectReset = true;
     try {
+      const targetDatabaseName = resolveDatabaseName(dbNameOverride);
+      if (adoptExistingConnection(targetDatabaseName) && (await verifyConnectionAlive())) {
+        return mongoose;
+      }
+
       if (mongoose.connection.readyState !== 0) {
         try {
           await mongoose.disconnect();
@@ -163,19 +214,19 @@ async function openMongoConnection(
       }
 
       resetCachedConnection();
-      connectedDatabaseName = resolveDatabaseName(dbNameOverride);
+      cached.connectedDatabaseName = targetDatabaseName;
       const conn = await mongoose.connect(mongodbUri, getMongoOptions(dbNameOverride));
       cached.conn = conn;
       cached.promise = Promise.resolve(conn);
-      lastVerifiedAt = Date.now();
+      cached.lastVerifiedAt = Date.now();
       return conn;
     } finally {
-      suppressDisconnectReset = false;
-      reconnectPromise = null;
+      cached.suppressDisconnectReset = false;
+      cached.reconnectPromise = null;
     }
   })();
 
-  return reconnectPromise;
+  return cached.reconnectPromise;
 }
 
 async function connectToDatabaseOnce(dbNameOverride?: string): Promise<typeof mongoose> {
@@ -184,9 +235,13 @@ async function connectToDatabaseOnce(dbNameOverride?: string): Promise<typeof mo
 
   registerConnectionEvents();
 
+  if (adoptExistingConnection(targetDatabaseName) && (await verifyConnectionAlive())) {
+    return mongoose;
+  }
+
   if (
     isConnectionReady() &&
-    connectedDatabaseName === targetDatabaseName &&
+    cached.connectedDatabaseName === targetDatabaseName &&
     (await verifyConnectionAlive())
   ) {
     return mongoose;
@@ -195,7 +250,7 @@ async function connectToDatabaseOnce(dbNameOverride?: string): Promise<typeof mo
   if (!cached.promise) {
     cached.promise = openMongoConnection(mongodbUri, dbNameOverride).catch((error) => {
       resetCachedConnection();
-      lastVerifiedAt = 0;
+      cached.lastVerifiedAt = 0;
       const reason = error instanceof Error ? error.message : "Unknown error";
       console.error("[db] MongoDB connection failed:", reason);
       throw new Error(
@@ -206,7 +261,7 @@ async function connectToDatabaseOnce(dbNameOverride?: string): Promise<typeof mo
 
   try {
     const conn = await cached.promise;
-    if (connectedDatabaseName === targetDatabaseName && (await verifyConnectionAlive())) {
+    if (cached.connectedDatabaseName === targetDatabaseName && (await verifyConnectionAlive())) {
       return conn;
     }
 
@@ -214,7 +269,7 @@ async function connectToDatabaseOnce(dbNameOverride?: string): Promise<typeof mo
     return openMongoConnection(mongodbUri, dbNameOverride);
   } catch (error) {
     resetCachedConnection();
-    lastVerifiedAt = 0;
+    cached.lastVerifiedAt = 0;
     throw error;
   }
 }
@@ -222,7 +277,7 @@ async function connectToDatabaseOnce(dbNameOverride?: string): Promise<typeof mo
 export async function connectToDatabase(
   dbNameOverride?: string,
 ): Promise<typeof mongoose> {
-  if (dbWorkDepth > 0) {
+  if (cached.dbWorkDepth > 0) {
     return mongoose;
   }
 
@@ -249,7 +304,7 @@ async function runWithDatabaseOnce<T>(
         attempt < RUN_WITH_DATABASE_ATTEMPTS - 1 && isTransientConnectionError(error);
       if (!shouldRetry) break;
 
-      lastVerifiedAt = 0;
+      cached.lastVerifiedAt = 0;
       resetCachedConnection();
       try {
         await openMongoConnection(mongodbUri, dbNameOverride);
@@ -282,7 +337,7 @@ export async function runWithDatabase<T>(
   fn: () => Promise<T>,
   dbNameOverride?: string,
 ): Promise<T> {
-  if (dbWorkDepth > 0) {
+  if (cached.dbWorkDepth > 0) {
     return fn();
   }
   return runQueuedDatabaseWork(() => runWithDatabaseOnce(fn, dbNameOverride));
@@ -293,7 +348,7 @@ export async function disconnectFromDatabase() {
     if (mongoose.connection.readyState !== 0) {
       await mongoose.disconnect();
     }
-    lastVerifiedAt = 0;
+    cached.lastVerifiedAt = 0;
     resetCachedConnection();
   });
 }

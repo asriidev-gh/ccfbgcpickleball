@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Loader2 } from "lucide-react";
+import { Copy, Loader2, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
@@ -42,7 +42,7 @@ import {
   type GenderOption,
   type PickleballLevel,
 } from "@/lib/player-profile-shared";
-import { profileBaseSchema, profileCcfFieldsSchema } from "@/lib/validations";
+import { profileCcfFieldsSchema, ownerProfileBaseSchema } from "@/lib/validations";
 
 type CcfEventsBeforeAnswer = "yes" | "not_yet";
 type FieldErrors = Record<string, string>;
@@ -142,6 +142,7 @@ export function OwnerPlayerDetailsDialog({
   const [photoUrl, setPhotoUrl] = useState("");
   const [isBlocked, setIsBlocked] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [qrEmailSent, setQrEmailSent] = useState(false);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["owner-player-profile", playerId],
@@ -178,6 +179,7 @@ export function OwnerPlayerDetailsDialog({
     setIsBlocked(data.isBlocked);
     setPhotoFile(null);
     setFieldErrors({});
+    setQrEmailSent(false);
     setForm({
       firstName: data.firstName,
       lastName: data.lastName,
@@ -193,6 +195,34 @@ export function OwnerPlayerDetailsDialog({
       attendedEventsOther: data.attendedEventsOther,
     });
   }, [data]);
+
+  useEffect(() => {
+    if (!player) {
+      setQrEmailSent(false);
+    }
+  }, [player]);
+
+  const resendQrEmailMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(
+        `/api/owner/registered-players/${encodeURIComponent(playerId)}/welcome-email`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as { message?: string; emailSent?: boolean };
+      if (!response.ok) throw new Error(payload.message ?? "Failed to resend QR code email.");
+      if (!payload.emailSent) {
+        throw new Error(payload.message ?? "QR code email could not be sent.");
+      }
+      return payload;
+    },
+    onSuccess: (payload) => {
+      setQrEmailSent(true);
+      toast.success(payload.message ?? "QR code email sent.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to resend QR code email.");
+    },
+  });
 
   const clearFieldError = (name: string) => {
     setFieldErrors((current) => {
@@ -249,6 +279,7 @@ export function OwnerPlayerDetailsDialog({
       const basePayload = {
         firstName: form.firstName,
         lastName: form.lastName,
+        email: form.email,
         mobileNumber: form.mobileNumber,
         gender: form.gender,
         birthdate: form.birthdate,
@@ -256,7 +287,7 @@ export function OwnerPlayerDetailsDialog({
         pickleballLevel: form.pickleballLevel,
       };
 
-      const baseValidation = profileBaseSchema.safeParse(basePayload);
+      const baseValidation = ownerProfileBaseSchema.safeParse(basePayload);
       if (!baseValidation.success) {
         showValidationErrors(baseValidation.error);
         throw new Error("validation");
@@ -277,6 +308,7 @@ export function OwnerPlayerDetailsDialog({
       const body = new FormData();
       body.append("firstName", basePayload.firstName);
       body.append("lastName", basePayload.lastName);
+      body.append("email", basePayload.email);
       body.append("mobileNumber", basePayload.mobileNumber);
       body.append("gender", basePayload.gender);
       body.append("birthdate", basePayload.birthdate);
@@ -465,13 +497,16 @@ export function OwnerPlayerDetailsDialog({
                   <Input
                     id="owner-profile-email"
                     type="email"
+                    autoComplete="email"
                     value={form.email}
-                    disabled
-                    readOnly
+                    aria-invalid={Boolean(fieldErrors.email)}
+                    disabled={saveMutation.isPending}
+                    onChange={(event) => {
+                      clearFieldError("email");
+                      setForm((prev) => ({ ...prev, email: event.target.value }));
+                    }}
                   />
-                  <p className="caption text-muted-foreground">
-                    Email is from registration and cannot be changed here.
-                  </p>
+                  {renderFieldError("email")}
                 </div>
                 <div className="register-field space-y-1.5">
                   <Label htmlFor="owner-profile-gender">Gender</Label>
@@ -622,8 +657,35 @@ export function OwnerPlayerDetailsDialog({
                       <Copy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
                       Copy QR ID
                     </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      disabled={
+                        qrEmailSent ||
+                        resendQrEmailMutation.isPending ||
+                        saveMutation.isPending ||
+                        !form.email.trim()
+                      }
+                      onClick={() => resendQrEmailMutation.mutate()}
+                    >
+                      {resendQrEmailMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                          Sending…
+                        </>
+                      ) : qrEmailSent ? (
+                        "QR successfully sent!"
+                      ) : (
+                        <>
+                          <Mail className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                          Resend QR code
+                        </>
+                      )}
+                    </Button>
                     <p className="text-center text-xs leading-relaxed text-muted-foreground">
-                      Tap the QR code to zoom in, or use the button to copy the personal QR ID.
+                      Tap the QR code to zoom in, copy the personal QR ID, or email it to the
+                      player.
                     </p>
                   </div>
                 ) : (

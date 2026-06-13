@@ -1,15 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CircleUser, LogOut, QrCode, TrendingUp } from "lucide-react";
+import { CircleUser, LogOut, Settings, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  CallNamesVoiceMenuEntry,
-  CallNamesVoiceSettingsDialog,
-} from "@/components/game/call-names-voice-settings";
+import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { ThemeMenuItems } from "@/components/theme-menu";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +22,7 @@ import {
 export function UserMenu() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const { data } = useQuery({
     queryKey: ["auth-me"],
@@ -60,65 +57,65 @@ export function UserMenu() {
 
   return (
     <>
-    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-11 w-11 shrink-0 rounded-full border-border"
-            aria-label="Account menu"
-          />
-        }
-      >
-        <CircleUser className="h-6 w-6" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        {data?.user ? (
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="font-semibold text-foreground">{data.user.name}</DropdownMenuLabel>
-            <DropdownMenuLabel className="pt-0 font-normal text-muted-foreground">
-              {data.user.email}
-            </DropdownMenuLabel>
-          </DropdownMenuGroup>
-        ) : null}
-        {data?.user?.isSuperAdmin ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/insights")}>
-              <TrendingUp />
-              Insights
-            </DropdownMenuItem>
-          </>
-        ) : null}
-        <CallNamesVoiceMenuEntry
-          onOpenSettings={() => {
-            setMenuOpen(false);
-            setVoiceSettingsOpen(true);
-          }}
-        />
-        {data?.user ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/settings/player-qr")}>
-              <QrCode />
-              QR download settings
-            </DropdownMenuItem>
-          </>
-        ) : null}
-        <DropdownMenuSeparator />
-        <ThemeMenuItems />
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={logout}>
-          <LogOut />
-          Logout
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-    <CallNamesVoiceSettingsDialog
-      open={voiceSettingsOpen}
-      onOpenChange={setVoiceSettingsOpen}
-    />
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 shrink-0 rounded-full border-border"
+              aria-label="Account menu"
+            />
+          }
+        >
+          <CircleUser className="h-6 w-6" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {data?.user ? (
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="font-semibold text-foreground">
+                {data.user.name}
+              </DropdownMenuLabel>
+              <DropdownMenuLabel className="pt-0 font-normal text-muted-foreground">
+                {data.user.email}
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
+          ) : null}
+          {data?.user?.isSuperAdmin ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/insights")}>
+                <TrendingUp />
+                Insights
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          {data?.user ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  setMenuOpen(false);
+                  setSettingsOpen(true);
+                }}
+              >
+                <Settings />
+                Settings
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          <DropdownMenuSeparator />
+          <ThemeMenuItems />
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={logout}>
+            <LogOut />
+            Logout
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {data?.user ? (
+        <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      ) : null}
     </>
   );
 }

@@ -15,7 +15,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     const game = await PickleGame.findOneAndUpdate(
       { gameId, ownerId: authUser.userId },
       { $set: { status: "ended" } },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!game) {

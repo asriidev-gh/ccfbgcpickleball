@@ -67,7 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           registeredAt,
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     ).populate("playerId", "firstName lastName");
 
     if (!entry) {

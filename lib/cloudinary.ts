@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from "cloudinary";
 
 import { GENERATED_AVATAR_PUBLIC_ID } from "@/lib/player-avatar-url";
+import { MAX_CLUB_LOGO_BYTES } from "@/lib/club-settings-shared";
 import {
   MAX_REGISTRATION_PHOTO_BYTES,
   REGISTRATION_PHOTO_ACCEPT_TYPES,
@@ -131,6 +132,61 @@ export async function uploadProfilePhoto(
       (error, uploadResult) => {
         if (error || !uploadResult?.secure_url || !uploadResult.public_id) {
           reject(error ?? new Error("Photo upload failed."));
+          return;
+        }
+        resolve({
+          secure_url: uploadResult.secure_url,
+          public_id: uploadResult.public_id,
+        });
+      },
+    );
+    stream.end(buffer);
+  });
+
+  return {
+    photoUrl: result.secure_url,
+    photoPublicId: result.public_id,
+  };
+}
+
+export async function uploadClubLogo(
+  file: File,
+  options: { userId: string },
+): Promise<RegistrationPhotoUpload> {
+  const config = getCloudinaryConfig();
+  if (!config) {
+    throw new Error("Logo upload is not configured. Contact support.");
+  }
+
+  if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    throw new Error("Please use a JPG, PNG, WebP, or GIF image.");
+  }
+
+  if (file.size > MAX_CLUB_LOGO_BYTES) {
+    throw new Error("Logo must be 2 MB or smaller.");
+  }
+
+  cloudinary.config(config);
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const publicId = `${Date.now()}-club-logo`;
+
+  const result = await new Promise<{
+    secure_url: string;
+    public_id: string;
+  }>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: `paddleflow/club-logos/${options.userId}`,
+        public_id: publicId,
+        resource_type: "image",
+        overwrite: false,
+        transformation: [{ width: 512, height: 512, crop: "limit", quality: "auto:good" }],
+      },
+      (error, uploadResult) => {
+        if (error || !uploadResult?.secure_url || !uploadResult.public_id) {
+          reject(error ?? new Error("Logo upload failed."));
           return;
         }
         resolve({

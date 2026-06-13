@@ -34,7 +34,7 @@ export async function PATCH(
     const match = await MatchHistory.findOneAndUpdate(
       { _id: matchId, gameId: id },
       { $set: { teamAScore, teamBScore } },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (!match) return NextResponse.json({ message: "Match not found." }, { status: 404 });
 

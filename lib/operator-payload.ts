@@ -1,3 +1,4 @@
+import type { ClubBranding } from "@/lib/club-branding";
 import type { CourtView } from "@/components/game/court-card";
 import type { MatchHistoryView } from "@/components/game/match-history-list";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
@@ -20,6 +21,7 @@ export type OperatorGameSummary = {
 
 export type OperatorShellPayload = {
   game: OperatorGameSummary;
+  clubBranding?: ClubBranding | null;
 };
 
 export type OperatorQueuePayload = {

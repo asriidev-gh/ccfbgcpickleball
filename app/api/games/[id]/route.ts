@@ -208,7 +208,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           ...(usesOwnerRegistration ? { registrationMode: "owner" as const } : {}),
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
 
     if (!updatedGame) {

@@ -20,6 +20,15 @@ const userSchema = new Schema(
     },
     /** Custom header on player QR downloads (max 20 chars). Empty uses default branding. */
     playerQrTitle: { type: String, trim: true, maxlength: 20, default: "" },
+    clubName: { type: String, trim: true, maxlength: 80, default: "" },
+    clubTagline: { type: String, trim: true, maxlength: 120, default: "" },
+    clubMissionVision: { type: String, trim: true, maxlength: 2000, default: "" },
+    clubLogoUrl: { type: String, trim: true, default: "" },
+    clubLogoPublicId: { type: String, trim: true, default: "" },
+    clubFacebookUrl: { type: String, trim: true, maxlength: 240, default: "" },
+    clubInstagramUrl: { type: String, trim: true, maxlength: 240, default: "" },
+    /** When true, embed club logo in player QR downloads. Undefined defaults to on when a logo exists. */
+    playerQrIncludeClubLogo: { type: Boolean },
     linkedPlayerId: { type: Schema.Types.ObjectId, ref: "Player", index: true, sparse: true },
     registeredDevice: { type: String, trim: true },
     lastLoginAt: { type: Date },

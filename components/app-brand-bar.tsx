@@ -7,22 +7,65 @@ import { PlayerSessionMenu } from "@/components/player/player-session-menu";
 import { RegisteredPlayersHeaderLink } from "@/components/registered-players-header-link";
 import { ThemeMenu } from "@/components/theme-menu";
 import { UserMenu } from "@/components/user-menu";
+import { useGameClubBranding } from "@/hooks/use-game-club-branding";
 import { getSpectateGameIdFromPath } from "@/lib/player-session";
 import { APP_NAME } from "@/lib/app-config";
-import { getBrandShellClasses, isPublicAppPath, isSpectatorPath, shouldHideAppBrandBar, shouldShowRegisteredPlayersHeaderLink } from "@/lib/app-shell";
+import {
+  getBrandShellClasses,
+  isGameDashboardPath,
+  isPublicAppPath,
+  isSpectatorPath,
+  shouldHideAppBrandBar,
+  shouldShowRegisteredPlayersHeaderLink,
+} from "@/lib/app-shell";
 import { dispatchRegistrationReset } from "@/lib/registration-reset";
 import { cn } from "@/lib/utils";
+import type { ClubBranding } from "@/lib/club-branding";
 
-function BrandTitle({ pathname, fromParam }: { pathname: string; fromParam: string | null }) {
+function ClubBrandLabel({ branding }: { branding: ClubBranding }) {
+  return (
+    <>
+      {branding.clubLogoUrl ? (
+        <img
+          src={branding.clubLogoUrl}
+          alt=""
+          className="app-brand__logo h-10 w-10 shrink-0 rounded-md border border-border/60 object-cover md:h-11 md:w-11"
+        />
+      ) : null}
+      <span className="truncate">{branding.clubName}</span>
+    </>
+  );
+}
+
+function BrandTitle({
+  pathname,
+  fromParam,
+  clubBranding,
+}: {
+  pathname: string;
+  fromParam: string | null;
+  clubBranding: ClubBranding | null;
+}) {
+  const useClubBrand = isGameDashboardPath(pathname) && clubBranding;
+  const brandClassName = cn(
+    "app-brand",
+    useClubBrand && "app-brand--club inline-flex min-w-0 max-w-full items-center gap-2.5",
+  );
+  const label = useClubBrand ? (
+    <ClubBrandLabel branding={clubBranding} />
+  ) : (
+    APP_NAME
+  );
+
   if (isSpectatorPath(pathname, fromParam)) {
-    return <span className="app-brand">{APP_NAME}</span>;
+    return <span className={brandClassName}>{label}</span>;
   }
 
   const match = pathname.match(/^\/register\/([^/]+)(?:\/success)?\/?$/);
   if (!match) {
     return (
-      <Link href="/" className="app-brand app-brand--action">
-        {APP_NAME}
+      <Link href="/" className={cn(brandClassName, "app-brand--action")}>
+        {label}
       </Link>
     );
   }
@@ -32,8 +75,8 @@ function BrandTitle({ pathname, fromParam }: { pathname: string; fromParam: stri
 
   if (isSuccess) {
     return (
-      <Link href={`/register/${gameId}`} className="app-brand app-brand--action">
-        {APP_NAME}
+      <Link href={`/register/${gameId}`} className={cn(brandClassName, "app-brand--action")}>
+        {label}
       </Link>
     );
   }
@@ -41,10 +84,10 @@ function BrandTitle({ pathname, fromParam }: { pathname: string; fromParam: stri
   return (
     <button
       type="button"
-      className="app-brand app-brand--action"
+      className={cn(brandClassName, "app-brand--action")}
       onClick={() => dispatchRegistrationReset()}
     >
-      {APP_NAME}
+      {label}
     </button>
   );
 }
@@ -53,6 +96,7 @@ export function AppBrandBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const fromParam = searchParams.get("from");
+  const clubBranding = useGameClubBranding(pathname, fromParam);
   const { pad, container } = getBrandShellClasses(pathname);
   const showThemeOnly = isPublicAppPath(pathname, fromParam);
   const spectateGameId = getSpectateGameIdFromPath(pathname);
@@ -65,7 +109,7 @@ export function AppBrandBar() {
     <header className="app-brand-bar">
       <div className={pad}>
         <div className={cn("app-brand-bar__inner mx-auto flex w-full items-center justify-between gap-3", container)}>
-          <BrandTitle pathname={pathname} fromParam={fromParam} />
+          <BrandTitle pathname={pathname} fromParam={fromParam} clubBranding={clubBranding} />
           <div className="app-brand-actions flex shrink-0 items-center gap-2">
             {showThemeOnly ? (
               spectateGameId ? (

@@ -62,7 +62,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const entry = await QueueEntry.findOneAndUpdate(
       updateFilter,
       { $set: { status: "checked_out" } },
-      { new: true },
+      { returnDocument: 'after' },
     ).populate("playerId", "firstName lastName");
 
     if (!entry) {

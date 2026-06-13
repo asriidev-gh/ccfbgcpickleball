@@ -626,6 +626,14 @@
     @apply cursor-pointer border-0 bg-transparent p-0 text-left transition-opacity hover:opacity-80;
   }
 
+  .app-brand--club {
+    @apply max-w-[min(100%,28rem)];
+  }
+
+  .app-brand__logo {
+    @apply bg-background;
+  }
+
   .page-title {
     @apply font-heading text-2xl font-semibold tracking-tight md:text-3xl;
     line-height: 1.25;

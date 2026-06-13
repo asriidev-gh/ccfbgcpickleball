@@ -4,7 +4,7 @@ import { getAuthUserFromCookie } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import { assertPlayerRegisteredWithOwner, resolvePlayerSiblings } from "@/lib/owner-player-actions";
 import { buildPlayerQrDataUrlWithBranding } from "@/lib/player-qr";
-import { resolvePlayerQrBrandingForOwner } from "@/lib/player-qr-branding";
+import { resolvePlayerQrRenderOptionsForOwner } from "@/lib/player-qr-branding";
 import { Player } from "@/models/Player";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -36,11 +36,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
       return NextResponse.json({ message: "This player has no QR code on file." }, { status: 404 });
     }
 
-    const branding = await resolvePlayerQrBrandingForOwner(authUser.userId);
+    const render = await resolvePlayerQrRenderOptionsForOwner(authUser.userId);
     const personalQrCodeDataUrl = await buildPlayerQrDataUrlWithBranding(personalQrCode, {
       registrantFirstName: player.firstName ?? "",
       registrantLastName: player.lastName ?? "",
-      branding,
+      branding: render.branding,
+      includeClubLogo: render.includeClubLogo,
+      clubLogoUrl: render.clubLogoUrl,
     });
 
     return NextResponse.json({

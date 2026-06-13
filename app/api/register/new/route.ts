@@ -23,7 +23,7 @@ import {
 } from "@/lib/parse-registration-form";
 import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
 import { buildPlayerQrDataUrlWithBranding } from "@/lib/player-qr";
-import { resolvePlayerQrBrandingForGame } from "@/lib/player-qr-branding";
+import { resolvePlayerQrRenderOptionsForGame } from "@/lib/player-qr-branding";
 import { resolveGameRegistrationFeature } from "@/lib/resolve-game-registration-feature";
 import { sendRegistrationWelcomeEmail } from "@/lib/registration-welcome-email";
 import { buildWelcomeEmailPlayerUpdate } from "@/lib/welcome-email-status";
@@ -209,13 +209,15 @@ export async function POST(request: Request) {
     const registrationFeature = await resolveGameRegistrationFeature(payload.gameId);
     const showPlayerQr =
       registrationFeature != null && isQrIdRegistrationEnabled(registrationFeature);
-    const branding = showPlayerQr ? await resolvePlayerQrBrandingForGame(payload.gameId) : null;
+    const render = showPlayerQr ? await resolvePlayerQrRenderOptionsForGame(payload.gameId) : null;
     const personalQrCodeDataUrl =
-      showPlayerQr && branding
+      showPlayerQr && render
         ? await buildPlayerQrDataUrlWithBranding(player.personalQrCode, {
             registrantFirstName: player.firstName,
             registrantLastName: player.lastName,
-            branding,
+            branding: render.branding,
+            includeClubLogo: render.includeClubLogo,
+            clubLogoUrl: render.clubLogoUrl,
           })
         : undefined;
 

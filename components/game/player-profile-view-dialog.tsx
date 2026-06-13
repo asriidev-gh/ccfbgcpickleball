@@ -1,8 +1,8 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { Copy, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Copy, Loader2, Mail } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { PlayerPhotoDialog, type PlayerPhotoRef } from "@/components/game/player-photo-dialog";
@@ -78,6 +78,7 @@ export function PlayerProfileViewDialog({
 }) {
   const [photoOpen, setPhotoOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [qrEmailSent, setQrEmailSent] = useState(false);
   const displayName =
     formatPlayerDisplayName(player.firstName, player.lastName) || "Player";
   const photoUrl = resolvePlayerPhotoUrl(player, 320);
@@ -110,6 +111,34 @@ export function PlayerProfileViewDialog({
   });
 
   const profile = profileQuery.data;
+
+  useEffect(() => {
+    if (!open) {
+      setQrEmailSent(false);
+    }
+  }, [open, playerId]);
+
+  const resendQrEmailMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(
+        `/api/owner/registered-players/${encodeURIComponent(playerId)}/welcome-email`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as { message?: string; emailSent?: boolean };
+      if (!response.ok) throw new Error(payload.message ?? "Failed to resend QR code email.");
+      if (!payload.emailSent) {
+        throw new Error(payload.message ?? "QR code email could not be sent.");
+      }
+      return payload;
+    },
+    onSuccess: (payload) => {
+      setQrEmailSent(true);
+      toast.success(payload.message ?? "QR code email sent.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to resend QR code email.");
+    },
+  });
 
   const copyQrCode = async () => {
     const code = qrQuery.data?.personalQrCode?.trim();
@@ -270,8 +299,34 @@ export function PlayerProfileViewDialog({
                         <Copy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
                         Copy QR ID
                       </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        disabled={
+                          qrEmailSent ||
+                          resendQrEmailMutation.isPending ||
+                          !profile.email?.trim()
+                        }
+                        onClick={() => resendQrEmailMutation.mutate()}
+                      >
+                        {resendQrEmailMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                            Sending…
+                          </>
+                        ) : qrEmailSent ? (
+                          "QR successfully sent!"
+                        ) : (
+                          <>
+                            <Mail className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                            Resend QR code
+                          </>
+                        )}
+                      </Button>
                       <p className="text-center text-xs leading-relaxed text-muted-foreground">
-                        Tap the QR code to zoom in, or use the button to copy the personal QR ID.
+                        Tap the QR code to zoom in, copy the personal QR ID, or email it to the
+                        player.
                       </p>
                     </div>
                   ) : (

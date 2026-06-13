@@ -4,7 +4,6 @@ import { getAuthUserFromCookie } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import { assertPlayerRegisteredWithOwner, resolvePlayerSiblings } from "@/lib/owner-player-actions";
 import { sendRegistrationWelcomeEmail } from "@/lib/registration-welcome-email";
-import { isSuperAdmin } from "@/lib/superadmin";
 import {
   buildWelcomeEmailPlayerUpdate,
   type WelcomeEmailStatus,
@@ -20,9 +19,6 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     const authUser = await getAuthUserFromCookie();
     if (!authUser) {
       return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
-    }
-    if (!isSuperAdmin(authUser.email)) {
-      return NextResponse.json({ message: "Forbidden." }, { status: 403 });
     }
 
     const { id: playerId } = await params;
@@ -70,8 +66,8 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     await Player.findByIdAndUpdate(playerId, emailTracking);
 
     const message = emailResult.sent
-      ? "Welcome email sent successfully."
-      : "Welcome email could not be sent.";
+      ? "QR code email sent successfully."
+      : "QR code email could not be sent.";
 
     return NextResponse.json({
       message,

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ZodError } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { useNavigateToSpectate } from "@/components/register/use-navigate-to-spectate";
 import { decodeQrCodeFromImageFile } from "@/lib/decode-qr-from-image";
 import {
   formatZodError,
@@ -19,10 +20,7 @@ import {
 } from "@/lib/queue-highlight";
 import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
 import type { RegistrationFormVariant } from "@/lib/registration-variant";
-import {
-  ALREADY_REGISTERED_MESSAGE,
-  CHECKED_OUT_RE_REGISTER_MESSAGE,
-} from "@/lib/registration-messages";
+import { CHECKED_OUT_RE_REGISTER_MESSAGE, ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
 import { genericExistingPlayerSchema } from "@/lib/validations";
 
 type UploadQrIdFlowProps = {
@@ -34,6 +32,7 @@ type UploadQrIdFlowProps = {
 type PlayerQueueStatus = "active" | "checked_out" | null;
 
 type LookupPlayer = {
+  playerId: string;
   firstName: string;
   lastName: string;
   personalQrCode: string;
@@ -44,6 +43,7 @@ type FieldErrors = Record<string, string>;
 
 export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: UploadQrIdFlowProps) {
   const router = useRouter();
+  const { navigateToSpectate, navigating } = useNavigateToSpectate(gameId);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +57,14 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
     const firstField = getFirstZodErrorField(error);
     setFieldErrors(errors);
     toast.error((firstField && errors[firstField]) || formatZodError(error));
+  };
+
+  const goToSpectatorView = async (playerId?: string) => {
+    if (playerId) {
+      setQueueHighlightPlayerId(gameId, playerId);
+      persistActiveQueueHighlight(gameId, playerId);
+    }
+    await navigateToSpectate({ applyQueueHighlight: false });
   };
 
   const lookupPlayer = async (personalQrCode: string) => {
@@ -75,7 +83,16 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
           ? data.queueStatus
           : null;
 
+      if (
+        (queueStatus === "active" || data.alreadyRegistered === true) &&
+        typeof data.playerId === "string"
+      ) {
+        await goToSpectatorView(data.playerId);
+        return;
+      }
+
       setPlayer({
+        playerId: typeof data.playerId === "string" ? data.playerId : "",
         firstName: data.firstName,
         lastName: data.lastName,
         personalQrCode: data.personalQrCode,
@@ -149,24 +166,27 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
       const data = await response.json();
 
       if (!response.ok) {
-        if (response.status === 409 && data.alreadyRegistered) {
-          const message =
-            typeof data.message === "string"
-              ? data.message
-              : data.checkedOut
-                ? CHECKED_OUT_RE_REGISTER_MESSAGE
-                : ALREADY_REGISTERED_MESSAGE;
-          toast.error(message);
+        if (response.status === 409) {
           if (data.checkedOut) {
+            toast.error(CHECKED_OUT_RE_REGISTER_MESSAGE);
             setPlayer((current) =>
               current ? { ...current, queueStatus: "checked_out" } : current,
             );
             setSubmitting(false);
             return;
           }
-          finishRegistrationSuccess(data?.player?._id);
-          return;
+
+          const playerId =
+            data?.player?._id != null ? String(data.player._id) : player.playerId;
+          const alreadyRegistered =
+            data.alreadyRegistered === true || data.message === ALREADY_REGISTERED_MESSAGE;
+
+          if (alreadyRegistered && playerId) {
+            await goToSpectatorView(playerId);
+            return;
+          }
         }
+
         toast.error(typeof data.message === "string" ? data.message : "Check-in failed.");
         setSubmitting(false);
         return;
@@ -181,7 +201,7 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
 
   return (
     <>
-      {lookupLoading || submitting ? (
+      {lookupLoading || submitting || navigating ? (
         <div
           className="register-loading-overlay"
           role="status"
@@ -191,7 +211,11 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
           <div className="register-loading-overlay-content">
             <Loader2 className="register-loading-spinner" aria-hidden />
             <p className="register-loading-title">
-              {submitting ? "Adding you to the queue…" : "Reading QR ID…"}
+              {navigating
+                ? "Opening live view…"
+                : submitting
+                  ? "Adding you to the queue…"
+                  : "Reading QR ID…"}
             </p>
             <p className="register-loading-caption">Please wait a moment.</p>
           </div>

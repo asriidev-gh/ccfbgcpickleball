@@ -52,7 +52,7 @@ export async function acquireOperatorDashboardLease(input: {
           createdAt: now,
         },
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: 'after' },
     );
     return { status: "active" };
   }

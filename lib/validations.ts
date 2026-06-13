@@ -2,6 +2,14 @@ import { z } from "zod";
 
 import { CCF_ATTENDED_NOT_YET } from "@/lib/ccf-registration";
 import {
+  MAX_CLUB_MISSION_VISION_LENGTH,
+  MAX_CLUB_NAME_LENGTH,
+  MAX_CLUB_SOCIAL_URL_LENGTH,
+  MAX_CLUB_TAGLINE_LENGTH,
+  isValidClubSocialUrl,
+  normalizeClubSocialUrl,
+} from "@/lib/club-settings-shared";
+import {
   loserScoreExceedsWinner,
   LOSER_SCORE_TOO_HIGH_MESSAGE,
   MAX_MATCH_SCORE,
@@ -324,6 +332,10 @@ export const profileBaseSchema = z.object({
   pickleballLevel: profilePickleballLevelSchema.optional().default(""),
 });
 
+export const ownerProfileBaseSchema = profileBaseSchema.extend({
+  email: z.string().min(1, "Email is required.").email("Enter a valid email address."),
+});
+
 export const profileCcfFieldsSchema = z
   .object({
     isPartOfDgroup: z.boolean(),
@@ -355,3 +367,33 @@ export const removePlayerFromGameSchema = z
       });
     }
   });
+
+export const clubSettingsSchema = z.object({
+  clubName: z
+    .string()
+    .trim()
+    .max(MAX_CLUB_NAME_LENGTH, `Club name must be ${MAX_CLUB_NAME_LENGTH} characters or less.`),
+  clubTagline: z
+    .string()
+    .trim()
+    .max(MAX_CLUB_TAGLINE_LENGTH, `Tag line must be ${MAX_CLUB_TAGLINE_LENGTH} characters or less.`),
+  clubMissionVision: z
+    .string()
+    .trim()
+    .max(
+      MAX_CLUB_MISSION_VISION_LENGTH,
+      `Mission and vision must be ${MAX_CLUB_MISSION_VISION_LENGTH} characters or less.`,
+    ),
+  clubFacebookUrl: z
+    .string()
+    .trim()
+    .max(MAX_CLUB_SOCIAL_URL_LENGTH, `Facebook link must be ${MAX_CLUB_SOCIAL_URL_LENGTH} characters or less.`)
+    .transform(normalizeClubSocialUrl)
+    .refine(isValidClubSocialUrl, { message: "Enter a valid Facebook link." }),
+  clubInstagramUrl: z
+    .string()
+    .trim()
+    .max(MAX_CLUB_SOCIAL_URL_LENGTH, `Instagram link must be ${MAX_CLUB_SOCIAL_URL_LENGTH} characters or less.`)
+    .transform(normalizeClubSocialUrl)
+    .refine(isValidClubSocialUrl, { message: "Enter a valid Instagram link." }),
+});

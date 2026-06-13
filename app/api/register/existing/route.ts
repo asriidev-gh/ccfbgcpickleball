@@ -94,7 +94,7 @@ export async function POST(request: Request) {
           volunteerType: volunteerPayload.volunteerType,
           volunteerTypeOther: volunteerPayload.volunteerTypeOther,
         },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       );
     }
 

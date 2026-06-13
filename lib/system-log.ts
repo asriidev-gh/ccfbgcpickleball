@@ -92,7 +92,7 @@ function buildLogPayload(input: RecordSystemLogInput, actor?: SystemLogActor | n
 
 function shouldSkipDatabasePersist(input: RecordSystemLogInput) {
   if (input.source === "db") return true;
-  return /mongodb connection failed|connection failed after|must be connected|client was closed/i.test(
+  return /mongodb connection failed|connection failed after|must be connected|client was closed|connection is not ready/i.test(
     input.message,
   );
 }

@@ -11,8 +11,8 @@ import type { OwnerPlayerProfile } from "@/lib/owner-registered-players-shared";
 import { getRegistrationFormVariant } from "@/lib/registration-variant";
 import { capitalizeNameWords } from "@/lib/utils";
 import {
-  profileBaseSchema,
   profileCcfFieldsSchema,
+  ownerProfileBaseSchema,
   type ProfileCcfFieldsInput,
 } from "@/lib/validations";
 import { Player } from "@/models/Player";
@@ -92,7 +92,7 @@ export async function getOwnerPlayerProfile(
   };
 }
 
-type ProfileUpdatePayload = ReturnType<typeof profileBaseSchema.parse> &
+type ProfileUpdatePayload = ReturnType<typeof ownerProfileBaseSchema.parse> &
   Partial<ProfileCcfFieldsInput>;
 
 export async function updateOwnerPlayerProfile(
@@ -125,6 +125,7 @@ export async function updateOwnerPlayerProfile(
   const update: Record<string, unknown> = {
     firstName: capitalizeNameWords(payload.firstName),
     lastName: capitalizeNameWords(payload.lastName),
+    email: payload.email.trim().toLowerCase(),
     mobileNumber: payload.mobileNumber,
     gender: payload.gender || "",
     biography: payload.biography,
@@ -164,10 +165,10 @@ export async function parseOwnerProfileUpdate(
   showCcfQuestionnaire: boolean,
 ) {
   if (formData) {
-    const { parseProfilePayloadFromFormData, getProfilePhotoFromFormData } = await import(
+    const { parseOwnerProfilePayloadFromFormData, getProfilePhotoFromFormData } = await import(
       "@/lib/parse-profile-form"
     );
-    const parsed = parseProfilePayloadFromFormData(formData, showCcfQuestionnaire);
+    const parsed = parseOwnerProfilePayloadFromFormData(formData, showCcfQuestionnaire);
     if (!parsed.success) return { error: parsed.error } as const;
     return {
       payload: parsed.data,
@@ -175,7 +176,7 @@ export async function parseOwnerProfileUpdate(
     } as const;
   }
 
-  const baseParsed = profileBaseSchema.safeParse(body);
+  const baseParsed = ownerProfileBaseSchema.safeParse(body);
   if (!baseParsed.success) return { error: baseParsed.error } as const;
 
   let payload: ProfileUpdatePayload = baseParsed.data;

@@ -13,6 +13,31 @@ import {
 
 const ACTIVE_QUEUE_STATUSES = ["queued", "on_court", "done"] as const;
 
+export type PlayerQueueStatusForGame = "active" | "checked_out" | null;
+
+export async function getPlayerQueueStatusForGame(
+  gameId: string,
+  playerId: string,
+): Promise<PlayerQueueStatusForGame> {
+  await connectToDatabase();
+
+  const activeEntry = await QueueEntry.exists({
+    gameId,
+    playerId,
+    status: { $in: ACTIVE_QUEUE_STATUSES },
+  });
+  if (activeEntry) return "active";
+
+  const checkedOutEntry = await QueueEntry.exists({
+    gameId,
+    playerId,
+    status: "checked_out",
+  });
+  if (checkedOutEntry) return "checked_out";
+
+  return null;
+}
+
 export class RegistrationLimitError extends Error {
   status: number;
   playerId?: string;
@@ -111,24 +136,14 @@ export async function assertGameRegistrationAllowed(
   }
 
   if (options?.playerId) {
-    const activeEntry = await QueueEntry.exists({
-      gameId,
-      playerId: options.playerId,
-      status: { $in: ACTIVE_QUEUE_STATUSES },
-    });
-    if (activeEntry) {
+    const queueStatus = await getPlayerQueueStatusForGame(gameId, options.playerId);
+    if (queueStatus === "active") {
       throw new RegistrationLimitError(ALREADY_REGISTERED_MESSAGE, 409, {
         playerId: options.playerId,
         alreadyRegistered: true,
       });
     }
-
-    const checkedOutEntry = await QueueEntry.exists({
-      gameId,
-      playerId: options.playerId,
-      status: "checked_out",
-    });
-    if (checkedOutEntry) {
+    if (queueStatus === "checked_out") {
       throw new RegistrationLimitError(CHECKED_OUT_RE_REGISTER_MESSAGE, 409, {
         playerId: options.playerId,
         alreadyRegistered: true,

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { runWithDatabase } from "@/lib/db";
 import { normalizePersonalQrCode } from "@/lib/normalize-personal-qr-code";
 import { getPlayerQrDownloadFilename, buildPlayerQrDataUrlWithBranding } from "@/lib/player-qr";
-import { resolvePlayerQrBrandingForPlayer } from "@/lib/player-qr-branding";
+import { resolvePlayerQrRenderOptionsForPlayer } from "@/lib/player-qr-branding";
 import { Player } from "@/models/Player";
 
 export async function GET(request: Request) {
@@ -27,11 +27,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Player QR not found." }, { status: 404 });
     }
 
-    const branding = await resolvePlayerQrBrandingForPlayer(player._id.toString(), gameId);
+    const render = await resolvePlayerQrRenderOptionsForPlayer(player._id.toString(), gameId);
     const personalQrCodeDataUrl = await buildPlayerQrDataUrlWithBranding(player.personalQrCode, {
       registrantFirstName: player.firstName,
       registrantLastName: player.lastName,
-      branding,
+      branding: render.branding,
+      includeClubLogo: render.includeClubLogo,
+      clubLogoUrl: render.clubLogoUrl,
     });
 
     const base64 = personalQrCodeDataUrl.split(",")[1] ?? "";

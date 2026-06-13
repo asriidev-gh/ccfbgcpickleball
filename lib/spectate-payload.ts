@@ -1,3 +1,4 @@
+import type { ClubBranding } from "@/lib/club-branding";
 import type { GameLeaderboardRecapRow } from "@/lib/game-leaderboard-recap";
 import type { LeaderboardGamesPlayedRow } from "@/lib/games-played-map";
 import type { SessionInsight } from "@/lib/session-insights";
@@ -21,6 +22,7 @@ export type SpectateLivePayload = {
   checkedOut: QueueEntryView[];
   courts: CourtView[];
   spectatorCount?: number;
+  clubBranding?: ClubBranding | null;
 };
 
 export type SpectateDetailsPayload = {

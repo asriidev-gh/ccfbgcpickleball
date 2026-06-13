@@ -6,7 +6,7 @@ import {
   buildPlayerQrDataUrlWithBranding,
   getPlayerQrDownloadFilename,
 } from "@/lib/player-qr";
-import { resolvePlayerQrBrandingForGame } from "@/lib/player-qr-branding";
+import { resolvePlayerQrRenderOptionsForGame } from "@/lib/player-qr-branding";
 import { getResendApiKey, getResendFromEmail } from "@/lib/resend-config";
 import type { RegistrationWelcomeEmailResult } from "@/lib/welcome-email-status";
 import { formatPlayerDisplayName } from "@/lib/utils";
@@ -105,11 +105,13 @@ export async function sendRegistrationWelcomeEmail(
     return { sent: false as const, reason: "missing_recipient" as const };
   }
 
-  const branding = await resolvePlayerQrBrandingForGame(input.gameId);
+  const render = await resolvePlayerQrRenderOptionsForGame(input.gameId);
   const qrDataUrl = await buildPlayerQrDataUrlWithBranding(input.personalQrCode, {
     registrantFirstName: input.firstName,
     registrantLastName: input.lastName,
-    branding,
+    branding: render.branding,
+    includeClubLogo: render.includeClubLogo,
+    clubLogoUrl: render.clubLogoUrl,
   });
 
   const base64 = qrDataUrl.includes(",") ? (qrDataUrl.split(",")[1] ?? "") : qrDataUrl;

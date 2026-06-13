@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { runWithDatabase } from "@/lib/db";
+import { getPlayerQueueStatusForGame } from "@/lib/game-registration-limit";
 import { formatZodError } from "@/lib/format-zod-error";
 import { normalizePersonalQrCode } from "@/lib/normalize-personal-qr-code";
 import { recordCheckinAttemptNotification } from "@/lib/organizer-notifications";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import { Player } from "@/models/Player";
-import { QueueEntry } from "@/models/QueueEntry";
 
 const lookupSchema = z.object({
   personalQrCode: z.string().min(4, "Personal QR code is required."),
@@ -29,21 +29,15 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "Player QR not found." }, { status: 404 });
       }
 
+      const playerId = String(player._id);
       let queueStatus: "active" | "checked_out" | null = null;
       if (parsed.data.gameId) {
-        const entry = await QueueEntry.findOne({
-          gameId: parsed.data.gameId,
-          playerId: player._id,
-        }).select("status");
-
-        if (entry) {
-          queueStatus = entry.status === "checked_out" ? "checked_out" : "active";
-        }
+        queueStatus = await getPlayerQueueStatusForGame(parsed.data.gameId, playerId);
 
         if (queueStatus === "checked_out") {
           await recordCheckinAttemptNotification({
             gameId: parsed.data.gameId,
-            playerId: String(player._id),
+            playerId,
             playerName: formatPlayerDisplayName(player.firstName, player.lastName),
           });
         }
@@ -51,10 +45,12 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         found: true,
+        playerId,
         firstName: player.firstName,
         lastName: player.lastName,
         personalQrCode,
         queueStatus,
+        alreadyRegistered: queueStatus === "active",
       });
     });
   } catch (error) {

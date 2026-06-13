@@ -502,7 +502,7 @@ export async function endGameAndRequeue(input: {
             currentStreak: hasWon ? 1 : -1,
           },
         },
-        { upsert: true, new: true },
+        { upsert: true, returnDocument: 'after' },
       );
     }),
   );

@@ -1,3 +1,12 @@
+export function getGameIdFromGamesPath(pathname: string) {
+  const match = pathname.match(/^\/games\/([^/]+)/);
+  return match?.[1] ?? null;
+}
+
+export function isGameDashboardPath(pathname: string) {
+  return pathname.startsWith("/games/");
+}
+
 export function getBrandShellClasses(pathname: string) {
   if (pathname.startsWith("/games/")) {
     return {
