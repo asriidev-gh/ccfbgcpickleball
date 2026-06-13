@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createPrayerRequestFromRegistration } from "@/lib/owner-prayer-requests";
 import { runWithDatabase } from "@/lib/db";
 import {
   assertGameRegistrationAllowed,
@@ -77,6 +78,15 @@ export async function POST(request: Request) {
       status: "queued",
       queueType: "normal",
     });
+
+    if (!isVolunteer && !isGenericForm && !isQrUploadCheckIn) {
+      const playerPayload = payload as ExistingPlayerInput;
+      await createPrayerRequestFromRegistration(
+        payload.gameId,
+        String(player._id),
+        playerPayload.prayerRequest ?? "",
+      );
+    }
 
     await recordPlayerRegisteredNotification({
       gameId: payload.gameId,

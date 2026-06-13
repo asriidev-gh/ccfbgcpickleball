@@ -16,6 +16,7 @@ import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
 import { findPlayerAlreadyRegisteredForGame } from "@/lib/registration-duplicate";
 import { capitalizeNameWords, formatPlayerDisplayName } from "@/lib/utils";
 import { recordPlayerRegisteredNotification } from "@/lib/organizer-notifications";
+import { createPrayerRequestFromRegistration } from "@/lib/owner-prayer-requests";
 import {
   getRegistrationPhotoFromFormData,
   parseGenericPlayerPayloadFromFormData,
@@ -190,6 +191,15 @@ export async function POST(request: Request) {
       status: "queued",
       queueType: "normal",
     });
+
+    if (!isVolunteerNewPlayerPayload(payload) && formVariant !== "generic") {
+      const ccfPayload = payload as NewPlayerInput;
+      await createPrayerRequestFromRegistration(
+        payload.gameId,
+        String(player._id),
+        ccfPayload.prayerRequest ?? "",
+      );
+    }
 
     await recordPlayerRegisteredNotification({
       gameId: payload.gameId,

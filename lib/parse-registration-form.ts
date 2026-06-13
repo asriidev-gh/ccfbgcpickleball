@@ -86,6 +86,7 @@ export function parseNewPlayerPayloadFromFormData(
     wantsToJoinDgroup: formNullableBoolean(formData, "wantsToJoinDgroup"),
     attendedEvents: formStringArray(formData, "attendedEvents"),
     attendedEventsOther: formString(formData, "attendedEventsOther"),
+    prayerRequest: formString(formData, "prayerRequest"),
     volunteerTypeOther: formString(formData, "volunteerTypeOther"),
   };
 

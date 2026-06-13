@@ -13,7 +13,7 @@ import { clubSettingsSchema } from "@/lib/validations";
 import { User } from "@/models/User";
 
 const CLUB_SETTINGS_SELECT =
-  "name clubName clubTagline clubMissionVision clubLogoUrl clubLogoPublicId clubFacebookUrl clubInstagramUrl";
+  "name clubName clubTagline clubAdditionalInfo clubMissionVision clubLogoUrl clubLogoPublicId clubFacebookUrl clubInstagramUrl clubAddress clubGoogleMapEmbedUrl";
 
 function resolveDefaultClubName(user: { name?: string }, authName: string) {
   const name = typeof user.name === "string" ? user.name.trim() : "";
@@ -23,14 +23,19 @@ function resolveDefaultClubName(user: { name?: string }, authName: string) {
 function normalizeClubSettings(user: {
   clubName?: string;
   clubTagline?: string;
+  clubAdditionalInfo?: string;
   clubMissionVision?: string;
   clubLogoUrl?: string;
   clubFacebookUrl?: string;
   clubInstagramUrl?: string;
+  clubAddress?: string;
+  clubGoogleMapEmbedUrl?: string;
 }): ClubSettings {
   return {
     clubName: typeof user.clubName === "string" ? user.clubName.trim() : "",
     clubTagline: typeof user.clubTagline === "string" ? user.clubTagline.trim() : "",
+    clubAdditionalInfo:
+      typeof user.clubAdditionalInfo === "string" ? user.clubAdditionalInfo.trim() : "",
     clubMissionVision:
       typeof user.clubMissionVision === "string" ? user.clubMissionVision.trim() : "",
     clubLogoUrl: typeof user.clubLogoUrl === "string" ? user.clubLogoUrl.trim() : "",
@@ -38,6 +43,9 @@ function normalizeClubSettings(user: {
       typeof user.clubFacebookUrl === "string" ? user.clubFacebookUrl.trim() : "",
     clubInstagramUrl:
       typeof user.clubInstagramUrl === "string" ? user.clubInstagramUrl.trim() : "",
+    clubAddress: typeof user.clubAddress === "string" ? user.clubAddress.trim() : "",
+    clubGoogleMapEmbedUrl:
+      typeof user.clubGoogleMapEmbedUrl === "string" ? user.clubGoogleMapEmbedUrl.trim() : "",
   };
 }
 
@@ -81,9 +89,12 @@ export async function PATCH(request: Request) {
       const parsed = clubSettingsSchema.safeParse({
         clubName: formData.get("clubName") ?? "",
         clubTagline: formData.get("clubTagline") ?? "",
+        clubAdditionalInfo: formData.get("clubAdditionalInfo") ?? "",
         clubMissionVision: formData.get("clubMissionVision") ?? "",
         clubFacebookUrl: formData.get("clubFacebookUrl") ?? "",
         clubInstagramUrl: formData.get("clubInstagramUrl") ?? "",
+        clubAddress: formData.get("clubAddress") ?? "",
+        clubGoogleMapEmbedUrl: formData.get("clubGoogleMapEmbedUrl") ?? "",
       });
       if (!parsed.success) {
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });

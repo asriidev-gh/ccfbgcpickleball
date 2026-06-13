@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
+import { swalAlertBaseOptions, selfQueueCheckoutMessageHtml } from "@/lib/swal-theme";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
 import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
@@ -131,12 +132,7 @@ type DashboardMobileTab = "queue" | "courts" | "history";
 
 type GamePayload = OperatorFullPayload;
 
-const alertBaseOptions = {
-  background: "#0f172a",
-  color: "#e2e8f0",
-  confirmButtonColor: "#22c55e",
-  cancelButtonColor: "#ef4444",
-};
+const alertBaseOptions = swalAlertBaseOptions;
 
 const WAITING_LIST_STORAGE_KEY = "ccf-queue-waiting-visible";
 const CHECKED_OUT_LIST_STORAGE_KEY = "ccf-queue-checked-out-visible";
@@ -1447,7 +1443,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       ...alertBaseOptions,
       title: "Check out?",
       html: isSelfCheckout
-        ? `<strong>${playerName}</strong>, you will be checked out of the queue, but your registration and match history are kept.`
+        ? selfQueueCheckoutMessageHtml(playerName)
         : `<strong>${playerName}</strong> will be checked out of the queue. Their registration and match history are kept.`,
       icon: "warning",
       showCancelButton: true,

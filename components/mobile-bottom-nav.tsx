@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
+
+/** Space reserved above the fixed mobile bottom nav (matches main content padding). */
+export const MOBILE_BOTTOM_NAV_CLEARANCE = "calc(4.75rem + env(safe-area-inset-bottom))";
 
 export function MobileBottomNavShell({
   children,
@@ -12,6 +15,13 @@ export function MobileBottomNavShell({
   children: ReactNode;
   ariaLabel: string;
 }) {
+  useEffect(() => {
+    document.documentElement.dataset.mobileBottomNav = "true";
+    return () => {
+      delete document.documentElement.dataset.mobileBottomNav;
+    };
+  }, []);
+
   return (
     <nav
       className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur-md lg:hidden"

@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 
 import { CallNamesVoiceSettingsPanel } from "@/components/game/call-names-voice-settings";
 import { isCallNamesSpeechSupported } from "@/lib/call-names-speech";
-import { ClubSettingsTab } from "@/components/settings/club-settings-tab";
 import { PlayerQrSettingsPanel } from "@/components/settings/player-qr-settings-panel";
 import {
   Dialog,
@@ -16,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export type SettingsTab = "club" | "voice" | "qr";
+export type SettingsTab = "voice" | "qr";
 
 type SettingsDialogProps = {
   open: boolean;
@@ -27,14 +26,14 @@ type SettingsDialogProps = {
 export function SettingsDialog({
   open,
   onOpenChange,
-  initialTab = "club",
+  initialTab = "qr",
 }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const showVoiceTab = isCallNamesSpeechSupported();
 
   useEffect(() => {
     if (open) {
-      setActiveTab(showVoiceTab || initialTab !== "voice" ? initialTab : "club");
+      setActiveTab(showVoiceTab || initialTab !== "voice" ? initialTab : "qr");
     } else {
       window.speechSynthesis?.cancel();
     }
@@ -49,14 +48,14 @@ export function SettingsDialog({
             Settings
           </DialogTitle>
           <DialogDescription>
-            Club profile, court announcements, and player QR downloads.
+            Court announcement voice and player QR download preferences.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs
           value={activeTab}
           onValueChange={(value) => {
-            if (value === "club" || value === "voice" || value === "qr") {
+            if (value === "voice" || value === "qr") {
               setActiveTab(value);
             }
           }}
@@ -64,16 +63,12 @@ export function SettingsDialog({
         >
           <div className="shrink-0 border-b border-border px-5 py-3">
             <TabsList className="w-full justify-start overflow-x-auto">
-              <TabsTrigger value="club">Club</TabsTrigger>
               {showVoiceTab ? <TabsTrigger value="voice">Voice</TabsTrigger> : null}
               <TabsTrigger value="qr">QR download</TabsTrigger>
             </TabsList>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            <TabsContent value="club" className="mt-0">
-              <ClubSettingsTab />
-            </TabsContent>
             {showVoiceTab ? (
               <TabsContent value="voice" className="mt-0">
                 <CallNamesVoiceSettingsPanel />

@@ -15,7 +15,7 @@ export function getBrandShellClasses(pathname: string) {
     };
   }
 
-  if (pathname === "/" || pathname === "/my-games") {
+  if (pathname === "/" || pathname === "/my-games" || pathname === "/my-club") {
     return {
       pad: "px-6 lg:px-10",
       container: "max-w-7xl",
@@ -46,16 +46,22 @@ export function isPublicAppPath(pathname: string, fromParam: string | null) {
   return false;
 }
 
-const REGISTERED_PLAYERS_HEADER_HIDDEN_PATHS = new Set([
+const OWNER_DASHBOARD_NAV_HIDDEN_PATHS = new Set([
   "/",
   "/users",
+  "/my-club",
   "/my-games",
   "/insights",
 ]);
 
-/** Dashboard, game, and dedicated pages already expose registered players navigation. */
-export function shouldShowRegisteredPlayersHeaderLink(pathname: string) {
-  if (REGISTERED_PLAYERS_HEADER_HIDDEN_PATHS.has(pathname)) return false;
+/** Dashboard and dedicated pages already expose owner navigation in-page. */
+export function shouldShowOwnerDashboardNavLinks(pathname: string) {
+  if (OWNER_DASHBOARD_NAV_HIDDEN_PATHS.has(pathname)) return false;
   if (pathname.startsWith("/games/")) return false;
   return true;
+}
+
+/** @deprecated Use shouldShowOwnerDashboardNavLinks */
+export function shouldShowRegisteredPlayersHeaderLink(pathname: string) {
+  return shouldShowOwnerDashboardNavLinks(pathname);
 }

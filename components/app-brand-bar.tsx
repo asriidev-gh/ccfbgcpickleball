@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
+import { MyClubHeaderLink } from "@/components/my-club-header-link";
 import { PlayerSessionMenu } from "@/components/player/player-session-menu";
 import { RegisteredPlayersHeaderLink } from "@/components/registered-players-header-link";
 import { ThemeMenu } from "@/components/theme-menu";
@@ -16,7 +17,7 @@ import {
   isPublicAppPath,
   isSpectatorPath,
   shouldHideAppBrandBar,
-  shouldShowRegisteredPlayersHeaderLink,
+  shouldShowOwnerDashboardNavLinks,
 } from "@/lib/app-shell";
 import { dispatchRegistrationReset } from "@/lib/registration-reset";
 import { cn } from "@/lib/utils";
@@ -119,8 +120,11 @@ export function AppBrandBar() {
               )
             ) : (
               <>
-                {shouldShowRegisteredPlayersHeaderLink(pathname) ? (
-                  <RegisteredPlayersHeaderLink />
+                {shouldShowOwnerDashboardNavLinks(pathname) ? (
+                  <div className="flex items-center gap-2">
+                    <RegisteredPlayersHeaderLink />
+                    <MyClubHeaderLink />
+                  </div>
                 ) : null}
                 <UserMenu />
               </>

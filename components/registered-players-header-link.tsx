@@ -27,7 +27,7 @@ export function RegisteredPlayersHeaderLink() {
       className={cn(
         buttonVariants({ variant: "outline" }),
         "inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-border px-3",
-        pathname === "/users" && "bg-accent text-accent-foreground",
+        pathname === "/users" && "owner-header-nav-link--active-users",
       )}
       aria-current={pathname === "/users" ? "page" : undefined}
     >

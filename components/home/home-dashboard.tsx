@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, ChevronDown, LayoutGrid, TrendingUp, Users } from "lucide-react";
+import { BarChart3, Building2, ChevronDown, LayoutGrid, TrendingUp, Users } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -163,7 +163,7 @@ export function HomeDashboard({
   const showRegisteredPlayers = Boolean(authData?.user);
   const sessionGames = sessionTab === "active" ? activeGames : pastGames;
   const dashboardTileCount =
-    1 + (showRegisteredPlayers ? 1 : 0) + (isSuperAdmin ? 1 : 0);
+    1 + (showRegisteredPlayers ? 2 : 0) + (isSuperAdmin ? 1 : 0);
 
   return (
     <div className="home-dashboard space-y-5">
@@ -176,6 +176,7 @@ export function HomeDashboard({
       <div
         className={cn(
           "home-dashboard-tiles grid gap-2 sm:gap-3",
+          dashboardTileCount === 4 && "grid-cols-2 sm:grid-cols-4",
           dashboardTileCount === 3 && "grid-cols-3",
           dashboardTileCount === 2 && "grid-cols-2 sm:max-w-xl",
           dashboardTileCount === 1 && "grid-cols-1 sm:max-w-xs",
@@ -196,6 +197,16 @@ export function HomeDashboard({
           >
             <Users className="h-6 w-6 text-primary" aria-hidden />
             <span className="text-sm font-semibold text-foreground">Registered players</span>
+          </Link>
+        ) : null}
+
+        {showRegisteredPlayers ? (
+          <Link
+            href="/my-club"
+            className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
+          >
+            <Building2 className="h-6 w-6 text-primary" aria-hidden />
+            <span className="text-sm font-semibold text-foreground">My Club</span>
           </Link>
         ) : null}
 

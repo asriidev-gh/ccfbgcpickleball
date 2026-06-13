@@ -1,12 +1,27 @@
 import { z } from "zod";
 
 import { CCF_ATTENDED_NOT_YET } from "@/lib/ccf-registration";
+import { DGROUP_WEEKDAYS, getDgroupTimeRangeError } from "@/lib/dgroup-availability-shared";
+import { MAX_PRAYER_REPLY_LENGTH } from "@/lib/owner-prayer-replies-shared";
 import {
+  MAX_PRAYER_REQUEST_LENGTH,
+  MIN_PRAYER_REQUEST_LENGTH,
+} from "@/lib/owner-prayer-requests-shared";
+import {
+  MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH,
+  MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
+} from "@/lib/club-announcements-shared";
+import {
+  MAX_CLUB_ADDRESS_LENGTH,
+  MAX_CLUB_ADDITIONAL_INFO_LENGTH,
+  MAX_CLUB_GOOGLE_MAP_EMBED_URL_LENGTH,
   MAX_CLUB_MISSION_VISION_LENGTH,
   MAX_CLUB_NAME_LENGTH,
   MAX_CLUB_SOCIAL_URL_LENGTH,
   MAX_CLUB_TAGLINE_LENGTH,
+  isValidClubGoogleMapEmbedUrl,
   isValidClubSocialUrl,
+  normalizeClubGoogleMapEmbedUrl,
   normalizeClubSocialUrl,
 } from "@/lib/club-settings-shared";
 import {
@@ -144,6 +159,7 @@ function refineCcfQuestionnaire(
     attendedEvents: string[];
     isPartOfDgroup: boolean;
     wantsToJoinDgroup?: boolean | null;
+    prayerRequest?: string;
   },
   ctx: z.RefinementCtx,
 ) {
@@ -170,6 +186,18 @@ function refineCcfQuestionnaire(
       });
     }
   }
+
+  const prayerRequest = data.prayerRequest?.trim() ?? "";
+  if (
+    prayerRequest.length > 0 &&
+    prayerRequest.length < MIN_PRAYER_REQUEST_LENGTH
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      message: `Prayer request must be at least ${MIN_PRAYER_REQUEST_LENGTH} characters.`,
+      path: ["prayerRequest"],
+    });
+  }
 }
 
 export const newPlayerSchema = z
@@ -190,6 +218,7 @@ export const newPlayerSchema = z
       .array(z.string())
       .min(1, "Answer whether you have attended other CCF events."),
     attendedEventsOther: z.string().optional().default(""),
+    prayerRequest: z.string().trim().max(MAX_PRAYER_REQUEST_LENGTH).optional().default(""),
     volunteerType: volunteerTypeSchema.optional(),
     volunteerTypeOther: z.string().optional().default(""),
   })
@@ -238,6 +267,7 @@ export const existingPlayerSchema = z
       .array(z.string())
       .min(1, "Answer whether you have attended other CCF events."),
     attendedEventsOther: z.string().optional().default(""),
+    prayerRequest: z.string().trim().max(MAX_PRAYER_REQUEST_LENGTH).optional().default(""),
     volunteerType: volunteerTypeSchema.optional(),
     volunteerTypeOther: z.string().optional().default(""),
   })
@@ -377,6 +407,13 @@ export const clubSettingsSchema = z.object({
     .string()
     .trim()
     .max(MAX_CLUB_TAGLINE_LENGTH, `Tag line must be ${MAX_CLUB_TAGLINE_LENGTH} characters or less.`),
+  clubAdditionalInfo: z
+    .string()
+    .trim()
+    .max(
+      MAX_CLUB_ADDITIONAL_INFO_LENGTH,
+      `Additional info must be ${MAX_CLUB_ADDITIONAL_INFO_LENGTH} characters or less.`,
+    ),
   clubMissionVision: z
     .string()
     .trim()
@@ -396,4 +433,150 @@ export const clubSettingsSchema = z.object({
     .max(MAX_CLUB_SOCIAL_URL_LENGTH, `Instagram link must be ${MAX_CLUB_SOCIAL_URL_LENGTH} characters or less.`)
     .transform(normalizeClubSocialUrl)
     .refine(isValidClubSocialUrl, { message: "Enter a valid Instagram link." }),
+  clubAddress: z
+    .string()
+    .trim()
+    .max(MAX_CLUB_ADDRESS_LENGTH, `Address must be ${MAX_CLUB_ADDRESS_LENGTH} characters or less.`),
+  clubGoogleMapEmbedUrl: z
+    .string()
+    .trim()
+    .max(
+      MAX_CLUB_GOOGLE_MAP_EMBED_URL_LENGTH,
+      `Google Map embed must be ${MAX_CLUB_GOOGLE_MAP_EMBED_URL_LENGTH} characters or less.`,
+    )
+    .transform(normalizeClubGoogleMapEmbedUrl)
+    .refine(isValidClubGoogleMapEmbedUrl, {
+      message: "Paste a valid Google Maps embed link or iframe code.",
+    }),
+});
+
+export const clubAnnouncementSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "Title is required.")
+    .max(
+      MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
+      `Title must be ${MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH} characters or less.`,
+    ),
+  body: z
+    .string()
+    .trim()
+    .min(1, "Announcement body is required.")
+    .max(
+      MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH,
+      `Announcement must be ${MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH} characters or less.`,
+    ),
+  isPublished: z.boolean().default(true),
+  isArchived: z.boolean().optional(),
+});
+
+export const dgroupRequestActionSchema = z.object({
+  action: z.enum(["mark_joined", "acknowledge", "unmark_joined"]),
+});
+
+export const dgroupRemarkBodySchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(1, "Remark is required.")
+    .max(1000, "Remark must be 1000 characters or less."),
+});
+
+export const dgroupRequestViewSchema = z.enum(["pending", "joined"]);
+
+export const prayerRequestViewSchema = z.enum(["pending", "acknowledged"]);
+
+export const prayerRequestActionSchema = z.object({
+  action: z.enum(["acknowledge", "delete"]),
+});
+
+export const prayerReplyBodySchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(1, "Reply is required.")
+    .max(
+      MAX_PRAYER_REPLY_LENGTH,
+      `Reply must be ${MAX_PRAYER_REPLY_LENGTH} characters or less.`,
+    ),
+});
+
+const timeAvailabilitySchema = z
+  .string()
+  .trim()
+  .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Use 24-hour time (HH:MM).");
+
+export const spectatePlayerPrayerRequestSchema = z.object({
+  playerId: z.string().min(1, "Player session is required."),
+  requestText: z
+    .string()
+    .trim()
+    .min(
+      MIN_PRAYER_REQUEST_LENGTH,
+      `Prayer request must be at least ${MIN_PRAYER_REQUEST_LENGTH} characters.`,
+    )
+    .max(
+      MAX_PRAYER_REQUEST_LENGTH,
+      `Prayer request must be ${MAX_PRAYER_REQUEST_LENGTH} characters or less.`,
+    ),
+});
+
+export const spectatePlayerPrayerViewSchema = z.object({
+  playerId: z.string().min(1, "Player session is required."),
+});
+
+export const spectatePlayerDgroupRequestSchema = z
+  .object({
+    playerId: z.string().min(1, "Player session is required."),
+    wantsToJoinDgroup: z.boolean(),
+    dgroupAvailableDays: z.array(z.enum(DGROUP_WEEKDAYS)).default([]),
+    dgroupAvailableTimeFrom: z.string().trim().default(""),
+    dgroupAvailableTimeTo: z.string().trim().default(""),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.wantsToJoinDgroup) return;
+
+    if (data.dgroupAvailableDays.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Select at least one day you are available.",
+        path: ["dgroupAvailableDays"],
+      });
+    }
+
+    const fromParsed = timeAvailabilitySchema.safeParse(data.dgroupAvailableTimeFrom);
+    if (!fromParsed.success) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Enter a valid start time (HH:MM).",
+        path: ["dgroupAvailableTimeFrom"],
+      });
+    }
+
+    const toParsed = timeAvailabilitySchema.safeParse(data.dgroupAvailableTimeTo);
+    if (!toParsed.success) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Enter a valid end time (HH:MM).",
+        path: ["dgroupAvailableTimeTo"],
+      });
+    }
+
+    const timeRangeError = getDgroupTimeRangeError(
+      fromParsed.success ? fromParsed.data : "",
+      toParsed.success ? toParsed.data : "",
+    );
+    if (timeRangeError) {
+      ctx.addIssue({
+        code: "custom",
+        message: timeRangeError,
+        path: ["dgroupAvailableTimeTo"],
+      });
+    }
+  });
+
+export const spectatePlayerAnnouncementsReadSchema = z.object({
+  playerId: z.string().min(1, "Player session is required."),
+  announcementIds: z.array(z.string().min(1)).default([]),
 });

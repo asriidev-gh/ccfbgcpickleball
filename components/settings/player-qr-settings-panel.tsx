@@ -168,7 +168,7 @@ export function PlayerQrSettingsPanel() {
             <span className="block text-sm text-muted-foreground">
               {data?.hasClubLogo
                 ? "Place your club logo in the center of the QR code at 20% of the code size."
-                : "Upload a club logo in Settings → Club to enable this option."}
+                : "Upload a club logo in My Club to enable this option."}
             </span>
           </span>
         </label>

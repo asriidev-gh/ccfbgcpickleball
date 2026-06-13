@@ -32,6 +32,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  MAX_PRAYER_REQUEST_LENGTH,
+  MIN_PRAYER_REQUEST_LENGTH,
+} from "@/lib/owner-prayer-requests-shared";
 import {
   formatZodError,
   getFirstZodErrorField,
@@ -118,6 +123,7 @@ export function RegistrationForm({
     wantsToJoinDgroup: null as boolean | null,
     attendedEvents: [] as string[],
     attendedEventsOther: "",
+    prayerRequest: "",
   });
 
   const fieldRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -379,6 +385,7 @@ export function RegistrationForm({
         wantsToJoinDgroup: boolean | null;
         attendedEvents: string[];
         attendedEventsOther?: string;
+        prayerRequest?: string;
       };
       body.append("firstTimeSportsMinistry", String(ccfPayload.firstTimeSportsMinistry));
       body.append("isPartOfDgroup", String(ccfPayload.isPartOfDgroup));
@@ -390,6 +397,7 @@ export function RegistrationForm({
       );
       body.append("attendedEvents", JSON.stringify(ccfPayload.attendedEvents));
       body.append("attendedEventsOther", ccfPayload.attendedEventsOther ?? "");
+      body.append("prayerRequest", ccfPayload.prayerRequest ?? "");
     }
 
     if (photoFile) {
@@ -926,6 +934,27 @@ export function RegistrationForm({
                         ) : null}
                       </>
                     ) : null}
+
+                    <div className="register-block">
+                      <Label htmlFor="prayer-request" className="register-label">
+                        Prayer request{" "}
+                        <span className="font-normal text-muted-foreground">(optional)</span>
+                      </Label>
+                      <Textarea
+                        id="prayer-request"
+                        value={form.prayerRequest}
+                        maxLength={MAX_PRAYER_REQUEST_LENGTH}
+                        rows={4}
+                        placeholder="Share anything you'd like the club to pray for…"
+                        disabled={submitting}
+                        className="register-input min-h-[6rem] resize-y"
+                        onChange={(event) => updateForm("prayerRequest", event.target.value)}
+                      />
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {form.prayerRequest.trim().length}/{MAX_PRAYER_REQUEST_LENGTH} (min{" "}
+                        {MIN_PRAYER_REQUEST_LENGTH} if provided)
+                      </p>
+                    </div>
                   </>
                 ) : null}
 
