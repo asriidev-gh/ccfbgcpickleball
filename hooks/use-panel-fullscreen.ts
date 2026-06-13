@@ -35,6 +35,15 @@ async function exitFullscreen() {
 
 export function usePanelFullscreen(containerRef: RefObject<HTMLElement | null>) {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [supportsFullscreen, setSupportsFullscreen] = useState(false);
+
+  useEffect(() => {
+    setSupportsFullscreen(
+      document.fullscreenEnabled ||
+        (document as Document & { webkitFullscreenEnabled?: boolean }).webkitFullscreenEnabled ===
+          true,
+    );
+  }, []);
 
   useEffect(() => {
     const sync = () => {
@@ -50,12 +59,6 @@ export function usePanelFullscreen(containerRef: RefObject<HTMLElement | null>) 
       document.removeEventListener("webkitfullscreenchange", sync as EventListener);
     };
   }, [containerRef]);
-
-  const supportsFullscreen =
-    typeof document !== "undefined" &&
-    (document.fullscreenEnabled ||
-      (document as Document & { webkitFullscreenEnabled?: boolean }).webkitFullscreenEnabled ===
-        true);
 
   const toggleFullscreen = useCallback(async () => {
     const el = containerRef.current;

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, Loader2, Play, Shuffle, Volume2 } from "lucide-react";
 
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
-import { PlayerAvatar } from "@/components/game/player-avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
 import {
   Dialog,
   DialogContent,
@@ -51,7 +52,15 @@ function randomTeamSplit(pool: QueueEntryView[]): TeamPreview {
   return { teamA: shuffled.slice(0, 2), teamB: shuffled.slice(2, 4) };
 }
 
-function FillCourtPlayerRow({
+function playerInitials(firstName: string, lastName: string) {
+  const name = formatPlayerDisplayName(firstName, lastName);
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+}
+
+const FillCourtPlayerRow = memo(function FillCourtPlayerRow({
   entry,
   queueIndex,
   canReplace,
@@ -71,6 +80,11 @@ function FillCourtPlayerRow({
     entry.playerId.lastName,
     queueIndex + 1,
   );
+  const photoUrl = useMemo(
+    () => resolvePlayerPhotoUrl(entry.playerId, 72),
+    [entry.playerId],
+  );
+  const initials = playerInitials(entry.playerId.firstName, entry.playerId.lastName);
 
   return (
     <li
@@ -79,11 +93,16 @@ function FillCourtPlayerRow({
         obscured && "fill-court-player-row--obscured",
       )}
     >
-      <PlayerAvatar
-        player={entry.playerId}
+      <Avatar
         size="sm"
-        className={cn("!size-9 sm:!size-9", obscured && "fill-court-player-avatar--obscured")}
-      />
+        className={cn(
+          "player-avatar !size-9 shrink-0 sm:!size-9",
+          obscured && "fill-court-player-avatar--obscured",
+        )}
+      >
+        <AvatarImage src={photoUrl} alt="" loading="lazy" />
+        <AvatarFallback className="text-xs font-medium">{initials}</AvatarFallback>
+      </Avatar>
       <span
         className={cn(
           "min-w-0 flex-1 truncate text-sm font-medium",
@@ -111,7 +130,7 @@ function FillCourtPlayerRow({
       </Button>
     </li>
   );
-}
+});
 
 function FillCourtTeamSection({
   label,

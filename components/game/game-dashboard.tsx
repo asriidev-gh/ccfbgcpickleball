@@ -17,7 +17,7 @@ import {
   Clock,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
@@ -38,8 +38,7 @@ import {
 } from "@/components/game/match-history-list";
 import { filterMatchesForViewer } from "@/lib/match-history-filter";
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
-import { FillCourtConfirmDialog } from "@/components/game/fill-court-confirm-dialog";
-import { FillCourtSelectDialog } from "@/components/game/fill-court-select-dialog";
+import { FillCourtFlow } from "@/components/game/fill-court-flow";
 import {
   ReplacePlayerDialog,
   type ReplacePlayerConfirmInput,
@@ -90,7 +89,7 @@ import {
   MAX_MATCH_SCORE,
   parseEndGameScoreField,
 } from "@/lib/match-score-validation";
-import { announceCourtEnded, announceNextCourtPlayers } from "@/lib/call-names-speech";
+import { announceCourtEnded } from "@/lib/call-names-speech";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 import { useOperatorDashboardLease } from "@/hooks/use-operator-dashboard-lease";
 import { useOperatorQueueRegistrationSync } from "@/hooks/use-operator-queue-registration-sync";
@@ -785,7 +784,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [teamAScore, setTeamAScore] = useState("");
   const [teamBScore, setTeamBScore] = useState("");
   const [showWaitingList, setShowWaitingList] = useState(true);
-  const [callingNames, setCallingNames] = useState(false);
   const [waitingLineView, setWaitingLineView] = useState<WaitingLineViewMode>("list");
   const [showCheckedOutList, setShowCheckedOutList] = useState(true);
   const [showMatchHistory, setShowMatchHistory] = useState(false);
@@ -799,9 +797,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const matchHistoryPanelRef = useRef<HTMLDivElement>(null);
   const [matchHistoryScope, setMatchHistoryScope] = useState<MatchHistoryScope>("mine");
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
-  const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
-  const [fillCourtSelectDialogOpen, setFillCourtSelectDialogOpen] = useState(false);
-  const [fillCourtTarget, setFillCourtTarget] = useState<number | null>(null);
   const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);
   const [cancelRematchTarget, setCancelRematchTarget] = useState<number | null>(null);
   const [rematchCourtNumbers, setRematchCourtNumbers] = useState<Set<number>>(
@@ -1005,9 +1000,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       }
       toast.error(error.message);
     },
-    onSettled: () => {
-      setFillCourtTarget(null);
-    },
   });
 
   const closeEndDialog = () => {
@@ -1057,9 +1049,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     onSuccess: (data, variables) => {
       toast.success(data.message ?? "Court updated.");
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      void announceCourtEnded(variables.courtNumber, {
-        onStart: () => setCallingNames(false),
-      });
+      void announceCourtEnded(variables.courtNumber);
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
@@ -1085,6 +1075,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error) => toast.error(error.message),
   });
+
+  const handleFillCourtConfirm = useCallback(
+    (courtNumber: number) => {
+      startMutation.mutate(courtNumber);
+    },
+    [startMutation],
+  );
+
+  const handleFillCourtShuffle = useCallback(async () => {
+    await shuffleNextMutation.mutateAsync();
+  }, [shuffleNextMutation]);
+
+  const handleFillCourtReplace = useCallback(
+    (sourceIndex: number, sourceEntry: QueueEntryView) => {
+      setReplaceDialog({ kind: "queue", sourceIndex, sourceEntry });
+    },
+    [],
+  );
 
   const swapCourtMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
@@ -1881,7 +1889,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const canFillNextCourt = queueWithStats.length >= 4 && nextEmptyCourt != null;
   const fillCourtTeamA = queueWithStats.slice(0, 2);
   const fillCourtTeamB = queueWithStats.slice(2, 4);
-  const activeFillCourtNumber = fillCourtTarget ?? nextEmptyCourt?.courtNumber ?? null;
   const fillingCourtNumber =
     startMutation.isPending && startMutation.variables != null ? startMutation.variables : null;
   const endCourt =
@@ -1930,51 +1937,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const activeCourtCount = courts.filter((court) => court.status === "active").length;
 
-  const startPlayerAnnouncement = (
-    teamA: QueueEntryView[],
-    teamB: QueueEntryView[],
-  ) => {
-    if (callingNames) return;
-
-    setCallingNames(true);
-    void announceNextCourtPlayers(
-      teamA.map((entry) => entry.playerId),
-      teamB.map((entry) => entry.playerId),
-      {
-        courtNumber: activeFillCourtNumber,
-        onComplete: () => setCallingNames(false),
-      },
-    ).then((started) => {
-      if (!started) {
-        setCallingNames(false);
-        toast.error("Text-to-speech is not available in this browser.");
-      }
-    });
-  };
-
-  const openFillCourtConfirmDialog = (courtNumber: number) => {
-    setFillCourtTarget(courtNumber);
-    setFillCourtDialogOpen(true);
-  };
-
-  const handleFillNextCourtClick = () => {
-    if (!canFillNextCourt) {
-      if (queueWithStats.length < 4) {
-        toast.error("Not enough players in the queue. At least 4 are required.");
-      } else {
-        toast.error("No empty court available.");
-      }
-      return;
-    }
-
-    if (emptyCourtNumbers.length >= 2) {
-      setFillCourtSelectDialogOpen(true);
-      return;
-    }
-
-    openFillCourtConfirmDialog(emptyCourtNumbers[0]);
-  };
-
   const renderQueuePanel = () => (
     <Card ref={queuePanelRef} className="glass-panel dashboard-panel dashboard-panel--queue">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -2012,22 +1974,21 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {!hideControls ? (
-            <Button
-              onClick={handleFillNextCourtClick}
-              disabled={startMutation.isPending || !canFillNextCourt}
-            >
-              {startMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                  Filling…
-                </>
-              ) : (
-                <>
-                  <Play className="mr-2 h-4 w-4" aria-hidden />
-                  Fill next court
-                </>
-              )}
-            </Button>
+            <FillCourtFlow
+              canFillNextCourt={canFillNextCourt}
+              queuePlayerCount={queueWithStats.length}
+              teamA={fillCourtTeamA}
+              teamB={fillCourtTeamB}
+              waitingLineEntries={waitingLineEntries}
+              emptyCourtNumbers={emptyCourtNumbers}
+              fillPending={startMutation.isPending}
+              replacePendingSourceIndex={
+                replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
+              }
+              onConfirmFill={handleFillCourtConfirm}
+              onShuffle={handleFillCourtShuffle}
+              onReplace={handleFillCourtReplace}
+            />
           ) : null}
           <DashboardPanelFullscreenButton containerRef={queuePanelRef} panelName="queue" />
         </div>
@@ -2623,50 +2584,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
       {!readOnly ? (
         <>
-          <FillCourtSelectDialog
-            open={fillCourtSelectDialogOpen}
-            onOpenChange={setFillCourtSelectDialogOpen}
-            emptyCourtNumbers={emptyCourtNumbers}
-            onSelect={(courtNumber) => {
-              setFillCourtSelectDialogOpen(false);
-              openFillCourtConfirmDialog(courtNumber);
-            }}
-          />
-          <FillCourtConfirmDialog
-            open={fillCourtDialogOpen}
-            onOpenChange={(open) => {
-              setFillCourtDialogOpen(open);
-              if (!open) {
-                setFillCourtTarget(null);
-                if (callingNames) {
-                  window.speechSynthesis?.cancel();
-                  setCallingNames(false);
-                }
-              }
-            }}
-            callingNames={callingNames}
-            onCallNames={startPlayerAnnouncement}
-            courtNumber={activeFillCourtNumber}
-            teamA={fillCourtTeamA}
-            teamB={fillCourtTeamB}
-            canReplace={waitingLineEntries.length > 0}
-            onReplace={(sourceIndex, sourceEntry) =>
-              setReplaceDialog({ kind: "queue", sourceIndex, sourceEntry })
-            }
-            replacePendingSourceIndex={
-              replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
-            }
-            onConfirmFill={() => {
-              const courtNumber = activeFillCourtNumber;
-              if (courtNumber == null) return;
-              startMutation.mutate(courtNumber);
-              setFillCourtDialogOpen(false);
-            }}
-            fillPending={startMutation.isPending}
-            onShuffle={async () => {
-              await shuffleNextMutation.mutateAsync();
-            }}
-          />
           <ReplacePlayerDialog
             open={replaceDialog !== null}
             onOpenChange={(open) => {
