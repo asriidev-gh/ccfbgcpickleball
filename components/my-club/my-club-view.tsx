@@ -11,7 +11,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 import { ClubAnnouncementsPanel } from "@/components/my-club/club-announcements-panel";
 import { PrayerRequestsPanel } from "@/components/my-club/prayer-requests-panel";
@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ClubSettings } from "@/lib/club-settings-shared";
+import { isCcfUserType } from "@/lib/registration-variant";
 import { cn } from "@/lib/utils";
 
 type MyClubTab = "profile" | "announcements" | "dgroup" | "prayer";
@@ -29,6 +30,7 @@ type MyClubTab = "profile" | "announcements" | "dgroup" | "prayer";
 type ClubSettingsResponse = ClubSettings & {
   defaultClubName: string;
   logoUploadConfigured: boolean;
+  userType?: string;
 };
 
 const tabItems = [
@@ -192,6 +194,7 @@ export function MyClubView() {
       if (!response.ok) return { total: 0 };
       return payload as { total: number };
     },
+    enabled: isCcfUserType(clubData?.userType),
     staleTime: 30_000,
   });
 
@@ -214,8 +217,25 @@ export function MyClubView() {
       if (!response.ok) return { total: 0 };
       return payload as { total: number };
     },
+    enabled: isCcfUserType(clubData?.userType),
     staleTime: 30_000,
   });
+
+  const showCcfMinistryFeatures = isCcfUserType(clubData?.userType);
+  const visibleTabItems = useMemo(
+    () =>
+      tabItems.filter(
+        (item) =>
+          showCcfMinistryFeatures || (item.value !== "dgroup" && item.value !== "prayer"),
+      ),
+    [showCcfMinistryFeatures],
+  );
+
+  useEffect(() => {
+    if (!showCcfMinistryFeatures && (activeTab === "dgroup" || activeTab === "prayer")) {
+      setActiveTab("profile");
+    }
+  }, [activeTab, showCcfMinistryFeatures]);
 
   const displayName = clubData?.clubName?.trim() || clubData?.defaultClubName || "My Club";
   const logoUrl = clubData?.clubLogoUrl?.trim() ?? "";
@@ -276,7 +296,9 @@ export function MyClubView() {
                   </div>
                   <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
                     {tagline ||
-                      "Complete your profile, share announcements, and follow up on D-group and prayer requests from your players."}
+                      (showCcfMinistryFeatures
+                        ? "Complete your profile, share announcements, and follow up on D-group and prayer requests from your players."
+                        : "Complete your profile and share announcements with your players.")}
                   </p>
                   {socialLinks.length > 0 ? (
                     <div className="flex flex-wrap gap-2 pt-1">
@@ -322,24 +344,28 @@ export function MyClubView() {
                 className="my-club-stat-card--announcements"
                 onClick={() => setActiveTab("announcements")}
               />
-              <MyClubStatCard
-                title="D-group requests"
-                value={String(pendingDgroupCount)}
-                hint={pendingDgroupCount === 0 ? "No pending requests" : "Needs follow-up"}
-                icon={Users}
-                active={activeTab === "dgroup"}
-                className="my-club-stat-card--dgroup"
-                onClick={() => setActiveTab("dgroup")}
-              />
-              <MyClubStatCard
-                title="Prayer requests"
-                value={String(pendingPrayerCount)}
-                hint={pendingPrayerCount === 0 ? "No pending requests" : "Needs follow-up"}
-                icon={HeartHandshake}
-                active={activeTab === "prayer"}
-                className="my-club-stat-card--prayer"
-                onClick={() => setActiveTab("prayer")}
-              />
+              {showCcfMinistryFeatures ? (
+                <>
+                  <MyClubStatCard
+                    title="D-group requests"
+                    value={String(pendingDgroupCount)}
+                    hint={pendingDgroupCount === 0 ? "No pending requests" : "Needs follow-up"}
+                    icon={Users}
+                    active={activeTab === "dgroup"}
+                    className="my-club-stat-card--dgroup"
+                    onClick={() => setActiveTab("dgroup")}
+                  />
+                  <MyClubStatCard
+                    title="Prayer requests"
+                    value={String(pendingPrayerCount)}
+                    hint={pendingPrayerCount === 0 ? "No pending requests" : "Needs follow-up"}
+                    icon={HeartHandshake}
+                    active={activeTab === "prayer"}
+                    className="my-club-stat-card--prayer"
+                    onClick={() => setActiveTab("prayer")}
+                  />
+                </>
+              ) : null}
             </div>
           </div>
         </CardContent>
@@ -361,7 +387,7 @@ export function MyClubView() {
       >
         <div className="my-club-tabs__bar">
           <TabsList className="my-club-tabs__list">
-            {tabItems.map((item) => (
+            {visibleTabItems.map((item) => (
               <MyClubTabTrigger
                 key={item.value}
                 item={item}
@@ -384,17 +410,21 @@ export function MyClubView() {
           </MyClubPanel>
         </TabsContent>
 
-        <TabsContent value="dgroup" className="mt-0 pt-2 outline-none sm:pt-3">
-          <MyClubPanel>
-            <DgroupRequestsPanel embedded />
-          </MyClubPanel>
-        </TabsContent>
+        {showCcfMinistryFeatures ? (
+          <>
+            <TabsContent value="dgroup" className="mt-0 pt-2 outline-none sm:pt-3">
+              <MyClubPanel>
+                <DgroupRequestsPanel embedded />
+              </MyClubPanel>
+            </TabsContent>
 
-        <TabsContent value="prayer" className="mt-0 pt-2 outline-none sm:pt-3">
-          <MyClubPanel>
-            <PrayerRequestsPanel embedded />
-          </MyClubPanel>
-        </TabsContent>
+            <TabsContent value="prayer" className="mt-0 pt-2 outline-none sm:pt-3">
+              <MyClubPanel>
+                <PrayerRequestsPanel embedded />
+              </MyClubPanel>
+            </TabsContent>
+          </>
+        ) : null}
       </Tabs>
     </div>
   );

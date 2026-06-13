@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { ownerHasCcfMinistryFeatures } from "@/lib/ccf-ministry-features";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import { getOwnerDgroupRequests } from "@/lib/owner-dgroup-requests";
@@ -10,6 +11,9 @@ export async function GET(request: Request) {
     return await runWithDatabase(async () => {
       const authUser = await getAuthUserFromCookie();
       if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+      if (!(await ownerHasCcfMinistryFeatures(authUser.userId))) {
+        return NextResponse.json({ requests: [], total: 0, view: "pending" });
+      }
 
       const searchParams = new URL(request.url).searchParams;
       const query = searchParams.get("q")?.trim() ?? "";

@@ -7,13 +7,14 @@ import {
   uploadClubLogo,
 } from "@/lib/cloudinary";
 import type { ClubSettings } from "@/lib/club-settings-shared";
+import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import { clubSettingsSchema } from "@/lib/validations";
 import { User } from "@/models/User";
 
 const CLUB_SETTINGS_SELECT =
-  "name clubName clubTagline clubAdditionalInfo clubMissionVision clubLogoUrl clubLogoPublicId clubFacebookUrl clubInstagramUrl clubAddress clubGoogleMapEmbedUrl";
+  "name userType clubName clubTagline clubAdditionalInfo clubMissionVision clubLogoUrl clubLogoPublicId clubFacebookUrl clubInstagramUrl clubAddress clubGoogleMapEmbedUrl";
 
 function resolveDefaultClubName(user: { name?: string }, authName: string) {
   const name = typeof user.name === "string" ? user.name.trim() : "";
@@ -62,6 +63,10 @@ export async function GET() {
 
       return NextResponse.json({
         ...normalizeClubSettings(user),
+        userType:
+          user && typeof user === "object" && typeof (user as { userType?: string }).userType === "string"
+            ? (user as { userType: string }).userType
+            : USER_TYPE_DEFAULT,
         defaultClubName: resolveDefaultClubName(user, authUser.name),
         logoUploadConfigured: isCloudinaryConfigured(),
       });

@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { CcfMinistryFeaturesError, resolveGameShowsCcfMinistryFeatures } from "@/lib/ccf-ministry-features";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import { getSpectatePlayerPrayerStatus } from "@/lib/owner-prayer-requests";
 import {
   assertPlayerRegisteredForGame,
-  resolveGameShowsCcfQuestionnaire,
+  PlayerProfileAccessError,
 } from "@/lib/player-profile";
 import { submitSpectatePlayerPrayerRequest } from "@/lib/spectate-player-features";
-import { PlayerProfileAccessError } from "@/lib/player-profile";
 import { spectatePlayerPrayerRequestSchema } from "@/lib/validations";
 import { PickleGame } from "@/models/PickleGame";
 
@@ -30,7 +30,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     return await runWithDatabase(async () => {
       await assertPlayerRegisteredForGame(gameId, playerId);
-      const showCcf = await resolveGameShowsCcfQuestionnaire(gameId);
+      const showCcf = await resolveGameShowsCcfMinistryFeatures(gameId);
       if (!showCcf) {
         return NextResponse.json({ showCcfFeatures: false, hasRequest: false, replies: [] });
       }
@@ -40,6 +40,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ showCcfFeatures: true, ...status });
     });
   } catch (error) {
+    if (error instanceof CcfMinistryFeaturesError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     if (error instanceof PlayerProfileAccessError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
@@ -71,6 +74,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       });
     });
   } catch (error) {
+    if (error instanceof CcfMinistryFeaturesError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     if (error instanceof PlayerProfileAccessError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }

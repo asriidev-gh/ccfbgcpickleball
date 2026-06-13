@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { resolveGameShowsCcfMinistryFeatures } from "@/lib/ccf-ministry-features";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import { markSpectatePlayerPrayerViewed } from "@/lib/owner-prayer-requests";
 import {
   assertPlayerRegisteredForGame,
   PlayerProfileAccessError,
-  resolveGameShowsCcfQuestionnaire,
 } from "@/lib/player-profile";
 import { spectatePlayerPrayerViewSchema } from "@/lib/validations";
 import { PickleGame } from "@/models/PickleGame";
@@ -30,7 +30,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return await runWithDatabase(async () => {
       await assertPlayerRegisteredForGame(gameId, parsed.data.playerId);
-      const showCcf = await resolveGameShowsCcfQuestionnaire(gameId);
+      const showCcf = await resolveGameShowsCcfMinistryFeatures(gameId);
       if (!showCcf) {
         return NextResponse.json({ marked: false });
       }

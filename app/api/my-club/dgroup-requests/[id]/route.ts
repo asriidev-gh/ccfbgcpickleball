@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { CcfMinistryFeaturesError, ownerHasCcfMinistryFeatures } from "@/lib/ccf-ministry-features";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
@@ -16,6 +17,9 @@ export async function PATCH(
     return await runWithDatabase(async () => {
       const authUser = await getAuthUserFromCookie();
       if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+      if (!(await ownerHasCcfMinistryFeatures(authUser.userId))) {
+        return NextResponse.json({ message: "D-group requests are not available for your account." }, { status: 403 });
+      }
 
       const body = await request.json();
       const parsed = dgroupRequestActionSchema.safeParse(body);
@@ -39,6 +43,9 @@ export async function PATCH(
       return NextResponse.json({ player, message });
     });
   } catch (error) {
+    if (error instanceof CcfMinistryFeaturesError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Failed to update D-group request." },
       { status: 400 },

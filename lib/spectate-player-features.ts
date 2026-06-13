@@ -4,10 +4,8 @@ import { isDgroupRequestAcknowledgedForOwner } from "@/lib/owner-dgroup-remarks"
 import { isOwnerMarkedDgroupJoined } from "@/lib/owner-dgroup-requests";
 import { createPrayerRequestFromRegistration, getSpectatePlayerPrayerStatus } from "@/lib/owner-prayer-requests";
 import { MAX_PRAYER_REQUEST_LENGTH, MIN_PRAYER_REQUEST_LENGTH } from "@/lib/owner-prayer-requests-shared";
-import {
-  assertPlayerRegisteredForGame,
-  resolveGameShowsCcfQuestionnaire,
-} from "@/lib/player-profile";
+import { assertPlayerRegisteredForGame } from "@/lib/player-profile";
+import { assertGameShowsCcfMinistryFeatures, resolveGameShowsCcfMinistryFeatures } from "@/lib/ccf-ministry-features";
 import type {
   SpectatePlayerAnnouncement,
   SpectatePlayerFeatures,
@@ -47,7 +45,7 @@ export async function getSpectatePlayerFeatures(
 
   const [ownerId, showCcfFeatures, player] = await Promise.all([
     getGameOwnerId(gameId),
-    resolveGameShowsCcfQuestionnaire(gameId),
+    resolveGameShowsCcfMinistryFeatures(gameId),
     Player.findById(playerId)
       .select(
         "isPartOfDgroup wantsToJoinDgroup dgroupAvailableDays dgroupAvailableTimeFrom dgroupAvailableTimeTo",
@@ -179,10 +177,7 @@ export async function submitSpectatePlayerPrayerRequest(
   requestText: string,
 ) {
   await assertPlayerRegisteredForGame(gameId, playerId);
-  const showCcf = await resolveGameShowsCcfQuestionnaire(gameId);
-  if (!showCcf) {
-    throw new Error("Prayer requests are not available for this session.");
-  }
+  await assertGameShowsCcfMinistryFeatures(gameId);
 
   const trimmed = requestText.trim();
   if (!trimmed) {
@@ -220,10 +215,7 @@ export async function submitSpectatePlayerDgroupRequest(
   },
 ) {
   await assertPlayerRegisteredForGame(gameId, playerId);
-  const showCcf = await resolveGameShowsCcfQuestionnaire(gameId);
-  if (!showCcf) {
-    throw new Error("D-group requests are not available for this session.");
-  }
+  await assertGameShowsCcfMinistryFeatures(gameId);
 
   const player = await Player.findById(playerId);
   if (!player) throw new Error("Player not found.");

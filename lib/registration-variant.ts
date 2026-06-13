@@ -18,6 +18,11 @@ export function getRegistrationFormVariant(
   return "ccf";
 }
 
+/** Ministry tabs (D-group, prayer) are only for explicit CCF accounts. */
+export function isCcfUserType(userType: string | undefined | null) {
+  return userType?.trim().toLowerCase() === USER_TYPE_CCF;
+}
+
 export function isRegistrationPhotoRequired(formVariant: RegistrationFormVariant): boolean {
   return formVariant === "ccf";
 }

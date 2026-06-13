@@ -82,7 +82,7 @@ async function getOwnerDgroupPlayerContext(ownerId: string) {
 
   return {
     entryByPlayerId: new Map(entryAgg.map((row) => [row._id.toString(), row])),
-    playerIds: entryAgg.map((row) => row._id),
+    playerIds: entryAgg.map((row) => row._id.toString()),
   };
 }
 
@@ -117,10 +117,14 @@ function mapPlayerToRequestItem(
   };
 }
 
-async function getJoinedPlayerIds(ownerId: string, playerIds: unknown[]) {
+async function getJoinedPlayerIds(ownerId: string, playerIds: string[]) {
+  if (playerIds.length === 0) {
+    return new Map<string, Date | null>();
+  }
+
   const marks = await OwnerDgroupJoinMark.find({
-    ownerId,
-    playerId: { $in: playerIds },
+    ownerId: new mongoose.Types.ObjectId(ownerId),
+    playerId: { $in: playerIds.map((id) => new mongoose.Types.ObjectId(id)) },
   })
     .select("playerId markedAt")
     .lean<Array<{ playerId: { toString(): string }; markedAt?: Date }>>();

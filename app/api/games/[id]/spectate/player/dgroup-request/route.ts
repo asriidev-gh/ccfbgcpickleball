@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { CcfMinistryFeaturesError } from "@/lib/ccf-ministry-features";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import { submitSpectatePlayerDgroupRequest } from "@/lib/spectate-player-features";
@@ -30,6 +31,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       });
     });
   } catch (error) {
+    if (error instanceof CcfMinistryFeaturesError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
     if (error instanceof PlayerProfileAccessError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }

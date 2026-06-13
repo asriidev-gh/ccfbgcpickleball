@@ -27,7 +27,7 @@ export function MyClubPageIntro() {
           <div>
             <h1 className="page-title">My Club</h1>
             <p className="caption mt-0.5 max-w-xl">
-              Your club hub — profile, announcements, D-group follow-ups, and prayer requests in one place.
+              Your club hub — profile, announcements, and player follow-ups in one place.
             </p>
           </div>
         </div>
