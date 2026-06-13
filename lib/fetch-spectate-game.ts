@@ -12,7 +12,12 @@ export function spectatorDetailsQueryKey(gameId: string) {
   return ["game", gameId, "spectator", "details"] as const;
 }
 
-export async function fetchSpectateGame(gameId: string, scope: SpectateScope) {
+export async function fetchSpectateGame(gameId: string, scope: "live"): Promise<SpectateLivePayload>;
+export async function fetchSpectateGame(gameId: string, scope: "details"): Promise<SpectateDetailsPayload>;
+export async function fetchSpectateGame(
+  gameId: string,
+  scope: SpectateScope,
+): Promise<SpectateLivePayload | SpectateDetailsPayload> {
   const response = await fetch(`/api/games/${gameId}/spectate?scope=${scope}`);
   const data = await response.json();
   if (!response.ok) throw new Error(data.message ?? "Failed to load game.");
@@ -23,7 +28,7 @@ export async function fetchSpectateGame(gameId: string, scope: SpectateScope) {
 export async function refreshSpectatorLive(queryClient: QueryClient, gameId: string) {
   return queryClient.fetchQuery({
     queryKey: spectatorLiveQueryKey(gameId),
-    queryFn: () => fetchSpectateGame(gameId, "live") as Promise<SpectateLivePayload>,
+    queryFn: () => fetchSpectateGame(gameId, "live"),
     staleTime: 0,
   });
 }
