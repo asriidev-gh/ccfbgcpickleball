@@ -137,6 +137,7 @@ export async function getOwnerDgroupRequests(
   query = "",
   view: DgroupRequestView = "pending",
   includeRegistrationDgroup = false,
+  showAcknowledged = false,
 ) {
   await connectToDatabase();
 
@@ -252,6 +253,10 @@ export async function getOwnerDgroupRequests(
       acknowledgedAt,
       remarkCount: remarkCountByPlayerId.get(playerId) ?? 0,
     };
+
+    if (showAcknowledged && !item.isAcknowledged) continue;
+    if (!showAcknowledged && item.isAcknowledged) continue;
+
     if (matchesSearch(item, query)) {
       requests.push(item);
     }
@@ -263,7 +268,7 @@ export async function getOwnerDgroupRequests(
     return bTime - aTime;
   });
 
-  return { requests, total: requests.length, view };
+  return { requests, total: requests.length, view, showAcknowledged };
 }
 
 export async function resolveOwnerDgroupRequest(
@@ -332,7 +337,7 @@ export async function resolveOwnerDgroupRequest(
 }
 
 export async function countOwnerDgroupRequests(ownerId: string) {
-  const { total } = await getOwnerDgroupRequests(ownerId, "", "pending");
+  const { total } = await getOwnerDgroupRequests(ownerId, "", "pending", false, false);
   return total;
 }
 

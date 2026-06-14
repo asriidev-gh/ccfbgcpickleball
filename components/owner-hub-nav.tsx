@@ -1,12 +1,18 @@
 "use client";
 
-import { Building2, Users } from "lucide-react";
+import { Building2, LayoutGrid, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 
 const links = [
+  {
+    href: "/my-games",
+    label: "My Games",
+    icon: LayoutGrid,
+    activeClass: "owner-hub-nav__link--active owner-hub-nav__link--games",
+  },
   {
     href: "/users",
     label: "Registered players",

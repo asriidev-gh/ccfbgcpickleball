@@ -39,7 +39,6 @@ import { GameListQrMode } from "@/components/game/game-list-qr-mode";
 import { GameQrRegistrationButton } from "@/components/game/game-qr-registration-button";
 import { GameQrRegistrationSlot } from "@/components/game/game-qr-registration-slot";
 import { GameSpectatorShareButton } from "@/components/game/game-spectator-share-button";
-import { HomeMobileNav } from "@/components/home-mobile-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -661,10 +660,16 @@ export function MyGamesView() {
   const pastGames = games.filter((game) => game.status === "ended");
 
   return (
-    <main className="min-h-screen px-6 py-6 pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:px-10 lg:pb-6">
-      <section className="mx-auto flex max-w-7xl flex-col gap-6">
-        <Card className="glass-panel">
-          <CardContent className="flex flex-wrap gap-4 p-6">
+    <>
+      <Card className="glass-panel">
+        <CardHeader className="gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="section-title text-base font-medium text-muted-foreground">
+              Open play sessions
+            </CardTitle>
+            <GameListViewToggle value={displayView} onChange={handleListViewChange} />
+          </div>
+          <div className="flex flex-wrap gap-2">
             <Button size="lg" className="min-w-44" onClick={() => setCreateGameWizardOpen(true)}>
               <Plus className="mr-2 h-5 w-5" />
               Create Open Play Session
@@ -690,16 +695,10 @@ export function MyGamesView() {
                 )}
               </Button>
             ) : null}
-          </CardContent>
-        </Card>
-
-        <Card className="glass-panel">
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="section-title">My Games</CardTitle>
-            <GameListViewToggle value={displayView} onChange={handleListViewChange} />
-          </CardHeader>
-          <CardContent>
-            <Tabs value={gamesTab} onValueChange={handleGamesTabChange} className="gap-4">
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={gamesTab} onValueChange={handleGamesTabChange} className="gap-4">
               <TabsList>
                 <TabsTrigger value="active">
                   Active Games
@@ -759,9 +758,8 @@ export function MyGamesView() {
                 )}
               </TabsContent>
             </Tabs>
-          </CardContent>
-        </Card>
-      </section>
+        </CardContent>
+      </Card>
       <CreateGameWizard />
       <EditGameDialog
         game={editingGame}
@@ -771,7 +769,6 @@ export function MyGamesView() {
         }}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["games"] })}
       />
-      <HomeMobileNav onCreateGame={() => setCreateGameWizardOpen(true)} />
-    </main>
+    </>
   );
 }

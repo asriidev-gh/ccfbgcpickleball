@@ -5024,6 +5024,14 @@
     @apply border-border/60 bg-background/50 text-foreground;
   }
 
+  .owner-hub-nav__link--active.owner-hub-nav__link--games {
+    @apply border-emerald-500/50 bg-emerald-600 text-white shadow-md;
+  }
+
+  .owner-hub-nav__link--active.owner-hub-nav__link--games .owner-hub-nav__icon {
+    @apply bg-white/15 text-white;
+  }
+
   .owner-hub-nav__link--active.owner-hub-nav__link--users {
     @apply border-sky-500/50 bg-sky-500 text-white shadow-md;
   }

@@ -37,6 +37,7 @@ export type OwnerRegisteredPlayersQuery = {
   page?: number;
   pageSize?: number;
   query?: string;
+  gameId?: string;
 };
 
 function matchesOwnerPlayerSearch(
@@ -67,6 +68,7 @@ export async function getOwnerRegisteredPlayers(
     Math.max(1, options.pageSize ?? OWNER_REGISTERED_PLAYERS_PAGE_SIZE),
   );
   const searchQuery = options.query?.trim() ?? "";
+  const sessionGameId = options.gameId?.trim() ?? "";
   await connectToDatabase();
 
   const ownerGames = await PickleGame.find({ ownerId }).select("gameId").lean<Array<{ gameId: string }>>();
@@ -176,7 +178,12 @@ export async function getOwnerRegisteredPlayers(
     }
   }
 
-  const allPlayers = [...groups.values()]
+  let groupList = [...groups.values()];
+  if (sessionGameId) {
+    groupList = groupList.filter((group) => group.sessions.has(sessionGameId));
+  }
+
+  const allPlayers = groupList
     .sort((a, b) => {
       const at = a.lastRegisteredAt ? a.lastRegisteredAt.getTime() : 0;
       const bt = b.lastRegisteredAt ? b.lastRegisteredAt.getTime() : 0;

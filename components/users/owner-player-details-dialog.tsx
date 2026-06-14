@@ -389,7 +389,7 @@ export function OwnerPlayerDetailsDialog({
   return (
     <>
     <Dialog open={Boolean(player)} onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden sm:max-w-xl">
+      <DialogContent className="flex max-h-[90vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden sm:max-w-xl md:max-w-2xl lg:max-w-3xl">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex flex-wrap items-center gap-2">
             {player?.name ?? "Player details"}

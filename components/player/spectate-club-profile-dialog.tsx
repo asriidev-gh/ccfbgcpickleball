@@ -62,7 +62,7 @@ function ClubMapEmbed({
     if (!dialogOpen) setInteractive(false);
   }, [dialogOpen]);
 
-  const forwardWheelToScrollArea = (event: WheelEvent<HTMLDivElement>) => {
+  const forwardWheelToScrollArea = (event: WheelEvent<HTMLButtonElement>) => {
     const scrollArea = scrollAreaRef.current;
     if (!scrollArea) return;
     scrollArea.scrollTop += event.deltaY;

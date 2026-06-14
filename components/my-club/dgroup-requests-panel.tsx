@@ -18,6 +18,7 @@ import Swal from "sweetalert2";
 import { toast } from "sonner";
 
 import { DgroupRemarksDialog } from "@/components/my-club/dgroup-remarks-dialog";
+import { MyClubExcelExportButton } from "@/components/my-club/my-club-excel-export-button";
 import { PlayerAvatar } from "@/components/game/player-avatar";
 import { OwnerPlayerDetailsDialog } from "@/components/users/owner-player-details-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -52,14 +53,24 @@ function useDgroupRequests(
   view: DgroupRequestView,
   debouncedSearch: string,
   includeRegistrationDgroup = false,
+  showAcknowledged = false,
 ) {
   return useQuery({
-    queryKey: ["my-club-dgroup-requests", view, debouncedSearch, includeRegistrationDgroup],
+    queryKey: [
+      "my-club-dgroup-requests",
+      view,
+      debouncedSearch,
+      includeRegistrationDgroup,
+      showAcknowledged,
+    ],
     queryFn: async () => {
       const params = new URLSearchParams({ view });
       if (debouncedSearch) params.set("q", debouncedSearch);
       if (view === "joined" && includeRegistrationDgroup) {
         params.set("includeRegistrationDgroup", "true");
+      }
+      if (view === "pending" && showAcknowledged) {
+        params.set("showAcknowledged", "true");
       }
       const response = await fetch(`/api/my-club/dgroup-requests?${params.toString()}`);
       const payload = await response.json();
@@ -69,6 +80,7 @@ function useDgroupRequests(
         total: number;
         view: DgroupRequestView;
         includeRegistrationDgroup?: boolean;
+        showAcknowledged?: boolean;
       };
     },
   });
@@ -259,6 +271,7 @@ function DgroupRequestList({
   isFetching,
   resolvePending,
   includeRegistrationDgroup = false,
+  showAcknowledged = false,
   onViewProfile,
   onMarkJoined,
   onAcknowledge,
@@ -272,6 +285,7 @@ function DgroupRequestList({
   isFetching: boolean;
   resolvePending: boolean;
   includeRegistrationDgroup?: boolean;
+  showAcknowledged?: boolean;
   onViewProfile: (request: DgroupRequestItem) => void;
   onMarkJoined: (request: DgroupRequestItem) => void;
   onAcknowledge: (request: DgroupRequestItem) => void;
@@ -302,14 +316,20 @@ function DgroupRequestList({
           <UserRound className="h-10 w-10 text-muted-foreground/70" aria-hidden />
           <div>
             <p className="font-medium text-foreground">
-              {view === "joined" ? "No joined D-group members yet" : "No open D-group requests"}
+              {view === "joined"
+                ? "No joined D-group members yet"
+                : showAcknowledged
+                  ? "No acknowledged requests"
+                  : "No open D-group requests"}
             </p>
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
               {view === "joined"
                 ? includeRegistrationDgroup
                   ? "No marked joins or registration D-group members match your search."
                   : "Players you mark as joined from the active request list will appear here. Turn on the checkbox below to include players who said they are already in a D-group during registration."
-                : "When players register and choose “Yes” to joining a D-group, they will appear here for follow-up."}
+                : showAcknowledged
+                  ? "Acknowledged requests will appear here. Uncheck the filter to return to open requests that still need follow-up."
+                  : "When players register and choose “Yes” to joining a D-group, they will appear here for follow-up."}
             </p>
           </div>
         </CardContent>
@@ -344,6 +364,7 @@ export function DgroupRequestsPanel({ embedded = false }: { embedded?: boolean }
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeView, setActiveView] = useState<DgroupRequestView>("pending");
+  const [showAcknowledged, setShowAcknowledged] = useState(false);
   const [showRegistrationDgroup, setShowRegistrationDgroup] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; name: string } | null>(null);
   const [remarksTarget, setRemarksTarget] = useState<{ id: string; name: string } | null>(null);
@@ -353,7 +374,7 @@ export function DgroupRequestsPanel({ embedded = false }: { embedded?: boolean }
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  const pendingQuery = useDgroupRequests("pending", debouncedSearch);
+  const pendingQuery = useDgroupRequests("pending", debouncedSearch, false, showAcknowledged);
   const joinedQuery = useDgroupRequests("joined", debouncedSearch, showRegistrationDgroup);
 
   const resolveMutation = useMutation({
@@ -433,6 +454,25 @@ export function DgroupRequestsPanel({ embedded = false }: { embedded?: boolean }
   const pendingTotal = pendingQuery.data?.total ?? 0;
   const joinedTotal = joinedQuery.data?.total ?? 0;
 
+  const buildDgroupExportUrl = () => {
+    const params = new URLSearchParams({ view: activeView });
+    if (debouncedSearch) params.set("q", debouncedSearch);
+    if (activeView === "pending" && showAcknowledged) params.set("showAcknowledged", "true");
+    if (activeView === "joined" && showRegistrationDgroup) {
+      params.set("includeRegistrationDgroup", "true");
+    }
+    return `/api/my-club/dgroup-requests/export?${params.toString()}`;
+  };
+
+  const dgroupExportFilename =
+    activeView === "joined"
+      ? showRegistrationDgroup
+        ? "dgroup-requests-joined-with-registration.xlsx"
+        : "dgroup-requests-joined.xlsx"
+      : showAcknowledged
+        ? "dgroup-requests-acknowledged.xlsx"
+        : "dgroup-requests-open.xlsx";
+
   return (
     <div className={cn("space-y-5", embedded && "my-club-tab-content")}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-4">
@@ -453,9 +493,24 @@ export function DgroupRequestsPanel({ embedded = false }: { embedded?: boolean }
             </>
           )}
         </div>
-        <Badge variant="secondary" className="h-7 px-3 text-sm tabular-nums">
-          {activeView === "pending" ? `${pendingTotal} pending` : `${joinedTotal} joined`}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <MyClubExcelExportButton
+            buildUrl={buildDgroupExportUrl}
+            defaultFilename={dgroupExportFilename}
+            disabled={
+              activeView === "pending"
+                ? pendingQuery.isLoading
+                : joinedQuery.isLoading
+            }
+          />
+          <Badge variant="secondary" className="h-7 px-3 text-sm tabular-nums">
+            {activeView === "pending"
+              ? showAcknowledged
+                ? `${pendingTotal} acknowledged`
+                : `${pendingTotal} pending`
+              : `${joinedTotal} joined`}
+          </Badge>
+        </div>
       </div>
 
       <div className="relative">
@@ -495,7 +550,20 @@ export function DgroupRequestsPanel({ embedded = false }: { embedded?: boolean }
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pending" className="mt-0 outline-none">
+        <TabsContent value="pending" className="mt-0 space-y-4 outline-none">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/70 bg-muted/10 p-4">
+            <Checkbox
+              checked={showAcknowledged}
+              onCheckedChange={(value) => setShowAcknowledged(Boolean(value))}
+            />
+            <span className="space-y-1">
+              <span className="block text-sm font-medium text-foreground">Acknowledged</span>
+              <span className="block text-sm text-muted-foreground">
+                Show requests you have acknowledged. Unchecked shows open requests still awaiting follow-up.
+              </span>
+            </span>
+          </label>
+
           <DgroupRequestList
             view="pending"
             requests={pendingQuery.data?.requests ?? []}
@@ -503,6 +571,7 @@ export function DgroupRequestsPanel({ embedded = false }: { embedded?: boolean }
             error={pendingQuery.error}
             isFetching={pendingQuery.isFetching}
             resolvePending={resolveMutation.isPending}
+            showAcknowledged={showAcknowledged}
             onViewProfile={(request) => setSelectedPlayer({ id: request.id, name: request.name })}
             onMarkJoined={(request) => void confirmMarkJoined(request)}
             onAcknowledge={(request) => void confirmAcknowledge(request)}

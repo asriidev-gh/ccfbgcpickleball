@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 import { PlayerAvatar } from "@/components/game/player-avatar";
 import { PrayerReplyDialog } from "@/components/my-club/prayer-reply-dialog";
+import { MyClubExcelExportButton } from "@/components/my-club/my-club-excel-export-button";
 import { OwnerPlayerDetailsDialog } from "@/components/users/owner-player-details-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -367,6 +368,17 @@ export function PrayerRequestsPanel({ embedded = false }: { embedded?: boolean }
   const pendingTotal = pendingQuery.data?.total ?? 0;
   const acknowledgedTotal = acknowledgedQuery.data?.total ?? 0;
 
+  const buildPrayerExportUrl = () => {
+    const params = new URLSearchParams({ view: activeView });
+    if (debouncedSearch) params.set("q", debouncedSearch);
+    return `/api/my-club/prayer-requests/export?${params.toString()}`;
+  };
+
+  const prayerExportFilename =
+    activeView === "acknowledged"
+      ? "prayer-requests-acknowledged.xlsx"
+      : "prayer-requests-pending.xlsx";
+
   return (
     <div className={cn("space-y-5", embedded && "my-club-tab-content")}>
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-4">
@@ -387,9 +399,20 @@ export function PrayerRequestsPanel({ embedded = false }: { embedded?: boolean }
             </>
           )}
         </div>
-        <Badge variant="secondary" className="h-7 px-3 text-sm tabular-nums">
-          {activeView === "pending" ? `${pendingTotal} pending` : `${acknowledgedTotal} acknowledged`}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <MyClubExcelExportButton
+            buildUrl={buildPrayerExportUrl}
+            defaultFilename={prayerExportFilename}
+            disabled={
+              activeView === "pending"
+                ? pendingQuery.isLoading
+                : acknowledgedQuery.isLoading
+            }
+          />
+          <Badge variant="secondary" className="h-7 px-3 text-sm tabular-nums">
+            {activeView === "pending" ? `${pendingTotal} pending` : `${acknowledgedTotal} acknowledged`}
+          </Badge>
+        </div>
       </div>
 
       <div className="relative">

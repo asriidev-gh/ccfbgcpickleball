@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import { OwnerPlayerDetailsDialog } from "@/components/users/owner-player-details-dialog";
 import { OwnerPlayerQrDialog } from "@/components/users/owner-player-qr-dialog";
+import { OwnerSessionFilterSelect } from "@/components/users/owner-session-filter-select";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type {
   OwnerPlayerSessions,
@@ -324,6 +325,7 @@ export function OwnerRegisteredPlayersView() {
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sessionGameId, setSessionGameId] = useState("");
   const [page, setPage] = useState(1);
   const [sessionsPlayer, setSessionsPlayer] = useState<{ id: string; name: string } | null>(null);
   const [detailsPlayer, setDetailsPlayer] = useState<{ id: string; name: string } | null>(null);
@@ -351,13 +353,30 @@ export function OwnerRegisteredPlayersView() {
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
+  const { data: sessionOptionsData, isLoading: sessionOptionsLoading } = useQuery({
+    queryKey: ["owner-session-filter-options"],
+    queryFn: async () => {
+      const response = await fetch("/api/owner/registered-players/session-options");
+      const payload = (await response.json()) as {
+        sessions: import("@/lib/owner-session-filter-options-shared").OwnerSessionFilterOption[];
+        message?: string;
+      };
+      if (!response.ok) throw new Error(payload.message ?? "Failed to load sessions.");
+      return payload;
+    },
+    staleTime: 60_000,
+  });
+
+  const sessionOptions = sessionOptionsData?.sessions ?? [];
+
   const { data, isLoading, isError, isFetching } = useQuery({
-    queryKey: ["owner-registered-players", page, debouncedSearch],
+    queryKey: ["owner-registered-players", page, debouncedSearch, sessionGameId],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(page),
       });
       if (debouncedSearch) params.set("q", debouncedSearch);
+      if (sessionGameId) params.set("gameId", sessionGameId);
 
       const response = await fetch(`/api/owner/registered-players?${params.toString()}`);
       const payload = (await response.json()) as OwnerRegisteredPlayersPage & {
@@ -483,7 +502,8 @@ export function OwnerRegisteredPlayersView() {
   const totalPages = data?.totalPages ?? 0;
   const currentPage = data?.page ?? page;
 
-  const countLabel = debouncedSearch ? `${total} matching` : String(total);
+  const countLabel = debouncedSearch || sessionGameId ? `${total} matching` : String(total);
+  const hasActiveFilters = Boolean(debouncedSearch || sessionGameId);
 
   const pendingDeleteId = deleteMutation.isPending ? deleteMutation.variables : null;
   const pendingBlockId = blockMutation.isPending ? blockMutation.variables?.id : null;
@@ -495,28 +515,37 @@ export function OwnerRegisteredPlayersView() {
     <Card className="glass-panel">
       <CardHeader className="gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle className="section-title text-xl">Registered players</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Players who registered in at least one of your open play sessions (active or past).
-            </p>
-          </div>
+          <CardTitle className="section-title text-base font-medium text-muted-foreground">
+            Player list
+          </CardTitle>
           <Badge variant="secondary" className="tabular-nums">
             {countLabel} {total === 1 ? "player" : "players"}
           </Badge>
         </div>
-        <div className="relative max-w-md">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Filter by name, email, or mobile…"
-            className="pl-9"
-            aria-label="Filter registered players"
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Filter by name, email, or mobile…"
+              className="pl-9"
+              aria-label="Filter registered players"
+            />
+          </div>
+          <OwnerSessionFilterSelect
+            sessions={sessionOptions}
+            value={sessionGameId}
+            loading={sessionOptionsLoading}
+            disabled={isLoading}
+            onChange={(gameId) => {
+              setSessionGameId(gameId);
+              setPage(1);
+            }}
           />
         </div>
       </CardHeader>
@@ -528,7 +557,7 @@ export function OwnerRegisteredPlayersView() {
           </p>
         ) : isError ? (
           <p className="py-6 text-destructive">Failed to load registered players.</p>
-        ) : total === 0 && !debouncedSearch ? (
+        ) : total === 0 && !hasActiveFilters ? (
           <div className="space-y-4 py-6 text-muted-foreground">
             <p>No players have registered in your open play sessions yet.</p>
             <Link href="/" className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}>
@@ -536,7 +565,11 @@ export function OwnerRegisteredPlayersView() {
             </Link>
           </div>
         ) : total === 0 ? (
-          <p className="py-6 text-muted-foreground">No players match your search.</p>
+          <p className="py-6 text-muted-foreground">
+            {sessionGameId
+              ? "No players registered for this session match your filters."
+              : "No players match your search."}
+          </p>
         ) : (
           <>
           <Table className="text-sm">

@@ -23,7 +23,14 @@ export async function GET(request: Request) {
     );
     const query = url.searchParams.get("q")?.trim() ?? "";
 
-    const result = await getOwnerRegisteredPlayers(authUser.userId, { page, pageSize, query });
+    const gameId = url.searchParams.get("gameId")?.trim() ?? "";
+
+    const result = await getOwnerRegisteredPlayers(authUser.userId, {
+      page,
+      pageSize,
+      query,
+      gameId: gameId || undefined,
+    });
     const showEmailStatus = isSuperAdmin(authUser.email);
 
     return NextResponse.json({
