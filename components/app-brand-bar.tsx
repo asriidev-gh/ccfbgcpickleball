@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 import { MyClubHeaderLink } from "@/components/my-club-header-link";
+import { SpectateClubProfileDialog } from "@/components/player/spectate-club-profile-dialog";
 import { PlayerSessionMenu } from "@/components/player/player-session-menu";
 import { RegisteredPlayersHeaderLink } from "@/components/registered-players-header-link";
 import { ThemeMenu } from "@/components/theme-menu";
@@ -42,10 +44,14 @@ function BrandTitle({
   pathname,
   fromParam,
   clubBranding,
+  spectateGameId,
+  onSpectateClubBrandClick,
 }: {
   pathname: string;
   fromParam: string | null;
   clubBranding: ClubBranding | null;
+  spectateGameId: string | null;
+  onSpectateClubBrandClick?: () => void;
 }) {
   const useClubBrand = isGameDashboardPath(pathname) && clubBranding;
   const brandClassName = cn(
@@ -59,6 +65,23 @@ function BrandTitle({
   );
 
   if (isSpectatorPath(pathname, fromParam)) {
+    if (spectateGameId && onSpectateClubBrandClick) {
+      return (
+        <button
+          type="button"
+          className={cn(brandClassName, "app-brand--action")}
+          onClick={onSpectateClubBrandClick}
+          aria-label={
+            clubBranding?.clubName
+              ? `View ${clubBranding.clubName} club profile`
+              : "View club profile"
+          }
+        >
+          {label}
+        </button>
+      );
+    }
+
     return <span className={brandClassName}>{label}</span>;
   }
 
@@ -101,37 +124,56 @@ export function AppBrandBar() {
   const { pad, container } = getBrandShellClasses(pathname);
   const showThemeOnly = isPublicAppPath(pathname, fromParam);
   const spectateGameId = getSpectateGameIdFromPath(pathname);
+  const [clubProfileOpen, setClubProfileOpen] = useState(false);
 
   if (shouldHideAppBrandBar(pathname)) {
     return null;
   }
 
   return (
-    <header className="app-brand-bar">
-      <div className={pad}>
-        <div className={cn("app-brand-bar__inner mx-auto flex w-full items-center justify-between gap-3", container)}>
-          <BrandTitle pathname={pathname} fromParam={fromParam} clubBranding={clubBranding} />
-          <div className="app-brand-actions flex shrink-0 items-center gap-2">
-            {showThemeOnly ? (
-              spectateGameId ? (
-                <PlayerSessionMenu gameId={spectateGameId} fallback={<ThemeMenu />} />
+    <>
+      <header className="app-brand-bar">
+        <div className={pad}>
+          <div className={cn("app-brand-bar__inner mx-auto flex w-full items-center justify-between gap-3", container)}>
+            <BrandTitle
+              pathname={pathname}
+              fromParam={fromParam}
+              clubBranding={clubBranding}
+              spectateGameId={spectateGameId}
+              onSpectateClubBrandClick={
+                spectateGameId ? () => setClubProfileOpen(true) : undefined
+              }
+            />
+            <div className="app-brand-actions flex shrink-0 items-center gap-2">
+              {showThemeOnly ? (
+                spectateGameId ? (
+                  <PlayerSessionMenu gameId={spectateGameId} fallback={<ThemeMenu />} />
+                ) : (
+                  <ThemeMenu />
+                )
               ) : (
-                <ThemeMenu />
-              )
-            ) : (
-              <>
-                {shouldShowOwnerDashboardNavLinks(pathname) ? (
-                  <div className="flex items-center gap-2">
-                    <RegisteredPlayersHeaderLink />
-                    <MyClubHeaderLink />
-                  </div>
-                ) : null}
-                <UserMenu />
-              </>
-            )}
+                <>
+                  {shouldShowOwnerDashboardNavLinks(pathname) ? (
+                    <div className="flex items-center gap-2">
+                      <RegisteredPlayersHeaderLink />
+                      <MyClubHeaderLink />
+                    </div>
+                  ) : null}
+                  <UserMenu />
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {spectateGameId ? (
+        <SpectateClubProfileDialog
+          gameId={spectateGameId}
+          open={clubProfileOpen}
+          onOpenChange={setClubProfileOpen}
+        />
+      ) : null}
+    </>
   );
 }

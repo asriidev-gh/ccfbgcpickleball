@@ -8,6 +8,7 @@ import {
   loadSpectateLive,
   type SpectateScope,
 } from "@/lib/load-spectate-game";
+import { getSpectateClubProfile } from "@/lib/spectate-club-profile";
 
 function parseScope(value: string | null): SpectateScope {
   if (value === "live" || value === "details" || value === "full") {
@@ -20,7 +21,19 @@ function parseScope(value: string | null): SpectateScope {
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    const scope = parseScope(new URL(request.url).searchParams.get("scope"));
+    const scopeParam = new URL(request.url).searchParams.get("scope");
+
+    if (scopeParam === "club-profile") {
+      return await runWithDatabase(async () => {
+        const profile = await getSpectateClubProfile(id);
+        if (!profile) {
+          return NextResponse.json({ message: "Club profile not found." }, { status: 404 });
+        }
+        return NextResponse.json({ profile });
+      });
+    }
+
+    const scope = parseScope(scopeParam);
 
     return await runWithDatabase(async () => {
       if (scope === "live") {

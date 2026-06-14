@@ -576,7 +576,7 @@ export function MyGamesView() {
     saveGameListView(view);
   };
 
-  const { data, refetch } = useGamesList();
+  const { data, refetch, isLoading } = useGamesList();
 
   const handleGamesTabChange = (value: string) => {
     const tab = value === "past" ? "past" : "active";
@@ -719,30 +719,44 @@ export function MyGamesView() {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="active">
-                <GameList
-                  key={`active-${displayView}`}
-                  games={activeGames}
-                  variant="active"
-                  view={displayView}
-                  emptyMessage="No active games. Create one to start queuing."
-                  onEdit={setEditingGame}
-                  onDelete={handleDeleteGame}
-                  deletingGameId={deletingGameId}
-                  userType={userType}
-                />
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-16 text-muted-foreground">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
+                    Loading games…
+                  </div>
+                ) : (
+                  <GameList
+                    key={`active-${displayView}`}
+                    games={activeGames}
+                    variant="active"
+                    view={displayView}
+                    emptyMessage="No active games. Create one to start queuing."
+                    onEdit={setEditingGame}
+                    onDelete={handleDeleteGame}
+                    deletingGameId={deletingGameId}
+                    userType={userType}
+                  />
+                )}
               </TabsContent>
               <TabsContent value="past">
-                <GameList
-                  key={`past-${displayView}`}
-                  games={pastGames}
-                  variant="past"
-                  view={displayView}
-                  emptyMessage="No past games yet. Ended open play sessions will appear here."
-                  onEdit={setEditingGame}
-                  onDelete={handleDeleteGame}
-                  deletingGameId={deletingGameId}
-                  userType={userType}
-                />
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-16 text-muted-foreground">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
+                    Loading games…
+                  </div>
+                ) : (
+                  <GameList
+                    key={`past-${displayView}`}
+                    games={pastGames}
+                    variant="past"
+                    view={displayView}
+                    emptyMessage="No past games yet. Ended open play sessions will appear here."
+                    onEdit={setEditingGame}
+                    onDelete={handleDeleteGame}
+                    deletingGameId={deletingGameId}
+                    userType={userType}
+                  />
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>
