@@ -10,6 +10,7 @@ import type {
   SpectatePlayerAnnouncement,
   SpectatePlayerFeatures,
 } from "@/lib/spectate-player-features-shared";
+import mongoose from "mongoose";
 import { ClubAnnouncement } from "@/models/ClubAnnouncement";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
@@ -72,10 +73,18 @@ export async function getSpectatePlayerFeatures(
     .select("_id")
     .lean()) as Array<{ _id: { toString(): string } }>;
 
-  const readCount = await PlayerAnnouncementRead.countDocuments({
-    playerId,
-    announcementId: { $in: published.map((item) => item._id) },
-  });
+  const playerObjectId = new mongoose.Types.ObjectId(playerId);
+  const publishedAnnouncementIds = published.map(
+    (item) => new mongoose.Types.ObjectId(item._id.toString()),
+  );
+
+  const readCount =
+    publishedAnnouncementIds.length === 0
+      ? 0
+      : await PlayerAnnouncementRead.countDocuments({
+          playerId: playerObjectId,
+          announcementId: { $in: publishedAnnouncementIds },
+        });
 
   const isPartOfDgroup = player.isPartOfDgroup === true;
   const showDgroupJoinMenu =
@@ -111,7 +120,9 @@ export async function listSpectatePlayerAnnouncements(gameId: string, playerId: 
     ClubAnnouncement.find({ ownerId, isPublished: true, isArchived: { $ne: true } })
       .sort({ publishedAt: -1, createdAt: -1 })
       .lean(),
-    PlayerAnnouncementRead.find({ playerId }).select("announcementId").lean(),
+    PlayerAnnouncementRead.find({ playerId: new mongoose.Types.ObjectId(playerId) })
+      .select("announcementId")
+      .lean(),
   ]);
 
   const readIds = new Set(
@@ -150,7 +161,7 @@ export async function markSpectatePlayerAnnouncementsRead(
     ownerId,
     isPublished: true,
     isArchived: { $ne: true },
-    _id: { $in: announcementIds },
+    _id: { $in: announcementIds.map((id) => new mongoose.Types.ObjectId(id)) },
   })
     .select("_id")
     .lean()) as Array<{ _id: { toString(): string } }>;
@@ -160,7 +171,10 @@ export async function markSpectatePlayerAnnouncementsRead(
   await PlayerAnnouncementRead.bulkWrite(
     validIds.map((doc) => ({
       updateOne: {
-        filter: { playerId, announcementId: doc._id },
+        filter: {
+          playerId: new mongoose.Types.ObjectId(playerId),
+          announcementId: new mongoose.Types.ObjectId(doc._id.toString()),
+        },
         update: { $set: { readAt: new Date() } },
         upsert: true,
       },
