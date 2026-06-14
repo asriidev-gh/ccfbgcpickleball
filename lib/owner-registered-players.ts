@@ -1,6 +1,13 @@
 import { connectToDatabase } from "@/lib/db";
 import { getBlockedEmailsForOrganizer } from "@/lib/organizer-blocked-player";
 import {
+  getPlayerIdentityKey,
+  isCcfOnlySessionInsightFilter,
+  type OwnerSessionInsightFilter,
+} from "@/lib/owner-session-insight-filter-shared";
+import { getSessionInsightIdentityKeys } from "@/lib/owner-session-insight-filter";
+import { isCcfUserType } from "@/lib/registration-variant";
+import {
   OWNER_REGISTERED_PLAYERS_PAGE_SIZE,
   type OwnerRegisteredPlayerItem,
   type OwnerRegisteredPlayersPage,
@@ -11,6 +18,8 @@ import { formatPlayerTableName } from "@/lib/utils";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
+import { LeaderboardStats } from "@/models/LeaderboardStats";
+import { User } from "@/models/User";
 
 type PlayerEntryAgg = {
   _id: { toString(): string };
@@ -38,6 +47,8 @@ export type OwnerRegisteredPlayersQuery = {
   pageSize?: number;
   query?: string;
   gameId?: string;
+  insight?: OwnerSessionInsightFilter;
+  exportAll?: boolean;
 };
 
 function matchesOwnerPlayerSearch(
@@ -58,6 +69,32 @@ function matchesOwnerPlayerSearch(
   return haystack.includes(normalized);
 }
 
+function mergePlayerEntryAgg(rows: PlayerEntryAgg[]): PlayerEntryAgg[] {
+  const merged = new Map<string, PlayerEntryAgg>();
+
+  for (const row of rows) {
+    const id = row._id.toString();
+    const existing = merged.get(id);
+    if (!existing) {
+      merged.set(id, {
+        _id: row._id,
+        gameIds: [...new Set(row.gameIds)],
+        lastRegisteredAt: row.lastRegisteredAt,
+      });
+      continue;
+    }
+
+    existing.gameIds = [...new Set([...existing.gameIds, ...row.gameIds])];
+    const rowDate = row.lastRegisteredAt ? new Date(row.lastRegisteredAt) : null;
+    const existingDate = existing.lastRegisteredAt ? new Date(existing.lastRegisteredAt) : null;
+    if (rowDate && (!existingDate || rowDate > existingDate)) {
+      existing.lastRegisteredAt = rowDate;
+    }
+  }
+
+  return [...merged.values()];
+}
+
 export async function getOwnerRegisteredPlayers(
   ownerId: string,
   options: OwnerRegisteredPlayersQuery = {},
@@ -69,7 +106,24 @@ export async function getOwnerRegisteredPlayers(
   );
   const searchQuery = options.query?.trim() ?? "";
   const sessionGameId = options.gameId?.trim() ?? "";
+  let insightFilter = sessionGameId ? options.insight : undefined;
   await connectToDatabase();
+
+  if (insightFilter && isCcfOnlySessionInsightFilter(insightFilter)) {
+    const ownerUser = await User.findById(ownerId).select("userType").lean();
+    const ownerUserType =
+      ownerUser && typeof ownerUser === "object" && typeof ownerUser.userType === "string"
+        ? ownerUser.userType
+        : undefined;
+    if (!isCcfUserType(ownerUserType)) {
+      insightFilter = undefined;
+    }
+  }
+
+  const insightIdentityKeys =
+    insightFilter && sessionGameId
+      ? await getSessionInsightIdentityKeys(ownerId, sessionGameId, insightFilter)
+      : null;
 
   const ownerGames = await PickleGame.find({ ownerId }).select("gameId").lean<Array<{ gameId: string }>>();
   if (ownerGames.length === 0) {
@@ -79,7 +133,7 @@ export async function getOwnerRegisteredPlayers(
   const blockedEmails = await getBlockedEmailsForOrganizer(ownerId);
   const ownerGameIds = ownerGames.map((game) => game.gameId);
 
-  const entryAgg = (await QueueEntry.aggregate([
+  const queueAgg = (await QueueEntry.aggregate([
     { $match: { gameId: { $in: ownerGameIds } } },
     {
       $group: {
@@ -89,6 +143,22 @@ export async function getOwnerRegisteredPlayers(
       },
     },
   ])) as PlayerEntryAgg[];
+
+  const entryAgg = sessionGameId
+    ? mergePlayerEntryAgg([
+        ...queueAgg,
+        ...((await LeaderboardStats.aggregate([
+          { $match: { gameId: { $in: ownerGameIds } } },
+          {
+            $group: {
+              _id: "$playerId",
+              gameIds: { $addToSet: "$gameId" },
+              lastRegisteredAt: { $max: "$updatedAt" },
+            },
+          },
+        ])) as PlayerEntryAgg[]),
+      ])
+    : queueAgg;
 
   if (entryAgg.length === 0) {
     return { players: [], total: 0, page, pageSize, totalPages: 0 };
@@ -182,6 +252,17 @@ export async function getOwnerRegisteredPlayers(
   if (sessionGameId) {
     groupList = groupList.filter((group) => group.sessions.has(sessionGameId));
   }
+  if (insightIdentityKeys) {
+    groupList = groupList.filter((group) => {
+      const identityKey = getPlayerIdentityKey({
+        _id: { toString: () => group.id },
+        email: group.email === "—" ? "" : group.email,
+        firstName: group.firstName,
+        lastName: group.lastName,
+      });
+      return insightIdentityKeys.has(identityKey);
+    });
+  }
 
   const allPlayers = groupList
     .sort((a, b) => {
@@ -217,6 +298,16 @@ export async function getOwnerRegisteredPlayers(
   const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
   const safePage = totalPages === 0 ? 1 : Math.min(page, totalPages);
   const start = (safePage - 1) * pageSize;
+
+  if (options.exportAll) {
+    return {
+      players: filtered,
+      total,
+      page: 1,
+      pageSize: total || 1,
+      totalPages: total > 0 ? 1 : 0,
+    };
+  }
 
   return {
     players: filtered.slice(start, start + pageSize),

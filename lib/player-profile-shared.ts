@@ -25,3 +25,12 @@ export function deriveCcfEventsBefore(attendedEvents: string[] | undefined | nul
   }
   return "yes" as const;
 }
+
+export function isPlayerCcfNotYet(attendedEvents: string[] | undefined | null) {
+  const status = deriveCcfEventsBefore(attendedEvents);
+  return status === "not_yet" || status === null;
+}
+
+export function isPlayerCcfAttended(attendedEvents: string[] | undefined | null) {
+  return deriveCcfEventsBefore(attendedEvents) === "yes";
+}

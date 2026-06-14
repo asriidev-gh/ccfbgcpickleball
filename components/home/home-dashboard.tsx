@@ -7,8 +7,11 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { buildHomeSessionInsightsMap, type HomeSessionInsightPoint, type HomeSessionInsights } from "@/lib/home-session-insights-shared";
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { cn } from "@/lib/utils";
+
+import { HomeSessionInsightsCharts } from "./home-session-insights-charts";
 
 import type { HomeGameSummary } from "./home-game-summary";
 import { HomeSessionSummaryCard } from "./home-session-summary-card";
@@ -43,10 +46,14 @@ function SessionList({
   games,
   variant,
   emptyMessage,
+  insightsByGameId,
+  showCcfInsights,
 }: {
   games: HomeGameSummary[];
   variant: "active" | "past";
   emptyMessage: string;
+  insightsByGameId: Map<string, HomeSessionInsightPoint>;
+  showCcfInsights: boolean;
 }) {
   const grouped = useMemo(() => groupGamesByDate(games), [games]);
 
@@ -64,7 +71,13 @@ function SessionList({
           </header>
           <div className="space-y-3">
             {dateGames.map((game) => (
-              <HomeSessionSummaryCard key={game._id} game={game} variant={variant} />
+              <HomeSessionSummaryCard
+                key={game._id}
+                game={game}
+                variant={variant}
+                insight={insightsByGameId.get(game.gameId)}
+                showCcfInsights={showCcfInsights}
+              />
             ))}
           </div>
         </section>
@@ -84,6 +97,7 @@ export function HomeDashboard({
     setSessionTab(tab);
     onSessionTabChange?.();
   };
+
   const { data: authData } = useQuery({
     queryKey: ["auth-me"],
     queryFn: async () => {
@@ -96,6 +110,24 @@ export function HomeDashboard({
     },
     staleTime: 60_000,
   });
+
+  const { data: sessionInsightsData } = useQuery({
+    queryKey: ["games-session-insights"],
+    queryFn: async () => {
+      const response = await fetch("/api/games/session-insights");
+      const payload = (await response.json()) as HomeSessionInsights & { message?: string };
+      if (!response.ok) throw new Error(payload.message ?? "Failed to load session insights.");
+      return payload;
+    },
+    staleTime: 60_000,
+  });
+
+  const insightsByGameId = useMemo(
+    () => buildHomeSessionInsightsMap(sessionInsightsData?.sessions ?? []),
+    [sessionInsightsData?.sessions],
+  );
+  const showCcfInsights = sessionInsightsData?.showCcfInsights ?? false;
+  const chartSessions = sessionInsightsData?.sessions ?? [];
 
   const userName = authData?.user?.name?.trim();
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
@@ -219,9 +251,17 @@ export function HomeDashboard({
             </button>
           </div>
 
+          <HomeSessionInsightsCharts
+            sessions={chartSessions}
+            showCcfInsights={showCcfInsights}
+            className="mb-5"
+          />
+
           <SessionList
             games={sessionGames}
             variant={sessionTab}
+            insightsByGameId={insightsByGameId}
+            showCcfInsights={showCcfInsights}
             emptyMessage={
               sessionTab === "active"
                 ? "No active open play sessions. Create one to get started."

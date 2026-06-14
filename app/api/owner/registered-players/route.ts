@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { getOwnerRegisteredPlayers } from "@/lib/owner-registered-players";
+import { parseOwnerSessionInsightFilter } from "@/lib/owner-session-insight-filter-shared";
 import { OWNER_REGISTERED_PLAYERS_PAGE_SIZE } from "@/lib/owner-registered-players-shared";
 import { isSuperAdmin } from "@/lib/superadmin";
 
@@ -24,12 +25,14 @@ export async function GET(request: Request) {
     const query = url.searchParams.get("q")?.trim() ?? "";
 
     const gameId = url.searchParams.get("gameId")?.trim() ?? "";
+    const insight = parseOwnerSessionInsightFilter(url.searchParams.get("insight")) ?? undefined;
 
     const result = await getOwnerRegisteredPlayers(authUser.userId, {
       page,
       pageSize,
       query,
       gameId: gameId || undefined,
+      insight,
     });
     const showEmailStatus = isSuperAdmin(authUser.email);
 

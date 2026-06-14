@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { HomeMobileNav } from "@/components/home-mobile-nav";
 import { OwnerHubNav } from "@/components/owner-hub-nav";
 import { OwnerRegisteredPlayersView } from "@/components/users/owner-registered-players-view";
@@ -11,7 +13,9 @@ export default function RegisteredPlayersPage() {
       <section className="mx-auto flex max-w-7xl flex-col gap-6">
         <RegisteredPlayersPageIntro />
         <OwnerHubNav />
-        <OwnerRegisteredPlayersView />
+        <Suspense fallback={null}>
+          <OwnerRegisteredPlayersView />
+        </Suspense>
       </section>
       <HomeMobileNav />
     </main>

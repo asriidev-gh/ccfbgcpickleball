@@ -1,10 +1,13 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 import { HomeMobileNav } from "@/components/home-mobile-nav";
 import { HomeDashboard } from "@/components/home/home-dashboard";
 import { useGamesList } from "@/hooks/use-games-list";
 
 function HomeInner() {
+  const queryClient = useQueryClient();
   const { data, refetch } = useGamesList();
 
   const games = data?.games ?? [];
@@ -17,7 +20,10 @@ function HomeInner() {
         <HomeDashboard
           activeGames={activeGames}
           pastGames={pastGames}
-          onSessionTabChange={() => void refetch()}
+          onSessionTabChange={() => {
+            void refetch();
+            void queryClient.invalidateQueries({ queryKey: ["games-session-insights"] });
+          }}
         />
       </section>
       <HomeMobileNav />

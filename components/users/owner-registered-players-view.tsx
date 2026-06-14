@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { Ban, CalendarDays, Loader2, QrCode, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
@@ -33,7 +34,15 @@ import {
 import { OwnerPlayerDetailsDialog } from "@/components/users/owner-player-details-dialog";
 import { OwnerPlayerQrDialog } from "@/components/users/owner-player-qr-dialog";
 import { OwnerSessionFilterSelect } from "@/components/users/owner-session-filter-select";
+import { MyClubExcelExportButton } from "@/components/my-club/my-club-excel-export-button";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import {
+  getOwnerSessionInsightFilterLabel,
+  isCcfOnlySessionInsightFilter,
+  parseOwnerSessionInsightFilter,
+  type OwnerSessionInsightFilter,
+} from "@/lib/owner-session-insight-filter-shared";
+import type { HomeSessionInsights } from "@/lib/home-session-insights-shared";
 import type {
   OwnerPlayerSessions,
   OwnerRegisteredPlayerItem,
@@ -322,10 +331,14 @@ function RegisteredPlayersPagination({
 }
 
 export function OwnerRegisteredPlayersView() {
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sessionGameId, setSessionGameId] = useState("");
+  const [sessionGameId, setSessionGameId] = useState(() => searchParams.get("gameId")?.trim() ?? "");
+  const [insightFilter, setInsightFilter] = useState<OwnerSessionInsightFilter | "">(
+    () => parseOwnerSessionInsightFilter(searchParams.get("insight")) ?? "",
+  );
   const [page, setPage] = useState(1);
   const [sessionsPlayer, setSessionsPlayer] = useState<{ id: string; name: string } | null>(null);
   const [detailsPlayer, setDetailsPlayer] = useState<{ id: string; name: string } | null>(null);
@@ -344,6 +357,27 @@ export function OwnerRegisteredPlayersView() {
     staleTime: 60_000,
   });
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
+
+  const { data: sessionInsightsData } = useQuery({
+    queryKey: ["games-session-insights"],
+    queryFn: async () => {
+      const response = await fetch("/api/games/session-insights");
+      const payload = (await response.json()) as HomeSessionInsights & { message?: string };
+      if (!response.ok) throw new Error(payload.message ?? "Failed to load session insights.");
+      return payload;
+    },
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (
+      sessionInsightsData?.showCcfInsights === false &&
+      insightFilter &&
+      isCcfOnlySessionInsightFilter(insightFilter)
+    ) {
+      setInsightFilter("");
+    }
+  }, [sessionInsightsData?.showCcfInsights, insightFilter]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -370,13 +404,14 @@ export function OwnerRegisteredPlayersView() {
   const sessionOptions = sessionOptionsData?.sessions ?? [];
 
   const { data, isLoading, isError, isFetching } = useQuery({
-    queryKey: ["owner-registered-players", page, debouncedSearch, sessionGameId],
+    queryKey: ["owner-registered-players", page, debouncedSearch, sessionGameId, insightFilter],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(page),
       });
       if (debouncedSearch) params.set("q", debouncedSearch);
       if (sessionGameId) params.set("gameId", sessionGameId);
+      if (insightFilter && sessionGameId) params.set("insight", insightFilter);
 
       const response = await fetch(`/api/owner/registered-players?${params.toString()}`);
       const payload = (await response.json()) as OwnerRegisteredPlayersPage & {
@@ -502,14 +537,22 @@ export function OwnerRegisteredPlayersView() {
   const totalPages = data?.totalPages ?? 0;
   const currentPage = data?.page ?? page;
 
-  const countLabel = debouncedSearch || sessionGameId ? `${total} matching` : String(total);
-  const hasActiveFilters = Boolean(debouncedSearch || sessionGameId);
+  const countLabel = debouncedSearch || sessionGameId || insightFilter ? `${total} matching` : String(total);
+  const hasActiveFilters = Boolean(debouncedSearch || sessionGameId || insightFilter);
 
   const pendingDeleteId = deleteMutation.isPending ? deleteMutation.variables : null;
   const pendingBlockId = blockMutation.isPending ? blockMutation.variables?.id : null;
   const pendingResendId = retryWelcomeEmailMutation.isPending
     ? retryWelcomeEmailMutation.variables
     : null;
+
+  const buildExportUrl = () => {
+    const params = new URLSearchParams();
+    if (debouncedSearch) params.set("q", debouncedSearch);
+    if (sessionGameId) params.set("gameId", sessionGameId);
+    if (insightFilter && sessionGameId) params.set("insight", insightFilter);
+    return `/api/owner/registered-players/export?${params.toString()}`;
+  };
 
   return (
     <Card className="glass-panel">
@@ -518,9 +561,19 @@ export function OwnerRegisteredPlayersView() {
           <CardTitle className="section-title text-base font-medium text-muted-foreground">
             Player list
           </CardTitle>
-          <Badge variant="secondary" className="tabular-nums">
-            {countLabel} {total === 1 ? "player" : "players"}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            {hasActiveFilters ? (
+              <MyClubExcelExportButton
+                buildUrl={buildExportUrl}
+                defaultFilename="registered-players-filtered.xlsx"
+                disabled={isLoading || isFetching || total === 0}
+                label="Export"
+              />
+            ) : null}
+            <Badge variant="secondary" className="tabular-nums">
+              {countLabel} {total === 1 ? "player" : "players"}
+            </Badge>
+          </div>
         </div>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start">
           <div className="relative">
@@ -544,10 +597,30 @@ export function OwnerRegisteredPlayersView() {
             disabled={isLoading}
             onChange={(gameId) => {
               setSessionGameId(gameId);
+              setInsightFilter("");
               setPage(1);
             }}
           />
         </div>
+        {insightFilter && sessionGameId ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="rounded-full">
+              {getOwnerSessionInsightFilterLabel(insightFilter)}
+            </Badge>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+              onClick={() => {
+                setInsightFilter("");
+                setPage(1);
+              }}
+            >
+              Clear insight filter
+            </Button>
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -566,7 +639,7 @@ export function OwnerRegisteredPlayersView() {
           </div>
         ) : total === 0 ? (
           <p className="py-6 text-muted-foreground">
-            {sessionGameId
+            {sessionGameId || insightFilter
               ? "No players registered for this session match your filters."
               : "No players match your search."}
           </p>

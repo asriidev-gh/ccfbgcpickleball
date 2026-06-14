@@ -274,7 +274,7 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(92dvh,52rem)] w-[calc(100%-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex max-h-[min(92dvh,52rem)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl">
         <DialogHeader className="border-b px-6 py-5">
           <DialogTitle className="text-xl">Edit game</DialogTitle>
           {game ? (
