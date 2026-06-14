@@ -19,19 +19,49 @@ type ChartSeries = {
 const BAR_AREA_HEIGHT_PX = 128;
 const MIN_BAR_HEIGHT_PX = 6;
 
-const PAST_SESSION_BAR_COLORS: Record<string, string> = {
-  new: "bg-emerald-500 dark:bg-emerald-400",
-  "not-yet": "bg-emerald-600 dark:bg-emerald-500",
-  attended: "bg-emerald-400 dark:bg-emerald-300",
-};
-
-function getSessionBarColorClass(
+function resolveBarColorClass(
   point: HomeSessionInsightPoint,
   seriesKey: string,
-  defaultClass: string,
+  options: { preserveSeriesBarColors?: boolean },
 ) {
-  if (isHighlightedChartSession(point)) return defaultClass;
-  return PAST_SESSION_BAR_COLORS[seriesKey] ?? "bg-emerald-500 dark:bg-emerald-400";
+  const useSeriesColors = options.preserveSeriesBarColors || isHighlightedChartSession(point);
+
+  if (useSeriesColors) {
+    switch (seriesKey) {
+      case "new":
+        return "bg-sky-500 dark:bg-sky-400";
+      case "not-yet":
+        return "bg-amber-500 dark:bg-amber-400";
+      case "attended":
+        return "bg-emerald-500 dark:bg-emerald-400";
+      default:
+        return "bg-muted";
+    }
+  }
+
+  switch (seriesKey) {
+    case "new":
+      return "bg-emerald-500 dark:bg-emerald-400";
+    case "not-yet":
+      return "bg-emerald-600 dark:bg-emerald-500";
+    case "attended":
+      return "bg-emerald-400 dark:bg-emerald-300";
+    default:
+      return "bg-emerald-500 dark:bg-emerald-400";
+  }
+}
+
+function resolveLegendColorClass(seriesKey: string) {
+  switch (seriesKey) {
+    case "new":
+      return "bg-sky-500 dark:bg-sky-400";
+    case "not-yet":
+      return "bg-amber-500 dark:bg-amber-400";
+    case "attended":
+      return "bg-emerald-500 dark:bg-emerald-400";
+    default:
+      return "bg-muted";
+  }
 }
 
 function getSessionValueColorClass(point: HomeSessionInsightPoint) {
@@ -78,12 +108,14 @@ function SessionChartColumn({
   series,
   maxValue,
   compact,
+  preserveSeriesBarColors = false,
 }: {
   point: HomeSessionInsightPoint;
   index: number;
   series: ChartSeries[];
   maxValue: number;
   compact?: boolean;
+  preserveSeriesBarColors?: boolean;
 }) {
   return (
     <div
@@ -98,6 +130,7 @@ function SessionChartColumn({
         series={series}
         maxValue={maxValue}
         compact={compact}
+        preserveSeriesBarColors={preserveSeriesBarColors}
       />
       <SessionBulletLabel point={point} compact={compact} />
     </div>
@@ -110,12 +143,14 @@ function SessionBarColumn({
   series,
   maxValue,
   compact,
+  preserveSeriesBarColors = false,
 }: {
   point: HomeSessionInsightPoint;
   index: number;
   series: ChartSeries[];
   maxValue: number;
   compact?: boolean;
+  preserveSeriesBarColors?: boolean;
 }) {
   return (
     <div
@@ -160,7 +195,7 @@ function SessionBarColumn({
               <div
                 className={cn(
                   "w-full rounded-t-md transition-all",
-                  getSessionBarColorClass(point, item.key, item.colorClass),
+                  resolveBarColorClass(point, item.key, { preserveSeriesBarColors }),
                 )}
                 style={{ height: `${barHeightPx}px` }}
               />
@@ -193,10 +228,12 @@ function ChartDateGroup({
   group,
   series,
   maxValue,
+  preserveSeriesBarColors = false,
 }: {
   group: HomeSessionChartDateGroup;
   series: ChartSeries[];
   maxValue: number;
+  preserveSeriesBarColors?: boolean;
 }) {
   const isGroupedDay = group.sessions.length > 1;
   const usePastDateStyle = group.sessions.every(
@@ -219,6 +256,7 @@ function ChartDateGroup({
             series={series}
             maxValue={maxValue}
             compact={isGroupedDay}
+            preserveSeriesBarColors={preserveSeriesBarColors}
           />
         ))}
       </div>
@@ -244,6 +282,7 @@ function SimpleBarChart({
   series,
   className,
   showPastSessionLegend = true,
+  preserveSeriesBarColors = false,
 }: {
   title: string;
   titleClassName?: string;
@@ -252,6 +291,7 @@ function SimpleBarChart({
   series: ChartSeries[];
   className?: string;
   showPastSessionLegend?: boolean;
+  preserveSeriesBarColors?: boolean;
 }) {
   const allValues = points.flatMap((_, index) =>
     series.map((item) => item.values[index] ?? 0),
@@ -282,7 +322,7 @@ function SimpleBarChart({
       <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
         {series.map((item) => (
           <span key={item.key} className="inline-flex items-center gap-1.5">
-            <span className={cn("size-2.5 rounded-sm", item.colorClass)} aria-hidden />
+            <span className={cn("size-2.5 rounded-sm", resolveLegendColorClass(item.key))} aria-hidden />
             {item.label}
           </span>
         ))}
@@ -309,6 +349,7 @@ function SimpleBarChart({
               group={group}
               series={series}
               maxValue={maxValue}
+              preserveSeriesBarColors={preserveSeriesBarColors}
             />
           ))}
         </div>
@@ -367,6 +408,7 @@ export function HomeSessionInsightsCharts({
           title="CCFer ATTENDANCE PER SESSION"
           titleClassName="normal-case"
           showPastSessionLegend={false}
+          preserveSeriesBarColors
           description={
             chartDescriptionSuffix
               ? `Based on the CCF events question at registration. ${chartDescriptionSuffix}`
