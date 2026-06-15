@@ -184,6 +184,8 @@ export function RegistrationForm({
     return canProceed;
   };
 
+  const showGoToOpenPlay = role !== "upload-qr";
+
   const selectRole = async (nextRole: "new-player" | "volunteer" | "upload-qr") => {
     if (pendingRole) return;
     if (nextRole !== "upload-qr") setPendingRole(nextRole);
@@ -589,19 +591,21 @@ export function RegistrationForm({
                   <p className="caption mt-1 text-muted-foreground">{gameTitle}</p>
                 ) : null}
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                disabled={navigatingToSpectate}
-                onClick={() => void navigateToSpectate({ applyQueueHighlight: false })}
-              >
-                {navigatingToSpectate ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                ) : null}
-                Go to Open play
-              </Button>
+              {showGoToOpenPlay ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={navigatingToSpectate}
+                  onClick={() => void navigateToSpectate({ applyQueueHighlight: false })}
+                >
+                  {navigatingToSpectate ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  ) : null}
+                  Go to Open play
+                </Button>
+              ) : null}
             </div>
           </CardHeader>
           <CardContent className="register-form-compact">

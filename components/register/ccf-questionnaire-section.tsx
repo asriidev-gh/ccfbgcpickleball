@@ -7,8 +7,10 @@ import { CCF_EVENT_OPTIONS } from "@/lib/ccf-registration";
 import { cn } from "@/lib/utils";
 
 export type CcfEventsBeforeAnswer = "yes" | "not_yet";
+export type CcfQuestionnaireVariant = "full" | "join_dgroup_only";
 
 type CcfQuestionnaireSectionProps = {
+  variant?: CcfQuestionnaireVariant;
   ccfEventsBefore: CcfEventsBeforeAnswer | null;
   attendedEvents: string[];
   isPartOfDgroup: boolean | null;
@@ -26,6 +28,7 @@ type CcfQuestionnaireSectionProps = {
 };
 
 export function CcfQuestionnaireSection({
+  variant = "full",
   ccfEventsBefore,
   attendedEvents,
   isPartOfDgroup,
@@ -41,6 +44,42 @@ export function CcfQuestionnaireSection({
   onSelectWantsToJoinDgroup,
   renderFieldError,
 }: CcfQuestionnaireSectionProps) {
+  if (variant === "join_dgroup_only") {
+    return (
+      <div
+        ref={joinDgroupBlockRef}
+        tabIndex={-1}
+        className={cn(
+          "register-block rounded-lg outline-none",
+          fieldErrors.wantsToJoinDgroup && "ring-2 ring-destructive/40",
+        )}
+      >
+        <Label className="register-label">Do you want to join a dgroup?</Label>
+        <div className="register-toggle-row">
+          <Button
+            type="button"
+            variant={wantsToJoinDgroup === true ? "default" : "outline"}
+            className="register-toggle-btn"
+            onClick={() => onSelectWantsToJoinDgroup(true)}
+            disabled={disabled}
+          >
+            Yes
+          </Button>
+          <Button
+            type="button"
+            variant={wantsToJoinDgroup === false ? "default" : "outline"}
+            className="register-toggle-btn"
+            onClick={() => onSelectWantsToJoinDgroup(false)}
+            disabled={disabled}
+          >
+            Not Yet
+          </Button>
+        </div>
+        {renderFieldError("wantsToJoinDgroup")}
+      </div>
+    );
+  }
+
   return (
     <>
       <div

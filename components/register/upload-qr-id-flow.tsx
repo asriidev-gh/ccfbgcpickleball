@@ -2,12 +2,17 @@
 
 import { Bell, Camera, ImageIcon, Loader2, QrCode } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 
+import {
+  CcfQuestionnaireSection,
+  type CcfEventsBeforeAnswer,
+} from "@/components/register/ccf-questionnaire-section";
 import { Button } from "@/components/ui/button";
 import { useNavigateToSpectate } from "@/components/register/use-navigate-to-spectate";
+import { CCF_ATTENDED_NOT_YET } from "@/lib/ccf-registration";
 import { decodeQrCodeFromImageFile } from "@/lib/decode-qr-from-image";
 import {
   formatZodError,
@@ -18,10 +23,16 @@ import {
   persistActiveQueueHighlight,
   setQueueHighlightPlayerId,
 } from "@/lib/queue-highlight";
+import type { QrUploadCcfMode } from "@/lib/qr-upload-ccf-questionnaire-shared";
+import { isQrUploadCcfQuestionnaireComplete } from "@/lib/qr-upload-ccf-questionnaire-shared";
 import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
 import type { RegistrationFormVariant } from "@/lib/registration-variant";
 import { CHECKED_OUT_RE_REGISTER_MESSAGE, ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
-import { genericExistingPlayerSchema } from "@/lib/validations";
+import {
+  qrUploadFullExistingPlayerSchema,
+  qrUploadJoinDgroupExistingPlayerSchema,
+  qrUploadSkipExistingPlayerSchema,
+} from "@/lib/validations";
 
 type UploadQrIdFlowProps = {
   gameId: string;
@@ -37,20 +48,41 @@ type LookupPlayer = {
   lastName: string;
   personalQrCode: string;
   queueStatus: PlayerQueueStatus;
+  ccfQuestionnaireMode: QrUploadCcfMode | null;
 };
 
 type FieldErrors = Record<string, string>;
 
-export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: UploadQrIdFlowProps) {
+export function UploadQrIdFlow({
+  gameId,
+  formVariant,
+  onBack,
+}: UploadQrIdFlowProps) {
   const router = useRouter();
+  const isCcfForm = formVariant === "ccf";
   const { navigateToSpectate, navigating } = useNavigateToSpectate(gameId);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const eventsBlockRef = useRef<HTMLDivElement>(null);
+  const dgroupBlockRef = useRef<HTMLDivElement>(null);
+  const joinDgroupBlockRef = useRef<HTMLDivElement>(null);
 
   const [lookupLoading, setLookupLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [player, setPlayer] = useState<LookupPlayer | null>(null);
+  const [ccfEventsBefore, setCcfEventsBefore] = useState<CcfEventsBeforeAnswer | null>(null);
+  const [attendedEvents, setAttendedEvents] = useState<string[]>([]);
+  const [isPartOfDgroup, setIsPartOfDgroup] = useState<boolean | null>(null);
+  const [wantsToJoinDgroup, setWantsToJoinDgroup] = useState<boolean | null>(null);
+
+  const resetCcfQuestionnaire = () => {
+    setCcfEventsBefore(null);
+    setAttendedEvents([]);
+    setIsPartOfDgroup(null);
+    setWantsToJoinDgroup(null);
+    setFieldErrors({});
+  };
 
   const showValidationErrors = (error: ZodError) => {
     const errors = getZodFieldErrors(error);
@@ -58,6 +90,13 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
     setFieldErrors(errors);
     toast.error((firstField && errors[firstField]) || formatZodError(error));
   };
+
+  const renderFieldError = (name: string) =>
+    fieldErrors[name] ? (
+      <p id={`${name}-error`} className="text-sm text-destructive" role="alert">
+        {fieldErrors[name]}
+      </p>
+    ) : null;
 
   const goToSpectatorView = async (playerId?: string) => {
     if (playerId) {
@@ -91,14 +130,23 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
         return;
       }
 
+      const ccfQuestionnaireMode =
+        isCcfForm &&
+        (data.ccfQuestionnaireMode === "none" ||
+          data.ccfQuestionnaireMode === "full" ||
+          data.ccfQuestionnaireMode === "join_dgroup_only")
+          ? data.ccfQuestionnaireMode
+          : null;
+
+      resetCcfQuestionnaire();
       setPlayer({
         playerId: typeof data.playerId === "string" ? data.playerId : "",
         firstName: data.firstName,
         lastName: data.lastName,
         personalQrCode: data.personalQrCode,
         queueStatus,
+        ccfQuestionnaireMode,
       });
-      setFieldErrors({});
 
       if (queueStatus === "checked_out") {
         toast.error(CHECKED_OUT_RE_REGISTER_MESSAGE);
@@ -134,6 +182,90 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
     router.push(`/register/${gameId}/success`);
   };
 
+  const buildCcfQuestionnairePayload = () => {
+    if (ccfEventsBefore === "not_yet") {
+      return {
+        attendedEvents: [CCF_ATTENDED_NOT_YET],
+        attendedEventsOther: "",
+        isPartOfDgroup: false,
+        wantsToJoinDgroup: null as boolean | null,
+        prayerRequest: "",
+      };
+    }
+
+    if (ccfEventsBefore === "yes") {
+      return {
+        attendedEvents,
+        attendedEventsOther: "",
+        isPartOfDgroup: isPartOfDgroup ?? false,
+        wantsToJoinDgroup: isPartOfDgroup === true ? null : wantsToJoinDgroup,
+        prayerRequest: "",
+      };
+    }
+
+    return {
+      attendedEvents: [] as string[],
+      attendedEventsOther: "",
+      isPartOfDgroup: false,
+      wantsToJoinDgroup: null as boolean | null,
+      prayerRequest: "",
+    };
+  };
+
+  const buildSubmitPayload = () => {
+    if (!player) {
+      throw new Error("Player is required.");
+    }
+
+    const base = {
+      gameId,
+      personalQrCode: player.personalQrCode,
+      registrationSource: QR_UPLOAD_REGISTRATION_SOURCE,
+    };
+
+    if (!isCcfForm || player.ccfQuestionnaireMode === null) {
+      return { ...base, qrUploadCcfMode: "none" as const };
+    }
+
+    if (player.ccfQuestionnaireMode === "join_dgroup_only") {
+      if (wantsToJoinDgroup !== true && wantsToJoinDgroup !== false) {
+        return {
+          ...base,
+          qrUploadCcfMode: "join_dgroup_only" as const,
+          wantsToJoinDgroup: undefined,
+        };
+      }
+      return {
+        ...base,
+        qrUploadCcfMode: "join_dgroup_only" as const,
+        wantsToJoinDgroup,
+      };
+    }
+
+    if (player.ccfQuestionnaireMode === "full") {
+      return {
+        ...base,
+        qrUploadCcfMode: "full" as const,
+        ...buildCcfQuestionnairePayload(),
+      };
+    }
+
+    return { ...base, qrUploadCcfMode: "none" as const };
+  };
+
+  const validatePayload = (
+    payload: ReturnType<typeof buildSubmitPayload>,
+    questionnaireMode: QrUploadCcfMode | null,
+  ) => {
+    if (!isCcfForm || questionnaireMode === "none" || questionnaireMode === null) {
+      return qrUploadSkipExistingPlayerSchema.safeParse(payload);
+    }
+    if (questionnaireMode === "join_dgroup_only") {
+      return qrUploadJoinDgroupExistingPlayerSchema.safeParse(payload);
+    }
+    return qrUploadFullExistingPlayerSchema.safeParse(payload);
+  };
+
   const submit = async () => {
     if (!player) {
       toast.error("Scan or upload your personal QR first.");
@@ -142,13 +274,8 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
 
     setSubmitting(true);
     try {
-      const payload = {
-        gameId,
-        personalQrCode: player.personalQrCode,
-        registrationSource: QR_UPLOAD_REGISTRATION_SOURCE,
-      };
-
-      const validation = genericExistingPlayerSchema.safeParse(payload);
+      const payload = buildSubmitPayload();
+      const validation = validatePayload(payload, player.ccfQuestionnaireMode);
 
       if (!validation.success) {
         showValidationErrors(validation.error);
@@ -198,6 +325,35 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
       setSubmitting(false);
     }
   };
+
+  const selectCcfEventsBefore = (answer: CcfEventsBeforeAnswer) => {
+    setCcfEventsBefore(answer);
+    if (answer === "not_yet") {
+      setAttendedEvents([]);
+      setIsPartOfDgroup(null);
+      setWantsToJoinDgroup(null);
+      return;
+    }
+    setAttendedEvents([]);
+    setIsPartOfDgroup(null);
+    setWantsToJoinDgroup(null);
+  };
+
+  const showCcfQuestionnaire =
+    player?.ccfQuestionnaireMode === "full" || player?.ccfQuestionnaireMode === "join_dgroup_only";
+
+  const questionnaireComplete = useMemo(
+    () =>
+      player
+        ? isQrUploadCcfQuestionnaireComplete(player.ccfQuestionnaireMode, {
+            ccfEventsBefore,
+            attendedEvents,
+            isPartOfDgroup,
+            wantsToJoinDgroup,
+          })
+        : false,
+    [player, ccfEventsBefore, attendedEvents, isPartOfDgroup, wantsToJoinDgroup],
+  );
 
   return (
     <>
@@ -300,33 +456,69 @@ export function UploadQrIdFlow({ gameId, formVariant: _formVariant, onBack }: Up
               </div>
             ) : null}
 
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="w-full border-2 border-dashed"
-              onClick={() => setPlayer(null)}
-            >
-              <QrCode className="mr-2 h-5 w-5" aria-hidden />
-              Use a different QR
-            </Button>
+            {showCcfQuestionnaire ? (
+              <CcfQuestionnaireSection
+                variant={
+                  player.ccfQuestionnaireMode === "join_dgroup_only" ? "join_dgroup_only" : "full"
+                }
+                ccfEventsBefore={ccfEventsBefore}
+                attendedEvents={attendedEvents}
+                isPartOfDgroup={isPartOfDgroup}
+                wantsToJoinDgroup={wantsToJoinDgroup}
+                fieldErrors={fieldErrors}
+                disabled={submitting}
+                eventsBlockRef={eventsBlockRef}
+                dgroupBlockRef={dgroupBlockRef}
+                joinDgroupBlockRef={joinDgroupBlockRef}
+                onSelectCcfEventsBefore={selectCcfEventsBefore}
+                onToggleEvent={(item, checked) => {
+                  setAttendedEvents((current) =>
+                    checked ? [...current, item] : current.filter((value) => value !== item),
+                  );
+                }}
+                onSelectDgroupMembership={(inDgroup) => {
+                  setIsPartOfDgroup(inDgroup);
+                  setWantsToJoinDgroup(inDgroup ? null : wantsToJoinDgroup);
+                }}
+                onSelectWantsToJoinDgroup={setWantsToJoinDgroup}
+                renderFieldError={renderFieldError}
+              />
+            ) : null}
 
-            <Button
-              type="button"
-              size="lg"
-              className="register-submit w-full"
-              disabled={submitting || player.queueStatus === "checked_out"}
-              onClick={() => void submit()}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                  Please wait..
-                </>
-              ) : (
-                "Check in with QR ID"
-              )}
-            </Button>
+            {questionnaireComplete ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="w-full border-2 border-dashed"
+                  onClick={() => {
+                    setPlayer(null);
+                    resetCcfQuestionnaire();
+                  }}
+                >
+                  <QrCode className="mr-2 h-5 w-5" aria-hidden />
+                  Use a different QR
+                </Button>
+
+                <Button
+                  type="button"
+                  size="lg"
+                  className="register-submit w-full"
+                  disabled={submitting || player.queueStatus === "checked_out"}
+                  onClick={() => void submit()}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      Please wait..
+                    </>
+                  ) : (
+                    "Check in with QR ID"
+                  )}
+                </Button>
+              </>
+            ) : null}
           </>
         )}
       </div>

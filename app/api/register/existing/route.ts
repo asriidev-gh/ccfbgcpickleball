@@ -12,12 +12,20 @@ import {
   recordPlayerRegisteredNotification,
 } from "@/lib/organizer-notifications";
 import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
+import {
+  parseQrUploadCcfMode,
+  resolveQrUploadCcfQuestionnaireMode,
+} from "@/lib/qr-upload-ccf-questionnaire-shared";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import {
   existingPlayerSchema,
   genericExistingPlayerSchema,
   type ExistingPlayerInput,
+  qrUploadFullExistingPlayerSchema,
+  qrUploadJoinDgroupExistingPlayerSchema,
+  type QrUploadJoinDgroupExistingPlayerInput,
+  qrUploadSkipExistingPlayerSchema,
   volunteerExistingPlayerSchema,
   type VolunteerExistingPlayerInput,
 } from "@/lib/validations";
@@ -41,12 +49,22 @@ export async function POST(request: Request) {
     );
     const isGenericForm = formVariant === "generic";
     const isQrUploadCheckIn = body?.registrationSource === QR_UPLOAD_REGISTRATION_SOURCE;
+    const qrUploadCcfMode =
+      isQrUploadCheckIn && !isGenericForm
+        ? parseQrUploadCcfMode(body?.qrUploadCcfMode) ?? "none"
+        : null;
 
     const parsed = isVolunteer
       ? volunteerExistingPlayerSchema.safeParse(body)
-      : isGenericForm || isQrUploadCheckIn
-        ? genericExistingPlayerSchema.safeParse(body)
-        : existingPlayerSchema.safeParse(body);
+      : isQrUploadCheckIn && !isGenericForm
+        ? qrUploadCcfMode === "full"
+          ? qrUploadFullExistingPlayerSchema.safeParse(body)
+          : qrUploadCcfMode === "join_dgroup_only"
+            ? qrUploadJoinDgroupExistingPlayerSchema.safeParse(body)
+            : qrUploadSkipExistingPlayerSchema.safeParse(body)
+        : isGenericForm
+          ? genericExistingPlayerSchema.safeParse(body)
+          : existingPlayerSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
     }
@@ -57,17 +75,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Player QR not found." }, { status: 404 });
     }
 
+    if (isQrUploadCheckIn && !isGenericForm) {
+      const expectedMode = resolveQrUploadCcfQuestionnaireMode(player);
+      if (qrUploadCcfMode !== expectedMode) {
+        return NextResponse.json(
+          { message: "Please scan your QR again and complete the registration questions." },
+          { status: 400 },
+        );
+      }
+    }
+
     await assertGameRegistrationAllowed(payload.gameId, {
       email: player.email,
       playerId: String(player._id),
     });
 
-    if (!isVolunteer && !isGenericForm && !isQrUploadCheckIn) {
+    const shouldUpdateFullCcfProfile =
+      !isVolunteer &&
+      !isGenericForm &&
+      (!isQrUploadCheckIn || qrUploadCcfMode === "full");
+    const shouldUpdateJoinDgroupOnly =
+      !isVolunteer && !isGenericForm && isQrUploadCheckIn && qrUploadCcfMode === "join_dgroup_only";
+
+    if (shouldUpdateFullCcfProfile) {
       const playerPayload = payload as ExistingPlayerInput;
       player.isPartOfDgroup = playerPayload.isPartOfDgroup;
       player.wantsToJoinDgroup = playerPayload.wantsToJoinDgroup ?? null;
       player.attendedEvents = playerPayload.attendedEvents;
       player.attendedEventsOther = playerPayload.attendedEventsOther;
+    } else if (shouldUpdateJoinDgroupOnly) {
+      const playerPayload = payload as QrUploadJoinDgroupExistingPlayerInput;
+      player.wantsToJoinDgroup = playerPayload.wantsToJoinDgroup;
     }
     player.lastAttendedAt = new Date();
     await player.save();
@@ -79,7 +117,7 @@ export async function POST(request: Request) {
       queueType: "normal",
     });
 
-    if (!isVolunteer && !isGenericForm && !isQrUploadCheckIn) {
+    if (shouldUpdateFullCcfProfile) {
       const playerPayload = payload as ExistingPlayerInput;
       await createPrayerRequestFromRegistration(
         payload.gameId,

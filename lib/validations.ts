@@ -3,6 +3,7 @@ import { z } from "zod";
 import { CCF_ATTENDED_NOT_YET } from "@/lib/ccf-registration";
 import { DGROUP_WEEKDAYS, getDgroupTimeRangeError } from "@/lib/dgroup-availability-shared";
 import { MAX_PRAYER_REPLY_LENGTH } from "@/lib/owner-prayer-replies-shared";
+import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
 import {
   MAX_PRAYER_REQUEST_LENGTH,
   MIN_PRAYER_REQUEST_LENGTH,
@@ -271,7 +272,6 @@ export const volunteerNewPlayerSchema = z.object({
 export type NewPlayerInput = z.infer<typeof newPlayerSchema>;
 export type VolunteerNewPlayerInput = z.infer<typeof volunteerNewPlayerSchema>;
 export type GenericPlayerInput = z.infer<typeof genericPlayerSchema>;
-export type ExistingPlayerInput = z.infer<typeof existingPlayerSchema>;
 export type VolunteerExistingPlayerInput = z.infer<typeof volunteerExistingPlayerSchema>;
 
 export const genericExistingPlayerSchema = z.object({
@@ -302,6 +302,38 @@ export const existingPlayerSchema = z
     volunteerTypeOther: z.string().optional().default(""),
   })
   .superRefine(refineCcfQuestionnaire);
+
+export type ExistingPlayerInput = z.infer<typeof existingPlayerSchema>;
+
+const qrUploadExistingPlayerBaseSchema = z.object({
+  gameId: z.string().min(4),
+  personalQrCode: z
+    .string()
+    .min(1, "Personal QR code is required.")
+    .min(4, "Enter your personal QR code."),
+  registrationSource: z.literal(QR_UPLOAD_REGISTRATION_SOURCE),
+});
+
+export const qrUploadSkipExistingPlayerSchema = qrUploadExistingPlayerBaseSchema.extend({
+  qrUploadCcfMode: z.literal("none").optional(),
+});
+
+export const qrUploadJoinDgroupExistingPlayerSchema = qrUploadExistingPlayerBaseSchema.extend({
+  qrUploadCcfMode: z.literal("join_dgroup_only"),
+  wantsToJoinDgroup: z.union([z.literal(true), z.literal(false)], {
+    message: "Please indicate if you want to join a D-group.",
+  }),
+});
+
+export const qrUploadFullExistingPlayerSchema = existingPlayerSchema.extend({
+  registrationSource: z.literal(QR_UPLOAD_REGISTRATION_SOURCE),
+  qrUploadCcfMode: z.literal("full"),
+});
+
+export type QrUploadJoinDgroupExistingPlayerInput = z.infer<
+  typeof qrUploadJoinDgroupExistingPlayerSchema
+>;
+export type QrUploadFullExistingPlayerInput = z.infer<typeof qrUploadFullExistingPlayerSchema>;
 
 export const volunteerExistingPlayerSchema = z.object({
   gameId: z.string().min(4),

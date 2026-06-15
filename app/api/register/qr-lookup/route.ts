@@ -6,6 +6,8 @@ import { getPlayerQueueStatusForGame } from "@/lib/game-registration-limit";
 import { formatZodError } from "@/lib/format-zod-error";
 import { normalizePersonalQrCode } from "@/lib/normalize-personal-qr-code";
 import { recordCheckinAttemptNotification } from "@/lib/organizer-notifications";
+import { resolveQrUploadCcfQuestionnaireMode } from "@/lib/qr-upload-ccf-questionnaire-shared";
+import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import { Player } from "@/models/Player";
 
@@ -24,15 +26,24 @@ export async function POST(request: Request) {
       }
 
       const personalQrCode = normalizePersonalQrCode(parsed.data.personalQrCode);
-      const player = await Player.findOne({ personalQrCode }).select("firstName lastName");
+      const player = await Player.findOne({ personalQrCode }).select(
+        "firstName lastName attendedEvents isPartOfDgroup",
+      );
       if (!player) {
         return NextResponse.json({ message: "Player QR not found." }, { status: 404 });
       }
 
       const playerId = String(player._id);
       let queueStatus: "active" | "checked_out" | null = null;
+      let ccfQuestionnaireMode: ReturnType<typeof resolveQrUploadCcfQuestionnaireMode> | null =
+        null;
       if (parsed.data.gameId) {
         queueStatus = await getPlayerQueueStatusForGame(parsed.data.gameId, playerId);
+
+        const formVariant = await resolveGameRegistrationFormVariant(parsed.data.gameId);
+        if (formVariant === "ccf") {
+          ccfQuestionnaireMode = resolveQrUploadCcfQuestionnaireMode(player);
+        }
 
         if (queueStatus === "checked_out") {
           await recordCheckinAttemptNotification({
@@ -51,6 +62,7 @@ export async function POST(request: Request) {
         personalQrCode,
         queueStatus,
         alreadyRegistered: queueStatus === "active",
+        ccfQuestionnaireMode,
       });
     });
   } catch (error) {
