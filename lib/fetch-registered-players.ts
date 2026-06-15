@@ -88,8 +88,8 @@ export function prefetchRegisteredPlayersInsight(
   });
 
   void queryClient.prefetchQuery({
-    queryKey: ownerRegisteredPlayersQueryKey(1, "", gameId, insight),
-    queryFn: () => fetchOwnerRegisteredPlayersPage(1, "", gameId, insight),
+    queryKey: ownerRegisteredPlayersQueryKey(1, "", gameId, insight, false, false, false),
+    queryFn: () => fetchOwnerRegisteredPlayersPage(1, "", gameId, insight, false, false, false),
     staleTime: 30_000,
   });
 }
