@@ -12,6 +12,36 @@ import {
   MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
 } from "@/lib/club-announcements-shared";
 import {
+  MARKETPLACE_CONDITIONS,
+  MARKETPLACE_FULFILLMENT_METHODS,
+  MARKETPLACE_ITEM_TYPES,
+  MAX_MARKETPLACE_CONTACT_NAME_LENGTH,
+  MAX_MARKETPLACE_CONTACT_NUMBER_LENGTH,
+  MAX_MARKETPLACE_DELIVERY_ADDRESS_LENGTH,
+  MAX_MARKETPLACE_DELIVERY_NOTES_LENGTH,
+  MAX_MARKETPLACE_DESCRIPTION_LENGTH,
+  MAX_MARKETPLACE_ITEM_COLOR_LENGTH,
+  MAX_MARKETPLACE_ITEM_SIZE_LENGTH,
+  MAX_MARKETPLACE_LANDMARK_LENGTH,
+  MAX_MARKETPLACE_LOCATION_LENGTH,
+  MAX_MARKETPLACE_PICKUP_LOCATION_LENGTH,
+  MAX_MARKETPLACE_PRODUCT_TAG_LENGTH,
+  MAX_MARKETPLACE_TITLE_LENGTH,
+} from "@/lib/marketplace-listings-shared";
+import {
+  MARKETPLACE_PAYMENT_METHODS,
+  MAX_MARKETPLACE_BANK_ACCOUNT_NAME_LENGTH,
+  MAX_MARKETPLACE_BANK_ACCOUNT_NUMBER_LENGTH,
+  MAX_MARKETPLACE_GCASH_NAME_LENGTH,
+  MAX_MARKETPLACE_GCASH_NUMBER_LENGTH,
+  PH_LOCAL_BANKS,
+} from "@/lib/marketplace-payment-shared";
+import {
+  MAX_MARKETPLACE_ORDER_LINES,
+  MAX_MARKETPLACE_ORDER_QUANTITY,
+  MIN_MARKETPLACE_ORDER_QUANTITY,
+} from "@/lib/marketplace-orders-shared";
+import {
   MAX_CLUB_ADDRESS_LENGTH,
   MAX_CLUB_ADDITIONAL_INFO_LENGTH,
   MAX_CLUB_GOOGLE_MAP_EMBED_URL_LENGTH,
@@ -469,6 +499,302 @@ export const clubAnnouncementSchema = z.object({
     ),
   isPublished: z.boolean().default(true),
   isArchived: z.boolean().optional(),
+});
+
+export const marketplaceListingSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1, "Title is required.")
+    .max(
+      MAX_MARKETPLACE_TITLE_LENGTH,
+      `Title must be ${MAX_MARKETPLACE_TITLE_LENGTH} characters or less.`,
+    ),
+  price: z
+    .number({ message: "Price is required." })
+    .min(0, "Price must be zero or greater."),
+  condition: z.enum(MARKETPLACE_CONDITIONS, {
+    message: "Condition must be New or Used.",
+  }),
+  description: z
+    .string()
+    .trim()
+    .min(1, "Description is required.")
+    .max(
+      MAX_MARKETPLACE_DESCRIPTION_LENGTH,
+      `Description must be ${MAX_MARKETPLACE_DESCRIPTION_LENGTH} characters or less.`,
+    ),
+  productTag: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_PRODUCT_TAG_LENGTH,
+      `Product tag must be ${MAX_MARKETPLACE_PRODUCT_TAG_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  itemType: z
+    .enum(MARKETPLACE_ITEM_TYPES, { message: "Choose a valid item type." })
+    .optional()
+    .or(z.literal("")),
+  itemSize: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_ITEM_SIZE_LENGTH,
+      `Size must be ${MAX_MARKETPLACE_ITEM_SIZE_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  itemColor: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_ITEM_COLOR_LENGTH,
+      `Color must be ${MAX_MARKETPLACE_ITEM_COLOR_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  location: z
+    .string()
+    .trim()
+    .min(1, "Location is required.")
+    .max(
+      MAX_MARKETPLACE_LOCATION_LENGTH,
+      `Location must be ${MAX_MARKETPLACE_LOCATION_LENGTH} characters or less.`,
+    ),
+  fulfillmentMethod: z.enum(MARKETPLACE_FULFILLMENT_METHODS, {
+    message: "Choose how buyers can get the product.",
+  }),
+  pickupLocation: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_PICKUP_LOCATION_LENGTH,
+      `Pickup location must be ${MAX_MARKETPLACE_PICKUP_LOCATION_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  deliveryFee: z
+    .number({ message: "Delivery fee is required." })
+    .min(0, "Delivery fee must be zero or greater.")
+    .optional(),
+  deliveryFeeShoulderedByRecipient: z
+    .union([z.boolean(), z.literal("true"), z.literal("false")])
+    .optional()
+    .transform((value) => value === true || value === "true"),
+  paymentMethods: z
+    .array(z.enum(MARKETPLACE_PAYMENT_METHODS))
+    .min(1, "Select at least one payment option."),
+  gcashName: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_GCASH_NAME_LENGTH,
+      `GCash name must be ${MAX_MARKETPLACE_GCASH_NAME_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  gcashNumber: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_GCASH_NUMBER_LENGTH,
+      `GCash number must be ${MAX_MARKETPLACE_GCASH_NUMBER_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  bankName: z
+    .string()
+    .trim()
+    .max(120, "Bank name must be 120 characters or less.")
+    .optional()
+    .or(z.literal("")),
+  bankAccountName: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_BANK_ACCOUNT_NAME_LENGTH,
+      `Account name must be ${MAX_MARKETPLACE_BANK_ACCOUNT_NAME_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  bankAccountNumber: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_BANK_ACCOUNT_NUMBER_LENGTH,
+      `Account number must be ${MAX_MARKETPLACE_BANK_ACCOUNT_NUMBER_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  isActive: z
+    .union([z.boolean(), z.literal("true"), z.literal("false")])
+    .optional()
+    .transform((value) => value === true || value === "true"),
+}).superRefine((data, ctx) => {
+  if (data.fulfillmentMethod === "pickup") {
+    if (!data.pickupLocation?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["pickupLocation"],
+        message: "Pickup location is required.",
+      });
+    }
+  }
+
+  if (data.fulfillmentMethod === "courier") {
+    if (!data.deliveryFeeShoulderedByRecipient) {
+      if (data.deliveryFee == null || !Number.isFinite(data.deliveryFee)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["deliveryFee"],
+          message: "Delivery fee is required.",
+        });
+      }
+    }
+  }
+
+  if (data.paymentMethods.includes("gcash")) {
+    if (!data.gcashName?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["gcashName"],
+        message: "GCash account name is required.",
+      });
+    }
+    if (!data.gcashNumber?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["gcashNumber"],
+        message: "GCash number is required.",
+      });
+    } else if (!/^09\d{9}$/.test(data.gcashNumber.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["gcashNumber"],
+        message: "GCash number must be 11 digits starting with 09.",
+      });
+    }
+  }
+
+  if (data.paymentMethods.includes("bank_transfer")) {
+    if (!data.bankName?.trim() || !PH_LOCAL_BANKS.includes(data.bankName.trim() as (typeof PH_LOCAL_BANKS)[number])) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bankName"],
+        message: "Choose a valid local bank.",
+      });
+    }
+    if (!data.bankAccountName?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bankAccountName"],
+        message: "Bank account name is required.",
+      });
+    }
+    if (!data.bankAccountNumber?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["bankAccountNumber"],
+        message: "Bank account number is required.",
+      });
+    }
+  }
+});
+
+export const spectateMarketplaceOrderDeliverySchema = z.object({
+  deliveryAddress: z
+    .string()
+    .trim()
+    .min(1, "Delivery address is required.")
+    .max(
+      MAX_MARKETPLACE_DELIVERY_ADDRESS_LENGTH,
+      `Delivery address must be ${MAX_MARKETPLACE_DELIVERY_ADDRESS_LENGTH} characters or less.`,
+    ),
+  landmark: z
+    .string()
+    .trim()
+    .min(1, "Landmark is required.")
+    .max(MAX_MARKETPLACE_LANDMARK_LENGTH, `Landmark must be ${MAX_MARKETPLACE_LANDMARK_LENGTH} characters or less.`),
+  contactPerson: z
+    .string()
+    .trim()
+    .min(1, "Contact person is required.")
+    .max(
+      MAX_MARKETPLACE_CONTACT_NAME_LENGTH,
+      `Contact person must be ${MAX_MARKETPLACE_CONTACT_NAME_LENGTH} characters or less.`,
+    ),
+  contactNumber: z
+    .string()
+    .trim()
+    .min(1, "Contact number is required.")
+    .max(
+      MAX_MARKETPLACE_CONTACT_NUMBER_LENGTH,
+      `Contact number must be ${MAX_MARKETPLACE_CONTACT_NUMBER_LENGTH} characters or less.`,
+    ),
+  deliveryNotes: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_DELIVERY_NOTES_LENGTH,
+      `Delivery notes must be ${MAX_MARKETPLACE_DELIVERY_NOTES_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+});
+
+export const marketplaceOrderLineSchema = z.object({
+  size: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_ITEM_SIZE_LENGTH,
+      `Size must be ${MAX_MARKETPLACE_ITEM_SIZE_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  color: z
+    .string()
+    .trim()
+    .max(
+      MAX_MARKETPLACE_ITEM_COLOR_LENGTH,
+      `Color must be ${MAX_MARKETPLACE_ITEM_COLOR_LENGTH} characters or less.`,
+    )
+    .optional()
+    .or(z.literal("")),
+  quantity: z
+    .number({ message: "Quantity is required." })
+    .int("Quantity must be a whole number.")
+    .min(
+      MIN_MARKETPLACE_ORDER_QUANTITY,
+      `Quantity must be at least ${MIN_MARKETPLACE_ORDER_QUANTITY}.`,
+    )
+    .max(
+      MAX_MARKETPLACE_ORDER_QUANTITY,
+      `Quantity must be ${MAX_MARKETPLACE_ORDER_QUANTITY} or less.`,
+    ),
+});
+
+export const spectateMarketplaceOrderSchema = z.object({
+  playerId: z.string().trim().min(1, "Player session is required."),
+  listingId: z.string().trim().min(1, "Listing is required."),
+  lines: z
+    .array(marketplaceOrderLineSchema)
+    .min(1, "Add at least one order line.")
+    .max(MAX_MARKETPLACE_ORDER_LINES, `You can add up to ${MAX_MARKETPLACE_ORDER_LINES} lines.`),
+  delivery: spectateMarketplaceOrderDeliverySchema.optional(),
+  paymentMethod: z.enum(MARKETPLACE_PAYMENT_METHODS, {
+    message: "Choose a payment option.",
+  }),
+});
+
+export const spectateMarketplaceOrderPlayerSchema = z.object({
+  playerId: z.string().trim().min(1, "Player session is required."),
+});
+
+export const marketplaceOrderActionSchema = z.object({
+  action: z.enum(["acknowledge", "mark_for_release", "fulfill"]),
 });
 
 export const dgroupRequestActionSchema = z.object({

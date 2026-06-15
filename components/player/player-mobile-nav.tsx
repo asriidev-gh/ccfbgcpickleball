@@ -7,6 +7,7 @@ import {
   Loader2,
   LogOut,
   Palette,
+  Store,
   UserPen,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -46,8 +47,10 @@ export function PlayerMobileNav({ gameId }: { gameId: string }) {
 
   const dashboardHref = `/games/${gameId}/spectate`;
   const profileHref = `/games/${gameId}/spectate/profile`;
+  const marketplaceHref = `/games/${gameId}/spectate/marketplace`;
   const isDashboard = pathname === dashboardHref;
   const isProfile = pathname === profileHref;
+  const isMarketplace = pathname === marketplaceHref;
   const hasSession = Boolean(playerId);
 
   useEffect(() => {
@@ -98,6 +101,14 @@ export function PlayerMobileNav({ gameId }: { gameId: string }) {
           active={isProfile}
           icon={<UserPen className="h-5 w-5 shrink-0" aria-hidden />}
         />
+        {hasSession ? (
+          <MobileBottomNavButton
+            href={marketplaceHref}
+            label="Marketplace"
+            active={isMarketplace}
+            icon={<Store className="h-5 w-5 shrink-0" aria-hidden />}
+          />
+        ) : null}
         <MobileBottomNavButton
           label={clubNavLabel}
           onClick={() => setClubProfileOpen(true)}

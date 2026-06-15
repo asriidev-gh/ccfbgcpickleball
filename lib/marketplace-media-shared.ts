@@ -1,0 +1,1 @@
+export const MAX_MARKETPLACE_PHOTO_BYTES = 5 * 1024 * 1024;

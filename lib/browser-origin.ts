@@ -13,3 +13,7 @@ export function resolveClientBrowserOrigin() {
 export function buildImpersonateUrl(token: string) {
   return `${resolveClientBrowserOrigin()}/api/auth/impersonate?token=${encodeURIComponent(token)}`;
 }
+
+export function buildSuperadminPlayerCheckInUrl(gameId: string, token: string) {
+  return `${resolveClientBrowserOrigin()}/games/${encodeURIComponent(gameId)}/spectate/player-check-in?token=${encodeURIComponent(token)}`;
+}

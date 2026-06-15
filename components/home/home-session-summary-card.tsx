@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Gauge, LayoutGrid, MapPin, Sparkles, Users } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
@@ -8,6 +13,7 @@ import {
   buildRegisteredPlayersInsightHref,
   type OwnerSessionInsightFilter,
 } from "@/lib/owner-session-insight-filter-shared";
+import { prefetchRegisteredPlayersInsight } from "@/lib/fetch-registered-players";
 import {
   formatOpenPlayDate,
   formatOpenPlayStartTimeDisplay,
@@ -40,11 +46,24 @@ function SessionInsightLink({
   label: string;
   icon?: React.ReactNode;
 }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const href = buildRegisteredPlayersInsightHref(gameId, insight);
+
+  const warmNavigation = useCallback(() => {
+    prefetchRegisteredPlayersInsight(queryClient, gameId, insight);
+    router.prefetch(href);
+  }, [queryClient, gameId, insight, href, router]);
+
   return (
     <Link
-      href={buildRegisteredPlayersInsightHref(gameId, insight)}
+      href={href}
+      prefetch
       className="inline-flex items-center gap-1 rounded-md font-medium text-foreground/80 underline-offset-2 transition-colors hover:text-primary hover:underline"
       aria-label={`${label}: ${count}. View in registered players.`}
+      onPointerEnter={warmNavigation}
+      onFocus={warmNavigation}
+      onPointerDown={warmNavigation}
     >
       {icon}
       <span>

@@ -5048,6 +5048,14 @@
     @apply bg-white/15 text-white;
   }
 
+  .owner-hub-nav__link--active.owner-hub-nav__link--marketplace {
+    @apply border-amber-500/50 bg-amber-500 text-amber-950 shadow-md;
+  }
+
+  .owner-hub-nav__link--active.owner-hub-nav__link--marketplace .owner-hub-nav__icon {
+    @apply bg-amber-950/10 text-amber-950;
+  }
+
   [data-theme="neon"] .my-club-tabs__bar,
   [data-theme="emerald"] .my-club-tabs__bar,
   [data-theme="sunset"] .my-club-tabs__bar {

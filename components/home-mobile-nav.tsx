@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, House, LayoutGrid, LogOut, Plus } from "lucide-react";
+import { Building2, House, LayoutGrid, LogOut, Plus, Store } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ export function HomeMobileNav({ onCreateGame }: HomeMobileNavProps) {
   const isHome = pathname === "/";
   const isMyGames = pathname === "/my-games";
   const isMyClub = pathname === "/my-club";
+  const isMarketplace = pathname === "/marketplace";
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -52,6 +53,12 @@ export function HomeMobileNav({ onCreateGame }: HomeMobileNavProps) {
         label="My Club"
         active={isMyClub}
         icon={<Building2 className="h-5 w-5 shrink-0" aria-hidden />}
+      />
+      <MobileBottomNavButton
+        href="/marketplace"
+        label="Marketplace"
+        active={isMarketplace}
+        icon={<Store className="h-5 w-5 shrink-0" aria-hidden />}
       />
       <MobileBottomNavButton
         label="Logout"

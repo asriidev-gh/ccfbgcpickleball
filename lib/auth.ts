@@ -81,6 +81,42 @@ export function verifyImpersonationToken(token: string) {
   return { targetUserId: payload.targetUserId, adminUserId: payload.adminUserId };
 }
 
+const SUPERADMIN_PLAYER_CHECKIN_PURPOSE = "superadmin_player_checkin";
+
+export function signSuperadminPlayerCheckInToken(
+  gameId: string,
+  adminUserId: string,
+  playerId: string,
+) {
+  return jwt.sign(
+    { purpose: SUPERADMIN_PLAYER_CHECKIN_PURPOSE, gameId, adminUserId, playerId },
+    getJwtSecret(),
+    { expiresIn: "5m" },
+  );
+}
+
+export function verifySuperadminPlayerCheckInToken(token: string) {
+  const payload = jwt.verify(token, getJwtSecret()) as {
+    purpose?: string;
+    gameId?: string;
+    adminUserId?: string;
+    playerId?: string;
+  };
+  if (
+    payload.purpose !== SUPERADMIN_PLAYER_CHECKIN_PURPOSE ||
+    !payload.gameId ||
+    !payload.adminUserId ||
+    !payload.playerId
+  ) {
+    throw new Error("Invalid player check-in link.");
+  }
+  return {
+    gameId: payload.gameId,
+    adminUserId: payload.adminUserId,
+    playerId: payload.playerId,
+  };
+}
+
 export const GOOGLE_OAUTH_STATE_COOKIE = "ccf_google_state";
 
 export function getGoogleOAuthConfig() {

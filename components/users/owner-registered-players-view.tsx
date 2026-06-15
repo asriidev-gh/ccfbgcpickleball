@@ -43,10 +43,15 @@ import {
   type OwnerSessionInsightFilter,
 } from "@/lib/owner-session-insight-filter-shared";
 import type { HomeSessionInsights } from "@/lib/home-session-insights-shared";
+import {
+  fetchOwnerRegisteredPlayersPage,
+  fetchOwnerSessionFilterOptions,
+  ownerRegisteredPlayersQueryKey,
+  ownerSessionFilterOptionsQueryKey,
+} from "@/lib/fetch-registered-players";
 import type {
   OwnerPlayerSessions,
   OwnerRegisteredPlayerItem,
-  OwnerRegisteredPlayersPage,
 } from "@/lib/owner-registered-players-shared";
 import { cn } from "@/lib/utils";
 
@@ -388,37 +393,22 @@ export function OwnerRegisteredPlayersView() {
   }, [searchInput]);
 
   const { data: sessionOptionsData, isLoading: sessionOptionsLoading } = useQuery({
-    queryKey: ["owner-session-filter-options"],
-    queryFn: async () => {
-      const response = await fetch("/api/owner/registered-players/session-options");
-      const payload = (await response.json()) as {
-        sessions: import("@/lib/owner-session-filter-options-shared").OwnerSessionFilterOption[];
-        message?: string;
-      };
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load sessions.");
-      return payload;
-    },
+    queryKey: ownerSessionFilterOptionsQueryKey(),
+    queryFn: fetchOwnerSessionFilterOptions,
     staleTime: 60_000,
   });
 
   const sessionOptions = sessionOptionsData?.sessions ?? [];
 
   const { data, isLoading, isError, isFetching } = useQuery({
-    queryKey: ["owner-registered-players", page, debouncedSearch, sessionGameId, insightFilter],
+    queryKey: ownerRegisteredPlayersQueryKey(page, debouncedSearch, sessionGameId, insightFilter),
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: String(page),
-      });
-      if (debouncedSearch) params.set("q", debouncedSearch);
-      if (sessionGameId) params.set("gameId", sessionGameId);
-      if (insightFilter && sessionGameId) params.set("insight", insightFilter);
-
-      const response = await fetch(`/api/owner/registered-players?${params.toString()}`);
-      const payload = (await response.json()) as OwnerRegisteredPlayersPage & {
-        count: number;
-        message?: string;
-      };
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load registered players.");
+      const payload = await fetchOwnerRegisteredPlayersPage(
+        page,
+        debouncedSearch,
+        sessionGameId,
+        insightFilter,
+      );
       if (payload.page !== page) setPage(payload.page);
       return payload;
     },

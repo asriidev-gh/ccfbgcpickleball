@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleUser, HeartHandshake, Megaphone, UserPen, Users } from "lucide-react";
+import { CircleUser, HeartHandshake, Megaphone, Store, UserPen, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -79,6 +79,8 @@ export function PlayerSessionMenu({
     setPrayerOpen(true);
   };
 
+  const marketplaceHref = `/games/${gameId}/spectate/marketplace`;
+
   return (
     <>
       <DropdownMenu>
@@ -105,6 +107,10 @@ export function PlayerSessionMenu({
           >
             <UserPen />
             Update profile
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push(marketplaceHref)}>
+            <Store />
+            Marketplace
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setAnnouncementsOpen(true)}>
             <Megaphone />

@@ -15,7 +15,7 @@ export function getBrandShellClasses(pathname: string) {
     };
   }
 
-  if (pathname === "/" || pathname === "/my-games" || pathname === "/my-club") {
+  if (pathname === "/" || pathname === "/my-games" || pathname === "/my-club" || pathname === "/marketplace") {
     return {
       pad: "px-6 lg:px-10",
       container: "max-w-7xl",
@@ -51,6 +51,7 @@ const OWNER_DASHBOARD_NAV_HIDDEN_PATHS = new Set([
   "/users",
   "/my-club",
   "/my-games",
+  "/marketplace",
   "/insights",
 ]);
 

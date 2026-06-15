@@ -225,6 +225,7 @@ function saveShowCourts(show: boolean) {
 }
 
 type QueueCheckedOutListProps = {
+  gameId: string;
   entries: QueueEntryView[];
   expanded: boolean;
   onToggle: () => void;
@@ -235,6 +236,7 @@ type QueueCheckedOutListProps = {
 };
 
 function QueueCheckedOutList({
+  gameId,
   entries,
   expanded,
   onToggle,
@@ -299,6 +301,7 @@ function QueueCheckedOutList({
                     checkedOutAt: entry.checkedOutAt ?? entry.updatedAt,
                   }}
                   index={index}
+                  gameId={gameId}
                   isNextUp={false}
                   canReplace={false}
                   onReplace={() => {}}
@@ -1801,6 +1804,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       <QueueEntryRow
         entry={entry}
         index={index}
+        gameId={!hideControls ? gameId : undefined}
         isNextUp={isNextUp}
         inWaitingLine={!isNextUp}
         canReplace={!hideControls && isNextUp && waitingLineEntries.length > 0}
@@ -2115,6 +2119,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             ) : null}
             {!readOnly && !isPastGame ? (
               <QueueCheckedOutList
+                gameId={gameId}
                 entries={checkedOutWithStats}
                 expanded={showCheckedOutList}
                 onToggle={() => {

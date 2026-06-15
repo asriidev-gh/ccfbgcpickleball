@@ -16,7 +16,8 @@ export function proxy(request: NextRequest) {
       pathname.startsWith("/settings") ||
       pathname.startsWith("/users") ||
       pathname.startsWith("/my-games") ||
-      pathname.startsWith("/my-club")) &&
+      pathname.startsWith("/my-club") ||
+      pathname.startsWith("/marketplace")) &&
     !isSpectatorGameRoute &&
     !isSpectatorLeaderboard;
   const isAuthRoute = pathname.startsWith("/login");
@@ -43,6 +44,7 @@ export const config = {
     "/users",
     "/my-games",
     "/my-club",
+    "/marketplace",
     "/login",
   ],
 };

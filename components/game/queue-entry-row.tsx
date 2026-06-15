@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
-import { PlayerNameWithPhoto, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import { PlayerNameWithPhoto, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import { SuperadminPlayerCheckInButton } from "@/components/game/superadmin-player-check-in-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -112,6 +113,8 @@ type QueueEntryRowProps = {
   compactName?: boolean;
   /** Hide win/loss badges (e.g. compact group view). */
   hideSessionStats?: boolean;
+  /** When set, superadmins can open this player's spectate view. */
+  gameId?: string;
 };
 
 export function QueueEntryRow({
@@ -134,8 +137,14 @@ export function QueueEntryRow({
   dragHandle,
   compactName = false,
   hideSessionStats = false,
+  gameId,
 }: QueueEntryRowProps) {
   const slot = index + 1;
+  const playerMongoId = resolvePlayerId(entry.playerId);
+  const playerDisplayName = formatPlayerDisplayName(
+    entry.playerId.firstName,
+    entry.playerId.lastName,
+  );
   const checkedOutTime = entry.checkedOutAt ? new Date(entry.checkedOutAt) : null;
   const sessionStats = {
     gamesPlayed: entry.gamesPlayed ?? 0,
@@ -202,6 +211,14 @@ export function QueueEntryRow({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5 xl:flex-row xl:items-center">
+          {gameId && playerMongoId ? (
+            <SuperadminPlayerCheckInButton
+              gameId={gameId}
+              playerId={playerMongoId}
+              playerName={playerDisplayName}
+              compact
+            />
+          ) : null}
           {checkedOut && onCheckBackIn ? (
             <Button
               type="button"
