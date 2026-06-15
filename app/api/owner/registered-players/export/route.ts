@@ -4,6 +4,7 @@ import { getAuthUserFromCookie } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import { buildOwnerRegisteredPlayersExportWorkbook } from "@/lib/owner-registered-players-export";
 import { parseOwnerSessionInsightFilter } from "@/lib/owner-session-insight-filter-shared";
+import { parseOwnerRegisteredPlayersCcfFilter } from "@/lib/owner-registered-players-filter-shared";
 
 export async function GET(request: Request) {
   try {
@@ -15,11 +16,13 @@ export async function GET(request: Request) {
       const query = url.searchParams.get("q")?.trim() ?? "";
       const gameId = url.searchParams.get("gameId")?.trim() ?? "";
       const insight = parseOwnerSessionInsightFilter(url.searchParams.get("insight")) ?? undefined;
+      const ccfFilter = parseOwnerRegisteredPlayersCcfFilter(url.searchParams);
 
       const exportData = await buildOwnerRegisteredPlayersExportWorkbook(authUser.userId, {
         query,
         gameId: gameId || undefined,
         insight,
+        ccfFilter,
       });
 
       return new NextResponse(new Uint8Array(exportData.buffer), {

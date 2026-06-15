@@ -5084,6 +5084,10 @@
     @apply border-violet-500/50 bg-violet-600 text-white hover:bg-violet-600/90 hover:text-white;
   }
 
+  .owner-header-nav-link--active-dashboard {
+    @apply border-primary/50 bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground;
+  }
+
   [data-theme="neon"] .club-profile-section,
   [data-theme="emerald"] .club-profile-section,
   [data-theme="sunset"] .club-profile-section {

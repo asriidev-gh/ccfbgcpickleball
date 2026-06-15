@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
+import { DashboardHeaderLink } from "@/components/dashboard-header-link";
 import { MyClubHeaderLink } from "@/components/my-club-header-link";
 import { SpectateClubProfileDialog } from "@/components/player/spectate-club-profile-dialog";
 import { PlayerSessionMenu } from "@/components/player/player-session-menu";
 import { RegisteredPlayersHeaderLink } from "@/components/registered-players-header-link";
 import { ThemeMenu } from "@/components/theme-menu";
+import { UserHeaderGreeting } from "@/components/user-header-greeting";
 import { UserMenu } from "@/components/user-menu";
 import { useGameClubBranding } from "@/hooks/use-game-club-branding";
 import { getSpectateGameIdFromPath } from "@/lib/player-session";
@@ -19,7 +21,9 @@ import {
   isPublicAppPath,
   isSpectatorPath,
   shouldHideAppBrandBar,
+  shouldShowDashboardHeaderLink,
   shouldShowOwnerDashboardNavLinks,
+  shouldShowUserHeaderGreeting,
 } from "@/lib/app-shell";
 import { dispatchRegistrationReset } from "@/lib/registration-reset";
 import { cn } from "@/lib/utils";
@@ -159,6 +163,8 @@ export function AppBrandBar() {
                       <MyClubHeaderLink />
                     </div>
                   ) : null}
+                  {shouldShowDashboardHeaderLink(pathname) ? <DashboardHeaderLink /> : null}
+                  {shouldShowUserHeaderGreeting(pathname) ? <UserHeaderGreeting /> : null}
                   <UserMenu />
                 </>
               )}

@@ -9,6 +9,9 @@ import {
   getOwnerSessionInsightFilterLabel,
   type OwnerSessionInsightFilter,
 } from "@/lib/owner-session-insight-filter-shared";
+import {
+  hasOwnerRegisteredPlayersCcfFilter,
+} from "@/lib/owner-registered-players-filter-shared";
 import { PickleGame } from "@/models/PickleGame";
 
 const EXPORT_HEADERS = [
@@ -42,7 +45,12 @@ function formatExportDateTime(value: string | null | undefined) {
 }
 
 function hasRegisteredPlayersExportFilter(options: OwnerRegisteredPlayersQuery) {
-  return Boolean(options.query?.trim() || options.gameId?.trim() || options.insight);
+  return Boolean(
+    options.query?.trim() ||
+      options.gameId?.trim() ||
+      options.insight ||
+      hasOwnerRegisteredPlayersCcfFilter(options.ccfFilter),
+  );
 }
 
 export async function buildOwnerRegisteredPlayersExportWorkbook(
@@ -96,6 +104,9 @@ export async function buildOwnerRegisteredPlayersExportWorkbook(
         .replace(/\s+/g, "-"),
     );
   }
+  if (options.ccfFilter?.attendedCcf) filenameParts.push("ccf-attended");
+  if (options.ccfFilter?.withDgroup) filenameParts.push("with-dgroup");
+  if (options.ccfFilter?.noDgroupYet) filenameParts.push("no-dgroup-yet");
 
   const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
 

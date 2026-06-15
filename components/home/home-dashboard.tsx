@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Building2, ChevronDown, LayoutGrid, Store, Users } from "lucide-react";
+import { BarChart3, Building2, ChevronDown, LayoutDashboard, LayoutGrid, Store, Users } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -129,7 +129,6 @@ export function HomeDashboard({
   const showCcfInsights = sessionInsightsData?.showCcfInsights ?? false;
   const chartSessions = sessionInsightsData?.sessions ?? [];
 
-  const userName = authData?.user?.name?.trim();
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
   const showRegisteredPlayers = Boolean(authData?.user);
   const sessionGames = sessionTab === "active" ? activeGames : pastGames;
@@ -138,11 +137,10 @@ export function HomeDashboard({
 
   return (
     <div className="home-dashboard space-y-5">
-      {userName ? (
-        <p className="home-dashboard__greeting text-lg font-semibold text-foreground">
-          Hi, {userName}
-        </p>
-      ) : null}
+      <div className="home-dashboard__title flex items-center gap-2">
+        <LayoutDashboard className="h-6 w-6 text-primary" aria-hidden />
+        <h1 className="text-lg font-semibold text-foreground sm:text-xl">Dashboard</h1>
+      </div>
 
       <div
         className={cn(

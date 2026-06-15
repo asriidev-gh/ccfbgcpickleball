@@ -6,6 +6,12 @@ import {
   type OwnerSessionInsightFilter,
 } from "@/lib/owner-session-insight-filter-shared";
 import { getSessionInsightIdentityKeys } from "@/lib/owner-session-insight-filter";
+import {
+  hasOwnerRegisteredPlayersCcfFilter,
+  matchesOwnerRegisteredPlayersCcfFilter,
+  type OwnerRegisteredPlayersCcfFilter,
+} from "@/lib/owner-registered-players-filter-shared";
+import { isPlayerCcfAttended } from "@/lib/player-profile-shared";
 import { isCcfUserType } from "@/lib/registration-variant";
 import {
   OWNER_REGISTERED_PLAYERS_PAGE_SIZE,
@@ -37,6 +43,8 @@ type PlayerDoc = {
   photoUrl?: string | null;
   photoPublicId?: string | null;
   createdAt?: Date;
+  attendedEvents?: string[];
+  isPartOfDgroup?: boolean;
   welcomeEmailStatus?: WelcomeEmailStatus | "";
   welcomeEmailError?: string;
   welcomeEmailSentAt?: Date | null;
@@ -48,6 +56,7 @@ export type OwnerRegisteredPlayersQuery = {
   query?: string;
   gameId?: string;
   insight?: OwnerSessionInsightFilter;
+  ccfFilter?: OwnerRegisteredPlayersCcfFilter;
   exportAll?: boolean;
 };
 
@@ -107,17 +116,22 @@ export async function getOwnerRegisteredPlayers(
   const searchQuery = options.query?.trim() ?? "";
   const sessionGameId = options.gameId?.trim() ?? "";
   let insightFilter = sessionGameId ? options.insight : undefined;
+  let ccfFilter = options.ccfFilter;
   await connectToDatabase();
 
-  if (insightFilter && isCcfOnlySessionInsightFilter(insightFilter)) {
-    const ownerUser = await User.findById(ownerId).select("userType").lean();
-    const ownerUserType =
-      ownerUser && typeof ownerUser === "object" && typeof ownerUser.userType === "string"
-        ? ownerUser.userType
-        : undefined;
-    if (!isCcfUserType(ownerUserType)) {
-      insightFilter = undefined;
-    }
+  const ownerUser = await User.findById(ownerId).select("userType").lean();
+  const ownerUserType =
+    ownerUser && typeof ownerUser === "object" && typeof ownerUser.userType === "string"
+      ? ownerUser.userType
+      : undefined;
+  const ownerIsCcf = isCcfUserType(ownerUserType);
+
+  if (insightFilter && isCcfOnlySessionInsightFilter(insightFilter) && !ownerIsCcf) {
+    insightFilter = undefined;
+  }
+
+  if (hasOwnerRegisteredPlayersCcfFilter(ccfFilter) && !ownerIsCcf) {
+    ccfFilter = undefined;
   }
 
   const insightIdentityKeys =
@@ -171,7 +185,7 @@ export async function getOwnerRegisteredPlayers(
   const playerIds = entryAgg.map((row) => row._id);
   const playerDocs = (await Player.find({ _id: { $in: playerIds } })
     .select(
-      "firstName lastName email mobileNumber personalQrCode photoUrl photoPublicId createdAt welcomeEmailStatus welcomeEmailError welcomeEmailSentAt",
+      "firstName lastName email mobileNumber personalQrCode photoUrl photoPublicId createdAt attendedEvents isPartOfDgroup welcomeEmailStatus welcomeEmailError welcomeEmailSentAt",
     )
     .lean()) as PlayerDoc[];
 
@@ -190,6 +204,8 @@ export async function getOwnerRegisteredPlayers(
     welcomeEmailStatus: WelcomeEmailStatus | "";
     welcomeEmailError: string;
     welcomeEmailSentAt: Date | null;
+    attendedEvents: string[];
+    isPartOfDgroup: boolean;
   };
 
   const groups = new Map<string, Group>();
@@ -219,6 +235,8 @@ export async function getOwnerRegisteredPlayers(
         welcomeEmailStatus: doc.welcomeEmailStatus ?? "",
         welcomeEmailError: doc.welcomeEmailError?.trim() ?? "",
         welcomeEmailSentAt: doc.welcomeEmailSentAt ? new Date(doc.welcomeEmailSentAt) : null,
+        attendedEvents: [...(doc.attendedEvents ?? [])],
+        isPartOfDgroup: doc.isPartOfDgroup === true,
       };
       groups.set(key, group);
     }
@@ -246,6 +264,15 @@ export async function getOwnerRegisteredPlayers(
     ) {
       group.lastRegisteredAt = lastRegistered;
     }
+
+    if (isPlayerCcfAttended(doc.attendedEvents)) {
+      group.attendedEvents = [...(doc.attendedEvents ?? [])];
+    } else if (group.attendedEvents.length === 0) {
+      group.attendedEvents = [...(doc.attendedEvents ?? [])];
+    }
+    if (doc.isPartOfDgroup === true) {
+      group.isPartOfDgroup = true;
+    }
   }
 
   let groupList = [...groups.values()];
@@ -262,6 +289,17 @@ export async function getOwnerRegisteredPlayers(
       });
       return insightIdentityKeys.has(identityKey);
     });
+  }
+  if (hasOwnerRegisteredPlayersCcfFilter(ccfFilter)) {
+    groupList = groupList.filter((group) =>
+      matchesOwnerRegisteredPlayersCcfFilter(
+        {
+          attendedEvents: group.attendedEvents,
+          isPartOfDgroup: group.isPartOfDgroup,
+        },
+        ccfFilter,
+      ),
+    );
   }
 
   const allPlayers = groupList

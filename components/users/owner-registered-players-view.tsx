@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -344,6 +346,9 @@ export function OwnerRegisteredPlayersView() {
   const [insightFilter, setInsightFilter] = useState<OwnerSessionInsightFilter | "">(
     () => parseOwnerSessionInsightFilter(searchParams.get("insight")) ?? "",
   );
+  const [attendedCcfFilter, setAttendedCcfFilter] = useState(false);
+  const [withDgroupFilter, setWithDgroupFilter] = useState(false);
+  const [noDgroupYetFilter, setNoDgroupYetFilter] = useState(false);
   const [page, setPage] = useState(1);
   const [sessionsPlayer, setSessionsPlayer] = useState<{ id: string; name: string } | null>(null);
   const [detailsPlayer, setDetailsPlayer] = useState<{ id: string; name: string } | null>(null);
@@ -373,6 +378,7 @@ export function OwnerRegisteredPlayersView() {
     },
     staleTime: 60_000,
   });
+  const showCcfInsights = sessionInsightsData?.showCcfInsights ?? false;
 
   useEffect(() => {
     if (
@@ -383,6 +389,21 @@ export function OwnerRegisteredPlayersView() {
       setInsightFilter("");
     }
   }, [sessionInsightsData?.showCcfInsights, insightFilter]);
+
+  useEffect(() => {
+    if (!showCcfInsights) {
+      setAttendedCcfFilter(false);
+      setWithDgroupFilter(false);
+      setNoDgroupYetFilter(false);
+    }
+  }, [showCcfInsights]);
+
+  useEffect(() => {
+    if (!attendedCcfFilter) {
+      setWithDgroupFilter(false);
+      setNoDgroupYetFilter(false);
+    }
+  }, [attendedCcfFilter]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -401,13 +422,24 @@ export function OwnerRegisteredPlayersView() {
   const sessionOptions = sessionOptionsData?.sessions ?? [];
 
   const { data, isLoading, isError, isFetching } = useQuery({
-    queryKey: ownerRegisteredPlayersQueryKey(page, debouncedSearch, sessionGameId, insightFilter),
+    queryKey: ownerRegisteredPlayersQueryKey(
+      page,
+      debouncedSearch,
+      sessionGameId,
+      insightFilter,
+      attendedCcfFilter,
+      withDgroupFilter,
+      noDgroupYetFilter,
+    ),
     queryFn: async () => {
       const payload = await fetchOwnerRegisteredPlayersPage(
         page,
         debouncedSearch,
         sessionGameId,
         insightFilter,
+        attendedCcfFilter,
+        withDgroupFilter,
+        noDgroupYetFilter,
       );
       if (payload.page !== page) setPage(payload.page);
       return payload;
@@ -527,8 +559,17 @@ export function OwnerRegisteredPlayersView() {
   const totalPages = data?.totalPages ?? 0;
   const currentPage = data?.page ?? page;
 
-  const countLabel = debouncedSearch || sessionGameId || insightFilter ? `${total} matching` : String(total);
-  const hasActiveFilters = Boolean(debouncedSearch || sessionGameId || insightFilter);
+  const countLabel = debouncedSearch || sessionGameId || insightFilter || attendedCcfFilter
+    ? `${total} matching`
+    : String(total);
+  const hasActiveFilters = Boolean(
+    debouncedSearch ||
+      sessionGameId ||
+      insightFilter ||
+      attendedCcfFilter ||
+      withDgroupFilter ||
+      noDgroupYetFilter,
+  );
 
   const pendingDeleteId = deleteMutation.isPending ? deleteMutation.variables : null;
   const pendingBlockId = blockMutation.isPending ? blockMutation.variables?.id : null;
@@ -541,6 +582,9 @@ export function OwnerRegisteredPlayersView() {
     if (debouncedSearch) params.set("q", debouncedSearch);
     if (sessionGameId) params.set("gameId", sessionGameId);
     if (insightFilter && sessionGameId) params.set("insight", insightFilter);
+    if (attendedCcfFilter) params.set("attendedCcf", "true");
+    if (withDgroupFilter) params.set("withDgroup", "true");
+    if (noDgroupYetFilter) params.set("noDgroupYet", "true");
     return `/api/owner/registered-players/export?${params.toString()}`;
   };
 
@@ -592,6 +636,73 @@ export function OwnerRegisteredPlayersView() {
             }}
           />
         </div>
+        {showCcfInsights ? (
+          <div className="space-y-2 border-t border-border/60 pt-3">
+            <label
+              htmlFor="registered-players-attended-ccf"
+              className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 p-3"
+            >
+              <Checkbox
+                id="registered-players-attended-ccf"
+                checked={attendedCcfFilter}
+                disabled={isLoading}
+                onCheckedChange={(value) => {
+                  const checked = Boolean(value);
+                  setAttendedCcfFilter(checked);
+                  if (!checked) {
+                    setWithDgroupFilter(false);
+                    setNoDgroupYetFilter(false);
+                  }
+                  setPage(1);
+                }}
+              />
+              <span className="min-w-0 space-y-0.5">
+                <span className="block text-sm font-medium text-foreground">Attended CCF</span>
+                <span className="block text-xs text-muted-foreground">
+                  Show players who have attended other CCF events before.
+                </span>
+              </span>
+            </label>
+            {attendedCcfFilter ? (
+              <div className="flex flex-wrap gap-3 pl-3 sm:pl-4">
+                <label
+                  htmlFor="registered-players-with-dgroup"
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2"
+                >
+                  <Checkbox
+                    id="registered-players-with-dgroup"
+                    checked={withDgroupFilter}
+                    disabled={isLoading}
+                    onCheckedChange={(value) => {
+                      setWithDgroupFilter(Boolean(value));
+                      setPage(1);
+                    }}
+                  />
+                  <Label htmlFor="registered-players-with-dgroup" className="cursor-pointer text-sm">
+                    With Dgroup
+                  </Label>
+                </label>
+                <label
+                  htmlFor="registered-players-no-dgroup-yet"
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/60 px-3 py-2"
+                >
+                  <Checkbox
+                    id="registered-players-no-dgroup-yet"
+                    checked={noDgroupYetFilter}
+                    disabled={isLoading}
+                    onCheckedChange={(value) => {
+                      setNoDgroupYetFilter(Boolean(value));
+                      setPage(1);
+                    }}
+                  />
+                  <Label htmlFor="registered-players-no-dgroup-yet" className="cursor-pointer text-sm">
+                    No Dgroup yet
+                  </Label>
+                </label>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {insightFilter && sessionGameId ? (
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="rounded-full">

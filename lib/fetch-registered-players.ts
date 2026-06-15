@@ -13,8 +13,20 @@ export function ownerRegisteredPlayersQueryKey(
   search: string,
   sessionGameId: string,
   insightFilter: string,
+  attendedCcf: boolean,
+  withDgroup: boolean,
+  noDgroupYet: boolean,
 ) {
-  return ["owner-registered-players", page, search, sessionGameId, insightFilter] as const;
+  return [
+    "owner-registered-players",
+    page,
+    search,
+    sessionGameId,
+    insightFilter,
+    attendedCcf,
+    withDgroup,
+    noDgroupYet,
+  ] as const;
 }
 
 async function fetchOwnerSessionFilterOptions() {
@@ -32,6 +44,9 @@ async function fetchOwnerRegisteredPlayersPage(
   search: string,
   sessionGameId: string,
   insightFilter: string,
+  attendedCcf: boolean,
+  withDgroup: boolean,
+  noDgroupYet: boolean,
 ) {
   const params = new URLSearchParams({
     page: String(page),
@@ -39,6 +54,9 @@ async function fetchOwnerRegisteredPlayersPage(
   if (search) params.set("q", search);
   if (sessionGameId) params.set("gameId", sessionGameId);
   if (insightFilter && sessionGameId) params.set("insight", insightFilter);
+  if (attendedCcf) params.set("attendedCcf", "true");
+  if (withDgroup) params.set("withDgroup", "true");
+  if (noDgroupYet) params.set("noDgroupYet", "true");
 
   const response = await fetch(`/api/owner/registered-players?${params.toString()}`);
   const payload = (await response.json()) as OwnerRegisteredPlayersPage & {

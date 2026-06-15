@@ -46,6 +46,8 @@ export function isPublicAppPath(pathname: string, fromParam: string | null) {
   return false;
 }
 
+const OWNER_HUB_PATHS = new Set(["/my-games", "/users", "/my-club", "/marketplace"]);
+
 const OWNER_DASHBOARD_NAV_HIDDEN_PATHS = new Set([
   "/",
   "/users",
@@ -54,6 +56,16 @@ const OWNER_DASHBOARD_NAV_HIDDEN_PATHS = new Set([
   "/marketplace",
   "/insights",
 ]);
+
+/** Owner hub sub-pages link back to the home dashboard from the header. */
+export function shouldShowDashboardHeaderLink(pathname: string) {
+  return OWNER_HUB_PATHS.has(pathname);
+}
+
+/** Greeting is hidden on owner hub sub-pages where the dashboard button is shown. */
+export function shouldShowUserHeaderGreeting(pathname: string) {
+  return !OWNER_HUB_PATHS.has(pathname);
+}
 
 /** Dashboard and dedicated pages already expose owner navigation in-page. */
 export function shouldShowOwnerDashboardNavLinks(pathname: string) {
