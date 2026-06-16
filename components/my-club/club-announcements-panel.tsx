@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, Archive, ArchiveRestore, Megaphone, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Archive, ArchiveRestore, Eye, Megaphone, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClubAnnouncementBody } from "@/components/my-club/club-announcement-body";
+import { ClubAnnouncementPlayerPreviewDialog } from "@/components/my-club/club-announcement-player-preview-dialog";
 import { ClubAnnouncementRichTextEditor } from "@/components/my-club/club-announcement-rich-text-editor";
 import type { ClubAnnouncementItem } from "@/lib/club-announcements-shared";
 import {
@@ -129,6 +130,7 @@ function AnnouncementList({
   deletePending,
   archivePending,
   isArchivedView = false,
+  onPreview,
   onEdit,
   onDelete,
   onArchive,
@@ -138,6 +140,7 @@ function AnnouncementList({
   deletePending: boolean;
   archivePending: boolean;
   isArchivedView?: boolean;
+  onPreview: (announcement: ClubAnnouncementItem) => void;
   onEdit: (announcement: ClubAnnouncementItem) => void;
   onDelete: (announcement: ClubAnnouncementItem) => void;
   onArchive: (announcement: ClubAnnouncementItem) => void;
@@ -206,6 +209,15 @@ function AnnouncementList({
               />
             </div>
             <div className="flex shrink-0 gap-1">
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label={`Preview ${announcement.title}`}
+                onClick={() => onPreview(announcement)}
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
               {isArchivedView ? (
                 <Button
                   type="button"
@@ -420,6 +432,8 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
   const [editing, setEditing] = useState<ClubAnnouncementItem | null>(null);
   const [draft, setDraft] = useState<AnnouncementFormState>(emptyForm);
   const [statusFilter, setStatusFilter] = useState<AnnouncementStatusFilter>("published");
+  const [previewAnnouncement, setPreviewAnnouncement] = useState<ClubAnnouncementItem | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["my-club-announcements"],
@@ -514,6 +528,11 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
     setEditing(null);
     setDraft(emptyForm);
     setEditorOpen(true);
+  };
+
+  const openPreview = (announcement: ClubAnnouncementItem) => {
+    setPreviewAnnouncement(announcement);
+    setPreviewOpen(true);
   };
 
   const openEdit = (announcement: ClubAnnouncementItem) => {
@@ -674,6 +693,7 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
               deletePending={deleteMutation.isPending}
               archivePending={archiveMutation.isPending}
               isArchivedView={statusFilter === "archived"}
+              onPreview={openPreview}
               onEdit={openEdit}
               onDelete={confirmDelete}
               onArchive={confirmArchive}
@@ -691,6 +711,15 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
         imageUploadConfigured={data?.imageUploadConfigured ?? false}
         isPending={saveMutation.isPending}
         onSubmit={(values) => saveMutation.mutate(values)}
+      />
+
+      <ClubAnnouncementPlayerPreviewDialog
+        announcement={previewAnnouncement}
+        open={previewOpen}
+        onOpenChange={(nextOpen) => {
+          setPreviewOpen(nextOpen);
+          if (!nextOpen) setPreviewAnnouncement(null);
+        }}
       />
     </div>
   );
