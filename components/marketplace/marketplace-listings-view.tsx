@@ -91,6 +91,26 @@ const alertOptions = {
 
 const NO_ITEM_TYPE_VALUE = "__none__";
 
+const listingSelectTriggerBaseClass =
+  "h-9 w-full bg-background shadow-sm dark:bg-card";
+
+const listingSelectBorderClass = {
+  condition:
+    "border-sky-500/55 hover:border-sky-500/75 focus-visible:border-sky-500 focus-visible:ring-sky-500/30",
+  itemType:
+    "border-violet-500/55 hover:border-violet-500/75 focus-visible:border-violet-500 focus-visible:ring-violet-500/30",
+  fulfillment:
+    "border-amber-500/55 hover:border-amber-500/75 focus-visible:border-amber-500 focus-visible:ring-amber-500/30",
+  bank:
+    "border-emerald-500/55 hover:border-emerald-500/75 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/30",
+} as const;
+
+function listingSelectTriggerClass(variant: keyof typeof listingSelectBorderClass) {
+  return cn(listingSelectTriggerBaseClass, listingSelectBorderClass[variant]);
+}
+
+const listingSelectContentClass = "bg-popover text-popover-foreground";
+
 type ListingStatusFilter = "active" | "inactive";
 
 type ListingFormState = {
@@ -411,10 +431,10 @@ function ListingEditorDialog({
                     }))
                   }
                 >
-                  <SelectTrigger id="listing-condition" className="w-full">
+                  <SelectTrigger id="listing-condition" className={listingSelectTriggerClass("condition")}>
                     <SelectValue placeholder="Select condition" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={listingSelectContentClass}>
                     {MARKETPLACE_CONDITIONS.map((condition) => (
                       <SelectItem key={condition} value={condition}>
                         {condition}
@@ -506,14 +526,14 @@ function ListingEditorDialog({
                   }));
                 }}
               >
-                <SelectTrigger id="listing-item-type" className="w-full">
+                <SelectTrigger id="listing-item-type" className={listingSelectTriggerClass("itemType")}>
                   <SelectValue placeholder="Select item type">
                     {(value) =>
                       !value || value === NO_ITEM_TYPE_VALUE ? null : String(value)
                     }
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={listingSelectContentClass}>
                   <SelectItem value={NO_ITEM_TYPE_VALUE}>No item type</SelectItem>
                   {MARKETPLACE_ITEM_TYPES.map((itemType) => (
                     <SelectItem key={itemType} value={itemType}>
@@ -613,7 +633,10 @@ function ListingEditorDialog({
                   }));
                 }}
               >
-                <SelectTrigger id="listing-fulfillment-method" className="w-full">
+                <SelectTrigger
+                  id="listing-fulfillment-method"
+                  className={listingSelectTriggerClass("fulfillment")}
+                >
                   <SelectValue placeholder="Select fulfillment method">
                     {(value) =>
                       value
@@ -624,7 +647,7 @@ function ListingEditorDialog({
                     }
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={listingSelectContentClass}>
                   {MARKETPLACE_FULFILLMENT_METHODS.map((method) => (
                     <SelectItem key={method} value={method}>
                       {formatMarketplaceFulfillmentMethod(method)}
@@ -790,10 +813,10 @@ function ListingEditorDialog({
                       setForm((prev) => ({ ...prev, bankName: value ?? "" }));
                     }}
                   >
-                    <SelectTrigger id="listing-bank-name" className="w-full">
+                    <SelectTrigger id="listing-bank-name" className={listingSelectTriggerClass("bank")}>
                       <SelectValue placeholder="Select local bank" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={listingSelectContentClass}>
                       {PH_LOCAL_BANKS.map((bank) => (
                         <SelectItem key={bank} value={bank}>
                           {bank}
