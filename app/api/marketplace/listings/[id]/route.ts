@@ -8,6 +8,7 @@ import {
   deleteMarketplaceListing,
   updateMarketplaceListing,
 } from "@/lib/marketplace-listings";
+import { MAX_MARKETPLACE_LISTING_PHOTOS } from "@/lib/marketplace-listings-shared";
 import { parseMarketplaceListingFormData } from "@/lib/parse-marketplace-listing-form";
 
 export async function PATCH(
@@ -22,21 +23,32 @@ export async function PATCH(
       if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
       const formData = await request.formData();
-      const { parsed, photoFile, removePhoto } = parseMarketplaceListingFormData(formData);
+      const { parsed, photoFile, photoFiles, removePhoto, keptPhotoUrls, photoClientIds, photoOrder } =
+        parseMarketplaceListingFormData(formData);
       if (!parsed.success) {
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
       }
 
-      if (photoFile && !isCloudinaryConfigured()) {
+      const files = photoFiles.length > 0 ? photoFiles : photoFile ? [photoFile] : [];
+      if (files.length > 0 && !isCloudinaryConfigured()) {
         return NextResponse.json(
           { message: "Photo upload is not configured on this server." },
           { status: 400 },
         );
       }
+      if (files.length > MAX_MARKETPLACE_LISTING_PHOTOS) {
+        return NextResponse.json(
+          { message: `You can upload up to ${MAX_MARKETPLACE_LISTING_PHOTOS} photos per listing.` },
+          { status: 400 },
+        );
+      }
 
       const listing = await updateMarketplaceListing(authUser.userId, id, parsed.data, {
-        photoFile,
+        photoFiles: files,
         removePhoto,
+        keptPhotoUrls,
+        photoClientIds,
+        photoOrder,
       });
       if (!listing) {
         return NextResponse.json({ message: "Listing not found." }, { status: 404 });

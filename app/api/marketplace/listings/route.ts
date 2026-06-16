@@ -8,6 +8,7 @@ import {
   createMarketplaceListing,
   listMarketplaceListings,
 } from "@/lib/marketplace-listings";
+import { MAX_MARKETPLACE_LISTING_PHOTOS } from "@/lib/marketplace-listings-shared";
 import { parseMarketplaceListingFormData } from "@/lib/parse-marketplace-listing-form";
 
 export async function GET() {
@@ -37,7 +38,8 @@ export async function POST(request: Request) {
       if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
       const formData = await request.formData();
-      const { parsed, photoFile, removePhoto } = parseMarketplaceListingFormData(formData);
+      const { parsed, photoFile, photoFiles, removePhoto, photoClientIds, photoOrder } =
+        parseMarketplaceListingFormData(formData);
       if (!parsed.success) {
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
       }
@@ -49,13 +51,22 @@ export async function POST(request: Request) {
         );
       }
 
-      if (!photoFile) {
+      const files = photoFiles.length > 0 ? photoFiles : photoFile ? [photoFile] : [];
+      if (files.length === 0) {
         return NextResponse.json({ message: "A product photo is required." }, { status: 400 });
+      }
+      if (files.length > MAX_MARKETPLACE_LISTING_PHOTOS) {
+        return NextResponse.json(
+          { message: `You can upload up to ${MAX_MARKETPLACE_LISTING_PHOTOS} photos per listing.` },
+          { status: 400 },
+        );
       }
 
       const listing = await createMarketplaceListing(authUser.userId, parsed.data, {
-        photoFile,
+        photoFiles: files,
         removePhoto,
+        photoClientIds,
+        photoOrder,
       });
       return NextResponse.json({ listing, message: "Listing created." });
     });

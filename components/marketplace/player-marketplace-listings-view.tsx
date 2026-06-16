@@ -36,6 +36,7 @@ function BrowseListingCard({
 }) {
   const [orderOpen, setOrderOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const totalPhotos = listing.photoUrls.length > 0 ? listing.photoUrls.length : listing.photoUrl ? 1 : 0;
 
   const handleOrderClick = () => {
     if (!playerId) {
@@ -51,7 +52,7 @@ function BrowseListingCard({
         <div className="border-b border-border/60 bg-muted/15 px-4 py-3 sm:px-5">
           <button
             type="button"
-            className="mx-auto block w-full rounded-xl outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="relative mx-auto block w-full rounded-xl outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             aria-label={`View full photo of ${listing.title}`}
             onClick={() => setPhotoOpen(true)}
           >
@@ -61,6 +62,11 @@ function BrowseListingCard({
               alt={listing.title}
               className="mx-auto max-h-56 w-full cursor-pointer rounded-xl border border-border/70 bg-background object-contain"
             />
+            {totalPhotos > 1 ? (
+              <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white">
+                +{totalPhotos - 1} photos
+              </span>
+            ) : null}
           </button>
         </div>
         <CardHeader className="space-y-2 pb-3">
@@ -148,7 +154,8 @@ function BrowseListingCard({
       ) : null}
 
       <MarketplaceListingPhotoDialog
-        photoUrl={listing.photoUrl!}
+        photoUrl={listing.photoUrl}
+        photoUrls={listing.photoUrls}
         title={listing.title}
         open={photoOpen}
         onOpenChange={setPhotoOpen}

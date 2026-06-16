@@ -1,6 +1,7 @@
 import type { MarketplacePaymentMethod } from "@/lib/marketplace-payment-shared";
 
 export const MAX_MARKETPLACE_PHOTO_BYTES = 5 * 1024 * 1024;
+export const MAX_MARKETPLACE_LISTING_PHOTOS = 5;
 
 export const MAX_MARKETPLACE_TITLE_LENGTH = 120;
 export const MAX_MARKETPLACE_DESCRIPTION_LENGTH = 300;
@@ -59,6 +60,7 @@ export type MarketplaceListingItem = {
   deliveryFee: number | null;
   deliveryFeeShoulderedByRecipient: boolean;
   photoUrl: string | null;
+  photoUrls: string[];
   paymentMethods: MarketplacePaymentMethod[];
   gcashName: string | null;
   gcashNumber: string | null;

@@ -33,6 +33,20 @@ function parsePaymentMethods(raw: string): MarketplacePaymentMethod[] {
   }
 }
 
+function parseStringArray(raw: string): string[] | undefined {
+  if (!raw.trim()) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+  } catch {
+    return undefined;
+  }
+}
+
 export function parseMarketplaceListingFormData(formData: FormData) {
   const priceRaw = formString(formData, "price");
   const parsedPrice = Number.parseFloat(priceRaw);
@@ -73,7 +87,13 @@ export function parseMarketplaceListingFormData(formData: FormData) {
 
   const photoEntry = formData.get("photo");
   const photoFile = photoEntry instanceof File && photoEntry.size > 0 ? photoEntry : null;
+  const photoFiles = formData
+    .getAll("photos")
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
   const removePhoto = formData.get("removePhoto") === "true";
+  const keptPhotoUrls = parseStringArray(formString(formData, "keptPhotoUrls"));
+  const photoClientIds = parseStringArray(formString(formData, "photoClientIds"));
+  const photoOrder = parseStringArray(formString(formData, "photoOrder"));
 
-  return { parsed, photoFile, removePhoto };
+  return { parsed, photoFile, photoFiles, removePhoto, keptPhotoUrls, photoClientIds, photoOrder };
 }

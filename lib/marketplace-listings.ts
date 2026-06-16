@@ -3,6 +3,7 @@ import {
   deleteMarketplacePhotos,
   uploadMarketplaceListingPhoto,
 } from "@/lib/marketplace-photo-upload";
+import { MAX_MARKETPLACE_LISTING_PHOTOS } from "@/lib/marketplace-listings-shared";
 import type {
   MarketplaceCondition,
   MarketplaceFulfillmentMethod,
@@ -37,6 +38,8 @@ type ListingDoc = {
   bankAccountNumber?: string | null;
   photoUrl?: string | null;
   photoPublicId?: string | null;
+  photoUrls?: string[] | null;
+  photoPublicIds?: string[] | null;
   isActive?: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -119,6 +122,11 @@ function normalizePayment(input: {
 function serializeListing(doc: ListingDoc): MarketplaceListingItem {
   const productTag = doc.productTag?.trim();
   const photoUrl = doc.photoUrl?.trim();
+  const photoUrls = (doc.photoUrls ?? [])
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  const primaryPhotoUrl = photoUrls[0] ?? (photoUrl ? photoUrl : null);
   const itemType = normalizeOptionalString(doc.itemType) as MarketplaceItemType | null;
   const fulfillmentMethod =
     doc.fulfillmentMethod === "courier" ? "courier" : ("pickup" as MarketplaceFulfillmentMethod);
@@ -156,7 +164,8 @@ function serializeListing(doc: ListingDoc): MarketplaceListingItem {
     bankAccountNumber: paymentMethods.includes("bank_transfer")
       ? normalizeOptionalString(doc.bankAccountNumber)
       : null,
-    photoUrl: photoUrl ? photoUrl : null,
+    photoUrl: primaryPhotoUrl,
+    photoUrls,
     isActive: doc.isActive !== false,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
@@ -188,7 +197,11 @@ export type MarketplaceListingInput = {
 
 export type MarketplaceListingPhotoInput = {
   photoFile?: File | null;
+  photoFiles?: File[] | null;
   removePhoto?: boolean;
+  keptPhotoUrls?: string[] | null;
+  photoClientIds?: string[] | null;
+  photoOrder?: string[] | null;
 };
 
 function normalizeProductTag(value: string | undefined) {
@@ -199,35 +212,130 @@ function normalizeProductTag(value: string | undefined) {
 async function applyListingPhotoUpdate(
   ownerId: string,
   listingId: string,
-  existing: { photoUrl?: string | null; photoPublicId?: string | null } | null,
+  existing:
+    | {
+        photoUrl?: string | null;
+        photoPublicId?: string | null;
+        photoUrls?: string[] | null;
+        photoPublicIds?: string[] | null;
+      }
+    | null,
   photo?: MarketplaceListingPhotoInput,
 ) {
+  const existingUrls = (existing?.photoUrls ?? [])
+    .filter((url): url is string => typeof url === "string")
+    .map((url) => url.trim())
+    .filter((url) => url.length > 0);
+  const existingPublicIds = (existing?.photoPublicIds ?? [])
+    .filter((publicId): publicId is string => typeof publicId === "string")
+    .map((publicId) => publicId.trim())
+    .filter((publicId) => publicId.length > 0);
+  const legacyUrl = existing?.photoUrl?.trim();
+  const legacyPublicId = existing?.photoPublicId?.trim();
+  if (legacyUrl && !existingUrls.includes(legacyUrl)) {
+    existingUrls.unshift(legacyUrl);
+  }
+  if (legacyPublicId && !existingPublicIds.includes(legacyPublicId)) {
+    existingPublicIds.unshift(legacyPublicId);
+  }
+  const existingPairs = existingUrls.map((url, index) => ({
+    url,
+    publicId: existingPublicIds[index] ?? "",
+  }));
+
   if (!photo) {
     return {
-      photoUrl: existing?.photoUrl?.trim() ?? "",
-      photoPublicId: existing?.photoPublicId?.trim() ?? "",
+      photoUrls: existingPairs.map((item) => item.url),
+      photoPublicIds: existingPairs.map((item) => item.publicId),
     };
   }
 
   if (photo.removePhoto) {
-    const publicId = existing?.photoPublicId?.trim();
-    if (publicId) await deleteMarketplacePhotos([publicId]);
-    return { photoUrl: "", photoPublicId: "" };
+    const allPublicIds = existingPairs
+      .map((item) => item.publicId)
+      .filter((value) => value.length > 0);
+    if (allPublicIds.length > 0) await deleteMarketplacePhotos(allPublicIds);
+    return { photoUrls: [], photoPublicIds: [] };
   }
+
+  const keptExistingPairs =
+    photo.keptPhotoUrls && photo.keptPhotoUrls.length > 0
+      ? existingPairs.filter((item) => photo.keptPhotoUrls?.includes(item.url))
+      : photo.keptPhotoUrls && photo.keptPhotoUrls.length === 0
+        ? []
+        : existingPairs;
+
+  const incomingFiles = (photo.photoFiles ?? []).filter((file) => file.size > 0);
+  const incomingClientIds = (photo.photoClientIds ?? []).map((id) => id.trim()).filter((id) => id.length > 0);
+  const uploaded =
+    incomingFiles.length > 0
+      ? await Promise.all(
+          incomingFiles.map((file) =>
+            uploadMarketplaceListingPhoto(file, { userId: ownerId, listingId }),
+          ),
+        )
+      : [];
+  const uploadedPairs = uploaded.map((item, index) => ({
+    token: `new:${incomingClientIds[index] ?? String(index)}`,
+    url: item.photoUrl,
+    publicId: item.photoPublicId,
+  }));
 
   if (photo.photoFile) {
     const uploaded = await uploadMarketplaceListingPhoto(photo.photoFile, {
       userId: ownerId,
       listingId,
     });
-    const publicId = existing?.photoPublicId?.trim();
-    if (publicId) await deleteMarketplacePhotos([publicId]);
-    return uploaded;
+    const combined = [...keptExistingPairs, { url: uploaded.photoUrl, publicId: uploaded.photoPublicId }];
+    if (combined.length > MAX_MARKETPLACE_LISTING_PHOTOS) {
+      throw new Error(`You can upload up to ${MAX_MARKETPLACE_LISTING_PHOTOS} photos per listing.`);
+    }
+    const removedIds = existingPairs
+      .filter((item) => !combined.some((keep) => keep.url === item.url))
+      .map((item) => item.publicId)
+      .filter((value) => value.length > 0);
+    if (removedIds.length > 0) await deleteMarketplacePhotos(removedIds);
+    return {
+      photoUrls: combined.map((item) => item.url),
+      photoPublicIds: combined.map((item) => item.publicId),
+    };
   }
 
+  const existingWithTokens = keptExistingPairs.map((item) => ({
+    token: `existing:${item.url}`,
+    ...item,
+  }));
+  const byToken = new Map<string, { token: string; url: string; publicId: string }>();
+  for (const item of existingWithTokens) byToken.set(item.token, item);
+  for (const item of uploadedPairs) byToken.set(item.token, item);
+
+  const orderedCombined =
+    photo.photoOrder && photo.photoOrder.length > 0
+      ? photo.photoOrder
+          .map((token) => byToken.get(token))
+          .filter((item): item is { token: string; url: string; publicId: string } => Boolean(item))
+      : [];
+  const combined =
+    orderedCombined.length > 0
+      ? [
+          ...orderedCombined,
+          ...[...byToken.values()].filter(
+            (item) => !orderedCombined.some((ordered) => ordered.token === item.token),
+          ),
+        ]
+      : [...existingWithTokens, ...uploadedPairs];
+  if (combined.length > MAX_MARKETPLACE_LISTING_PHOTOS) {
+    throw new Error(`You can upload up to ${MAX_MARKETPLACE_LISTING_PHOTOS} photos per listing.`);
+  }
+  const removedIds = existingPairs
+    .filter((item) => !combined.some((keep) => keep.url === item.url))
+    .map((item) => item.publicId)
+    .filter((value) => value.length > 0);
+  if (removedIds.length > 0) await deleteMarketplacePhotos(removedIds);
+
   return {
-    photoUrl: existing?.photoUrl?.trim() ?? "",
-    photoPublicId: existing?.photoPublicId?.trim() ?? "",
+    photoUrls: combined.map((item) => item.url),
+    photoPublicIds: combined.map((item) => item.publicId),
   };
 }
 
@@ -263,7 +371,8 @@ export async function createMarketplaceListing(
   photo?: MarketplaceListingPhotoInput,
 ) {
   await connectToDatabase();
-  if (!photo?.photoFile) {
+  const incomingFiles = (photo?.photoFiles ?? []).filter((file) => file.size > 0);
+  if (incomingFiles.length === 0 && !photo?.photoFile) {
     throw new Error("A product photo is required.");
   }
 
@@ -294,17 +403,21 @@ export async function createMarketplaceListing(
     isActive: input.isActive !== false,
     photoUrl: "",
     photoPublicId: "",
+    photoUrls: [],
+    photoPublicIds: [],
   });
 
   const listingId = doc._id.toString();
   const photoFields = await applyListingPhotoUpdate(ownerId, listingId, null, photo);
-  if (!photoFields.photoUrl?.trim()) {
+  if (photoFields.photoUrls.length === 0) {
     await MarketplaceListing.deleteOne({ _id: listingId });
     throw new Error("A product photo is required.");
   }
 
-  doc.photoUrl = photoFields.photoUrl;
-  doc.photoPublicId = photoFields.photoPublicId;
+  doc.photoUrl = photoFields.photoUrls[0] ?? "";
+  doc.photoPublicId = photoFields.photoPublicIds[0] ?? "";
+  doc.photoUrls = photoFields.photoUrls;
+  doc.photoPublicIds = photoFields.photoPublicIds;
   await doc.save();
 
   return serializeListing(doc.toObject() as ListingDoc);
@@ -382,14 +495,15 @@ export async function updateMarketplaceListing(
 
   if (photo) {
     const photoFields = await applyListingPhotoUpdate(ownerId, listingId, existing, photo);
-    update.photoUrl = photoFields.photoUrl;
-    update.photoPublicId = photoFields.photoPublicId;
+    update.photoUrls = photoFields.photoUrls;
+    update.photoUrl = photoFields.photoUrls[0] ?? "";
+    update.photoPublicIds = photoFields.photoPublicIds;
+    update.photoPublicId = photoFields.photoPublicIds[0] ?? "";
   }
 
-  const finalPhotoUrl =
-    typeof update.photoUrl === "string"
-      ? update.photoUrl
-      : (existing.photoUrl?.trim() ?? "");
+  const finalPhotoUrl = Array.isArray(update.photoUrls)
+    ? String(update.photoUrls[0] ?? "")
+    : (existing.photoUrls?.[0]?.trim() ?? existing.photoUrl?.trim() ?? "");
   if (!finalPhotoUrl) {
     throw new Error("A product photo is required.");
   }
@@ -407,14 +521,21 @@ export async function updateMarketplaceListing(
 export async function deleteMarketplaceListing(ownerId: string, listingId: string) {
   await connectToDatabase();
   const existing = (await MarketplaceListing.findOne({ _id: listingId, ownerId })
-    .select("photoPublicId")
-    .lean()) as { photoPublicId?: string | null } | null;
+    .select("photoPublicId photoPublicIds")
+    .lean()) as { photoPublicId?: string | null; photoPublicIds?: string[] | null } | null;
   if (!existing) return false;
 
   const result = await MarketplaceListing.deleteOne({ _id: listingId, ownerId });
   if (result.deletedCount > 0) {
-    const publicId = existing.photoPublicId?.trim();
-    if (publicId) await deleteMarketplacePhotos([publicId]);
+    const publicIds = (existing.photoPublicIds ?? [])
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    const legacyPublicId = existing.photoPublicId?.trim();
+    if (legacyPublicId && !publicIds.includes(legacyPublicId)) {
+      publicIds.push(legacyPublicId);
+    }
+    if (publicIds.length > 0) await deleteMarketplacePhotos(publicIds);
   }
   return result.deletedCount > 0;
 }

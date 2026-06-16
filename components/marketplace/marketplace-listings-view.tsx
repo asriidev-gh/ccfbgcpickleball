@@ -2,8 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, MapPin, Pencil, Plus, Store, Trash2, Eye, EyeOff, Bell, Package, Truck, Wallet } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Loader2, MapPin, Pencil, Plus, Store, Trash2, Eye, EyeOff, Bell, Package, Truck, Wallet, ImageIcon, Tag } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
 
@@ -31,6 +31,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  createEmptyMarketplaceListingPhotoValue,
+  createMarketplaceListingPhotoValueFromUrls,
   MarketplaceListingPhotoField,
   type MarketplaceListingPhotoValue,
 } from "@/components/marketplace/marketplace-listing-photo-field";
@@ -78,6 +80,7 @@ import {
   type MarketplaceOrderItem,
 } from "@/lib/marketplace-orders-shared";
 import { cn } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
 
 const alertOptions = {
   background: "#0f172a",
@@ -161,7 +164,10 @@ function listingToForm(listing: MarketplaceListingItem): ListingFormState {
     gcashNumber: listing.paymentMethods.includes("gcash")
       ? formatMarketplaceGcashNumberForForm(listing.gcashNumber)
       : "",
-    bankName: listing.bankName ?? "",
+    bankName:
+      listing.bankName && listing.bankName !== MARKETPLACE_BANK_PLACEHOLDER
+        ? listing.bankName
+        : "",
     bankAccountName: listing.bankAccountName ?? "",
     bankAccountNumber: listing.bankAccountNumber ?? "",
     isActive: listing.isActive,
@@ -212,10 +218,7 @@ type ListingSubmitPayload = {
   photo: MarketplaceListingPhotoValue;
 };
 
-const emptyPhotoValue: MarketplaceListingPhotoValue = {
-  file: null,
-  removePhoto: false,
-};
+const emptyPhotoValue = createEmptyMarketplaceListingPhotoValue();
 
 function parsePriceInput(value: string) {
   const normalized = value.replace(/,/g, "").trim();
@@ -225,11 +228,69 @@ function parsePriceInput(value: string) {
   return parsed;
 }
 
+function ListingFormSection({
+  title,
+  description,
+  icon: Icon,
+  children,
+  className,
+}: {
+  title: string;
+  description?: string;
+  icon: LucideIcon;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "rounded-2xl border border-border/70 bg-muted/10 p-4 sm:p-5",
+        className,
+      )}
+    >
+      <div className="mb-4 flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          {description ? (
+            <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+      </div>
+      <div className="space-y-4">{children}</div>
+    </section>
+  );
+}
+
+function FieldLabel({
+  htmlFor,
+  label,
+  count,
+}: {
+  htmlFor: string;
+  label: string;
+  count?: { value: number; max: number };
+}) {
+  return (
+    <div className="flex items-end justify-between gap-3">
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {count ? (
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {count.value}/{count.max}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function ListingEditorDialog({
   open,
   onOpenChange,
   initial,
   initialPhotoUrl,
+  initialPhotoUrls,
   photoUploadConfigured,
   onSubmit,
   isPending,
@@ -238,6 +299,7 @@ function ListingEditorDialog({
   onOpenChange: (open: boolean) => void;
   initial: ListingFormState;
   initialPhotoUrl: string | null;
+  initialPhotoUrls: string[];
   photoUploadConfigured: boolean;
   onSubmit: (values: ListingSubmitPayload) => void;
   isPending: boolean;
@@ -248,15 +310,21 @@ function ListingEditorDialog({
   useEffect(() => {
     if (open) {
       setForm(initial);
-      setPhoto(emptyPhotoValue);
+      setPhoto(
+        initialPhotoUrls.length > 0
+          ? createMarketplaceListingPhotoValueFromUrls(initialPhotoUrls)
+          : createEmptyMarketplaceListingPhotoValue(),
+      );
     }
-  }, [open, initial]);
+  }, [open, initial, initialPhotoUrls]);
 
   const priceValue = parsePriceInput(form.price);
   const deliveryFeeValue = parsePriceInput(form.deliveryFee);
   const showItemDetails = Boolean(form.itemType);
   const hasPhoto =
-    Boolean(photo.file) || Boolean(initialPhotoUrl?.trim() && !photo.removePhoto);
+    photo.files.length > 0 ||
+    ((photo.keptCurrentPhotoUrls?.length ?? initialPhotoUrls.length) > 0 &&
+      !photo.removePhoto);
   const hasFulfillmentDetails =
     form.fulfillmentMethod === "pickup"
       ? form.pickupLocation.trim().length > 0
@@ -290,292 +358,346 @@ function ListingEditorDialog({
         <DialogHeader>
           <DialogTitle>{initial.title ? "Edit listing" : "New listing"}</DialogTitle>
           <DialogDescription>
-            Add product details for your marketplace listing. Description is limited to 300
-            characters.
+            Work through each section below. Buyers see photos, price, and fulfillment details on
+            your listing card.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <div className="flex items-end justify-between gap-3">
-              <Label htmlFor="listing-title">Title</Label>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {form.title.length}/{MAX_MARKETPLACE_TITLE_LENGTH}
-              </span>
-            </div>
-            <Input
-              id="listing-title"
-              value={form.title}
-              maxLength={MAX_MARKETPLACE_TITLE_LENGTH}
-              disabled={isPending}
-              onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-5 py-2">
+          <ListingFormSection
+            icon={Package}
+            title="Product basics"
+            description="What you are selling and how much it costs."
+          >
             <div className="space-y-2">
-              <Label htmlFor="listing-price">Price</Label>
+              <FieldLabel
+                htmlFor="listing-title"
+                label="Title"
+                count={{ value: form.title.length, max: MAX_MARKETPLACE_TITLE_LENGTH }}
+              />
               <Input
-                id="listing-price"
-                type="number"
-                min={0}
-                step="0.01"
-                inputMode="decimal"
-                value={form.price}
+                id="listing-title"
+                value={form.title}
+                maxLength={MAX_MARKETPLACE_TITLE_LENGTH}
                 disabled={isPending}
-                placeholder="0.00"
-                onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
+                onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
               />
             </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="listing-price">Price</Label>
+                <Input
+                  id="listing-price"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  inputMode="decimal"
+                  value={form.price}
+                  disabled={isPending}
+                  placeholder="0.00"
+                  onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="listing-condition">Condition</Label>
+                <Select
+                  value={form.condition}
+                  disabled={isPending}
+                  onValueChange={(value) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      condition: value as MarketplaceCondition,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="listing-condition" className="w-full">
+                    <SelectValue placeholder="Select condition" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MARKETPLACE_CONDITIONS.map((condition) => (
+                      <SelectItem key={condition} value={condition}>
+                        {condition}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="listing-condition">Condition</Label>
-              <Select
-                value={form.condition}
+              <FieldLabel
+                htmlFor="listing-description"
+                label="Description"
+                count={{
+                  value: form.description.length,
+                  max: MAX_MARKETPLACE_DESCRIPTION_LENGTH,
+                }}
+              />
+              <Textarea
+                id="listing-description"
+                value={form.description}
+                rows={4}
+                maxLength={MAX_MARKETPLACE_DESCRIPTION_LENGTH}
                 disabled={isPending}
-                onValueChange={(value) =>
+                className="min-h-[6rem] border-border bg-background shadow-sm"
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, description: event.target.value }))
+                }
+              />
+            </div>
+          </ListingFormSection>
+
+          <ListingFormSection
+            icon={ImageIcon}
+            title="Photos"
+            description="Add up to 5 photos. The first photo is the cover image buyers see first."
+          >
+            <MarketplaceListingPhotoField
+              configured={photoUploadConfigured}
+              currentPhotoUrls={initialPhotoUrls}
+              disabled={isPending}
+              embedded
+              required
+              value={photo}
+              onChange={setPhoto}
+            />
+          </ListingFormSection>
+
+          <ListingFormSection
+            icon={Tag}
+            title="Item options"
+            description="Optional details to help buyers filter listings or choose size and color."
+          >
+            <div className="space-y-2">
+              <FieldLabel
+                htmlFor="listing-product-tag"
+                label="Product tag (optional)"
+                count={{
+                  value: form.productTag.length,
+                  max: MAX_MARKETPLACE_PRODUCT_TAG_LENGTH,
+                }}
+              />
+              <Input
+                id="listing-product-tag"
+                value={form.productTag}
+                maxLength={MAX_MARKETPLACE_PRODUCT_TAG_LENGTH}
+                disabled={isPending}
+                placeholder="e.g. Paddle, Shoes, Bag"
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, productTag: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="listing-item-type">Item type (optional)</Label>
+              <Select
+                value={form.itemType || NO_ITEM_TYPE_VALUE}
+                disabled={isPending}
+                onValueChange={(value) => {
+                  const nextType =
+                    value === NO_ITEM_TYPE_VALUE ? "" : (value as MarketplaceItemType);
                   setForm((prev) => ({
                     ...prev,
-                    condition: value as MarketplaceCondition,
-                  }))
-                }
+                    itemType: nextType,
+                    itemSize: nextType ? prev.itemSize : "",
+                    itemColor: nextType ? prev.itemColor : "",
+                  }));
+                }}
               >
-                <SelectTrigger id="listing-condition" className="w-full">
-                  <SelectValue placeholder="Select condition" />
+                <SelectTrigger id="listing-item-type" className="w-full">
+                  <SelectValue placeholder="Select item type">
+                    {(value) =>
+                      !value || value === NO_ITEM_TYPE_VALUE ? null : String(value)
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {MARKETPLACE_CONDITIONS.map((condition) => (
-                    <SelectItem key={condition} value={condition}>
-                      {condition}
+                  <SelectItem value={NO_ITEM_TYPE_VALUE}>No item type</SelectItem>
+                  {MARKETPLACE_ITEM_TYPES.map((itemType) => (
+                    <SelectItem key={itemType} value={itemType}>
+                      {itemType}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <div className="flex items-end justify-between gap-3">
-              <Label htmlFor="listing-description">Description</Label>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {form.description.length}/{MAX_MARKETPLACE_DESCRIPTION_LENGTH}
-              </span>
-            </div>
-            <Textarea
-              id="listing-description"
-              value={form.description}
-              rows={4}
-              maxLength={MAX_MARKETPLACE_DESCRIPTION_LENGTH}
-              disabled={isPending}
-              className="min-h-[6rem] border-border bg-background shadow-sm"
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, description: event.target.value }))
-              }
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-end justify-between gap-3">
-              <Label htmlFor="listing-product-tag">Product tag (optional)</Label>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {form.productTag.length}/{MAX_MARKETPLACE_PRODUCT_TAG_LENGTH}
-              </span>
-            </div>
-            <Input
-              id="listing-product-tag"
-              value={form.productTag}
-              maxLength={MAX_MARKETPLACE_PRODUCT_TAG_LENGTH}
-              disabled={isPending}
-              placeholder="e.g. Paddle, Shoes, Bag"
-              onChange={(event) => setForm((prev) => ({ ...prev, productTag: event.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="listing-item-type">Item type (optional)</Label>
-            <Select
-              value={form.itemType || NO_ITEM_TYPE_VALUE}
-              disabled={isPending}
-              onValueChange={(value) => {
-                const nextType = value === NO_ITEM_TYPE_VALUE ? "" : (value as MarketplaceItemType);
-                setForm((prev) => ({
-                  ...prev,
-                  itemType: nextType,
-                  itemSize: nextType ? prev.itemSize : "",
-                  itemColor: nextType ? prev.itemColor : "",
-                }));
-              }}
-            >
-              <SelectTrigger id="listing-item-type" className="w-full">
-                <SelectValue placeholder="Select item type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_ITEM_TYPE_VALUE}>No item type</SelectItem>
-                {MARKETPLACE_ITEM_TYPES.map((itemType) => (
-                  <SelectItem key={itemType} value={itemType}>
-                    {itemType}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {showItemDetails ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <div className="flex items-end justify-between gap-3">
-                  <Label htmlFor="listing-item-size">Sizes (optional)</Label>
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    {form.itemSize.length}/{MAX_MARKETPLACE_ITEM_SIZE_LENGTH}
-                  </span>
+            {showItemDetails ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <FieldLabel
+                    htmlFor="listing-item-size"
+                    label="Sizes (optional)"
+                    count={{ value: form.itemSize.length, max: MAX_MARKETPLACE_ITEM_SIZE_LENGTH }}
+                  />
+                  <Input
+                    id="listing-item-size"
+                    value={form.itemSize}
+                    maxLength={MAX_MARKETPLACE_ITEM_SIZE_LENGTH}
+                    disabled={isPending}
+                    placeholder="S, M, L, XL, 2XL"
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, itemSize: event.target.value }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated sizes buyers can choose when ordering.
+                  </p>
                 </div>
-                <Input
-                  id="listing-item-size"
-                  value={form.itemSize}
-                  maxLength={MAX_MARKETPLACE_ITEM_SIZE_LENGTH}
-                  disabled={isPending}
-                  placeholder="S, M, L, XL, 2XL"
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, itemSize: event.target.value }))
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  Comma-separated sizes buyers can choose when ordering.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-end justify-between gap-3">
-                  <Label htmlFor="listing-item-color">Colors (optional)</Label>
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    {form.itemColor.length}/{MAX_MARKETPLACE_ITEM_COLOR_LENGTH}
-                  </span>
+                <div className="space-y-2">
+                  <FieldLabel
+                    htmlFor="listing-item-color"
+                    label="Colors (optional)"
+                    count={{
+                      value: form.itemColor.length,
+                      max: MAX_MARKETPLACE_ITEM_COLOR_LENGTH,
+                    }}
+                  />
+                  <Input
+                    id="listing-item-color"
+                    value={form.itemColor}
+                    maxLength={MAX_MARKETPLACE_ITEM_COLOR_LENGTH}
+                    disabled={isPending}
+                    placeholder="Navy, Black, White"
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, itemColor: event.target.value }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Comma-separated colors buyers can choose when ordering.
+                  </p>
                 </div>
-                <Input
-                  id="listing-item-color"
-                  value={form.itemColor}
-                  maxLength={MAX_MARKETPLACE_ITEM_COLOR_LENGTH}
-                  disabled={isPending}
-                  placeholder="Navy, Black, White"
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, itemColor: event.target.value }))
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  Comma-separated colors buyers can choose when ordering.
-                </p>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </ListingFormSection>
 
-          <div className="space-y-2">
-            <div className="flex items-end justify-between gap-3">
-              <Label htmlFor="listing-location">Location</Label>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {form.location.length}/{MAX_MARKETPLACE_LOCATION_LENGTH}
-              </span>
-            </div>
-            <Input
-              id="listing-location"
-              value={form.location}
-              maxLength={MAX_MARKETPLACE_LOCATION_LENGTH}
-              disabled={isPending}
-              placeholder="City, court, or meet-up area"
-              onChange={(event) => setForm((prev) => ({ ...prev, location: event.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="listing-fulfillment-method">How to get the product?</Label>
-            <Select
-              value={form.fulfillmentMethod}
-              disabled={isPending}
-              onValueChange={(value) => {
-                const nextMethod = value as MarketplaceFulfillmentMethod;
-                setForm((prev) => ({
-                  ...prev,
-                  fulfillmentMethod: nextMethod,
-                  pickupLocation: nextMethod === "pickup" ? prev.pickupLocation : "",
-                  deliveryFee: nextMethod === "courier" ? prev.deliveryFee : "",
-                  deliveryFeeShoulderedByRecipient:
-                    nextMethod === "courier" ? prev.deliveryFeeShoulderedByRecipient : false,
-                }));
-              }}
-            >
-              <SelectTrigger id="listing-fulfillment-method" className="w-full">
-                <SelectValue placeholder="Select fulfillment method" />
-              </SelectTrigger>
-              <SelectContent>
-                {MARKETPLACE_FULFILLMENT_METHODS.map((method) => (
-                  <SelectItem key={method} value={method}>
-                    {formatMarketplaceFulfillmentMethod(method)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {form.fulfillmentMethod === "pickup" ? (
+          <ListingFormSection
+            icon={Truck}
+            title="Pickup & delivery"
+            description="Where the item is based and how buyers can receive it."
+          >
             <div className="space-y-2">
-              <div className="flex items-end justify-between gap-3">
-                <Label htmlFor="listing-pickup-location">Pickup location</Label>
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {form.pickupLocation.length}/{MAX_MARKETPLACE_PICKUP_LOCATION_LENGTH}
-                </span>
-              </div>
+              <FieldLabel
+                htmlFor="listing-location"
+                label="Listing location"
+                count={{ value: form.location.length, max: MAX_MARKETPLACE_LOCATION_LENGTH }}
+              />
               <Input
-                id="listing-pickup-location"
-                value={form.pickupLocation}
-                maxLength={MAX_MARKETPLACE_PICKUP_LOCATION_LENGTH}
+                id="listing-location"
+                value={form.location}
+                maxLength={MAX_MARKETPLACE_LOCATION_LENGTH}
                 disabled={isPending}
-                placeholder="Where buyers can pick up the item"
+                placeholder="City, court, or meet-up area"
                 onChange={(event) =>
-                  setForm((prev) => ({ ...prev, pickupLocation: event.target.value }))
+                  setForm((prev) => ({ ...prev, location: event.target.value }))
                 }
               />
             </div>
-          ) : (
-            <div className="space-y-3">
-              <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
-                <Checkbox
-                  checked={form.deliveryFeeShoulderedByRecipient}
+
+            <div className="space-y-2">
+              <Label htmlFor="listing-fulfillment-method">How to get the product?</Label>
+              <Select
+                value={form.fulfillmentMethod}
+                disabled={isPending}
+                onValueChange={(value) => {
+                  const nextMethod = value as MarketplaceFulfillmentMethod;
+                  setForm((prev) => ({
+                    ...prev,
+                    fulfillmentMethod: nextMethod,
+                    pickupLocation: nextMethod === "pickup" ? prev.pickupLocation : "",
+                    deliveryFee: nextMethod === "courier" ? prev.deliveryFee : "",
+                    deliveryFeeShoulderedByRecipient:
+                      nextMethod === "courier" ? prev.deliveryFeeShoulderedByRecipient : false,
+                  }));
+                }}
+              >
+                <SelectTrigger id="listing-fulfillment-method" className="w-full">
+                  <SelectValue placeholder="Select fulfillment method">
+                    {(value) =>
+                      value
+                        ? formatMarketplaceFulfillmentMethod(
+                            value as MarketplaceFulfillmentMethod,
+                          )
+                        : null
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {MARKETPLACE_FULFILLMENT_METHODS.map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {formatMarketplaceFulfillmentMethod(method)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {form.fulfillmentMethod === "pickup" ? (
+              <div className="space-y-2">
+                <FieldLabel
+                  htmlFor="listing-pickup-location"
+                  label="Pickup location"
+                  count={{
+                    value: form.pickupLocation.length,
+                    max: MAX_MARKETPLACE_PICKUP_LOCATION_LENGTH,
+                  }}
+                />
+                <Input
+                  id="listing-pickup-location"
+                  value={form.pickupLocation}
+                  maxLength={MAX_MARKETPLACE_PICKUP_LOCATION_LENGTH}
                   disabled={isPending}
-                  onCheckedChange={(checked) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      deliveryFeeShoulderedByRecipient: checked === true,
-                      ...(checked === true ? { deliveryFee: "" } : {}),
-                    }))
+                  placeholder="Where buyers can pick up the item"
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, pickupLocation: event.target.value }))
                   }
                 />
-                Delivery fee shouldered by recipient
-              </label>
-              {!form.deliveryFeeShoulderedByRecipient ? (
-                <div className="space-y-2">
-                  <Label htmlFor="listing-delivery-fee">Delivery fee</Label>
-                  <Input
-                    id="listing-delivery-fee"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    inputMode="decimal"
-                    value={form.deliveryFee}
+              </div>
+            ) : (
+              <div className="space-y-3 rounded-xl border border-border/60 bg-background/60 p-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={form.deliveryFeeShoulderedByRecipient}
                     disabled={isPending}
-                    placeholder="0.00"
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, deliveryFee: event.target.value }))
+                    onCheckedChange={(checked) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        deliveryFeeShoulderedByRecipient: checked === true,
+                        ...(checked === true ? { deliveryFee: "" } : {}),
+                      }))
                     }
                   />
-                </div>
-              ) : null}
-            </div>
-          )}
+                  Delivery fee shouldered by recipient
+                </label>
+                {!form.deliveryFeeShoulderedByRecipient ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="listing-delivery-fee">Delivery fee</Label>
+                    <Input
+                      id="listing-delivery-fee"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      inputMode="decimal"
+                      value={form.deliveryFee}
+                      disabled={isPending}
+                      placeholder="0.00"
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, deliveryFee: event.target.value }))
+                      }
+                    />
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </ListingFormSection>
 
-          <div className="space-y-3 rounded-xl border border-border/70 bg-muted/15 p-3">
-            <div>
-              <Label>Payment options</Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Choose one or more ways buyers can pay you.
-              </p>
-            </div>
+          <ListingFormSection
+            icon={Wallet}
+            title="Payment"
+            description="Choose one or more ways buyers can pay you."
+          >
             <div className="flex flex-wrap gap-3">
               {MARKETPLACE_PAYMENT_METHODS.map((method) => {
                 const checked = form.paymentMethods.includes(method);
@@ -617,7 +739,7 @@ function ListingEditorDialog({
             </div>
 
             {form.paymentMethods.includes("gcash") ? (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 rounded-xl border border-border/60 bg-background/60 p-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="listing-gcash-name">GCash name</Label>
                   <Input
@@ -654,14 +776,17 @@ function ListingEditorDialog({
             ) : null}
 
             {form.paymentMethods.includes("bank_transfer") ? (
-              <div className="space-y-4">
+              <div className="space-y-4 rounded-xl border border-border/60 bg-background/60 p-3">
                 <div className="space-y-2">
                   <Label htmlFor="listing-bank-name">Bank</Label>
                   <Select
-                    value={form.bankName || MARKETPLACE_BANK_PLACEHOLDER}
+                    value={
+                      form.bankName && form.bankName !== MARKETPLACE_BANK_PLACEHOLDER
+                        ? form.bankName
+                        : null
+                    }
                     disabled={isPending}
                     onValueChange={(value) => {
-                      if (value === MARKETPLACE_BANK_PLACEHOLDER) return;
                       setForm((prev) => ({ ...prev, bankName: value ?? "" }));
                     }}
                   >
@@ -669,9 +794,6 @@ function ListingEditorDialog({
                       <SelectValue placeholder="Select local bank" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={MARKETPLACE_BANK_PLACEHOLDER}>
-                        Select local bank
-                      </SelectItem>
                       {PH_LOCAL_BANKS.map((bank) => (
                         <SelectItem key={bank} value={bank}>
                           {bank}
@@ -708,35 +830,32 @@ function ListingEditorDialog({
                 </div>
               </div>
             ) : null}
-          </div>
+          </ListingFormSection>
 
-          <MarketplaceListingPhotoField
-            configured={photoUploadConfigured}
-            currentPhotoUrl={initialPhotoUrl}
-            disabled={isPending}
-            required
-            value={photo}
-            onChange={setPhoto}
-          />
-
-          <div className="flex items-start gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
-            <Checkbox
-              id="listing-is-active"
-              checked={form.isActive}
-              disabled={isPending}
-              onCheckedChange={(checked) =>
-                setForm((prev) => ({ ...prev, isActive: checked === true }))
-              }
-            />
-            <div className="space-y-1">
-              <Label htmlFor="listing-is-active" className="cursor-pointer">
-                Active listing
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Inactive listings stay in your account but are hidden from buyers.
-              </p>
+          <ListingFormSection
+            icon={Eye}
+            title="Visibility"
+            description="Control whether buyers can discover this listing."
+          >
+            <div className="flex items-start gap-3 rounded-xl border border-border/60 bg-background/60 px-3 py-3">
+              <Checkbox
+                id="listing-is-active"
+                checked={form.isActive}
+                disabled={isPending}
+                onCheckedChange={(checked) =>
+                  setForm((prev) => ({ ...prev, isActive: checked === true }))
+                }
+              />
+              <div className="space-y-1">
+                <Label htmlFor="listing-is-active" className="cursor-pointer">
+                  Active listing
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Inactive listings stay in your account but are hidden from buyers.
+                </p>
+              </div>
             </div>
-          </div>
+          </ListingFormSection>
         </div>
 
         <DialogFooter>
@@ -787,6 +906,7 @@ function ListingCard({
 }) {
   const [photoOpen, setPhotoOpen] = useState(false);
   const pendingOrderCount = orders.filter((order) => order.status === "pending").length;
+  const totalPhotos = listing.photoUrls.length > 0 ? listing.photoUrls.length : listing.photoUrl ? 1 : 0;
 
   const fulfillmentDetail =
     listing.fulfillmentMethod === "pickup" && marketplaceListingPickupLocation(listing)
@@ -827,6 +947,11 @@ function ListingCard({
                   alt={listing.title}
                   className="h-full w-full object-cover object-center"
                 />
+                {totalPhotos > 1 ? (
+                  <span className="absolute right-1 top-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[9px] font-medium text-white">
+                    +{totalPhotos - 1}
+                  </span>
+                ) : null}
               </button>
             </div>
           ) : (
@@ -997,6 +1122,7 @@ function ListingCard({
       {listing.photoUrl ? (
         <MarketplaceListingPhotoDialog
           photoUrl={listing.photoUrl}
+          photoUrls={listing.photoUrls}
           title={listing.title}
           open={photoOpen}
           onOpenChange={setPhotoOpen}
@@ -1088,8 +1214,19 @@ export function MarketplaceListingsView() {
       body.set("bankAccountName", form.bankAccountName.trim());
       body.set("bankAccountNumber", form.bankAccountNumber.trim());
       body.set("isActive", form.isActive ? "true" : "false");
-      if (photo.file) body.set("photo", photo.file);
+      for (const photoFile of photo.files) {
+        body.append("photos", photoFile);
+      }
+      if (photo.fileClientIds.length > 0) {
+        body.set("photoClientIds", JSON.stringify(photo.fileClientIds));
+      }
       if (photo.removePhoto) body.set("removePhoto", "true");
+      if (photo.keptCurrentPhotoUrls) {
+        body.set("keptPhotoUrls", JSON.stringify(photo.keptCurrentPhotoUrls));
+      }
+      if (photo.photoOrder) {
+        body.set("photoOrder", JSON.stringify(photo.photoOrder));
+      }
 
       const response = await fetch(
         editing ? `/api/marketplace/listings/${editing.id}` : "/api/marketplace/listings",
@@ -1309,6 +1446,7 @@ export function MarketplaceListingsView() {
         onOpenChange={setEditorOpen}
         initial={draft}
         initialPhotoUrl={draftPhotoUrl}
+        initialPhotoUrls={editing?.photoUrls ?? (draftPhotoUrl ? [draftPhotoUrl] : [])}
         photoUploadConfigured={photoUploadConfigured}
         isPending={saveMutation.isPending}
         onSubmit={(values) => saveMutation.mutate(values)}

@@ -32,6 +32,8 @@ const marketplaceListingSchema = new Schema(
     bankAccountNumber: { type: String, trim: true, maxlength: 40, default: "" },
     photoUrl: { type: String, default: "" },
     photoPublicId: { type: String, default: "" },
+    photoUrls: { type: [String], default: [] },
+    photoPublicIds: { type: [String], default: [] },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true },
