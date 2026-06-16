@@ -11,6 +11,10 @@ import { ZodError } from "zod";
 import { CcfQuestionnaireSection } from "@/components/register/ccf-questionnaire-section";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
 import { PlayerPersonalQrSection } from "@/components/player/player-personal-qr-section";
+import {
+  PlayerProfileDialogTabs,
+  type PlayerProfileDialogTab,
+} from "@/components/player/player-profile-dialog-tabs";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -151,6 +155,7 @@ export function PlayerProfileForm({
   });
   const [showCcf, setShowCcf] = useState(false);
   const [photoUrl, setPhotoUrl] = useState("");
+  const [activeTab, setActiveTab] = useState<PlayerProfileDialogTab>("profile");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["player-profile", gameId, playerId],
@@ -163,8 +168,6 @@ export function PlayerProfileForm({
       return payload;
     },
   });
-
-  const formSpacingClass = compact ? "space-y-4" : "space-y-6";
 
   useEffect(() => {
     if (!data) return;
@@ -371,164 +374,168 @@ export function PlayerProfileForm({
       </CardHeader>
       <CardContent>
         <form
-          className={formSpacingClass}
           onSubmit={(event) => {
             event.preventDefault();
             saveMutation.mutate();
           }}
         >
-          <RegistrationPhotoField
-            disabled={saveMutation.isPending}
-            error={fieldErrors.photo}
-            optional
-            currentPhotoUrl={photoUrl}
-            onChange={(file) => {
-              clearFieldError("photo");
-              setPhotoFile(file);
-            }}
-          />
+          <PlayerProfileDialogTabs
+            open
+            showCcf={showCcf}
+            onTabChange={setActiveTab}
+            profileContent={
+              <div className="space-y-5">
+                <RegistrationPhotoField
+                  disabled={saveMutation.isPending}
+                  error={fieldErrors.photo}
+                  optional
+                  currentPhotoUrl={photoUrl}
+                  onChange={(file) => {
+                    clearFieldError("photo");
+                    setPhotoFile(file);
+                  }}
+                />
 
-          <div className="register-field-grid">
-            <div className="register-field space-y-1.5">
-              <Label htmlFor="profile-firstName">First name</Label>
-              <Input
-                id="profile-firstName"
-                value={form.firstName}
-                aria-invalid={Boolean(fieldErrors.firstName)}
-                onChange={(event) => {
-                  clearFieldError("firstName");
-                  setForm((prev) => ({ ...prev, firstName: event.target.value }));
-                }}
-              />
-              {renderFieldError("firstName")}
-            </div>
-            <div className="register-field space-y-1.5">
-              <Label htmlFor="profile-lastName">Last name</Label>
-              <Input
-                id="profile-lastName"
-                value={form.lastName}
-                aria-invalid={Boolean(fieldErrors.lastName)}
-                onChange={(event) => {
-                  clearFieldError("lastName");
-                  setForm((prev) => ({ ...prev, lastName: event.target.value }));
-                }}
-              />
-              {renderFieldError("lastName")}
-            </div>
-            <div className="register-field space-y-1.5 md:col-span-2">
-              <Label htmlFor="profile-mobileNumber">Mobile number</Label>
-              <Input
-                id="profile-mobileNumber"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="09XX-XXXXXXX"
-                value={form.mobileNumber}
-                maxLength={12}
-                aria-invalid={Boolean(fieldErrors.mobileNumber)}
-                onFocus={() => {
-                  if (mobileTouched) return;
-                  setMobileTouched(true);
-                  if (!form.mobileNumber) {
-                    setForm((prev) => ({ ...prev, mobileNumber: "09" }));
-                  }
-                }}
-                onChange={(event) => {
-                  clearFieldError("mobileNumber");
-                  setForm((prev) => ({
-                    ...prev,
-                    mobileNumber: formatMobileNumberInput(event.target.value, mobileTouched),
-                  }));
-                }}
-              />
-              {renderFieldError("mobileNumber")}
-            </div>
-            <div className="register-field space-y-1.5 md:col-span-2">
-              <Label htmlFor="profile-email">Email</Label>
-              <Input id="profile-email" type="email" value={form.email} disabled readOnly />
-              <p className="caption text-muted-foreground">
-                Email is from your registration and cannot be changed here.
-              </p>
-            </div>
-            <div className="register-field space-y-1.5">
-              <Label htmlFor="profile-gender">Gender</Label>
-              <ProfileSelectField
-                id="profile-gender"
-                placeholder="Select gender"
-                value={form.gender}
-                options={GENDER_OPTIONS}
-                disabled={saveMutation.isPending}
-                invalid={Boolean(fieldErrors.gender)}
-                onChange={(gender) => {
-                  clearFieldError("gender");
-                  setForm((prev) => ({
-                    ...prev,
-                    gender: gender as GenderOption | "",
-                  }));
-                }}
-              />
-              {renderFieldError("gender")}
-            </div>
-            <div className="register-field space-y-1.5">
-              <Label htmlFor="profile-birthdate">Birthdate</Label>
-              <Input
-                id="profile-birthdate"
-                type="date"
-                value={form.birthdate}
-                aria-invalid={Boolean(fieldErrors.birthdate)}
-                onChange={(event) => {
-                  clearFieldError("birthdate");
-                  setForm((prev) => ({ ...prev, birthdate: event.target.value }));
-                }}
-              />
-              {renderFieldError("birthdate")}
-            </div>
-            <div className="register-field space-y-1.5 md:col-span-2">
-              <Label htmlFor="profile-pickleballLevel">Pickleball level</Label>
-              <ProfileSelectField
-                id="profile-pickleballLevel"
-                placeholder="Select level"
-                value={form.pickleballLevel}
-                options={PICKLEBALL_LEVELS}
-                disabled={saveMutation.isPending}
-                invalid={Boolean(fieldErrors.pickleballLevel)}
-                onChange={(pickleballLevel) => {
-                  clearFieldError("pickleballLevel");
-                  setForm((prev) => ({
-                    ...prev,
-                    pickleballLevel: pickleballLevel as PickleballLevel | "",
-                  }));
-                }}
-              />
-              {renderFieldError("pickleballLevel")}
-            </div>
-            <div className="register-field space-y-1.5 md:col-span-2">
-              <div className="flex items-end justify-between gap-3">
-                <Label htmlFor="profile-biography">Biography</Label>
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {form.biography.length}/500
-                </span>
+                <div className="register-field-grid">
+                  <div className="register-field space-y-1.5">
+                    <Label htmlFor="profile-firstName">First name</Label>
+                    <Input
+                      id="profile-firstName"
+                      value={form.firstName}
+                      aria-invalid={Boolean(fieldErrors.firstName)}
+                      onChange={(event) => {
+                        clearFieldError("firstName");
+                        setForm((prev) => ({ ...prev, firstName: event.target.value }));
+                      }}
+                    />
+                    {renderFieldError("firstName")}
+                  </div>
+                  <div className="register-field space-y-1.5">
+                    <Label htmlFor="profile-lastName">Last name</Label>
+                    <Input
+                      id="profile-lastName"
+                      value={form.lastName}
+                      aria-invalid={Boolean(fieldErrors.lastName)}
+                      onChange={(event) => {
+                        clearFieldError("lastName");
+                        setForm((prev) => ({ ...prev, lastName: event.target.value }));
+                      }}
+                    />
+                    {renderFieldError("lastName")}
+                  </div>
+                  <div className="register-field space-y-1.5 md:col-span-2">
+                    <Label htmlFor="profile-mobileNumber">Mobile number</Label>
+                    <Input
+                      id="profile-mobileNumber"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="09XX-XXXXXXX"
+                      value={form.mobileNumber}
+                      maxLength={12}
+                      aria-invalid={Boolean(fieldErrors.mobileNumber)}
+                      onFocus={() => {
+                        if (mobileTouched) return;
+                        setMobileTouched(true);
+                        if (!form.mobileNumber) {
+                          setForm((prev) => ({ ...prev, mobileNumber: "09" }));
+                        }
+                      }}
+                      onChange={(event) => {
+                        clearFieldError("mobileNumber");
+                        setForm((prev) => ({
+                          ...prev,
+                          mobileNumber: formatMobileNumberInput(event.target.value, mobileTouched),
+                        }));
+                      }}
+                    />
+                    {renderFieldError("mobileNumber")}
+                  </div>
+                  <div className="register-field space-y-1.5 md:col-span-2">
+                    <Label htmlFor="profile-email">Email</Label>
+                    <Input id="profile-email" type="email" value={form.email} disabled readOnly />
+                    <p className="caption text-muted-foreground">
+                      Email is from your registration and cannot be changed here.
+                    </p>
+                  </div>
+                  <div className="register-field space-y-1.5">
+                    <Label htmlFor="profile-gender">Gender</Label>
+                    <ProfileSelectField
+                      id="profile-gender"
+                      placeholder="Select gender"
+                      value={form.gender}
+                      options={GENDER_OPTIONS}
+                      disabled={saveMutation.isPending}
+                      invalid={Boolean(fieldErrors.gender)}
+                      onChange={(gender) => {
+                        clearFieldError("gender");
+                        setForm((prev) => ({
+                          ...prev,
+                          gender: gender as GenderOption | "",
+                        }));
+                      }}
+                    />
+                    {renderFieldError("gender")}
+                  </div>
+                  <div className="register-field space-y-1.5">
+                    <Label htmlFor="profile-birthdate">Birthdate</Label>
+                    <Input
+                      id="profile-birthdate"
+                      type="date"
+                      value={form.birthdate}
+                      aria-invalid={Boolean(fieldErrors.birthdate)}
+                      onChange={(event) => {
+                        clearFieldError("birthdate");
+                        setForm((prev) => ({ ...prev, birthdate: event.target.value }));
+                      }}
+                    />
+                    {renderFieldError("birthdate")}
+                  </div>
+                  <div className="register-field space-y-1.5 md:col-span-2">
+                    <Label htmlFor="profile-pickleballLevel">Pickleball level</Label>
+                    <ProfileSelectField
+                      id="profile-pickleballLevel"
+                      placeholder="Select level"
+                      value={form.pickleballLevel}
+                      options={PICKLEBALL_LEVELS}
+                      disabled={saveMutation.isPending}
+                      invalid={Boolean(fieldErrors.pickleballLevel)}
+                      onChange={(pickleballLevel) => {
+                        clearFieldError("pickleballLevel");
+                        setForm((prev) => ({
+                          ...prev,
+                          pickleballLevel: pickleballLevel as PickleballLevel | "",
+                        }));
+                      }}
+                    />
+                    {renderFieldError("pickleballLevel")}
+                  </div>
+                  <div className="register-field space-y-1.5 md:col-span-2">
+                    <div className="flex items-end justify-between gap-3">
+                      <Label htmlFor="profile-biography">Biography</Label>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {form.biography.length}/500
+                      </span>
+                    </div>
+                    <Textarea
+                      id="profile-biography"
+                      value={form.biography}
+                      maxLength={500}
+                      rows={compact ? 3 : 4}
+                      placeholder="Tell others a little about yourself…"
+                      aria-invalid={Boolean(fieldErrors.biography)}
+                      className="border-border bg-background"
+                      onChange={(event) => {
+                        clearFieldError("biography");
+                        setForm((prev) => ({ ...prev, biography: event.target.value }));
+                      }}
+                    />
+                    {renderFieldError("biography")}
+                  </div>
+                </div>
               </div>
-              <Textarea
-                id="profile-biography"
-                value={form.biography}
-                maxLength={500}
-                rows={compact ? 3 : 4}
-                placeholder="Tell others a little about yourself…"
-                aria-invalid={Boolean(fieldErrors.biography)}
-                className="border-border bg-background"
-                onChange={(event) => {
-                  clearFieldError("biography");
-                  setForm((prev) => ({ ...prev, biography: event.target.value }));
-                }}
-              />
-              {renderFieldError("biography")}
-            </div>
-          </div>
-
-          {showCcf ? (
-            <div className="space-y-4 border-t pt-6">
-              <p className="text-sm font-medium">CCF questionnaire</p>
+            }
+            ccfContent={
               <CcfQuestionnaireSection
                 ccfEventsBefore={ccfEventsBefore}
                 attendedEvents={form.attendedEvents}
@@ -561,19 +568,22 @@ export function PlayerProfileForm({
                 }}
                 renderFieldError={renderFieldError}
               />
-            </div>
-          ) : null}
-
-          <PlayerPersonalQrSection
-            firstName={form.firstName || data?.firstName || ""}
-            lastName={form.lastName || data?.lastName || ""}
-            personalQrCode={data?.personalQrCode ?? ""}
-            gameId={gameId}
-            compact={compact}
+            }
+            qrContent={
+              activeTab === "qr" ? (
+                <PlayerPersonalQrSection
+                  firstName={form.firstName || data?.firstName || ""}
+                  lastName={form.lastName || data?.lastName || ""}
+                  personalQrCode={data?.personalQrCode ?? ""}
+                  gameId={gameId}
+                  compact={compact}
+                />
+              ) : null
+            }
           />
 
           {compact ? (
-            <div className="border-t border-border/60 pt-4">
+            <div className="mt-6 border-t border-border/60 pt-4">
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button type="submit" disabled={saveMutation.isPending} className="w-full sm:flex-1">
                   {saveMutation.isPending ? (
@@ -597,7 +607,7 @@ export function PlayerProfileForm({
               </div>
             </div>
           ) : (
-            <div className="border-t border-border/60 pt-4">
+            <div className="mt-6 border-t border-border/60 pt-4">
               <div className="flex flex-wrap gap-3">
                 <Button type="submit" disabled={saveMutation.isPending}>
                   {saveMutation.isPending ? (

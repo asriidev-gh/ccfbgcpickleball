@@ -1,12 +1,16 @@
-"use client";
+﻿"use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
 
-import { PlayerQrDialog } from "@/components/game/player-qr-dialog";
+import {
+  PlayerProfileDialogTabs,
+  type PlayerProfileDialogTab,
+} from "@/components/player/player-profile-dialog-tabs";
+import { PlayerProfileQrSection } from "@/components/player/player-profile-qr-section";
 import { CcfQuestionnaireSection } from "@/components/register/ccf-questionnaire-section";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
 import { Badge } from "@/components/ui/badge";
@@ -46,13 +50,6 @@ import { profileCcfFieldsSchema, ownerProfileBaseSchema } from "@/lib/validation
 
 type CcfEventsBeforeAnswer = "yes" | "not_yet";
 type FieldErrors = Record<string, string>;
-
-type PlayerQrPayload = {
-  firstName: string;
-  personalQrCode: string;
-  personalQrCodeDataUrl: string;
-  message?: string;
-};
 
 function formatMobileNumberInput(value: string, forcePrefix = false): string {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -141,8 +138,7 @@ export function OwnerPlayerDetailsDialog({
   const [showCcf, setShowCcf] = useState(false);
   const [photoUrl, setPhotoUrl] = useState("");
   const [isBlocked, setIsBlocked] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
-  const [qrEmailSent, setQrEmailSent] = useState(false);
+  const [activeTab, setActiveTab] = useState<PlayerProfileDialogTab>("profile");
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["owner-player-profile", playerId],
@@ -157,20 +153,6 @@ export function OwnerPlayerDetailsDialog({
     },
   });
 
-  const qrQuery = useQuery({
-    queryKey: ["owner-player-qr", playerId],
-    enabled: Boolean(player),
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/owner/registered-players/${encodeURIComponent(playerId)}/qr`,
-      );
-      const payload = (await response.json()) as PlayerQrPayload;
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load player QR code.");
-      return payload;
-    },
-    retry: false,
-  });
-
   useEffect(() => {
     if (!data) return;
     setShowCcf(data.showCcfQuestionnaire);
@@ -179,7 +161,6 @@ export function OwnerPlayerDetailsDialog({
     setIsBlocked(data.isBlocked);
     setPhotoFile(null);
     setFieldErrors({});
-    setQrEmailSent(false);
     setForm({
       firstName: data.firstName,
       lastName: data.lastName,
@@ -195,34 +176,6 @@ export function OwnerPlayerDetailsDialog({
       attendedEventsOther: data.attendedEventsOther,
     });
   }, [data]);
-
-  useEffect(() => {
-    if (!player) {
-      setQrEmailSent(false);
-    }
-  }, [player]);
-
-  const resendQrEmailMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(
-        `/api/owner/registered-players/${encodeURIComponent(playerId)}/welcome-email`,
-        { method: "POST" },
-      );
-      const payload = (await response.json()) as { message?: string; emailSent?: boolean };
-      if (!response.ok) throw new Error(payload.message ?? "Failed to resend QR code email.");
-      if (!payload.emailSent) {
-        throw new Error(payload.message ?? "QR code email could not be sent.");
-      }
-      return payload;
-    },
-    onSuccess: (payload) => {
-      setQrEmailSent(true);
-      toast.success(payload.message ?? "QR code email sent.");
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to resend QR code email.");
-    },
-  });
 
   const clearFieldError = (name: string) => {
     setFieldErrors((current) => {
@@ -375,19 +328,7 @@ export function OwnerPlayerDetailsDialog({
     }));
   };
 
-  const copyQrCode = async () => {
-    const code = qrQuery.data?.personalQrCode?.trim();
-    if (!code) return;
-    try {
-      await navigator.clipboard.writeText(code);
-      toast.success("Personal QR ID copied.");
-    } catch {
-      toast.error("Could not copy QR ID.");
-    }
-  };
-
   return (
-    <>
     <Dialog open={Boolean(player)} onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <DialogContent className="flex max-h-[90vh] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden sm:max-w-xl md:max-w-2xl lg:max-w-3xl">
         <DialogHeader className="shrink-0">
@@ -408,7 +349,7 @@ export function OwnerPlayerDetailsDialog({
           {isLoading ? (
             <p className="flex items-center gap-2 py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              Loading profile…
+              Loading profileâ€¦
             </p>
           ) : isError ? (
             <p className="py-6 text-destructive">
@@ -417,177 +358,181 @@ export function OwnerPlayerDetailsDialog({
           ) : (
             <form
               id="owner-player-profile-form"
-              className="space-y-6"
               onSubmit={(event) => {
                 event.preventDefault();
                 saveMutation.mutate();
               }}
             >
-              <RegistrationPhotoField
-                disabled={saveMutation.isPending}
-                error={fieldErrors.photo}
-                optional
-                currentPhotoUrl={photoUrl}
-                onChange={(file) => {
-                  clearFieldError("photo");
-                  setPhotoFile(file);
-                }}
-              />
+              <PlayerProfileDialogTabs
+                open={Boolean(player)}
+                showCcf={showCcf}
+                onTabChange={setActiveTab}
+                profileContent={
+                  <div className="space-y-5">
+                    <RegistrationPhotoField
+                      disabled={saveMutation.isPending}
+                      error={fieldErrors.photo}
+                      optional
+                      currentPhotoUrl={photoUrl}
+                      onChange={(file) => {
+                        clearFieldError("photo");
+                        setPhotoFile(file);
+                      }}
+                    />
 
-              <div className="register-field-grid">
-                <div className="register-field space-y-1.5">
-                  <Label htmlFor="owner-profile-firstName">First name</Label>
-                  <Input
-                    id="owner-profile-firstName"
-                    value={form.firstName}
-                    aria-invalid={Boolean(fieldErrors.firstName)}
-                    disabled={saveMutation.isPending}
-                    onChange={(event) => {
-                      clearFieldError("firstName");
-                      setForm((prev) => ({ ...prev, firstName: event.target.value }));
-                    }}
-                  />
-                  {renderFieldError("firstName")}
-                </div>
-                <div className="register-field space-y-1.5">
-                  <Label htmlFor="owner-profile-lastName">Last name</Label>
-                  <Input
-                    id="owner-profile-lastName"
-                    value={form.lastName}
-                    aria-invalid={Boolean(fieldErrors.lastName)}
-                    disabled={saveMutation.isPending}
-                    onChange={(event) => {
-                      clearFieldError("lastName");
-                      setForm((prev) => ({ ...prev, lastName: event.target.value }));
-                    }}
-                  />
-                  {renderFieldError("lastName")}
-                </div>
-                <div className="register-field space-y-1.5 md:col-span-2">
-                  <Label htmlFor="owner-profile-mobileNumber">Mobile number</Label>
-                  <Input
-                    id="owner-profile-mobileNumber"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    placeholder="09XX-XXXXXXX"
-                    value={form.mobileNumber}
-                    maxLength={12}
-                    aria-invalid={Boolean(fieldErrors.mobileNumber)}
-                    disabled={saveMutation.isPending}
-                    onFocus={() => {
-                      if (mobileTouched) return;
-                      setMobileTouched(true);
-                      if (!form.mobileNumber) {
-                        setForm((prev) => ({ ...prev, mobileNumber: "09" }));
-                      }
-                    }}
-                    onChange={(event) => {
-                      clearFieldError("mobileNumber");
-                      setForm((prev) => ({
-                        ...prev,
-                        mobileNumber: formatMobileNumberInput(event.target.value, mobileTouched),
-                      }));
-                    }}
-                  />
-                  {renderFieldError("mobileNumber")}
-                </div>
-                <div className="register-field space-y-1.5 md:col-span-2">
-                  <Label htmlFor="owner-profile-email">Email</Label>
-                  <Input
-                    id="owner-profile-email"
-                    type="email"
-                    autoComplete="email"
-                    value={form.email}
-                    aria-invalid={Boolean(fieldErrors.email)}
-                    disabled={saveMutation.isPending}
-                    onChange={(event) => {
-                      clearFieldError("email");
-                      setForm((prev) => ({ ...prev, email: event.target.value }));
-                    }}
-                  />
-                  {renderFieldError("email")}
-                </div>
-                <div className="register-field space-y-1.5">
-                  <Label htmlFor="owner-profile-gender">Gender</Label>
-                  <ProfileSelectField
-                    id="owner-profile-gender"
-                    placeholder="Select gender"
-                    value={form.gender}
-                    options={GENDER_OPTIONS}
-                    disabled={saveMutation.isPending}
-                    invalid={Boolean(fieldErrors.gender)}
-                    onChange={(gender) => {
-                      clearFieldError("gender");
-                      setForm((prev) => ({
-                        ...prev,
-                        gender: gender as GenderOption | "",
-                      }));
-                    }}
-                  />
-                  {renderFieldError("gender")}
-                </div>
-                <div className="register-field space-y-1.5">
-                  <Label htmlFor="owner-profile-birthdate">Birthdate</Label>
-                  <Input
-                    id="owner-profile-birthdate"
-                    type="date"
-                    value={form.birthdate}
-                    aria-invalid={Boolean(fieldErrors.birthdate)}
-                    disabled={saveMutation.isPending}
-                    onChange={(event) => {
-                      clearFieldError("birthdate");
-                      setForm((prev) => ({ ...prev, birthdate: event.target.value }));
-                    }}
-                  />
-                  {renderFieldError("birthdate")}
-                </div>
-                <div className="register-field space-y-1.5 md:col-span-2">
-                  <Label htmlFor="owner-profile-pickleballLevel">Pickleball level</Label>
-                  <ProfileSelectField
-                    id="owner-profile-pickleballLevel"
-                    placeholder="Select level"
-                    value={form.pickleballLevel}
-                    options={PICKLEBALL_LEVELS}
-                    disabled={saveMutation.isPending}
-                    invalid={Boolean(fieldErrors.pickleballLevel)}
-                    onChange={(pickleballLevel) => {
-                      clearFieldError("pickleballLevel");
-                      setForm((prev) => ({
-                        ...prev,
-                        pickleballLevel: pickleballLevel as PickleballLevel | "",
-                      }));
-                    }}
-                  />
-                  {renderFieldError("pickleballLevel")}
-                </div>
-                <div className="register-field space-y-1.5 md:col-span-2">
-                  <div className="flex items-end justify-between gap-3">
-                    <Label htmlFor="owner-profile-biography">Biography</Label>
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {form.biography.length}/500
-                    </span>
+                    <div className="register-field-grid">
+                      <div className="register-field space-y-1.5">
+                        <Label htmlFor="owner-profile-firstName">First name</Label>
+                        <Input
+                          id="owner-profile-firstName"
+                          value={form.firstName}
+                          aria-invalid={Boolean(fieldErrors.firstName)}
+                          disabled={saveMutation.isPending}
+                          onChange={(event) => {
+                            clearFieldError("firstName");
+                            setForm((prev) => ({ ...prev, firstName: event.target.value }));
+                          }}
+                        />
+                        {renderFieldError("firstName")}
+                      </div>
+                      <div className="register-field space-y-1.5">
+                        <Label htmlFor="owner-profile-lastName">Last name</Label>
+                        <Input
+                          id="owner-profile-lastName"
+                          value={form.lastName}
+                          aria-invalid={Boolean(fieldErrors.lastName)}
+                          disabled={saveMutation.isPending}
+                          onChange={(event) => {
+                            clearFieldError("lastName");
+                            setForm((prev) => ({ ...prev, lastName: event.target.value }));
+                          }}
+                        />
+                        {renderFieldError("lastName")}
+                      </div>
+                      <div className="register-field space-y-1.5 md:col-span-2">
+                        <Label htmlFor="owner-profile-mobileNumber">Mobile number</Label>
+                        <Input
+                          id="owner-profile-mobileNumber"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          placeholder="09XX-XXXXXXX"
+                          value={form.mobileNumber}
+                          maxLength={12}
+                          aria-invalid={Boolean(fieldErrors.mobileNumber)}
+                          disabled={saveMutation.isPending}
+                          onFocus={() => {
+                            if (mobileTouched) return;
+                            setMobileTouched(true);
+                            if (!form.mobileNumber) {
+                              setForm((prev) => ({ ...prev, mobileNumber: "09" }));
+                            }
+                          }}
+                          onChange={(event) => {
+                            clearFieldError("mobileNumber");
+                            setForm((prev) => ({
+                              ...prev,
+                              mobileNumber: formatMobileNumberInput(event.target.value, mobileTouched),
+                            }));
+                          }}
+                        />
+                        {renderFieldError("mobileNumber")}
+                      </div>
+                      <div className="register-field space-y-1.5 md:col-span-2">
+                        <Label htmlFor="owner-profile-email">Email</Label>
+                        <Input
+                          id="owner-profile-email"
+                          type="email"
+                          autoComplete="email"
+                          value={form.email}
+                          aria-invalid={Boolean(fieldErrors.email)}
+                          disabled={saveMutation.isPending}
+                          onChange={(event) => {
+                            clearFieldError("email");
+                            setForm((prev) => ({ ...prev, email: event.target.value }));
+                          }}
+                        />
+                        {renderFieldError("email")}
+                      </div>
+                      <div className="register-field space-y-1.5">
+                        <Label htmlFor="owner-profile-gender">Gender</Label>
+                        <ProfileSelectField
+                          id="owner-profile-gender"
+                          placeholder="Select gender"
+                          value={form.gender}
+                          options={GENDER_OPTIONS}
+                          disabled={saveMutation.isPending}
+                          invalid={Boolean(fieldErrors.gender)}
+                          onChange={(gender) => {
+                            clearFieldError("gender");
+                            setForm((prev) => ({
+                              ...prev,
+                              gender: gender as GenderOption | "",
+                            }));
+                          }}
+                        />
+                        {renderFieldError("gender")}
+                      </div>
+                      <div className="register-field space-y-1.5">
+                        <Label htmlFor="owner-profile-birthdate">Birthdate</Label>
+                        <Input
+                          id="owner-profile-birthdate"
+                          type="date"
+                          value={form.birthdate}
+                          aria-invalid={Boolean(fieldErrors.birthdate)}
+                          disabled={saveMutation.isPending}
+                          onChange={(event) => {
+                            clearFieldError("birthdate");
+                            setForm((prev) => ({ ...prev, birthdate: event.target.value }));
+                          }}
+                        />
+                        {renderFieldError("birthdate")}
+                      </div>
+                      <div className="register-field space-y-1.5 md:col-span-2">
+                        <Label htmlFor="owner-profile-pickleballLevel">Pickleball level</Label>
+                        <ProfileSelectField
+                          id="owner-profile-pickleballLevel"
+                          placeholder="Select level"
+                          value={form.pickleballLevel}
+                          options={PICKLEBALL_LEVELS}
+                          disabled={saveMutation.isPending}
+                          invalid={Boolean(fieldErrors.pickleballLevel)}
+                          onChange={(pickleballLevel) => {
+                            clearFieldError("pickleballLevel");
+                            setForm((prev) => ({
+                              ...prev,
+                              pickleballLevel: pickleballLevel as PickleballLevel | "",
+                            }));
+                          }}
+                        />
+                        {renderFieldError("pickleballLevel")}
+                      </div>
+                      <div className="register-field space-y-1.5 md:col-span-2">
+                        <div className="flex items-end justify-between gap-3">
+                          <Label htmlFor="owner-profile-biography">Biography</Label>
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {form.biography.length}/500
+                          </span>
+                        </div>
+                        <Textarea
+                          id="owner-profile-biography"
+                          value={form.biography}
+                          maxLength={500}
+                          rows={4}
+                          placeholder="Tell others a little about yourselfâ€¦"
+                          aria-invalid={Boolean(fieldErrors.biography)}
+                          disabled={saveMutation.isPending}
+                          onChange={(event) => {
+                            clearFieldError("biography");
+                            setForm((prev) => ({ ...prev, biography: event.target.value }));
+                          }}
+                        />
+                        {renderFieldError("biography")}
+                      </div>
+                    </div>
                   </div>
-                  <Textarea
-                    id="owner-profile-biography"
-                    value={form.biography}
-                    maxLength={500}
-                    rows={4}
-                    placeholder="Tell others a little about yourself…"
-                    aria-invalid={Boolean(fieldErrors.biography)}
-                    disabled={saveMutation.isPending}
-                    onChange={(event) => {
-                      clearFieldError("biography");
-                      setForm((prev) => ({ ...prev, biography: event.target.value }));
-                    }}
-                  />
-                  {renderFieldError("biography")}
-                </div>
-              </div>
-
-              {showCcf ? (
-                <div className="space-y-4 border-t pt-6">
-                  <p className="text-sm font-medium">CCF questionnaire</p>
+                }
+                ccfContent={
                   <CcfQuestionnaireSection
                     ccfEventsBefore={ccfEventsBefore}
                     attendedEvents={form.attendedEvents}
@@ -620,78 +565,17 @@ export function OwnerPlayerDetailsDialog({
                     }}
                     renderFieldError={renderFieldError}
                   />
-                </div>
-              ) : null}
-
-              <section className="space-y-3 border-t border-border/60 pt-6">
-                <h3 className="text-sm font-semibold text-foreground">Personal QR code</h3>
-                {qrQuery.isLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden />
-                  </div>
-                ) : qrQuery.isError ? (
-                  <p className="text-sm text-muted-foreground">
-                    {qrQuery.error instanceof Error
-                      ? qrQuery.error.message
-                      : "QR code unavailable."}
-                  </p>
-                ) : qrQuery.data?.personalQrCodeDataUrl ? (
-                  <div className="space-y-3">
-                    <button
-                      type="button"
-                      className="player-profile-view-qr mx-auto flex w-fit cursor-pointer items-center justify-center rounded-xl bg-white p-3 shadow-sm outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
-                      aria-label={`View full QR code for ${player?.name ?? "player"}`}
-                      onClick={() => setQrOpen(true)}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={qrQuery.data.personalQrCodeDataUrl}
-                        alt={`Personal QR for ${player?.name ?? "player"}`}
-                        className="mx-auto block size-48 max-w-full object-contain"
-                      />
-                    </button>
-                    <p className="break-all text-center text-sm text-muted-foreground">
-                      {qrQuery.data.personalQrCode}
-                    </p>
-                    <Button type="button" variant="outline" className="w-full" onClick={copyQrCode}>
-                      <Copy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                      Copy QR ID
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      disabled={
-                        qrEmailSent ||
-                        resendQrEmailMutation.isPending ||
-                        saveMutation.isPending ||
-                        !form.email.trim()
-                      }
-                      onClick={() => resendQrEmailMutation.mutate()}
-                    >
-                      {resendQrEmailMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" aria-hidden />
-                          Sending…
-                        </>
-                      ) : qrEmailSent ? (
-                        "QR successfully sent!"
-                      ) : (
-                        <>
-                          <Mail className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                          Resend QR code
-                        </>
-                      )}
-                    </Button>
-                    <p className="text-center text-xs leading-relaxed text-muted-foreground">
-                      Tap the QR code to zoom in, copy the personal QR ID, or email it to the
-                      player.
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No personal QR code on file.</p>
-                )}
-              </section>
+                }
+                qrContent={
+                  <PlayerProfileQrSection
+                    playerId={playerId}
+                    displayName={player?.name ?? "Player"}
+                    email={form.email}
+                    enabled={Boolean(player) && activeTab === "qr"}
+                    disabled={saveMutation.isPending}
+                  />
+                }
+              />
             </form>
           )}
         </div>
@@ -709,7 +593,7 @@ export function OwnerPlayerDetailsDialog({
               {saveMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                  Saving…
+                  Savingâ€¦
                 </>
               ) : (
                 "Save changes"
@@ -719,15 +603,5 @@ export function OwnerPlayerDetailsDialog({
         ) : null}
       </DialogContent>
     </Dialog>
-    {qrQuery.data?.personalQrCodeDataUrl ? (
-      <PlayerQrDialog
-        displayName={player?.name ?? "Player"}
-        personalQrCode={qrQuery.data.personalQrCode}
-        personalQrCodeDataUrl={qrQuery.data.personalQrCodeDataUrl}
-        open={qrOpen}
-        onOpenChange={setQrOpen}
-      />
-    ) : null}
-    </>
   );
 }

@@ -32,6 +32,7 @@ import { ChangeUserPasswordDialog } from "@/components/insights/change-user-pass
 import { SystemLogsPanel } from "@/components/insights/system-logs-panel";
 import { buildImpersonateUrl } from "@/lib/browser-origin";
 import { PlayerAvatar } from "@/components/game/player-avatar";
+import { PlayerProfileViewDialog } from "@/components/game/player-profile-view-dialog";
 import {
   Dialog,
   DialogContent,
@@ -991,6 +992,7 @@ function PlayerGamesDialog({
 function PlayersPanel() {
   const queryClient = useQueryClient();
   const [selectedPlayer, setSelectedPlayer] = useState<{ id: string; name: string } | null>(null);
+  const [profilePlayer, setProfilePlayer] = useState<PlayerListItem | null>(null);
   const [realPlayersOnly, setRealPlayersOnly] = useState(true);
   const [nameFilter, setNameFilter] = useState("");
 
@@ -1132,7 +1134,15 @@ function PlayersPanel() {
                         size="sm"
                         className="!size-8 sm:!size-8"
                       />
-                      <span className="font-medium">{player.name}</span>
+                      <div className="min-w-0">
+                        <button
+                          type="button"
+                          className="cursor-pointer font-medium text-left text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+                          onClick={() => setProfilePlayer(player)}
+                        >
+                          {player.name}
+                        </button>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{player.email}</TableCell>
@@ -1177,6 +1187,23 @@ function PlayersPanel() {
       </CardContent>
 
       <PlayerGamesDialog player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
+      {profilePlayer ? (
+        <PlayerProfileViewDialog
+          playerId={profilePlayer.id}
+          player={{
+            _id: profilePlayer.id,
+            firstName: profilePlayer.firstName,
+            lastName: profilePlayer.lastName,
+            photoUrl: profilePlayer.photoUrl,
+            photoPublicId: profilePlayer.photoPublicId,
+            personalQrCode: profilePlayer.personalQrCode,
+          }}
+          open={Boolean(profilePlayer)}
+          onOpenChange={(open) => {
+            if (!open) setProfilePlayer(null);
+          }}
+        />
+      ) : null}
     </Card>
   );
 }

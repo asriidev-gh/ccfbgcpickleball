@@ -1,14 +1,16 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Copy, Loader2, Mail } from "lucide-react";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 import { PlayerPhotoDialog, type PlayerPhotoRef } from "@/components/game/player-photo-dialog";
-import { PlayerQrDialog } from "@/components/game/player-qr-dialog";
+import {
+  PlayerProfileDialogTabs,
+  type PlayerProfileDialogTab,
+} from "@/components/player/player-profile-dialog-tabs";
+import { PlayerProfileQrSection } from "@/components/player/player-profile-qr-section";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -24,13 +26,6 @@ import {
   PICKLEBALL_LEVELS,
 } from "@/lib/player-profile-shared";
 import { formatPlayerDisplayName } from "@/lib/utils";
-
-type PlayerQrPayload = {
-  firstName: string;
-  personalQrCode: string;
-  personalQrCodeDataUrl: string;
-  message?: string;
-};
 
 function labelForValue(
   value: string,
@@ -65,6 +60,73 @@ function formatYesNo(value: boolean | null | undefined) {
   return "";
 }
 
+function PlayerProfileDetailsGrid({ profile }: { profile: OwnerPlayerProfile }) {
+  return (
+    <dl className="player-profile-details grid gap-4 sm:grid-cols-2">
+      <ProfileDetail label="First name" value={profile.firstName} />
+      <ProfileDetail label="Last name" value={profile.lastName} />
+      <ProfileDetail label="Email" value={profile.email} />
+      <ProfileDetail label="Mobile number" value={profile.mobileNumber} />
+      <ProfileDetail
+        label="Gender"
+        value={profile.gender ? labelForValue(profile.gender, GENDER_OPTIONS) : ""}
+      />
+      <ProfileDetail label="Birthdate" value={profile.birthdate} />
+      <ProfileDetail
+        label="Pickleball level"
+        value={
+          profile.pickleballLevel
+            ? labelForValue(profile.pickleballLevel, PICKLEBALL_LEVELS)
+            : ""
+        }
+      />
+      <ProfileDetail
+        label="Biography"
+        value={profile.biography}
+        className="player-profile-detail space-y-1 sm:col-span-2"
+      />
+    </dl>
+  );
+}
+
+function PlayerCcfDetailsGrid({ profile }: { profile: OwnerPlayerProfile }) {
+  return (
+    <dl className="grid gap-4 sm:grid-cols-2">
+      <ProfileDetail
+        label="Attended CCF events before"
+        value={
+          profile.ccfEventsBefore === "not_yet"
+            ? "Not yet"
+            : profile.ccfEventsBefore === "yes"
+              ? "Yes"
+              : ""
+        }
+      />
+      {profile.attendedEvents.length > 0 ? (
+        <div className="player-profile-detail space-y-1 sm:col-span-2">
+          <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Events attended
+          </dt>
+          <dd className="flex flex-wrap gap-1.5">
+            {profile.attendedEvents.map((event) => (
+              <Badge key={event} variant="secondary" className="font-normal">
+                {event === CCF_ATTENDED_NOT_YET ? "Not yet" : event}
+              </Badge>
+            ))}
+          </dd>
+        </div>
+      ) : null}
+      <ProfileDetail label="Part of a Dgroup" value={formatYesNo(profile.isPartOfDgroup)} />
+      <ProfileDetail label="Wants to join a Dgroup" value={formatYesNo(profile.wantsToJoinDgroup)} />
+      <ProfileDetail
+        label="Other events"
+        value={profile.attendedEventsOther}
+        className="player-profile-detail space-y-1 sm:col-span-2"
+      />
+    </dl>
+  );
+}
+
 export function PlayerProfileViewDialog({
   playerId,
   player,
@@ -77,8 +139,7 @@ export function PlayerProfileViewDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const [photoOpen, setPhotoOpen] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
-  const [qrEmailSent, setQrEmailSent] = useState(false);
+  const [activeTab, setActiveTab] = useState<PlayerProfileDialogTab>("profile");
   const displayName =
     formatPlayerDisplayName(player.firstName, player.lastName) || "Player";
   const photoUrl = resolvePlayerPhotoUrl(player, 320);
@@ -96,60 +157,7 @@ export function PlayerProfileViewDialog({
     },
   });
 
-  const qrQuery = useQuery({
-    queryKey: ["owner-player-qr", playerId],
-    enabled: open && Boolean(playerId),
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/owner/registered-players/${encodeURIComponent(playerId)}/qr`,
-      );
-      const payload = (await response.json()) as PlayerQrPayload;
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load player QR code.");
-      return payload;
-    },
-    retry: false,
-  });
-
   const profile = profileQuery.data;
-
-  useEffect(() => {
-    if (!open) {
-      setQrEmailSent(false);
-    }
-  }, [open, playerId]);
-
-  const resendQrEmailMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(
-        `/api/owner/registered-players/${encodeURIComponent(playerId)}/welcome-email`,
-        { method: "POST" },
-      );
-      const payload = (await response.json()) as { message?: string; emailSent?: boolean };
-      if (!response.ok) throw new Error(payload.message ?? "Failed to resend QR code email.");
-      if (!payload.emailSent) {
-        throw new Error(payload.message ?? "QR code email could not be sent.");
-      }
-      return payload;
-    },
-    onSuccess: (payload) => {
-      setQrEmailSent(true);
-      toast.success(payload.message ?? "QR code email sent.");
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to resend QR code email.");
-    },
-  });
-
-  const copyQrCode = async () => {
-    const code = qrQuery.data?.personalQrCode?.trim();
-    if (!code) return;
-    try {
-      await navigator.clipboard.writeText(code);
-      toast.success("Personal QR ID copied.");
-    } catch {
-      toast.error("Could not copy QR ID.");
-    }
-  };
 
   return (
     <>
@@ -180,174 +188,43 @@ export function PlayerProfileViewDialog({
                   : "Failed to load profile."}
               </p>
             ) : profile ? (
-              <div className="space-y-5">
-                <button
-                  type="button"
-                  className="player-profile-view-photo mx-auto block overflow-hidden rounded-xl border border-border/70 bg-muted/30 outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label={`View full photo of ${displayName}`}
-                  onClick={() => setPhotoOpen(true)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photoUrl}
-                    alt={`${displayName} profile`}
-                    className="mx-auto block size-28 object-cover sm:size-32"
-                  />
-                </button>
-
-                <dl className="player-profile-details grid gap-4 sm:grid-cols-2">
-                  <ProfileDetail label="First name" value={profile.firstName} />
-                  <ProfileDetail label="Last name" value={profile.lastName} />
-                  <ProfileDetail label="Email" value={profile.email} />
-                  <ProfileDetail label="Mobile number" value={profile.mobileNumber} />
-                  <ProfileDetail
-                    label="Gender"
-                    value={profile.gender ? labelForValue(profile.gender, GENDER_OPTIONS) : ""}
-                  />
-                  <ProfileDetail label="Birthdate" value={profile.birthdate} />
-                  <ProfileDetail
-                    label="Pickleball level"
-                    value={
-                      profile.pickleballLevel
-                        ? labelForValue(profile.pickleballLevel, PICKLEBALL_LEVELS)
-                        : ""
-                    }
-                  />
-                  <ProfileDetail
-                    label="Biography"
-                    value={profile.biography}
-                    className="player-profile-detail space-y-1 sm:col-span-2"
-                  />
-                </dl>
-
-                {profile.showCcfQuestionnaire ? (
-                  <section className="space-y-3 border-t border-border/60 pt-4">
-                    <h3 className="text-sm font-semibold text-foreground">CCF questionnaire</h3>
-                    <dl className="grid gap-4 sm:grid-cols-2">
-                      <ProfileDetail
-                        label="Attended CCF events before"
-                        value={
-                          profile.ccfEventsBefore === "not_yet"
-                            ? "Not yet"
-                            : profile.ccfEventsBefore === "yes"
-                              ? "Yes"
-                              : ""
-                        }
+              <PlayerProfileDialogTabs
+                open={open}
+                showCcf={profile.showCcfQuestionnaire}
+                onTabChange={setActiveTab}
+                profileContent={
+                  <div className="space-y-5">
+                    <button
+                      type="button"
+                      className="player-profile-view-photo mx-auto block overflow-hidden rounded-xl border border-border/70 bg-muted/30 outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`View full photo of ${displayName}`}
+                      onClick={() => setPhotoOpen(true)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photoUrl}
+                        alt={`${displayName} profile`}
+                        className="mx-auto block size-28 object-cover sm:size-32"
                       />
-                      {profile.attendedEvents.length > 0 ? (
-                        <div className="player-profile-detail space-y-1 sm:col-span-2">
-                          <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                            Events attended
-                          </dt>
-                          <dd className="flex flex-wrap gap-1.5">
-                            {profile.attendedEvents.map((event) => (
-                              <Badge key={event} variant="secondary" className="font-normal">
-                                {event === CCF_ATTENDED_NOT_YET ? "Not yet" : event}
-                              </Badge>
-                            ))}
-                          </dd>
-                        </div>
-                      ) : null}
-                      <ProfileDetail
-                        label="Part of a Dgroup"
-                        value={formatYesNo(profile.isPartOfDgroup)}
-                      />
-                      <ProfileDetail
-                        label="Wants to join a Dgroup"
-                        value={formatYesNo(profile.wantsToJoinDgroup)}
-                      />
-                      <ProfileDetail
-                        label="Other events"
-                        value={profile.attendedEventsOther}
-                        className="player-profile-detail space-y-1 sm:col-span-2"
-                      />
-                    </dl>
-                  </section>
-                ) : null}
-
-                <section className="space-y-3 border-t border-border/60 pt-4">
-                  <h3 className="text-sm font-semibold text-foreground">Personal QR code</h3>
-                  {qrQuery.isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden />
-                    </div>
-                  ) : qrQuery.isError ? (
-                    <p className="text-sm text-muted-foreground">
-                      {qrQuery.error instanceof Error
-                        ? qrQuery.error.message
-                        : "QR code unavailable."}
-                    </p>
-                  ) : qrQuery.data?.personalQrCodeDataUrl ? (
-                    <div className="space-y-3">
-                      <button
-                        type="button"
-                        className="player-profile-view-qr mx-auto flex w-fit cursor-pointer items-center justify-center rounded-xl bg-white p-3 shadow-sm outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={`View full QR code for ${displayName}`}
-                        onClick={() => setQrOpen(true)}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={qrQuery.data.personalQrCodeDataUrl}
-                          alt={`Personal QR for ${displayName}`}
-                          className="mx-auto block size-48 max-w-full object-contain"
-                        />
-                      </button>
-                      <p className="break-all text-center text-sm text-muted-foreground">
-                        {qrQuery.data.personalQrCode}
-                      </p>
-                      <Button type="button" variant="outline" className="w-full" onClick={copyQrCode}>
-                        <Copy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                        Copy QR ID
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        disabled={
-                          qrEmailSent ||
-                          resendQrEmailMutation.isPending ||
-                          !profile.email?.trim()
-                        }
-                        onClick={() => resendQrEmailMutation.mutate()}
-                      >
-                        {resendQrEmailMutation.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" aria-hidden />
-                            Sending…
-                          </>
-                        ) : qrEmailSent ? (
-                          "QR successfully sent!"
-                        ) : (
-                          <>
-                            <Mail className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                            Resend QR code
-                          </>
-                        )}
-                      </Button>
-                      <p className="text-center text-xs leading-relaxed text-muted-foreground">
-                        Tap the QR code to zoom in, copy the personal QR ID, or email it to the
-                        player.
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No personal QR code on file.</p>
-                  )}
-                </section>
-              </div>
+                    </button>
+                    <PlayerProfileDetailsGrid profile={profile} />
+                  </div>
+                }
+                ccfContent={<PlayerCcfDetailsGrid profile={profile} />}
+                qrContent={
+                  <PlayerProfileQrSection
+                    playerId={playerId}
+                    displayName={displayName}
+                    email={profile.email}
+                    enabled={open && activeTab === "qr"}
+                  />
+                }
+              />
             ) : null}
           </div>
         </DialogContent>
       </Dialog>
       <PlayerPhotoDialog player={player} open={photoOpen} onOpenChange={setPhotoOpen} />
-      {qrQuery.data?.personalQrCodeDataUrl ? (
-        <PlayerQrDialog
-          displayName={displayName}
-          personalQrCode={qrQuery.data.personalQrCode}
-          personalQrCodeDataUrl={qrQuery.data.personalQrCodeDataUrl}
-          open={qrOpen}
-          onOpenChange={setQrOpen}
-        />
-      ) : null}
     </>
   );
 }
