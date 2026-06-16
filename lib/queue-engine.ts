@@ -7,11 +7,35 @@ import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
 import { QueueEntry } from "@/models/QueueEntry";
 
+const COURT_EMPTY_WAIT_MS = 5_000;
+const COURT_EMPTY_POLL_MS = 250;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findEmptyCourt(gameId: string, courtNumber?: number) {
+  const deadline =
+    courtNumber != null ? Date.now() + COURT_EMPTY_WAIT_MS : Date.now();
+
+  while (true) {
+    const court =
+      courtNumber != null
+        ? await Court.findOne({ gameId, courtNumber, status: "empty" })
+        : await Court.findOne({ gameId, status: "empty" }).sort({ courtNumber: 1 });
+
+    if (court) return court;
+
+    if (courtNumber == null || Date.now() >= deadline) {
+      return null;
+    }
+
+    await sleep(COURT_EMPTY_POLL_MS);
+  }
+}
+
 export async function startGameOnCourt(gameId: string, courtNumber?: number) {
-  const court =
-    courtNumber != null
-      ? await Court.findOne({ gameId, courtNumber, status: "empty" })
-      : await Court.findOne({ gameId, status: "empty" }).sort({ courtNumber: 1 });
+  const court = await findEmptyCourt(gameId, courtNumber);
   if (!court) {
     throw new Error(
       courtNumber != null

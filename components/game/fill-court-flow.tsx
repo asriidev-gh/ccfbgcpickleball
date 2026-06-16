@@ -12,6 +12,7 @@ import { announceNextCourtPlayers } from "@/lib/call-names-speech";
 
 type FillCourtFlowProps = {
   canFillNextCourt: boolean;
+  courtsClearingInProgress?: boolean;
   queuePlayerCount: number;
   teamA: QueueEntryView[];
   teamB: QueueEntryView[];
@@ -26,6 +27,7 @@ type FillCourtFlowProps = {
 
 export function FillCourtFlow({
   canFillNextCourt,
+  courtsClearingInProgress = false,
   queuePlayerCount,
   teamA,
   teamB,
@@ -54,6 +56,8 @@ export function FillCourtFlow({
     if (!canFillNextCourt) {
       if (queuePlayerCount < 4) {
         toast.error("Not enough players in the queue. At least 4 are required.");
+      } else if (courtsClearingInProgress) {
+        toast.info("A court is still clearing. Try again in a moment.");
       } else {
         toast.error("No empty court available.");
       }
@@ -66,7 +70,13 @@ export function FillCourtFlow({
     }
 
     openFillCourtConfirmDialog(emptyCourtNumbers[0]);
-  }, [canFillNextCourt, emptyCourtNumbers, openFillCourtConfirmDialog, queuePlayerCount]);
+  }, [
+    canFillNextCourt,
+    courtsClearingInProgress,
+    emptyCourtNumbers,
+    openFillCourtConfirmDialog,
+    queuePlayerCount,
+  ]);
 
   const handleFillCourtDialogOpenChange = useCallback(
     (open: boolean) => {

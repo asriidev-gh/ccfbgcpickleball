@@ -969,14 +969,29 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const startMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
-      const response = await fetch(`/api/games/${gameId}/start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courtNumber }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
-      return data;
+      const maxAttempts = 3;
+      let lastMessage = "Failed to fill court.";
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const response = await fetch(`/api/games/${gameId}/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courtNumber }),
+        });
+        const data = await response.json();
+        if (response.ok) return data;
+
+        lastMessage = typeof data.message === "string" ? data.message : lastMessage;
+        const isCourtBusy =
+          typeof lastMessage === "string" && /is not available/i.test(lastMessage);
+        if (!isCourtBusy || attempt === maxAttempts - 1) {
+          throw new Error(lastMessage);
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      throw new Error(lastMessage);
     },
     onMutate: async (courtNumber) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
@@ -1884,8 +1899,23 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const emptyCourts = [...courts]
     .filter((c) => c.status === "empty")
     .sort((a, b) => a.courtNumber - b.courtNumber);
-  const nextEmptyCourt = emptyCourts[0] ?? null;
-  const emptyCourtNumbers = emptyCourts.map((court) => court.courtNumber);
+  const clearingCourtNumbers = new Set<number>();
+  if (
+    endMutation.isPending &&
+    endMutation.variables != null &&
+    !endMutation.variables.rematch
+  ) {
+    clearingCourtNumbers.add(endMutation.variables.courtNumber);
+  }
+  if (cancelCourtMutation.isPending && cancelCourtMutation.variables != null) {
+    clearingCourtNumbers.add(cancelCourtMutation.variables);
+  }
+  const fillableEmptyCourts = emptyCourts.filter(
+    (court) => !clearingCourtNumbers.has(court.courtNumber),
+  );
+  const nextEmptyCourt = fillableEmptyCourts[0] ?? null;
+  const emptyCourtNumbers = fillableEmptyCourts.map((court) => court.courtNumber);
+  const courtsClearingInProgress = clearingCourtNumbers.size > 0;
   const canFillNextCourt = queueWithStats.length >= 4 && nextEmptyCourt != null;
   const fillCourtTeamA = queueWithStats.slice(0, 2);
   const fillCourtTeamB = queueWithStats.slice(2, 4);
@@ -1976,6 +2006,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           {!hideControls ? (
             <FillCourtFlow
               canFillNextCourt={canFillNextCourt}
+              courtsClearingInProgress={courtsClearingInProgress}
               queuePlayerCount={queueWithStats.length}
               teamA={fillCourtTeamA}
               teamB={fillCourtTeamB}
@@ -2264,6 +2295,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               cancelRematchMutation.variables === court.courtNumber
             }
             isFilling={fillingCourtNumber != null && court.courtNumber === fillingCourtNumber}
+            isClearing={clearingCourtNumbers.has(court.courtNumber)}
           />
         ))
         )}

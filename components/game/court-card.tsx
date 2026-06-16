@@ -149,6 +149,8 @@ type CourtCardProps = {
   replacePendingKey?: string | null;
   /** Filling this court from the queue (Fill next court). */
   isFilling?: boolean;
+  /** Ending or cancelling a game; court is clearing before it can be filled again. */
+  isClearing?: boolean;
 };
 
 export function CourtCard({
@@ -166,6 +168,7 @@ export function CourtCard({
   onReplacePlayer,
   replacePendingKey = null,
   isFilling = false,
+  isClearing = false,
 }: CourtCardProps) {
   const isActive = court.status === "active";
   const teamA = court.teamA?.playerIds ?? [];
@@ -173,9 +176,9 @@ export function CourtCard({
 
   return (
     <Card
-      className={`court-card overflow-hidden ${isActive ? "court-active" : "court-empty"}${isFilling ? " court-filling" : ""}`}
+      className={`court-card overflow-hidden ${isActive ? "court-active" : "court-empty"}${isFilling ? " court-filling" : ""}${isClearing ? " court-clearing" : ""}`}
       data-court-status={court.status}
-      aria-busy={isFilling}
+      aria-busy={isFilling || isClearing}
     >
       <CardHeader className="court-card-header flex flex-row items-start justify-between gap-2">
         <div>
@@ -189,6 +192,11 @@ export function CourtCard({
             <>
               <CircleDot className="mr-1 h-3 w-3" />
               In Play
+            </>
+          ) : isClearing ? (
+            <>
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              Clearing
             </>
           ) : (
             "Available"
@@ -299,6 +307,14 @@ export function CourtCard({
             <p className="court-empty-title">Filling court…</p>
             <p className="caption text-center text-muted-foreground">
               Assigning players from the queue
+            </p>
+          </div>
+        ) : isClearing ? (
+          <div className="court-empty-state court-empty-state--filling">
+            <Loader2 className="h-9 w-9 animate-spin text-muted-foreground" aria-hidden />
+            <p className="court-empty-title">Clearing court…</p>
+            <p className="caption text-center text-muted-foreground">
+              Finishing the previous game before this court can be filled again
             </p>
           </div>
         ) : (
