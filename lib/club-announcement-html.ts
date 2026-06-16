@@ -1,33 +1,7 @@
-import DOMPurify from "isomorphic-dompurify";
-
-const ANNOUNCEMENT_HTML_ALLOWED_TAGS = [
-  "p",
-  "br",
-  "strong",
-  "b",
-  "em",
-  "i",
-  "u",
-  "s",
-  "ul",
-  "ol",
-  "li",
-  "h2",
-  "h3",
-  "blockquote",
-  "a",
-  "img",
-];
-
-const ANNOUNCEMENT_HTML_ALLOWED_ATTR = ["href", "target", "rel", "src", "alt", "title"];
-
-export function sanitizeAnnouncementHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ANNOUNCEMENT_HTML_ALLOWED_TAGS,
-    ALLOWED_ATTR: ANNOUNCEMENT_HTML_ALLOWED_ATTR,
-    ALLOW_DATA_ATTR: false,
-  }).trim();
-}
+export {
+  ANNOUNCEMENT_HTML_ALLOWED_ATTR,
+  ANNOUNCEMENT_HTML_ALLOWED_TAGS,
+} from "@/lib/club-announcement-html-config";
 
 export function announcementBodyHasContent(value: string): boolean {
   const trimmed = value.trim();

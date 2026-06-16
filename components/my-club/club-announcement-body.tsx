@@ -1,9 +1,12 @@
 "use client";
 
+import DOMPurify from "dompurify";
+
 import {
+  ANNOUNCEMENT_HTML_ALLOWED_ATTR,
+  ANNOUNCEMENT_HTML_ALLOWED_TAGS,
   announcementBodyPreview,
   isAnnouncementHtml,
-  sanitizeAnnouncementHtml,
 } from "@/lib/club-announcement-html";
 import { cn } from "@/lib/utils";
 
@@ -27,10 +30,16 @@ export function ClubAnnouncementBody({
   }
 
   if (isAnnouncementHtml(body)) {
+    const safeHtml = DOMPurify.sanitize(body, {
+      ALLOWED_TAGS: [...ANNOUNCEMENT_HTML_ALLOWED_TAGS],
+      ALLOWED_ATTR: [...ANNOUNCEMENT_HTML_ALLOWED_ATTR],
+      ALLOW_DATA_ATTR: false,
+    }).trim();
+
     return (
       <div
         className={cn("club-announcement-body text-sm leading-relaxed text-foreground/90", className)}
-        dangerouslySetInnerHTML={{ __html: sanitizeAnnouncementHtml(body) }}
+        dangerouslySetInnerHTML={{ __html: safeHtml }}
       />
     );
   }

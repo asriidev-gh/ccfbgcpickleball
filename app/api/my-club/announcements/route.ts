@@ -5,7 +5,7 @@ import {
   createClubAnnouncement,
   listClubAnnouncements,
 } from "@/lib/club-announcements";
-import { sanitizeAnnouncementHtml } from "@/lib/club-announcement-html";
+import { sanitizeAnnouncementHtml } from "@/lib/sanitize-announcement-html";
 import { isCloudinaryConfigured } from "@/lib/cloudinary";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";

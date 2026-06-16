@@ -5,7 +5,7 @@ import {
   deleteClubAnnouncement,
   updateClubAnnouncement,
 } from "@/lib/club-announcements";
-import { sanitizeAnnouncementHtml } from "@/lib/club-announcement-html";
+import { sanitizeAnnouncementHtml } from "@/lib/sanitize-announcement-html";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import { clubAnnouncementUpdateSchema } from "@/lib/validations";
