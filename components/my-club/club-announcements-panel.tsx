@@ -22,8 +22,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import { ClubAnnouncementBody } from "@/components/my-club/club-announcement-body";
+import { ClubAnnouncementRichTextEditor } from "@/components/my-club/club-announcement-rich-text-editor";
 import type { ClubAnnouncementItem } from "@/lib/club-announcements-shared";
+import {
+  announcementBodyHasContent,
+  bodyToEditorHtml,
+} from "@/lib/club-announcement-html";
 import {
   MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH,
   MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
@@ -182,9 +187,7 @@ function AnnouncementList({
             </div>
           </CardHeader>
           <CardContent>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-              {announcement.body}
-            </p>
+            <ClubAnnouncementBody body={announcement.body} preview />
           </CardContent>
         </Card>
       ))}
@@ -196,12 +199,14 @@ function AnnouncementEditorDialog({
   open,
   onOpenChange,
   initial,
+  imageUploadConfigured,
   onSubmit,
   isPending,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial: AnnouncementFormState;
+  imageUploadConfigured: boolean;
   onSubmit: (values: AnnouncementFormState) => void;
   isPending: boolean;
 }) {
@@ -218,11 +223,12 @@ function AnnouncementEditorDialog({
         if (!nextOpen) onOpenChange(false);
       }}
     >
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-[calc(100%-2rem)] overflow-y-auto sm:max-w-2xl lg:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{initial.title ? "Edit announcement" : "New announcement"}</DialogTitle>
           <DialogDescription>
-            Share updates with your club. Published announcements are visible to your team.
+            Share updates with your club. Format text, paste images, and add infographics for
+            published announcements.
           </DialogDescription>
         </DialogHeader>
 
@@ -244,20 +250,13 @@ function AnnouncementEditorDialog({
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-end justify-between gap-3">
-              <Label htmlFor="announcement-body">Message</Label>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {form.body.length}/{MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH}
-              </span>
-            </div>
-            <Textarea
-              id="announcement-body"
+            <Label htmlFor="announcement-body">Message</Label>
+            <ClubAnnouncementRichTextEditor
               value={form.body}
-              rows={6}
-              maxLength={MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH}
               disabled={isPending}
-              className="min-h-[9rem] border-border bg-background shadow-sm"
-              onChange={(event) => setForm((prev) => ({ ...prev, body: event.target.value }))}
+              imageUploadConfigured={imageUploadConfigured}
+              maxLength={MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH}
+              onChange={(body) => setForm((prev) => ({ ...prev, body }))}
             />
           </div>
 
@@ -282,7 +281,12 @@ function AnnouncementEditorDialog({
           </Button>
           <Button
             type="button"
-            disabled={isPending || !form.title.trim() || !form.body.trim()}
+            disabled={
+              isPending ||
+              !form.title.trim() ||
+              !announcementBodyHasContent(form.body) ||
+              form.body.length > MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH
+            }
             onClick={() => onSubmit(form)}
           >
             {isPending ? (
@@ -313,7 +317,10 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
       const response = await fetch("/api/my-club/announcements");
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "Failed to load announcements.");
-      return payload as { announcements: ClubAnnouncementItem[] };
+      return payload as {
+        announcements: ClubAnnouncementItem[];
+        imageUploadConfigured?: boolean;
+      };
     },
   });
 
@@ -396,7 +403,7 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
     setEditing(announcement);
     setDraft({
       title: announcement.title,
-      body: announcement.body,
+      body: bodyToEditorHtml(announcement.body),
       isPublished: announcement.isPublished,
     });
     setEditorOpen(true);
@@ -562,6 +569,7 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
         open={editorOpen}
         onOpenChange={setEditorOpen}
         initial={draft}
+        imageUploadConfigured={data?.imageUploadConfigured ?? false}
         isPending={saveMutation.isPending}
         onSubmit={(values) => saveMutation.mutate(values)}
       />

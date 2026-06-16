@@ -12,6 +12,7 @@ import {
   MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH,
   MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
 } from "@/lib/club-announcements-shared";
+import { announcementBodyHasContent } from "@/lib/club-announcement-html";
 import {
   MARKETPLACE_CONDITIONS,
   MARKETPLACE_FULFILLMENT_METHODS,
@@ -528,7 +529,10 @@ export const clubAnnouncementSchema = z.object({
     .max(
       MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH,
       `Announcement must be ${MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH} characters or less.`,
-    ),
+    )
+    .refine(announcementBodyHasContent, {
+      message: "Announcement body is required.",
+    }),
   isPublished: z.boolean().default(true),
   isArchived: z.boolean().optional(),
 });

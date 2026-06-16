@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ClubAnnouncementBody } from "@/components/my-club/club-announcement-body";
 import type { SpectatePlayerAnnouncement } from "@/lib/spectate-player-features-shared";
 
 export function SpectateAnnouncementsDialog({
@@ -104,9 +105,7 @@ export function SpectateAnnouncementsDialog({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {formatDistanceToNow(new Date(announcement.publishedAt), { addSuffix: true })}
                 </p>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-                  {announcement.body}
-                </p>
+                <ClubAnnouncementBody body={announcement.body} className="mt-3" />
                 <div className="mt-4 flex justify-end">
                   <Button
                     type="button"

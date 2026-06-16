@@ -5,6 +5,7 @@ import {
   deleteClubAnnouncement,
   updateClubAnnouncement,
 } from "@/lib/club-announcements";
+import { sanitizeAnnouncementHtml } from "@/lib/club-announcement-html";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import { clubAnnouncementSchema } from "@/lib/validations";
@@ -26,7 +27,13 @@ export async function PATCH(
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
       }
 
-      const announcement = await updateClubAnnouncement(authUser.userId, id, parsed.data);
+      const updateData = {
+        ...parsed.data,
+        ...(parsed.data.body !== undefined
+          ? { body: sanitizeAnnouncementHtml(parsed.data.body) }
+          : {}),
+      };
+      const announcement = await updateClubAnnouncement(authUser.userId, id, updateData);
       if (!announcement) {
         return NextResponse.json({ message: "Announcement not found." }, { status: 404 });
       }

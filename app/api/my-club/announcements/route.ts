@@ -5,6 +5,8 @@ import {
   createClubAnnouncement,
   listClubAnnouncements,
 } from "@/lib/club-announcements";
+import { sanitizeAnnouncementHtml } from "@/lib/club-announcement-html";
+import { isCloudinaryConfigured } from "@/lib/cloudinary";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
 import { clubAnnouncementSchema } from "@/lib/validations";
@@ -16,7 +18,10 @@ export async function GET() {
       if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
       const announcements = await listClubAnnouncements(authUser.userId);
-      return NextResponse.json({ announcements });
+      return NextResponse.json({
+        announcements,
+        imageUploadConfigured: isCloudinaryConfigured(),
+      });
     });
   } catch (error) {
     return NextResponse.json(
@@ -38,7 +43,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
       }
 
-      const announcement = await createClubAnnouncement(authUser.userId, parsed.data);
+      const announcement = await createClubAnnouncement(authUser.userId, {
+        ...parsed.data,
+        body: sanitizeAnnouncementHtml(parsed.data.body),
+      });
       return NextResponse.json({ announcement, message: "Announcement created." });
     });
   } catch (error) {
