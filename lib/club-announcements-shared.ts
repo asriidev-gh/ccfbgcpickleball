@@ -8,6 +8,8 @@ export type ClubAnnouncementItem = {
   isPublished: boolean;
   isArchived: boolean;
   publishedAt: string;
+  postingDate: string | null;
+  expirationDate: string | null;
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;

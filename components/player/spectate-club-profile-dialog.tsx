@@ -10,13 +10,23 @@ import {
   MapPin,
   Sparkles,
   Target,
+  UserRound,
+  Users,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchSpectateClubProfile, spectateClubProfileQueryKey } from "@/lib/fetch-spectate-club-profile";
-import { buildGoogleMapsSearchUrl, type SpectateClubProfile } from "@/lib/spectate-club-profile-shared";
+import {
+  buildGoogleMapsSearchUrl,
+  profileHasAboutDetails,
+  type SpectateClubProfile,
+} from "@/lib/spectate-club-profile-shared";
 import { cn } from "@/lib/utils";
+
+type ClubProfileTab = "about" | "organizers";
 
 function ClubSocialButton({
   href,
@@ -106,7 +116,7 @@ function ClubMapEmbed({
   );
 }
 
-function ClubProfileBody({
+function ClubAboutContent({
   profile,
   scrollAreaRef,
   dialogOpen,
@@ -143,6 +153,18 @@ function ClubProfileBody({
 
   const hasLocation = Boolean(profile.clubAddress || profile.clubGoogleMapEmbedUrl);
   const mapsSearchUrl = profile.clubAddress ? buildGoogleMapsSearchUrl(profile.clubAddress) : null;
+  const hasAboutDetails = profileHasAboutDetails(profile);
+
+  if (!hasAboutDetails) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border/70 px-4 py-10 text-center">
+        <Sparkles className="mx-auto h-8 w-8 text-muted-foreground/70" aria-hidden />
+        <p className="mt-3 text-sm text-muted-foreground">
+          More club details will appear here as your organizer completes their profile.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 pb-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0 lg:pb-0">
@@ -218,18 +240,135 @@ function ClubProfileBody({
           ) : null}
         </section>
       ) : null}
+    </div>
+  );
+}
 
-      {!profile.clubMissionVision &&
-      socialLinks.length === 0 &&
-      !hasLocation ? (
-        <div className="rounded-2xl border border-dashed border-border/70 px-4 py-10 text-center lg:col-span-2">
+function ClubOrganizersContent({ profile }: { profile: SpectateClubProfile }) {
+  if (profile.clubOrganizers.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border/70 px-4 py-10 text-center">
+        <Users className="mx-auto h-8 w-8 text-muted-foreground/70" aria-hidden />
+        <p className="mt-3 text-sm text-muted-foreground">
+          Organizer details have not been added yet.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-border/70 bg-muted/10 p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
+        <span className="flex size-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-800 dark:text-amber-200">
+          <Users className="h-4 w-4" aria-hidden />
+        </span>
+        Meet the organizers
+      </div>
+      <p className="mb-5 text-sm text-muted-foreground">
+        The people running open play at {profile.clubName}.
+      </p>
+      <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5">
+        {profile.clubOrganizers.map((organizer, index) => (
+          <li
+            key={`${organizer.name}-${index}`}
+            className="flex flex-col items-center rounded-2xl border border-border/60 bg-background/60 px-3 py-4 text-center shadow-sm"
+          >
+            {organizer.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={organizer.photoUrl}
+                alt=""
+                className="size-20 rounded-full border-2 border-background object-cover shadow-md ring-2 ring-border/60 sm:size-24"
+              />
+            ) : (
+              <div className="flex size-20 items-center justify-center rounded-full border-2 border-background bg-muted text-muted-foreground shadow-md ring-2 ring-border/60 sm:size-24">
+                <UserRound className="h-9 w-9 sm:h-10 sm:w-10" aria-hidden />
+              </div>
+            )}
+            <p className="mt-3 line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+              {organizer.name}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ClubProfileBody({
+  profile,
+  scrollAreaRef,
+  dialogOpen,
+}: {
+  profile: SpectateClubProfile;
+  scrollAreaRef: RefObject<HTMLDivElement | null>;
+  dialogOpen: boolean;
+}) {
+  const hasOrganizers = profile.clubOrganizers.length > 0;
+  const hasAboutDetails = profileHasAboutDetails(profile);
+  const showTabs = hasOrganizers;
+  const [activeTab, setActiveTab] = useState<ClubProfileTab>("about");
+
+  useEffect(() => {
+    if (!dialogOpen) {
+      setActiveTab("about");
+      return;
+    }
+    if (!hasAboutDetails && hasOrganizers) {
+      setActiveTab("organizers");
+    }
+  }, [dialogOpen, hasAboutDetails, hasOrganizers, profile.clubName]);
+
+  if (!showTabs) {
+    if (!hasAboutDetails) {
+      return (
+        <div className="rounded-2xl border border-dashed border-border/70 px-4 py-10 text-center">
           <Sparkles className="mx-auto h-8 w-8 text-muted-foreground/70" aria-hidden />
           <p className="mt-3 text-sm text-muted-foreground">
             More club details will appear here as your organizer completes their profile.
           </p>
         </div>
-      ) : null}
-    </div>
+      );
+    }
+
+    return (
+      <ClubAboutContent profile={profile} scrollAreaRef={scrollAreaRef} dialogOpen={dialogOpen} />
+    );
+  }
+
+  return (
+    <Tabs
+      value={activeTab}
+      onValueChange={(value) => {
+        if (value === "about" || value === "organizers") {
+          setActiveTab(value);
+        }
+      }}
+      className="gap-4"
+    >
+      <TabsList className="h-auto w-full bg-muted/40 p-1">
+        <TabsTrigger value="about" className="min-h-10 flex-1 px-3 text-sm">
+          About us
+        </TabsTrigger>
+        <TabsTrigger value="organizers" className="min-h-10 flex-1 px-3 text-sm">
+          Organizers
+          <Badge
+            variant="secondary"
+            className="ml-1.5 h-5 min-w-5 rounded-full px-1.5 text-[11px] font-semibold tabular-nums"
+          >
+            {profile.clubOrganizers.length}
+          </Badge>
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="about" className="mt-0 outline-none">
+        <ClubAboutContent profile={profile} scrollAreaRef={scrollAreaRef} dialogOpen={dialogOpen} />
+      </TabsContent>
+
+      <TabsContent value="organizers" className="mt-0 outline-none">
+        <ClubOrganizersContent profile={profile} />
+      </TabsContent>
+    </Tabs>
   );
 }
 

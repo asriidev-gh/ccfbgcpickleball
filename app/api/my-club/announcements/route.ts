@@ -25,7 +25,7 @@ export async function GET() {
     });
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to load announcements." },
+      { message: error instanceof Error ? error.message : "Failed to load community posts." },
       { status: 400 },
     );
   }
@@ -47,11 +47,11 @@ export async function POST(request: Request) {
         ...parsed.data,
         body: sanitizeAnnouncementHtml(parsed.data.body),
       });
-      return NextResponse.json({ announcement, message: "Announcement created." });
+      return NextResponse.json({ announcement, message: "Community post created." });
     });
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to create announcement." },
+      { message: error instanceof Error ? error.message : "Failed to create community post." },
       { status: 400 },
     );
   }

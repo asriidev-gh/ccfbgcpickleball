@@ -30,6 +30,16 @@ const userSchema = new Schema(
     clubInstagramUrl: { type: String, trim: true, maxlength: 240, default: "" },
     clubAddress: { type: String, trim: true, maxlength: 500, default: "" },
     clubGoogleMapEmbedUrl: { type: String, trim: true, maxlength: 2000, default: "" },
+    clubOrganizers: {
+      type: [
+        {
+          name: { type: String, trim: true, maxlength: 80, default: "" },
+          photoUrl: { type: String, trim: true, default: "" },
+          photoPublicId: { type: String, trim: true, default: "" },
+        },
+      ],
+      default: [],
+    },
     /** When true, embed club logo in player QR downloads. Undefined defaults to on when a logo exists. */
     playerQrIncludeClubLogo: { type: Boolean },
     linkedPlayerId: { type: Schema.Types.ObjectId, ref: "Player", index: true, sparse: true },

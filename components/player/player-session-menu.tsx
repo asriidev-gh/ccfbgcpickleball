@@ -114,7 +114,7 @@ export function PlayerSessionMenu({
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setAnnouncementsOpen(true)}>
             <Megaphone />
-            <span className="flex-1">Announcements</span>
+            <span className="flex-1">Community Posts</span>
             {unreadCount > 0 ? (
               <Badge variant="secondary" className="ml-auto h-5 min-w-5 justify-center px-1.5 text-[10px]">
                 {unreadCount > 9 ? "9+" : unreadCount}

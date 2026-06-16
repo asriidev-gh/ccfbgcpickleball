@@ -7,6 +7,14 @@ export const CLUB_LOGO_MAX_DIMENSION = 512;
 export const MAX_CLUB_SOCIAL_URL_LENGTH = 240;
 export const MAX_CLUB_ADDRESS_LENGTH = 500;
 export const MAX_CLUB_GOOGLE_MAP_EMBED_URL_LENGTH = 2000;
+export const MAX_CLUB_ORGANIZERS = 5;
+export const MAX_CLUB_ORGANIZER_NAME_LENGTH = 80;
+
+export type ClubOrganizer = {
+  name: string;
+  photoUrl: string;
+  photoPublicId?: string;
+};
 
 export type ClubSettings = {
   clubName: string;
@@ -18,7 +26,30 @@ export type ClubSettings = {
   clubInstagramUrl: string;
   clubAddress: string;
   clubGoogleMapEmbedUrl: string;
+  clubOrganizers: ClubOrganizer[];
 };
+
+export function normalizeClubOrganizers(value: unknown): ClubOrganizer[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const record = entry as Record<string, unknown>;
+      const name = typeof record.name === "string" ? record.name.trim() : "";
+      const photoUrl = typeof record.photoUrl === "string" ? record.photoUrl.trim() : "";
+      const photoPublicId =
+        typeof record.photoPublicId === "string" ? record.photoPublicId.trim() : "";
+      if (!name && !photoUrl) return null;
+      return {
+        name,
+        photoUrl,
+        ...(photoPublicId ? { photoPublicId } : {}),
+      };
+    })
+    .filter((entry): entry is ClubOrganizer => entry !== null)
+    .slice(0, MAX_CLUB_ORGANIZERS);
+}
 
 export function normalizeClubGoogleMapEmbedUrl(value: string) {
   const trimmed = value.trim();

@@ -33,6 +33,11 @@ import {
   MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH,
   MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
 } from "@/lib/club-announcements-shared";
+import {
+  formatClubAnnouncementDateLabel,
+  getClubAnnouncementTodayKey,
+  isClubAnnouncementVisibleToPlayers,
+} from "@/lib/club-announcement-schedule";
 import { formatAppDateTime } from "@/lib/format-datetime";
 import { cn } from "@/lib/utils";
 
@@ -47,18 +52,76 @@ type AnnouncementFormState = {
   title: string;
   body: string;
   isPublished: boolean;
+  postingDate: string;
+  expirationDate: string;
 };
 
 const emptyForm: AnnouncementFormState = {
   title: "",
   body: "",
   isPublished: true,
+  postingDate: "",
+  expirationDate: "",
 };
 
 type AnnouncementStatusFilter = "draft" | "published" | "archived";
 
 function wasUpdatedAfterCreate(createdAt: string, updatedAt: string) {
   return new Date(updatedAt).getTime() - new Date(createdAt).getTime() > 60_000;
+}
+
+function CommunityPostScheduleMeta({
+  announcement,
+  isArchivedView,
+}: {
+  announcement: ClubAnnouncementItem;
+  isArchivedView: boolean;
+}) {
+  const today = getClubAnnouncementTodayKey();
+  const postingLabel = formatClubAnnouncementDateLabel(announcement.postingDate);
+  const expirationLabel = formatClubAnnouncementDateLabel(announcement.expirationDate);
+  const isScheduledFuture =
+    !isArchivedView &&
+    announcement.isPublished &&
+    Boolean(announcement.postingDate && announcement.postingDate > today);
+  const isVisibleToPlayers =
+    announcement.isPublished &&
+    !announcement.isArchived &&
+    isClubAnnouncementVisibleToPlayers(announcement.postingDate, announcement.expirationDate, today);
+
+  if (
+    !postingLabel &&
+    !expirationLabel &&
+    !isScheduledFuture &&
+    !(announcement.isPublished && !isArchivedView && !isVisibleToPlayers && !isScheduledFuture)
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 pt-1">
+      {postingLabel ? (
+        <Badge variant="outline" className="text-[0.6875rem] font-normal">
+          Posts on {postingLabel}
+        </Badge>
+      ) : null}
+      {expirationLabel ? (
+        <Badge variant="outline" className="text-[0.6875rem] font-normal">
+          Expires {expirationLabel}
+        </Badge>
+      ) : null}
+      {isScheduledFuture ? (
+        <Badge variant="secondary" className="bg-amber-500/10 text-[0.6875rem] font-normal text-amber-800 dark:text-amber-200">
+          Scheduled
+        </Badge>
+      ) : null}
+      {announcement.isPublished && !isArchivedView && !isVisibleToPlayers && !isScheduledFuture ? (
+        <Badge variant="secondary" className="bg-muted/50 text-[0.6875rem] font-normal text-muted-foreground">
+          Hidden from players
+        </Badge>
+      ) : null}
+    </div>
+  );
 }
 
 function AnnouncementList({
@@ -87,12 +150,12 @@ function AnnouncementList({
           <Megaphone className="h-10 w-10 text-muted-foreground/70" aria-hidden />
           <div>
             <p className="font-medium text-foreground">
-              {isArchivedView ? "No archived announcements" : "No announcements in this view"}
+              {isArchivedView ? "No archived community posts" : "No community posts in this view"}
             </p>
             <p className="mt-1 max-w-sm text-sm text-muted-foreground">
               {isArchivedView
-                ? "Archived announcements will appear here after you archive them."
-                : "Try another filter or create a new announcement."}
+                ? "Archived community posts will appear here after you archive them."
+                : "Try another filter or create a new community post."}
             </p>
           </div>
         </CardContent>
@@ -137,6 +200,10 @@ function AnnouncementList({
                   <> · Archived {formatAppDateTime(announcement.archivedAt)}</>
                 ) : null}
               </p>
+              <CommunityPostScheduleMeta
+                announcement={announcement}
+                isArchivedView={isArchivedView}
+              />
             </div>
             <div className="flex shrink-0 gap-1">
               {isArchivedView ? (
@@ -216,6 +283,9 @@ function AnnouncementEditorDialog({
     if (open) setForm(initial);
   }, [open, initial]);
 
+  const datesValid =
+    !form.postingDate || !form.expirationDate || form.expirationDate >= form.postingDate;
+
   return (
     <Dialog
       open={open}
@@ -225,10 +295,10 @@ function AnnouncementEditorDialog({
     >
       <DialogContent className="max-h-[90vh] max-w-[calc(100%-2rem)] overflow-y-auto sm:max-w-2xl lg:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{initial.title ? "Edit announcement" : "New announcement"}</DialogTitle>
+          <DialogTitle>{initial.title ? "Edit community post" : "New community post"}</DialogTitle>
           <DialogDescription>
             Share updates with your club. Format text, paste images, and add infographics for
-            published announcements.
+            published posts.
           </DialogDescription>
         </DialogHeader>
 
@@ -260,6 +330,45 @@ function AnnouncementEditorDialog({
             />
           </div>
 
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="announcement-posting-date">Posting date (optional)</Label>
+              <Input
+                id="announcement-posting-date"
+                type="date"
+                value={form.postingDate}
+                disabled={isPending}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, postingDate: event.target.value }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Players only see this post on or after this date.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="announcement-expiration-date">Expiration date (optional)</Label>
+              <Input
+                id="announcement-expiration-date"
+                type="date"
+                value={form.expirationDate}
+                min={form.postingDate || undefined}
+                disabled={isPending}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, expirationDate: event.target.value }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                The post is archived automatically when this date is reached.
+              </p>
+              {!datesValid ? (
+                <p className="text-xs text-destructive">
+                  Expiration date must be on or after posting date.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
             <div>
               <p className="text-sm font-medium">Published</p>
@@ -285,7 +394,8 @@ function AnnouncementEditorDialog({
               isPending ||
               !form.title.trim() ||
               !announcementBodyHasContent(form.body) ||
-              form.body.length > MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH
+              form.body.length > MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH ||
+              !datesValid
             }
             onClick={() => onSubmit(form)}
           >
@@ -295,7 +405,7 @@ function AnnouncementEditorDialog({
                 Saving…
               </>
             ) : (
-              "Save announcement"
+              "Save post"
             )}
           </Button>
         </DialogFooter>
@@ -316,7 +426,7 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
     queryFn: async () => {
       const response = await fetch("/api/my-club/announcements");
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load announcements.");
+      if (!response.ok) throw new Error(payload.message ?? "Failed to load community posts.");
       return payload as {
         announcements: ClubAnnouncementItem[];
         imageUploadConfigured?: boolean;
@@ -327,27 +437,34 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
   const saveMutation = useMutation({
     mutationFn: async (values: AnnouncementFormState) => {
       const isEdit = Boolean(editing);
+      const requestPayload = {
+        title: values.title,
+        body: values.body,
+        isPublished: values.isPublished,
+        postingDate: values.postingDate.trim() || null,
+        expirationDate: values.expirationDate.trim() || null,
+      };
       const response = await fetch(
         isEdit ? `/api/my-club/announcements/${editing!.id}` : "/api/my-club/announcements",
         {
           method: isEdit ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(values),
+          body: JSON.stringify(requestPayload),
         },
       );
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message ?? "Failed to save announcement.");
+      if (!response.ok) throw new Error(payload.message ?? "Failed to save community post.");
       return payload;
     },
     onSuccess: (payload) => {
-      toast.success(payload.message ?? "Announcement saved.");
+      toast.success(payload.message ?? "Community post saved.");
       queryClient.invalidateQueries({ queryKey: ["my-club-announcements"] });
       setEditorOpen(false);
       setEditing(null);
       setDraft(emptyForm);
     },
     onError: (saveError) => {
-      toast.error(saveError instanceof Error ? saveError.message : "Failed to save announcement.");
+      toast.error(saveError instanceof Error ? saveError.message : "Failed to save community post.");
     },
   });
 
@@ -355,15 +472,15 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
     mutationFn: async (id: string) => {
       const response = await fetch(`/api/my-club/announcements/${id}`, { method: "DELETE" });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message ?? "Failed to delete announcement.");
+      if (!response.ok) throw new Error(payload.message ?? "Failed to delete community post.");
       return payload;
     },
     onSuccess: (payload) => {
-      toast.success(payload.message ?? "Announcement deleted.");
+      toast.success(payload.message ?? "Community post deleted.");
       queryClient.invalidateQueries({ queryKey: ["my-club-announcements"] });
     },
     onError: (deleteError) => {
-      toast.error(deleteError instanceof Error ? deleteError.message : "Failed to delete announcement.");
+      toast.error(deleteError instanceof Error ? deleteError.message : "Failed to delete community post.");
     },
   });
 
@@ -376,19 +493,19 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
       });
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload.message ?? "Failed to update announcement.");
+        throw new Error(payload.message ?? "Failed to update community post.");
       }
       return { ...payload, isArchived };
     },
     onSuccess: (payload) => {
       toast.success(
-        payload.isArchived ? "Announcement archived." : "Announcement restored.",
+        payload.isArchived ? "Community post archived." : "Community post restored.",
       );
       queryClient.invalidateQueries({ queryKey: ["my-club-announcements"] });
     },
     onError: (archiveError) => {
       toast.error(
-        archiveError instanceof Error ? archiveError.message : "Failed to update announcement.",
+        archiveError instanceof Error ? archiveError.message : "Failed to update community post.",
       );
     },
   });
@@ -405,13 +522,15 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
       title: announcement.title,
       body: bodyToEditorHtml(announcement.body),
       isPublished: announcement.isPublished,
+      postingDate: announcement.postingDate ?? "",
+      expirationDate: announcement.expirationDate ?? "",
     });
     setEditorOpen(true);
   };
 
   const confirmDelete = async (announcement: ClubAnnouncementItem) => {
     const result = await Swal.fire({
-      title: "Delete announcement?",
+      title: "Delete community post?",
       text: `"${announcement.title}" will be removed permanently.`,
       icon: "warning",
       showCancelButton: true,
@@ -423,7 +542,7 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
 
   const confirmArchive = async (announcement: ClubAnnouncementItem) => {
     const result = await Swal.fire({
-      title: "Archive announcement?",
+      title: "Archive community post?",
       html: `<strong>${announcement.title}</strong> will be hidden from players and moved to your archive.`,
       icon: "warning",
       showCancelButton: true,
@@ -440,8 +559,8 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
 
   const confirmRestore = async (announcement: ClubAnnouncementItem) => {
     const result = await Swal.fire({
-      title: "Restore announcement?",
-      text: `"${announcement.title}" will return to your active announcements list.`,
+      title: "Restore community post?",
+      text: `"${announcement.title}" will return to your active community posts list.`,
       icon: "question",
       showCancelButton: true,
       confirmButtonText: "Restore",
@@ -474,12 +593,12 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
         <div>
           {!embedded ? (
             <>
-              <h2 className="section-title">Announcements</h2>
-              <p className="caption mt-1">Create and manage club-wide updates for your community.</p>
+              <h2 className="section-title">Community Posts</h2>
+              <p className="caption mt-1">Create and manage club-wide posts for your community.</p>
             </>
           ) : (
             <>
-              <p className="text-sm font-semibold text-foreground">Manage announcements</p>
+              <p className="text-sm font-semibold text-foreground">Manage community posts</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Post updates for schedules, fellowship notes, or open-play reminders.
               </p>
@@ -488,31 +607,31 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
         </div>
         <Button type="button" onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" aria-hidden />
-          New announcement
+          New community post
         </Button>
       </div>
 
       {isLoading ? (
         <div className="flex min-h-40 items-center justify-center text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
-          Loading announcements…
+          Loading community posts…
         </div>
       ) : error ? (
         <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : "Failed to load announcements."}
+          {error instanceof Error ? error.message : "Failed to load community posts."}
         </p>
       ) : !hasAnyAnnouncements ? (
         <Card className="glass-panel border-dashed">
           <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
             <Megaphone className="h-10 w-10 text-muted-foreground/70" aria-hidden />
             <div>
-              <p className="font-medium text-foreground">No announcements yet</p>
+              <p className="font-medium text-foreground">No community posts yet</p>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
                 Post your first update — training schedules, fellowship notes, or open-play reminders.
               </p>
             </div>
             <Button type="button" variant="outline" onClick={openCreate}>
-              Create announcement
+              Create community post
             </Button>
           </CardContent>
         </Card>

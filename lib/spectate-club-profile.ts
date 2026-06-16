@@ -1,6 +1,7 @@
 import { connectToDatabase } from "@/lib/db";
 import {
   normalizeClubGoogleMapEmbedUrl,
+  normalizeClubOrganizers,
   normalizeClubSocialUrl,
 } from "@/lib/club-settings-shared";
 import type { SpectateClubProfile } from "@/lib/spectate-club-profile-shared";
@@ -8,7 +9,7 @@ import { PickleGame } from "@/models/PickleGame";
 import { User } from "@/models/User";
 
 const OWNER_SELECT =
-  "name clubName clubTagline clubAdditionalInfo clubMissionVision clubLogoUrl clubFacebookUrl clubInstagramUrl clubAddress clubGoogleMapEmbedUrl";
+  "name clubName clubTagline clubAdditionalInfo clubMissionVision clubLogoUrl clubFacebookUrl clubInstagramUrl clubAddress clubGoogleMapEmbedUrl clubOrganizers";
 
 type OwnerDoc = {
   name?: string;
@@ -21,6 +22,7 @@ type OwnerDoc = {
   clubInstagramUrl?: string;
   clubAddress?: string;
   clubGoogleMapEmbedUrl?: string;
+  clubOrganizers?: unknown;
 };
 
 export async function getSpectateClubProfile(gameId: string): Promise<SpectateClubProfile | null> {
@@ -45,5 +47,9 @@ export async function getSpectateClubProfile(gameId: string): Promise<SpectateCl
     clubInstagramUrl: normalizeClubSocialUrl(owner.clubInstagramUrl ?? ""),
     clubAddress: owner.clubAddress?.trim() ?? "",
     clubGoogleMapEmbedUrl: normalizeClubGoogleMapEmbedUrl(owner.clubGoogleMapEmbedUrl ?? ""),
+    clubOrganizers: normalizeClubOrganizers(owner.clubOrganizers).map(({ name, photoUrl }) => ({
+      name,
+      photoUrl,
+    })),
   };
 }

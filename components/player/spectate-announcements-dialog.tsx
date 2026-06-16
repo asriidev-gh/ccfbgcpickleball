@@ -36,7 +36,7 @@ export function SpectateAnnouncementsDialog({
         `/api/games/${gameId}/spectate/player/announcements?playerId=${encodeURIComponent(playerId)}`,
       );
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load announcements.");
+      if (!response.ok) throw new Error(payload.message ?? "Failed to load community posts.");
       return payload as { announcements: SpectatePlayerAnnouncement[]; unreadCount: number };
     },
     enabled: open,
@@ -52,7 +52,7 @@ export function SpectateAnnouncementsDialog({
         body: JSON.stringify({ playerId, announcementIds: [announcementId] }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message ?? "Failed to mark announcement read.");
+      if (!response.ok) throw new Error(payload.message ?? "Failed to mark community post as read.");
       return payload;
     },
     onSuccess: async () => {
@@ -69,23 +69,23 @@ export function SpectateAnnouncementsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Announcements</DialogTitle>
-          <DialogDescription>Club updates from your organizer for this open play.</DialogDescription>
+          <DialogTitle>Community Posts</DialogTitle>
+          <DialogDescription>Posts and updates from your club for this open play.</DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <div className="flex min-h-32 items-center justify-center text-muted-foreground">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
-            Loading announcements…
+            Loading community posts…
           </div>
         ) : error ? (
           <p className="text-sm text-destructive">
-            {error instanceof Error ? error.message : "Failed to load announcements."}
+            {error instanceof Error ? error.message : "Failed to load community posts."}
           </p>
         ) : announcements.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-10 text-center">
             <Megaphone className="h-10 w-10 text-muted-foreground/70" aria-hidden />
-            <p className="text-sm text-muted-foreground">No new announcements.</p>
+            <p className="text-sm text-muted-foreground">No new community posts.</p>
           </div>
         ) : (
           <div className="space-y-3">

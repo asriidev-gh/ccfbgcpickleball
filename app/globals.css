@@ -429,6 +429,17 @@
     margin-top: 0.75em;
   }
 
+  :is([data-theme="neon"], [data-theme="emerald"], [data-theme="sunset"])
+    .date-input::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+
+  [data-theme="fintech"] .date-input,
+  [data-theme="material"] .date-input,
+  [data-theme="cupertino"] .date-input {
+    color-scheme: light;
+  }
+
   [data-theme="fintech"] body {
     background: oklch(0.24 0.09 285);
     color: oklch(0.97 0.01 285);

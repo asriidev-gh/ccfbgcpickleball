@@ -1,20 +1,22 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUserFromCookie } from "@/lib/auth";
+import { resolveClubOrganizersFromFormData } from "@/lib/club-organizers";
 import {
   deleteRegistrationPhotos,
   isCloudinaryConfigured,
   uploadClubLogo,
 } from "@/lib/cloudinary";
 import type { ClubSettings } from "@/lib/club-settings-shared";
+import { normalizeClubOrganizers } from "@/lib/club-settings-shared";
 import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
-import { clubSettingsSchema } from "@/lib/validations";
+import { clubOrganizersPayloadSchema, clubSettingsSchema } from "@/lib/validations";
 import { User } from "@/models/User";
 
 const CLUB_SETTINGS_SELECT =
-  "name userType clubName clubTagline clubAdditionalInfo clubMissionVision clubLogoUrl clubLogoPublicId clubFacebookUrl clubInstagramUrl clubAddress clubGoogleMapEmbedUrl";
+  "name userType clubName clubTagline clubAdditionalInfo clubMissionVision clubLogoUrl clubLogoPublicId clubFacebookUrl clubInstagramUrl clubAddress clubGoogleMapEmbedUrl clubOrganizers";
 
 function resolveDefaultClubName(user: { name?: string }, authName: string) {
   const name = typeof user.name === "string" ? user.name.trim() : "";
@@ -31,6 +33,7 @@ function normalizeClubSettings(user: {
   clubInstagramUrl?: string;
   clubAddress?: string;
   clubGoogleMapEmbedUrl?: string;
+  clubOrganizers?: unknown;
 }): ClubSettings {
   return {
     clubName: typeof user.clubName === "string" ? user.clubName.trim() : "",
@@ -47,6 +50,7 @@ function normalizeClubSettings(user: {
     clubAddress: typeof user.clubAddress === "string" ? user.clubAddress.trim() : "",
     clubGoogleMapEmbedUrl:
       typeof user.clubGoogleMapEmbedUrl === "string" ? user.clubGoogleMapEmbedUrl.trim() : "",
+    clubOrganizers: normalizeClubOrganizers(user.clubOrganizers),
   };
 }
 
@@ -105,6 +109,21 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
       }
 
+      const rawOrganizers = formData.get("clubOrganizers");
+      let organizersPayload: unknown = [];
+      if (typeof rawOrganizers === "string" && rawOrganizers.trim()) {
+        try {
+          organizersPayload = JSON.parse(rawOrganizers);
+        } catch {
+          return NextResponse.json({ message: "Invalid organizers data." }, { status: 400 });
+        }
+      }
+
+      const parsedOrganizers = clubOrganizersPayloadSchema.safeParse(organizersPayload);
+      if (!parsedOrganizers.success) {
+        return NextResponse.json({ message: formatZodError(parsedOrganizers.error) }, { status: 400 });
+      }
+
       const removeLogo = formData.get("removeLogo") === "true";
       const logoEntry = formData.get("logo");
       const logoFile = logoEntry instanceof File && logoEntry.size > 0 ? logoEntry : null;
@@ -129,11 +148,18 @@ export async function PATCH(request: Request) {
         clubLogoPublicId = uploaded.photoPublicId;
       }
 
+      const clubOrganizers = await resolveClubOrganizersFromFormData(
+        formData,
+        Array.isArray(user.clubOrganizers) ? user.clubOrganizers : [],
+        authUser.userId,
+      );
+
       await User.findByIdAndUpdate(authUser.userId, {
         $set: {
           ...parsed.data,
           clubLogoUrl,
           clubLogoPublicId,
+          clubOrganizers,
         },
       });
 
@@ -141,6 +167,7 @@ export async function PATCH(request: Request) {
         message: "Club settings saved.",
         ...parsed.data,
         clubLogoUrl,
+        clubOrganizers,
         defaultClubName: resolveDefaultClubName(user, authUser.name),
         logoUploadConfigured: isCloudinaryConfigured(),
       });

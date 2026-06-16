@@ -46,9 +46,9 @@ const tabItems = [
   },
   {
     value: "announcements" as const,
-    label: "Announcements",
-    shortLabel: "News",
-    hint: "Club-wide updates and reminders",
+    label: "Community Posts",
+    shortLabel: "Posts",
+    hint: "Club-wide posts and updates",
     icon: Megaphone,
     triggerClass: "my-club-tabs__trigger--announcements",
     iconClass: "my-club-tabs__icon-wrap--announcements",
@@ -297,8 +297,8 @@ export function MyClubView() {
                   <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
                     {tagline ||
                       (showCcfMinistryFeatures
-                        ? "Complete your profile, share announcements, and follow up on D-group and prayer requests from your players."
-                        : "Complete your profile and share announcements with your players.")}
+                        ? "Complete your profile, share community posts, and follow up on D-group and prayer requests from your players."
+                        : "Complete your profile and share community posts with your players.")}
                   </p>
                   {socialLinks.length > 0 ? (
                     <div className="flex flex-wrap gap-2 pt-1">
@@ -330,11 +330,11 @@ export function MyClubView() {
                 onClick={() => setActiveTab("profile")}
               />
               <MyClubStatCard
-                title="Announcements"
+                title="Community Posts"
                 value={String(announcementCount)}
                 hint={
                   announcementCount === 0
-                    ? "No announcements yet"
+                    ? "No community posts yet"
                     : publishedCount === announcementCount
                       ? "All published"
                       : `${publishedCount} published · ${announcementCount - publishedCount} draft`

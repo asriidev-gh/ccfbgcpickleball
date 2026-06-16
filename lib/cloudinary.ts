@@ -204,6 +204,61 @@ export async function uploadClubLogo(
   };
 }
 
+export async function uploadClubOrganizerPhoto(
+  file: File,
+  options: { userId: string; index: number },
+): Promise<RegistrationPhotoUpload> {
+  const config = getCloudinaryConfig();
+  if (!config) {
+    throw new Error("Photo upload is not configured. Contact support.");
+  }
+
+  if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    throw new Error("Please use a JPG, PNG, WebP, or GIF image.");
+  }
+
+  if (file.size > MAX_CLUB_LOGO_BYTES) {
+    throw new Error("Organizer photo must be 2 MB or smaller.");
+  }
+
+  cloudinary.config(config);
+
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const publicId = `${Date.now()}-organizer-${options.index}`;
+
+  const result = await new Promise<{
+    secure_url: string;
+    public_id: string;
+  }>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: `paddleflow/club-organizers/${options.userId}`,
+        public_id: publicId,
+        resource_type: "image",
+        overwrite: false,
+        transformation: [{ width: 512, height: 512, crop: "limit", quality: "auto:good" }],
+      },
+      (error, uploadResult) => {
+        if (error || !uploadResult?.secure_url || !uploadResult.public_id) {
+          reject(error ?? new Error("Photo upload failed."));
+          return;
+        }
+        resolve({
+          secure_url: uploadResult.secure_url,
+          public_id: uploadResult.public_id,
+        });
+      },
+    );
+    stream.end(buffer);
+  });
+
+  return {
+    photoUrl: result.secure_url,
+    photoPublicId: result.public_id,
+  };
+}
+
 /** Removes uploaded registration images from Cloudinary (no-op if not configured). */
 export async function deleteRegistrationPhotos(publicIds: Iterable<string>) {
   const config = getCloudinaryConfig();

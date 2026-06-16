@@ -8,7 +8,7 @@ import {
 import { sanitizeAnnouncementHtml } from "@/lib/club-announcement-html";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
-import { clubAnnouncementSchema } from "@/lib/validations";
+import { clubAnnouncementUpdateSchema } from "@/lib/validations";
 
 export async function PATCH(
   request: Request,
@@ -22,7 +22,7 @@ export async function PATCH(
       if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
 
       const body = await request.json();
-      const parsed = clubAnnouncementSchema.partial().safeParse(body);
+      const parsed = clubAnnouncementUpdateSchema.safeParse(body);
       if (!parsed.success) {
         return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
       }
@@ -35,14 +35,14 @@ export async function PATCH(
       };
       const announcement = await updateClubAnnouncement(authUser.userId, id, updateData);
       if (!announcement) {
-        return NextResponse.json({ message: "Announcement not found." }, { status: 404 });
+        return NextResponse.json({ message: "Community post not found." }, { status: 404 });
       }
 
-      return NextResponse.json({ announcement, message: "Announcement updated." });
+      return NextResponse.json({ announcement, message: "Community post updated." });
     });
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to update announcement." },
+      { message: error instanceof Error ? error.message : "Failed to update community post." },
       { status: 400 },
     );
   }
@@ -61,14 +61,14 @@ export async function DELETE(
 
       const deleted = await deleteClubAnnouncement(authUser.userId, id);
       if (!deleted) {
-        return NextResponse.json({ message: "Announcement not found." }, { status: 404 });
+        return NextResponse.json({ message: "Community post not found." }, { status: 404 });
       }
 
-      return NextResponse.json({ message: "Announcement deleted." });
+      return NextResponse.json({ message: "Community post deleted." });
     });
   } catch (error) {
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to delete announcement." },
+      { message: error instanceof Error ? error.message : "Failed to delete community post." },
       { status: 400 },
     );
   }

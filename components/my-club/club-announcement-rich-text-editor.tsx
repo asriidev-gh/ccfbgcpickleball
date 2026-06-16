@@ -62,7 +62,7 @@ export function ClubAnnouncementRichTextEditor({
   disabled = false,
   imageUploadConfigured = true,
   maxLength,
-  placeholder = "Write your announcement. Paste text, lists, links, or images.",
+  placeholder = "Write your community post. Paste text, lists, links, or images.",
 }: ClubAnnouncementRichTextEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -125,7 +125,7 @@ export function ClubAnnouncementRichTextEditor({
     setUploadingImage(true);
     try {
       const photoUrl = await uploadAnnouncementImage(file);
-      editor.chain().focus().setImage({ src: photoUrl, alt: "Announcement image" }).run();
+      editor.chain().focus().setImage({ src: photoUrl, alt: "Community post image" }).run();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not upload image.");
     } finally {

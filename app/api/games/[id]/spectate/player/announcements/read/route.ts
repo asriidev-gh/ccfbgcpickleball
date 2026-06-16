@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to update announcements." },
+      { message: error instanceof Error ? error.message : "Failed to update community posts." },
       { status: 400 },
     );
   }

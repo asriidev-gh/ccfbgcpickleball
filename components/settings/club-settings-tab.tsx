@@ -19,6 +19,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { ClubOrganizersField, organizersFormEquals, organizersFromSaved, serializeOrganizersForSave, type ClubOrganizerFormEntry } from "@/components/settings/club-organizers-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -255,6 +256,7 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
   const [removeLogo, setRemoveLogo] = useState(false);
   const [processingLogo, setProcessingLogo] = useState(false);
   const [mapDialogOpen, setMapDialogOpen] = useState(false);
+  const [organizers, setOrganizers] = useState<ClubOrganizerFormEntry[]>(organizersFromSaved([]));
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["club-settings"],
@@ -282,6 +284,10 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
     setRemoveLogo(false);
     if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
     setLogoPreviewUrl(null);
+    organizers.forEach((entry) => {
+      if (entry.photoPreviewUrl) URL.revokeObjectURL(entry.photoPreviewUrl);
+    });
+    setOrganizers(organizersFromSaved(saved.clubOrganizers ?? []));
   };
 
   useEffect(() => {
@@ -309,6 +315,20 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
       if (removeLogo) body.append("removeLogo", "true");
       if (logoFile) body.append("logo", logoFile);
 
+      const organizersToSave = organizers.filter(
+        (entry) => entry.name.trim() || entry.photoUrl || entry.photoFile,
+      );
+      if (organizersToSave.some((entry) => !entry.name.trim())) {
+        throw new Error("Each organizer needs a name.");
+      }
+
+      body.append("clubOrganizers", JSON.stringify(serializeOrganizersForSave(organizersToSave)));
+      organizersToSave.forEach((entry, index) => {
+        if (entry.photoFile) {
+          body.append(`organizerPhoto_${index}`, entry.photoFile);
+        }
+      });
+
       const response = await fetch("/api/settings/club", { method: "PATCH", body });
       const payload = (await response.json()) as ClubSettingsResponse;
       if (!response.ok) throw new Error(payload.message ?? "Failed to save club settings.");
@@ -324,6 +344,10 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
       setRemoveLogo(false);
       if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
       setLogoPreviewUrl(null);
+      organizers.forEach((entry) => {
+        if (entry.photoPreviewUrl) URL.revokeObjectURL(entry.photoPreviewUrl);
+      });
+      setOrganizers(organizersFromSaved(payload.clubOrganizers ?? []));
     },
     onError: (saveError) => {
       toast.error(saveError instanceof Error ? saveError.message : "Failed to save club settings.");
@@ -382,7 +406,8 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
     form.clubAddress !== (data?.clubAddress ?? "") ||
     form.clubGoogleMapEmbedUrl !== (data?.clubGoogleMapEmbedUrl ?? "") ||
     Boolean(logoFile) ||
-    removeLogo;
+    removeLogo ||
+    !organizersFormEquals(organizers, data?.clubOrganizers ?? []);
 
   if (isLoading) {
     return (
@@ -590,6 +615,13 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
                   }
                 />
               </div>
+
+              <ClubOrganizersField
+                organizers={organizers}
+                disabled={saveMutation.isPending}
+                uploadConfigured={Boolean(data?.logoUploadConfigured)}
+                onChange={setOrganizers}
+              />
             </div>
           </ClubProfileSection>
 

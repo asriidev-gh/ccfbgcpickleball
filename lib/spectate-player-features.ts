@@ -6,6 +6,8 @@ import { createPrayerRequestFromRegistration, getSpectatePlayerPrayerStatus } fr
 import { MAX_PRAYER_REQUEST_LENGTH, MIN_PRAYER_REQUEST_LENGTH } from "@/lib/owner-prayer-requests-shared";
 import { assertPlayerRegisteredForGame } from "@/lib/player-profile";
 import { assertGameShowsCcfMinistryFeatures, resolveGameShowsCcfMinistryFeatures } from "@/lib/ccf-ministry-features";
+import { listPlayerVisibleClubAnnouncements } from "@/lib/club-announcements";
+import { buildPlayerVisibleClubAnnouncementFilter, getClubAnnouncementTodayKey } from "@/lib/club-announcement-schedule";
 import type {
   SpectatePlayerAnnouncement,
   SpectatePlayerFeatures,
@@ -69,9 +71,9 @@ export async function getSpectatePlayerFeatures(
     ? await isOwnerMarkedDgroupJoined(ownerId, playerId)
     : false;
 
-  const published = (await ClubAnnouncement.find({ ownerId, isPublished: true, isArchived: { $ne: true } })
-    .select("_id")
-    .lean()) as Array<{ _id: { toString(): string } }>;
+  const published = (await listPlayerVisibleClubAnnouncements(ownerId)) as Array<{
+    _id: { toString(): string };
+  }>;
 
   const playerObjectId = new mongoose.Types.ObjectId(playerId);
   const publishedAnnouncementIds = published.map(
@@ -117,9 +119,7 @@ export async function listSpectatePlayerAnnouncements(gameId: string, playerId: 
   const ownerId = await getGameOwnerId(gameId);
 
   const [announcements, readRows] = await Promise.all([
-    ClubAnnouncement.find({ ownerId, isPublished: true, isArchived: { $ne: true } })
-      .sort({ publishedAt: -1, createdAt: -1 })
-      .lean(),
+    listPlayerVisibleClubAnnouncements(ownerId),
     PlayerAnnouncementRead.find({ playerId: new mongoose.Types.ObjectId(playerId) })
       .select("announcementId")
       .lean(),
@@ -159,8 +159,7 @@ export async function markSpectatePlayerAnnouncementsRead(
 
   const validIds = (await ClubAnnouncement.find({
     ownerId,
-    isPublished: true,
-    isArchived: { $ne: true },
+    ...buildPlayerVisibleClubAnnouncementFilter(getClubAnnouncementTodayKey()),
     _id: { $in: announcementIds.map((id) => new mongoose.Types.ObjectId(id)) },
   })
     .select("_id")

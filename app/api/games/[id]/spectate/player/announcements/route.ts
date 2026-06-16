@@ -21,7 +21,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to load announcements." },
+      { message: error instanceof Error ? error.message : "Failed to load community posts." },
       { status: 400 },
     );
   }

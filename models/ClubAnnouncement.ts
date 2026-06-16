@@ -4,9 +4,11 @@ const clubAnnouncementSchema = new Schema(
   {
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     title: { type: String, required: true, trim: true, maxlength: 120 },
-    body: { type: String, required: true, trim: true, maxlength: 5000 },
+    body: { type: String, required: true, trim: true, maxlength: 20000 },
     isPublished: { type: Boolean, default: true },
     publishedAt: { type: Date, default: () => new Date() },
+    postingDate: { type: String, default: null, maxlength: 10 },
+    expirationDate: { type: String, default: null, maxlength: 10 },
     isArchived: { type: Boolean, default: false, index: true },
     archivedAt: { type: Date, default: null },
   },

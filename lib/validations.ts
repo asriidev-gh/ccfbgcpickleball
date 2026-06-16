@@ -13,6 +13,7 @@ import {
   MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
 } from "@/lib/club-announcements-shared";
 import { announcementBodyHasContent } from "@/lib/club-announcement-html";
+import { normalizeClubAnnouncementDateInput } from "@/lib/club-announcement-schedule";
 import {
   MARKETPLACE_CONDITIONS,
   MARKETPLACE_FULFILLMENT_METHODS,
@@ -49,6 +50,8 @@ import {
   MAX_CLUB_GOOGLE_MAP_EMBED_URL_LENGTH,
   MAX_CLUB_MISSION_VISION_LENGTH,
   MAX_CLUB_NAME_LENGTH,
+  MAX_CLUB_ORGANIZER_NAME_LENGTH,
+  MAX_CLUB_ORGANIZERS,
   MAX_CLUB_SOCIAL_URL_LENGTH,
   MAX_CLUB_TAGLINE_LENGTH,
   isValidClubGoogleMapEmbedUrl,
@@ -513,29 +516,117 @@ export const clubSettingsSchema = z.object({
     }),
 });
 
-export const clubAnnouncementSchema = z.object({
-  title: z
+export const clubOrganizerEntrySchema = z.object({
+  name: z
     .string()
     .trim()
-    .min(1, "Title is required.")
+    .min(1, "Organizer name is required.")
     .max(
-      MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
-      `Title must be ${MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH} characters or less.`,
+      MAX_CLUB_ORGANIZER_NAME_LENGTH,
+      `Organizer name must be ${MAX_CLUB_ORGANIZER_NAME_LENGTH} characters or less.`,
     ),
-  body: z
-    .string()
-    .trim()
-    .min(1, "Announcement body is required.")
-    .max(
-      MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH,
-      `Announcement must be ${MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH} characters or less.`,
-    )
-    .refine(announcementBodyHasContent, {
-      message: "Announcement body is required.",
-    }),
-  isPublished: z.boolean().default(true),
-  isArchived: z.boolean().optional(),
+  photoUrl: z.string().trim().optional().default(""),
+  photoPublicId: z.string().trim().optional().default(""),
+  removePhoto: z.boolean().optional().default(false),
 });
+
+export const clubOrganizersPayloadSchema = z
+  .array(clubOrganizerEntrySchema)
+  .max(MAX_CLUB_ORGANIZERS, `You can add up to ${MAX_CLUB_ORGANIZERS} organizers.`);
+
+const optionalClubAnnouncementDateSchema = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((value, ctx) => {
+    if (value === undefined) return undefined;
+    const normalized = normalizeClubAnnouncementDateInput(value);
+    if (value !== null && String(value).trim() && !normalized) {
+      ctx.addIssue({ code: "custom", message: "Use a valid date." });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
+const clubAnnouncementBodySchema = z
+  .string()
+  .trim()
+  .min(1, "Community post body is required.")
+  .max(
+    MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH,
+    `Community post must be ${MAX_CLUB_ANNOUNCEMENT_BODY_LENGTH} characters or less.`,
+  );
+
+function refineClubAnnouncementBody(
+  data: { body?: string },
+  ctx: z.RefinementCtx,
+) {
+  if (data.body === undefined) return;
+  if (!announcementBodyHasContent(data.body)) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Community post body is required.",
+      path: ["body"],
+    });
+  }
+}
+
+function refineClubAnnouncementDates(
+  data: { postingDate?: string | null; expirationDate?: string | null },
+  ctx: z.RefinementCtx,
+) {
+  const posting = data.postingDate ?? null;
+  const expiration = data.expirationDate ?? null;
+  if (posting && expiration && expiration < posting) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Expiration date must be on or after posting date.",
+      path: ["expirationDate"],
+    });
+  }
+}
+
+export const clubAnnouncementSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "Title is required.")
+      .max(
+        MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
+        `Title must be ${MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH} characters or less.`,
+      ),
+    body: clubAnnouncementBodySchema,
+    isPublished: z.boolean().default(true),
+    isArchived: z.boolean().optional(),
+    postingDate: optionalClubAnnouncementDateSchema,
+    expirationDate: optionalClubAnnouncementDateSchema,
+  })
+  .superRefine((data, ctx) => {
+    refineClubAnnouncementBody(data, ctx);
+    refineClubAnnouncementDates(data, ctx);
+  });
+
+export const clubAnnouncementUpdateSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1, "Title is required.")
+      .max(
+        MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH,
+        `Title must be ${MAX_CLUB_ANNOUNCEMENT_TITLE_LENGTH} characters or less.`,
+      )
+      .optional(),
+    body: clubAnnouncementBodySchema.optional(),
+    isPublished: z.boolean().optional(),
+    isArchived: z.boolean().optional(),
+    postingDate: optionalClubAnnouncementDateSchema,
+    expirationDate: optionalClubAnnouncementDateSchema,
+  })
+  .superRefine((data, ctx) => {
+    refineClubAnnouncementBody(data, ctx);
+    refineClubAnnouncementDates(data, ctx);
+  });
 
 export const marketplaceListingSchema = z.object({
   title: z
