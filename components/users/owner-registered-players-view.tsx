@@ -347,6 +347,7 @@ export function OwnerRegisteredPlayersView() {
     () => parseOwnerSessionInsightFilter(searchParams.get("insight")) ?? "",
   );
   const [attendedCcfFilter, setAttendedCcfFilter] = useState(false);
+  const [notAttendedCcfFilter, setNotAttendedCcfFilter] = useState(false);
   const [withDgroupFilter, setWithDgroupFilter] = useState(false);
   const [noDgroupYetFilter, setNoDgroupYetFilter] = useState(false);
   const [page, setPage] = useState(1);
@@ -393,6 +394,7 @@ export function OwnerRegisteredPlayersView() {
   useEffect(() => {
     if (!showCcfInsights) {
       setAttendedCcfFilter(false);
+      setNotAttendedCcfFilter(false);
       setWithDgroupFilter(false);
       setNoDgroupYetFilter(false);
     }
@@ -428,6 +430,7 @@ export function OwnerRegisteredPlayersView() {
       sessionGameId,
       insightFilter,
       attendedCcfFilter,
+      notAttendedCcfFilter,
       withDgroupFilter,
       noDgroupYetFilter,
     ),
@@ -438,6 +441,7 @@ export function OwnerRegisteredPlayersView() {
         sessionGameId,
         insightFilter,
         attendedCcfFilter,
+        notAttendedCcfFilter,
         withDgroupFilter,
         noDgroupYetFilter,
       );
@@ -559,7 +563,7 @@ export function OwnerRegisteredPlayersView() {
   const totalPages = data?.totalPages ?? 0;
   const currentPage = data?.page ?? page;
 
-  const countLabel = debouncedSearch || sessionGameId || insightFilter || attendedCcfFilter
+  const countLabel = debouncedSearch || sessionGameId || insightFilter || attendedCcfFilter || notAttendedCcfFilter
     ? `${total} matching`
     : String(total);
   const hasActiveFilters = Boolean(
@@ -567,6 +571,7 @@ export function OwnerRegisteredPlayersView() {
       sessionGameId ||
       insightFilter ||
       attendedCcfFilter ||
+      notAttendedCcfFilter ||
       withDgroupFilter ||
       noDgroupYetFilter,
   );
@@ -583,6 +588,7 @@ export function OwnerRegisteredPlayersView() {
     if (sessionGameId) params.set("gameId", sessionGameId);
     if (insightFilter && sessionGameId) params.set("insight", insightFilter);
     if (attendedCcfFilter) params.set("attendedCcf", "true");
+    if (notAttendedCcfFilter) params.set("notAttendedCcf", "true");
     if (withDgroupFilter) params.set("withDgroup", "true");
     if (noDgroupYetFilter) params.set("noDgroupYet", "true");
     return `/api/owner/registered-players/export?${params.toString()}`;
@@ -638,31 +644,61 @@ export function OwnerRegisteredPlayersView() {
         </div>
         {showCcfInsights ? (
           <div className="space-y-2 border-t border-border/60 pt-3">
-            <label
-              htmlFor="registered-players-attended-ccf"
-              className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 p-3"
-            >
-              <Checkbox
-                id="registered-players-attended-ccf"
-                checked={attendedCcfFilter}
-                disabled={isLoading}
-                onCheckedChange={(value) => {
-                  const checked = Boolean(value);
-                  setAttendedCcfFilter(checked);
-                  if (!checked) {
-                    setWithDgroupFilter(false);
-                    setNoDgroupYetFilter(false);
-                  }
-                  setPage(1);
-                }}
-              />
-              <span className="min-w-0 space-y-0.5">
-                <span className="block text-sm font-medium text-foreground">Attended CCF</span>
-                <span className="block text-xs text-muted-foreground">
-                  Show players who have attended other CCF events before.
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label
+                htmlFor="registered-players-attended-ccf"
+                className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 p-3"
+              >
+                <Checkbox
+                  id="registered-players-attended-ccf"
+                  checked={attendedCcfFilter}
+                  disabled={isLoading}
+                  onCheckedChange={(value) => {
+                    const checked = Boolean(value);
+                    setAttendedCcfFilter(checked);
+                    if (checked) {
+                      setNotAttendedCcfFilter(false);
+                    } else {
+                      setWithDgroupFilter(false);
+                      setNoDgroupYetFilter(false);
+                    }
+                    setPage(1);
+                  }}
+                />
+                <span className="min-w-0 space-y-0.5">
+                  <span className="block text-sm font-medium text-foreground">Attended CCF</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Players who have attended other CCF events.
+                  </span>
                 </span>
-              </span>
-            </label>
+              </label>
+              <label
+                htmlFor="registered-players-not-attended-ccf"
+                className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 p-3"
+              >
+                <Checkbox
+                  id="registered-players-not-attended-ccf"
+                  checked={notAttendedCcfFilter}
+                  disabled={isLoading}
+                  onCheckedChange={(value) => {
+                    const checked = Boolean(value);
+                    setNotAttendedCcfFilter(checked);
+                    if (checked) {
+                      setAttendedCcfFilter(false);
+                      setWithDgroupFilter(false);
+                      setNoDgroupYetFilter(false);
+                    }
+                    setPage(1);
+                  }}
+                />
+                <span className="min-w-0 space-y-0.5">
+                  <span className="block text-sm font-medium text-foreground">Not Attended CCF</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Players who have not attended other CCF events yet.
+                  </span>
+                </span>
+              </label>
+            </div>
             {attendedCcfFilter ? (
               <div className="flex flex-wrap gap-3 pl-3 sm:pl-4">
                 <label

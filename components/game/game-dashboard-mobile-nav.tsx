@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag, House, Loader2, QrCode, RotateCcw } from "lucide-react";
+import { Flag, House, Loader2, QrCode, RotateCcw, UserPlus } from "lucide-react";
 
 import { MobileBottomNavButton, MobileBottomNavShell } from "@/components/mobile-bottom-nav";
 
@@ -8,6 +8,8 @@ type GameDashboardMobileNavProps = {
   showQr: boolean;
   qrLoading: boolean;
   onQrClick: () => void;
+  showDatabaseCheckIn: boolean;
+  onDatabaseCheckInClick: () => void;
   showEndOpenPlay: boolean;
   endOpenPlayPending: boolean;
   onEndOpenPlay: () => void;
@@ -20,6 +22,8 @@ export function GameDashboardMobileNav({
   showQr,
   qrLoading,
   onQrClick,
+  showDatabaseCheckIn,
+  onDatabaseCheckInClick,
   showEndOpenPlay,
   endOpenPlayPending,
   onEndOpenPlay,
@@ -46,6 +50,13 @@ export function GameDashboardMobileNav({
               <QrCode className="h-5 w-5 shrink-0" aria-hidden />
             )
           }
+        />
+      ) : null}
+      {showDatabaseCheckIn ? (
+        <MobileBottomNavButton
+          label="Check in"
+          onClick={onDatabaseCheckInClick}
+          icon={<UserPlus className="h-5 w-5 shrink-0" aria-hidden />}
         />
       ) : null}
       {showEndOpenPlay ? (

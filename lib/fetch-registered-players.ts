@@ -14,6 +14,7 @@ export function ownerRegisteredPlayersQueryKey(
   sessionGameId: string,
   insightFilter: string,
   attendedCcf: boolean,
+  notAttendedCcf: boolean,
   withDgroup: boolean,
   noDgroupYet: boolean,
 ) {
@@ -24,6 +25,7 @@ export function ownerRegisteredPlayersQueryKey(
     sessionGameId,
     insightFilter,
     attendedCcf,
+    notAttendedCcf,
     withDgroup,
     noDgroupYet,
   ] as const;
@@ -45,6 +47,7 @@ async function fetchOwnerRegisteredPlayersPage(
   sessionGameId: string,
   insightFilter: string,
   attendedCcf: boolean,
+  notAttendedCcf: boolean,
   withDgroup: boolean,
   noDgroupYet: boolean,
 ) {
@@ -55,6 +58,7 @@ async function fetchOwnerRegisteredPlayersPage(
   if (sessionGameId) params.set("gameId", sessionGameId);
   if (insightFilter && sessionGameId) params.set("insight", insightFilter);
   if (attendedCcf) params.set("attendedCcf", "true");
+  if (notAttendedCcf) params.set("notAttendedCcf", "true");
   if (withDgroup) params.set("withDgroup", "true");
   if (noDgroupYet) params.set("noDgroupYet", "true");
 
@@ -88,8 +92,8 @@ export function prefetchRegisteredPlayersInsight(
   });
 
   void queryClient.prefetchQuery({
-    queryKey: ownerRegisteredPlayersQueryKey(1, "", gameId, insight, false, false, false),
-    queryFn: () => fetchOwnerRegisteredPlayersPage(1, "", gameId, insight, false, false, false),
+    queryKey: ownerRegisteredPlayersQueryKey(1, "", gameId, insight, false, false, false, false),
+    queryFn: () => fetchOwnerRegisteredPlayersPage(1, "", gameId, insight, false, false, false, false),
     staleTime: 30_000,
   });
 }

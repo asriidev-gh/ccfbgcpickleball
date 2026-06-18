@@ -105,6 +105,7 @@ export async function buildOwnerRegisteredPlayersExportWorkbook(
     );
   }
   if (options.ccfFilter?.attendedCcf) filenameParts.push("ccf-attended");
+  if (options.ccfFilter?.notAttendedCcf) filenameParts.push("ccf-not-attended");
   if (options.ccfFilter?.withDgroup) filenameParts.push("with-dgroup");
   if (options.ccfFilter?.noDgroupYet) filenameParts.push("no-dgroup-yet");
 

@@ -2,6 +2,7 @@ import { isPlayerCcfAttended } from "@/lib/player-profile-shared";
 
 export type OwnerRegisteredPlayersCcfFilter = {
   attendedCcf?: boolean;
+  notAttendedCcf?: boolean;
   withDgroup?: boolean;
   noDgroupYet?: boolean;
 };
@@ -11,6 +12,7 @@ export function parseOwnerRegisteredPlayersCcfFilter(
 ): OwnerRegisteredPlayersCcfFilter {
   return {
     attendedCcf: searchParams.get("attendedCcf") === "true" ? true : undefined,
+    notAttendedCcf: searchParams.get("notAttendedCcf") === "true" ? true : undefined,
     withDgroup: searchParams.get("withDgroup") === "true" ? true : undefined,
     noDgroupYet: searchParams.get("noDgroupYet") === "true" ? true : undefined,
   };
@@ -20,7 +22,9 @@ export function hasOwnerRegisteredPlayersCcfFilter(
   filter: OwnerRegisteredPlayersCcfFilter | undefined,
 ) {
   if (!filter) return false;
-  return Boolean(filter.attendedCcf || filter.withDgroup || filter.noDgroupYet);
+  return Boolean(
+    filter.attendedCcf || filter.notAttendedCcf || filter.withDgroup || filter.noDgroupYet,
+  );
 }
 
 export function matchesOwnerRegisteredPlayersCcfFilter(
@@ -30,7 +34,13 @@ export function matchesOwnerRegisteredPlayersCcfFilter(
   },
   filter: OwnerRegisteredPlayersCcfFilter | undefined,
 ) {
-  if (!filter?.attendedCcf) return true;
+  if (!filter) return true;
+
+  if (filter.notAttendedCcf) {
+    return !isPlayerCcfAttended(player.attendedEvents);
+  }
+
+  if (!filter.attendedCcf) return true;
   if (!isPlayerCcfAttended(player.attendedEvents)) return false;
 
   const withDgroup = filter.withDgroup === true;

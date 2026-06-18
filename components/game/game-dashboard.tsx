@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Trophy,
   QrCode,
+  UserPlus,
   Play,
   RotateCcw,
   RefreshCw,
@@ -30,6 +31,7 @@ import { GamePlayerProfileProvider } from "@/components/game/game-player-profile
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
 import { PlayerAvatar, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
+import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import {
@@ -824,6 +826,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   );
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
+  const [databaseCheckInOpen, setDatabaseCheckInOpen] = useState(false);
   const [qrDialogData, setQrDialogData] = useState<{
     registerUrl: string;
     publicQrCodeDataUrl: string;
@@ -2553,6 +2556,16 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <Button
                   size="lg"
                   variant="outline"
+                  onClick={() => setDatabaseCheckInOpen(true)}
+                >
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Check in from database
+                </Button>
+              ) : null}
+              {!readOnly && !isPastGame ? (
+                <Button
+                  size="lg"
+                  variant="outline"
                   className="border-destructive/50 text-destructive"
                   onClick={handleEndOpenPlay}
                   disabled={endOpenPlayMutation.isPending}
@@ -2744,6 +2757,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             </DialogContent>
           </Dialog>
         </>
+      ) : null}
+
+      {!readOnly && !isPastGame ? (
+        <DatabaseCheckInDialog
+          gameId={gameId}
+          open={databaseCheckInOpen}
+          onOpenChange={setDatabaseCheckInOpen}
+        />
       ) : null}
 
       {!readOnly && resolvedQrDialogData ? (
@@ -2974,6 +2995,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           showQr={showQrRegistration}
           qrLoading={qrDialogLoading}
           onQrClick={openQrRegistrationDialog}
+          showDatabaseCheckIn={!readOnly && !isPastGame}
+          onDatabaseCheckInClick={() => setDatabaseCheckInOpen(true)}
           showEndOpenPlay={!readOnly && !isPastGame}
           endOpenPlayPending={endOpenPlayMutation.isPending}
           onEndOpenPlay={handleEndOpenPlay}
