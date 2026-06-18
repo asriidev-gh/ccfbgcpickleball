@@ -1,6 +1,7 @@
 "use client";
 
-import { Copy } from "lucide-react";
+import { Copy, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -48,12 +49,25 @@ export function GameSpectatorShareDialog({
           <p className="break-all rounded-lg border border-border/70 bg-muted/40 px-3 py-2.5 text-sm text-foreground">
             {spectatorUrl}
           </p>
-          <Button type="button" className="w-full" onClick={copyLink}>
-            <Copy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-            Copy link
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" className="min-w-0 flex-1" onClick={copyLink}>
+              <Copy className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+              Copy link
+            </Button>
+            <Link
+              href={spectatorUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="min-w-0 flex-1"
+            >
+              <Button type="button" variant="outline" className="w-full">
+                <ExternalLink className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                Open new tab
+              </Button>
+            </Link>
+          </div>
           <p className="text-center text-xs leading-relaxed text-muted-foreground">
-            Click the button to copy and paste the spectator view URL.
+            Copy the link to share, or open the spectator view in a new tab.
           </p>
         </div>
       </DialogContent>

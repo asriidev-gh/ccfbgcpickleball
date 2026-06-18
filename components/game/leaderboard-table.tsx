@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { LeaderboardRow } from "@/components/game/leaderboard-standings";
+import { FirstTimerPill, type LeaderboardRow } from "@/components/game/leaderboard-standings";
 
 export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
   return (
@@ -33,9 +33,12 @@ export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
               <TableRow key={row.id}>
                 <TableCell className="font-semibold tabular-nums">#{rank}</TableCell>
                 <TableCell className="font-medium">
-                  <PlayerNameWithPhoto player={row}>
-                    {formatPlayerTableName(row.firstName, row.lastName)}
-                  </PlayerNameWithPhoto>
+                  <span className="inline-flex max-w-full flex-wrap items-center gap-1.5">
+                    <PlayerNameWithPhoto player={row}>
+                      {formatPlayerTableName(row.firstName, row.lastName)}
+                    </PlayerNameWithPhoto>
+                    {row.isFirstTimer ? <FirstTimerPill /> : null}
+                  </span>
                 </TableCell>
                 <TableCell className="stat-num text-right text-emerald-600 dark:text-emerald-400">
                   {row.wins}

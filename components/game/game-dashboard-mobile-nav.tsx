@@ -1,10 +1,12 @@
 "use client";
 
-import { Flag, House, Loader2, QrCode, RotateCcw, UserPlus } from "lucide-react";
+import { Flag, House, Loader2, QrCode, RotateCcw, Trophy, UserPlus } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 import { MobileBottomNavButton, MobileBottomNavShell } from "@/components/mobile-bottom-nav";
 
 type GameDashboardMobileNavProps = {
+  gameId: string;
   showQr: boolean;
   qrLoading: boolean;
   onQrClick: () => void;
@@ -19,6 +21,7 @@ type GameDashboardMobileNavProps = {
 };
 
 export function GameDashboardMobileNav({
+  gameId,
   showQr,
   qrLoading,
   onQrClick,
@@ -31,12 +34,22 @@ export function GameDashboardMobileNav({
   resetPending,
   onReset,
 }: GameDashboardMobileNavProps) {
+  const pathname = usePathname();
+  const leaderboardHref = `/leaderboard/${gameId}`;
+  const isLeaderboard = pathname === leaderboardHref;
+
   return (
     <MobileBottomNavShell ariaLabel="Game actions">
       <MobileBottomNavButton
         href="/"
         label="Home"
         icon={<House className="h-5 w-5 shrink-0" aria-hidden />}
+      />
+      <MobileBottomNavButton
+        href={leaderboardHref}
+        label="Leaderboard"
+        active={isLeaderboard}
+        icon={<Trophy className="h-5 w-5 shrink-0" aria-hidden />}
       />
       {showQr ? (
         <MobileBottomNavButton

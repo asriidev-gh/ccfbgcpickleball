@@ -38,6 +38,16 @@ export async function getPlayerQueueStatusForGame(
   return null;
 }
 
+export async function assertPlayerCheckedInForGame(gameId: string, playerId: string) {
+  const queueStatus = await getPlayerQueueStatusForGame(gameId, playerId);
+  if (queueStatus !== "active") {
+    throw new RegistrationLimitError(
+      "Check in to this open play to access the marketplace.",
+      403,
+    );
+  }
+}
+
 export class RegistrationLimitError extends Error {
   status: number;
   playerId?: string;

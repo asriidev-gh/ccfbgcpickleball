@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 
 import { runWithDatabase } from "@/lib/db";
 import { handleApiError } from "@/lib/handle-api-error";
-import { DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
+import { DEMO_OPEN_PLAY_TITLE, canCreateDemoOpenPlay } from "@/lib/demo-open-play";
 import { PickleGame } from "@/models/PickleGame";
 import { User } from "@/models/User";
 import { authorizeAuthPayload, readAuthTokenPayload } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/superadmin";
 
 export async function GET(request: Request) {
   try {
@@ -28,13 +29,17 @@ export async function GET(request: Request) {
           ownerId: authUser.userId,
           title: { $regex: DEMO_OPEN_PLAY_TITLE },
         }),
-        User.findById(authUser.userId).select("userType").lean(),
+        User.findById(authUser.userId).select("userType createdAt").lean(),
       ]);
 
       return NextResponse.json({
         games,
         hasDemoOpenPlay: Boolean(hasDemoOpenPlay),
         userType: ownerUserTypeDoc?.userType,
+        canCreateDemoOpenPlay: canCreateDemoOpenPlay({
+          accountCreatedAt: ownerUserTypeDoc?.createdAt,
+          isSuperAdmin: isSuperAdmin(authUser.email),
+        }),
       });
     });
   } catch (error) {

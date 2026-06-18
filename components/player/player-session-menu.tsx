@@ -65,6 +65,8 @@ export function PlayerSessionMenu({
   if (!playerId) return fallback;
 
   const unreadCount = features?.unreadAnnouncementCount ?? 0;
+  const showCommunityPosts = (features?.communityPostCount ?? 0) > 0;
+  const showMarketplace = features?.showMarketplace === true;
   const showCcf = features?.showCcfFeatures ?? false;
   const showDgroup = Boolean(features?.showDgroupJoinMenu);
   const dgroupSubmitted = Boolean(features?.hasSubmittedDgroupRequest);
@@ -95,7 +97,7 @@ export function PlayerSessionMenu({
           }
         >
           <CircleUser className="h-6 w-6" />
-          {unreadCount > 0 ? (
+          {showCommunityPosts && unreadCount > 0 ? (
             <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-500 px-1 text-[10px] font-bold text-white">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
@@ -108,19 +110,23 @@ export function PlayerSessionMenu({
             <UserPen />
             Update profile
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push(marketplaceHref)}>
-            <Store />
-            Marketplace
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setAnnouncementsOpen(true)}>
-            <Megaphone />
-            <span className="flex-1">Community Posts</span>
-            {unreadCount > 0 ? (
-              <Badge variant="secondary" className="ml-auto h-5 min-w-5 justify-center px-1.5 text-[10px]">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </Badge>
-            ) : null}
-          </DropdownMenuItem>
+          {showMarketplace ? (
+            <DropdownMenuItem onClick={() => router.push(marketplaceHref)}>
+              <Store />
+              Marketplace
+            </DropdownMenuItem>
+          ) : null}
+          {showCommunityPosts ? (
+            <DropdownMenuItem onClick={() => setAnnouncementsOpen(true)}>
+              <Megaphone />
+              <span className="flex-1">Community Posts</span>
+              {unreadCount > 0 ? (
+                <Badge variant="secondary" className="ml-auto h-5 min-w-5 justify-center px-1.5 text-[10px]">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </Badge>
+              ) : null}
+            </DropdownMenuItem>
+          ) : null}
           {showCcf ? (
             <DropdownMenuItem onClick={() => openPrayer(prayerSubmitted || prayerReplyCount > 0)}>
               <HeartHandshake />
@@ -178,19 +184,21 @@ export function PlayerSessionMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <SpectateAnnouncementsDialog
-        gameId={gameId}
-        playerId={playerId}
-        open={announcementsOpen}
-        onOpenChange={(open) => {
-          setAnnouncementsOpen(open);
-          if (!open) {
-            void queryClient.refetchQueries({
-              queryKey: ["spectate-player-features", gameId, playerId],
-            });
-          }
-        }}
-      />
+      {showCommunityPosts ? (
+        <SpectateAnnouncementsDialog
+          gameId={gameId}
+          playerId={playerId}
+          open={announcementsOpen}
+          onOpenChange={(open) => {
+            setAnnouncementsOpen(open);
+            if (!open) {
+              void queryClient.refetchQueries({
+                queryKey: ["spectate-player-features", gameId, playerId],
+              });
+            }
+          }}
+        />
+      ) : null}
 
       {showCcf ? (
         <SpectatePrayerRequestDialog

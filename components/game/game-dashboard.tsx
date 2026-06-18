@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import { swalAlertBaseOptions, selfQueueCheckoutMessageHtml } from "@/lib/swal-theme";
+import { shouldUseRotationRequeue } from "@/lib/rotation-requeue-shared";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
 import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
@@ -31,16 +32,15 @@ import { GamePlayerProfileProvider } from "@/components/game/game-player-profile
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
 import { PlayerAvatar, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
+import { SpectateBirthdaysThisMonthBadge } from "@/components/player/spectate-birthdays-this-month";
+import { SpectateFirstTimersBadge } from "@/components/player/spectate-first-timers";
 import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import {
   MatchHistoryList,
-  MatchHistoryScopeToggle,
-  type MatchHistoryScope,
   type MatchHistoryView,
 } from "@/components/game/match-history-list";
-import { filterMatchesForViewer } from "@/lib/match-history-filter";
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { FillCourtFlow } from "@/components/game/fill-court-flow";
 import {
@@ -420,11 +420,15 @@ function writeOperatorPayload(
       game: { ...shell.game, status: next.game.status },
     });
   }
+  const existingQueue = queryClient.getQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId));
   queryClient.setQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId), {
     status: next.game.status,
     queue: next.queue,
     checkedOut: next.checkedOut ?? [],
     courts: next.courts,
+    firstTimerCount: next.firstTimerCount ?? existingQueue?.firstTimerCount ?? 0,
+    birthdayThisMonthCount:
+      next.birthdayThisMonthCount ?? existingQueue?.birthdayThisMonthCount ?? 0,
   });
   queryClient.setQueryData<OperatorDetailsPayload>(operatorDetailsQueryKey(gameId), {
     leaderboard: next.leaderboard ?? [],
@@ -483,6 +487,46 @@ type EndGameMutationInput = {
   rematch: boolean;
 };
 
+function countActivePlayersForRotation(payload: GamePayload) {
+  const onCourt = payload.courts
+    .filter((court) => court.status === "active")
+    .reduce(
+      (sum, court) =>
+        sum + (court.teamA?.playerIds?.length ?? 0) + (court.teamB?.playerIds?.length ?? 0),
+      0,
+    );
+  return payload.queue.length + onCourt;
+}
+
+function shouldUseRotationRequeuePayload(payload: GamePayload) {
+  return shouldUseRotationRequeue(countActivePlayersForRotation(payload));
+}
+
+function buildRotationOptimisticRequeueEntries(
+  teamA: PlayerPhotoRef[],
+  teamB: PlayerPhotoRef[],
+  winnerTeam: "A" | "B",
+  baseTime: number,
+): QueueEntryView[] {
+  const buildEntry = (player: PlayerPhotoRef, team: "A" | "B", index: number): QueueEntryView => {
+    const isWinner = team === winnerTeam;
+    return {
+      _id: `optimistic-rotation-${baseTime}-${team}-${index}`,
+      queueType: "normal",
+      playerId: player,
+      registeredAt: new Date(baseTime + index).toISOString(),
+      lastMatchResult: isWinner ? "win" : "loss",
+    };
+  };
+
+  return [
+    buildEntry(teamA[0], "A", 0),
+    buildEntry(teamA[1], "A", 1),
+    buildEntry(teamB[0], "B", 2),
+    buildEntry(teamB[1], "B", 3),
+  ];
+}
+
 function buildOptimisticRequeueEntries(
   teamA: PlayerPhotoRef[],
   teamB: PlayerPhotoRef[],
@@ -538,6 +582,50 @@ function applyEndGameOptimistic(
   if (teamA.length + teamB.length < 4) return null;
 
   const baseTime = Date.now();
+
+  if (
+    shouldUseRotationRequeuePayload(payload) &&
+    payload.queue.length >= 2 &&
+    teamA.length === 2 &&
+    teamB.length === 2
+  ) {
+    const withoutLastTwo = payload.queue.slice(0, -2);
+    const lastTwo = payload.queue.slice(-2);
+    const rotationEntries = buildRotationOptimisticRequeueEntries(
+      teamA,
+      teamB,
+      input.winnerTeam,
+      baseTime,
+    );
+    const pairAEntries = rotationEntries.slice(0, 2);
+    const pairBEntries = rotationEntries.slice(2, 4);
+    const mergedQueue = [...withoutLastTwo, ...pairAEntries, ...lastTwo, ...pairBEntries].map(
+      (entry, index) => ({
+        ...entry,
+        registeredAt: new Date(baseTime + index).toISOString(),
+      }),
+    );
+
+    return {
+      ...payload,
+      queue: mergedQueue,
+      courts: payload.courts.map((c) =>
+        c.courtNumber === input.courtNumber
+          ? {
+              ...c,
+              status: "empty",
+              startedAt: null,
+              pausedAt: null,
+              totalPausedMs: 0,
+              isRematch: false,
+              teamA: { playerIds: [] },
+              teamB: { playerIds: [] },
+            }
+          : c,
+      ),
+    };
+  }
+
   const requeueEntries = buildOptimisticRequeueEntries(
     teamA,
     teamB,
@@ -868,7 +956,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const queuePanelRef = useRef<HTMLDivElement>(null);
   const courtsPanelRef = useRef<HTMLDivElement>(null);
   const matchHistoryPanelRef = useRef<HTMLDivElement>(null);
-  const [matchHistoryScope, setMatchHistoryScope] = useState<MatchHistoryScope>("mine");
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);
   const [cancelRematchTarget, setCancelRematchTarget] = useState<number | null>(null);
@@ -1832,11 +1919,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const { game, courts, matches, recap } = data;
 
-  const spectatorMatchHistory =
-    !isSpectator || matchHistoryScope === "all"
-      ? matches
-      : filterMatchesForViewer(matches, selfPlayerIds);
-
   const operatorMatchHistoryCaption = (() => {
     if (!showMatchHistory) return "Expand to view match history";
     if (operatorDetailsQuery.isLoading && !operatorDetailsQuery.data) {
@@ -1858,25 +1940,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     if (spectatorDetailsQuery.isLoading && !spectatorDetailsQuery.data) {
       return "Loading match history…";
     }
-    if (matchHistoryScope === "all") {
-      return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
-    }
-    if (selfPlayerIds.length === 0) {
-      return "Register for this game to see your matches";
-    }
-    const mineCount = spectatorMatchHistory.length;
-    if (matches.length === mineCount) {
-      return `${mineCount} ${mineCount === 1 ? "match" : "matches"} with you`;
-    }
-    return `${mineCount} of ${matches.length} matches with you`;
+    return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
   })();
 
-  const spectatorMatchHistoryEmptyMessage =
-    matchHistoryScope === "all"
-      ? "No matches recorded for this session yet."
-      : selfPlayerIds.length === 0
-        ? "Register for this open play to link your player and see matches you played here."
-        : "You have not played a match in this session yet.";
+  const spectatorMatchHistoryEmptyMessage = "No matches recorded for this session yet.";
 
   const leaderboardHref = isSpectator
     ? `/leaderboard/${game.gameId}?from=spectator`
@@ -1888,6 +1955,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const openPlayDateLabel = formatOpenPlayDate(game.openPlayDate);
   const openPlayTimeLabel = game.openPlayTimeRange?.trim() || null;
   const isPastGame = game.status === "ended";
+  const birthdayThisMonthCount = isSpectator
+    ? (spectatorLiveQuery.data?.birthdayThisMonthCount ?? 0)
+    : (operatorQueueQuery.data?.birthdayThisMonthCount ?? 0);
+  const firstTimerCount = isSpectator
+    ? (spectatorLiveQuery.data?.firstTimerCount ?? 0)
+    : (operatorQueueQuery.data?.firstTimerCount ?? 0);
   const showSpectatorEndedRecap = isSpectator && isPastGame;
   const canResetGame = isDemoOpenPlayTitle(game.title);
   const hideControls =
@@ -2442,7 +2515,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   );
 
   const renderMatchHistoryPanel = (inSpectatorMobileTab = false) => {
-    const historyMatches = isSpectator ? spectatorMatchHistory : matches;
+    const historyMatches = matches;
     const panelVisible = inSpectatorMobileTab || showMatchHistory;
     const detailsQuery = isSpectator ? spectatorDetailsQuery : operatorDetailsQuery;
 
@@ -2506,12 +2579,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               />
             </div>
           </div>
-          {isSpectator && panelVisible ? (
-            <MatchHistoryScopeToggle
-              scope={matchHistoryScope}
-              onScopeChange={setMatchHistoryScope}
-            />
-          ) : null}
         </CardHeader>
         {panelVisible ? (
           <CardContent
@@ -2525,7 +2592,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               </div>
             ) : (
               <MatchHistoryList
-                key={isSpectator ? matchHistoryScope : "operator"}
+                key={isSpectator ? "spectator" : "operator"}
                 matches={historyMatches}
                 gameId={gameId}
                 editable={!hideControls}
@@ -2625,6 +2692,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
                   Courts: {game.courtCount}
                 </Badge>
+                <SpectateFirstTimersBadge gameId={gameId} count={firstTimerCount} />
+                <SpectateBirthdaysThisMonthBadge
+                  gameId={gameId}
+                  count={birthdayThisMonthCount}
+                />
                 {game.status === "ended" ? (
                   <Badge variant="destructive" className="game-dashboard-meta-badge w-fit">
                     Status: ended
@@ -3090,6 +3162,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
       {showOperatorMobileNav ? (
         <GameDashboardMobileNav
+          gameId={gameId}
           showQr={showQrRegistration}
           qrLoading={qrDialogLoading}
           onQrClick={openQrRegistrationDialog}

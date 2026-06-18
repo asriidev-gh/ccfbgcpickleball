@@ -1,5 +1,10 @@
 import { loadGameLeaderboardRecap } from "@/lib/game-leaderboard-recap";
+import { getGameBirthdaysThisMonth } from "@/lib/game-birthdays-this-month";
 import { resolveClubBranding } from "@/lib/club-branding";
+import {
+  loadFirstTimerIdentityKeysForGame,
+  serializeQueueEntriesForPayload,
+} from "@/lib/queue-first-timer";
 import type { SpectateDetailsPayload, SpectateLivePayload } from "@/lib/spectate-payload";
 import { getSpectatorCount } from "@/lib/spectator-presence";
 import { Court } from "@/models/Court";
@@ -37,20 +42,30 @@ export async function loadSpectateLive(gameId: string): Promise<SpectateLivePayl
   if (!game) return null;
 
   const ownerId = game.ownerId?.toString();
-  const [owner, queueState] = await Promise.all([
+  const [owner, queueState, firstTimerIdentityKeys, birthdaysThisMonth] = await Promise.all([
     ownerId
       ? User.findById(ownerId).select("name clubName clubLogoUrl").lean()
       : Promise.resolve(null),
     loadQueueCourtsAndCheckedOut(gameId),
+    ownerId ? loadFirstTimerIdentityKeysForGame(ownerId, gameId) : Promise.resolve(new Set<string>()),
+    getGameBirthdaysThisMonth(gameId),
   ]);
   const { queue, checkedOut, courts } = queueState;
 
   return {
     game: game.toObject() as SpectateLivePayload["game"],
-    queue: queue as unknown as SpectateLivePayload["queue"],
-    checkedOut: checkedOut as unknown as SpectateLivePayload["checkedOut"],
+    queue: serializeQueueEntriesForPayload(
+      queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
+      firstTimerIdentityKeys,
+    ) as unknown as SpectateLivePayload["queue"],
+    checkedOut: serializeQueueEntriesForPayload(
+      checkedOut as Parameters<typeof serializeQueueEntriesForPayload>[0],
+      firstTimerIdentityKeys,
+    ) as unknown as SpectateLivePayload["checkedOut"],
     courts: courts as unknown as SpectateLivePayload["courts"],
     spectatorCount: getSpectatorCount(gameId),
+    firstTimerCount: firstTimerIdentityKeys.size,
+    birthdayThisMonthCount: birthdaysThisMonth.count,
     clubBranding: owner ? resolveClubBranding(owner) : null,
   };
 }

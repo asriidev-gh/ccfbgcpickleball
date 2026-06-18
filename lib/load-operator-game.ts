@@ -1,7 +1,12 @@
 import { ensureGameRegistrationQr } from "@/lib/game-qr";
 import { resolveClubBranding } from "@/lib/club-branding";
+import { getGameBirthdaysThisMonth } from "@/lib/game-birthdays-this-month";
 import { loadGameLeaderboardRecap } from "@/lib/game-leaderboard-recap";
 import { loadQueueCourtsAndCheckedOut } from "@/lib/load-spectate-game";
+import {
+  loadFirstTimerIdentityKeysForGame,
+  serializeQueueEntriesForPayload,
+} from "@/lib/queue-first-timer";
 import type {
   OperatorDetailsPayload,
   OperatorQueuePayload,
@@ -42,12 +47,24 @@ export async function loadOperatorQueueState(
   if (!game) return null;
 
   const { queue, checkedOut, courts } = await loadQueueCourtsAndCheckedOut(gameId);
+  const [firstTimerIdentityKeys, birthdaysThisMonth] = await Promise.all([
+    loadFirstTimerIdentityKeysForGame(ownerId, gameId),
+    getGameBirthdaysThisMonth(gameId),
+  ]);
 
   return {
     status: game.status as OperatorQueuePayload["status"],
-    queue: queue as unknown as OperatorQueuePayload["queue"],
-    checkedOut: checkedOut as unknown as OperatorQueuePayload["checkedOut"],
+    queue: serializeQueueEntriesForPayload(
+      queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
+      firstTimerIdentityKeys,
+    ) as unknown as OperatorQueuePayload["queue"],
+    checkedOut: serializeQueueEntriesForPayload(
+      checkedOut as Parameters<typeof serializeQueueEntriesForPayload>[0],
+      firstTimerIdentityKeys,
+    ) as unknown as OperatorQueuePayload["checkedOut"],
     courts: courts as unknown as OperatorQueuePayload["courts"],
+    firstTimerCount: firstTimerIdentityKeys.size,
+    birthdayThisMonthCount: birthdaysThisMonth.count,
   };
 }
 

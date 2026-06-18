@@ -17,6 +17,7 @@ import { MarketplaceOrder } from "@/models/MarketplaceOrder";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
 import { assertPlayerRegisteredForGame } from "@/lib/player-profile";
+import { assertPlayerCheckedInForGame } from "@/lib/game-registration-limit";
 
 type OrderDoc = {
   _id: { toString(): string };
@@ -154,6 +155,7 @@ export async function submitMarketplaceOrder(
 ) {
   await connectToDatabase();
   await assertPlayerRegisteredForGame(gameId, playerId);
+  await assertPlayerCheckedInForGame(gameId, playerId);
 
   const game = (await PickleGame.findOne({ gameId }).select("ownerId").lean()) as
     | { ownerId: { toString(): string } }
@@ -288,6 +290,7 @@ export async function submitMarketplaceOrder(
 export async function listPlayerMarketplaceOrders(gameId: string, playerId: string) {
   await connectToDatabase();
   await assertPlayerRegisteredForGame(gameId, playerId);
+  await assertPlayerCheckedInForGame(gameId, playerId);
 
   const docs = (await MarketplaceOrder.find({ gameId, playerId })
     .sort({ createdAt: -1 })
@@ -331,6 +334,7 @@ export async function cancelPlayerMarketplaceOrder(
 ) {
   await connectToDatabase();
   await assertPlayerRegisteredForGame(gameId, playerId);
+  await assertPlayerCheckedInForGame(gameId, playerId);
 
   const doc = await MarketplaceOrder.findOneAndUpdate(
     { _id: orderId, gameId, playerId, status: "pending" },

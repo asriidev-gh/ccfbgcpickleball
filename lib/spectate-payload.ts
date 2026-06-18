@@ -22,6 +22,8 @@ export type SpectateLivePayload = {
   checkedOut: QueueEntryView[];
   courts: CourtView[];
   spectatorCount?: number;
+  firstTimerCount?: number;
+  birthdayThisMonthCount?: number;
   clubBranding?: ClubBranding | null;
 };
 

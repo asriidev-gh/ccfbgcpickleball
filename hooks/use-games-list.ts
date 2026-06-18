@@ -19,6 +19,7 @@ export type GamesListPayload = {
     createdAt?: string;
   }>;
   hasDemoOpenPlay?: boolean;
+  canCreateDemoOpenPlay?: boolean;
   userType?: string;
 };
 

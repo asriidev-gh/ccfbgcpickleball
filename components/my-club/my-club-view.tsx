@@ -108,17 +108,20 @@ function MyClubTabTrigger({
   const showBadge = badgeCount > 0;
 
   return (
-    <TabsTrigger value={item.value} className={cn("my-club-tabs__trigger", item.triggerClass)}>
+    <TabsTrigger
+      value={item.value}
+      aria-label={item.label}
+      title={item.label}
+      className={cn("my-club-tabs__trigger", item.triggerClass)}
+    >
       <span className={cn("my-club-tabs__icon-wrap", item.iconClass)} aria-hidden>
         <Icon className="h-4 w-4 shrink-0" />
       </span>
-      <span className="my-club-tabs__label min-w-0 text-left">
+      <span className="my-club-tabs__label-mobile sm:hidden">{item.shortLabel}</span>
+      <span className="my-club-tabs__label hidden min-w-0 text-left sm:block">
         <span className="my-club-tabs__title block truncate font-semibold">{item.label}</span>
         <span className="my-club-tabs__hint hidden truncate text-xs opacity-80 sm:block">
           {item.hint}
-        </span>
-        <span className="my-club-tabs__title-sm block truncate font-semibold sm:hidden">
-          {item.shortLabel}
         </span>
       </span>
       {showBadge ? (
@@ -319,7 +322,7 @@ export function MyClubView() {
                 </div>
               </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="my-club-stat-cards grid grid-cols-2 gap-3 xl:grid-cols-4">
               <MyClubStatCard
                 title="Club Profile"
                 value={`${profileCompletion}%`}
@@ -386,7 +389,12 @@ export function MyClubView() {
         className="my-club-tabs flex flex-col gap-5"
       >
         <div className="my-club-tabs__bar">
-          <TabsList className="my-club-tabs__list">
+          <TabsList
+            className={cn(
+              "my-club-tabs__list",
+              visibleTabItems.length > 2 && "my-club-tabs__list--four-tabs",
+            )}
+          >
             {visibleTabItems.map((item) => (
               <MyClubTabTrigger
                 key={item.value}

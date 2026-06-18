@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
+import { ScrollToTopButton } from "@/components/scroll-to-top-button";
 import { Button } from "@/components/ui/button";
 import {
   fetchLeaderboardRecap,
@@ -52,6 +53,7 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
           <LeaderboardPageContent insights={insights} rows={rows} loading={loading} />
         )}
       </section>
+      <ScrollToTopButton />
     </main>
   );
 }

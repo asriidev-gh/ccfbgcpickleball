@@ -18,26 +18,29 @@ import type { SpectatePlayerAnnouncement } from "@/lib/spectate-player-features-
 
 export function SpectateAnnouncementsDialog({
   gameId,
-  playerId,
+  playerId = null,
   open,
   onOpenChange,
 }: {
   gameId: string;
-  playerId: string;
+  playerId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const isRegisteredPlayer = Boolean(playerId);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["spectate-announcements", gameId, playerId],
+    queryKey: ["spectate-announcements", gameId, playerId ?? "viewer"],
     queryFn: async () => {
       const response = await fetch(
-        `/api/games/${gameId}/spectate/player/announcements?playerId=${encodeURIComponent(playerId)}`,
+        isRegisteredPlayer
+          ? `/api/games/${gameId}/spectate/player/announcements?playerId=${encodeURIComponent(playerId!)}`
+          : `/api/games/${gameId}/spectate/announcements`,
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "Failed to load community posts.");
-      return payload as { announcements: SpectatePlayerAnnouncement[]; unreadCount: number };
+      return payload as { announcements: SpectatePlayerAnnouncement[]; unreadCount?: number };
     },
     enabled: open,
     staleTime: 0,
@@ -85,7 +88,9 @@ export function SpectateAnnouncementsDialog({
         ) : announcements.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-10 text-center">
             <Megaphone className="h-10 w-10 text-muted-foreground/70" aria-hidden />
-            <p className="text-sm text-muted-foreground">No new community posts.</p>
+            <p className="text-sm text-muted-foreground">
+              {isRegisteredPlayer ? "No new community posts." : "No community posts yet."}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -106,26 +111,28 @@ export function SpectateAnnouncementsDialog({
                   {formatDistanceToNow(new Date(announcement.publishedAt), { addSuffix: true })}
                 </p>
                 <ClubAnnouncementBody body={announcement.body} className="mt-3" />
-                <div className="mt-4 flex justify-end">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={
-                      markReadMutation.isPending && markReadMutation.variables === announcement.id
-                    }
-                    onClick={() => markReadMutation.mutate(announcement.id)}
-                  >
-                    {markReadMutation.isPending && markReadMutation.variables === announcement.id ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                        Marking…
-                      </>
-                    ) : (
-                      "Mark as read"
-                    )}
-                  </Button>
-                </div>
+                {isRegisteredPlayer && !announcement.isRead ? (
+                  <div className="mt-4 flex justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={
+                        markReadMutation.isPending && markReadMutation.variables === announcement.id
+                      }
+                      onClick={() => markReadMutation.mutate(announcement.id)}
+                    >
+                      {markReadMutation.isPending && markReadMutation.variables === announcement.id ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                          Marking…
+                        </>
+                      ) : (
+                        "Mark as read"
+                      )}
+                    </Button>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>

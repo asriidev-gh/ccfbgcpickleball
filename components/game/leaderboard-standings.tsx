@@ -1,6 +1,7 @@
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
+import { LeaderboardPodiumFrame } from "@/components/game/leaderboard-podium-frame";
 import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
@@ -11,10 +12,46 @@ export type LeaderboardRow = PlayerPhotoRef & {
   gamesPlayed: number;
   winRate: number;
   currentStreak: number;
+  isFirstTimer?: boolean;
 };
 
 function displayLabel(row: LeaderboardRow, rank: number) {
   return formatPlayerDisplayName(row.firstName, row.lastName, rank);
+}
+
+export function FirstTimerPill({ className }: { className?: string }) {
+  return (
+    <span className={cn("leaderboard-first-timer-pill", className)} title="First session with this club">
+      1st timer
+    </span>
+  );
+}
+
+function LeaderboardPlayerName({
+  row,
+  rank,
+  align = "start",
+  className,
+  nameClassName,
+}: {
+  row: LeaderboardRow;
+  rank: number;
+  align?: "start" | "center";
+  className?: string;
+  nameClassName?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-full flex-wrap items-center gap-1",
+        align === "center" ? "justify-center" : "justify-start",
+        className,
+      )}
+    >
+      <span className={cn("min-w-0 truncate", nameClassName)}>{displayLabel(row, rank)}</span>
+      {row.isFirstTimer ? <FirstTimerPill /> : null}
+    </span>
+  );
 }
 
 function RankDisplay({
@@ -86,6 +123,10 @@ function podiumAvatarClass(rank: 1 | 2 | 3, compact: boolean) {
   );
 }
 
+function podiumPlaceLabel(rank: 1 | 2 | 3) {
+  return rank === 1 ? "1st Place" : rank === 2 ? "2nd Place" : "3rd Place";
+}
+
 function PodiumCard({
   row,
   rank,
@@ -96,38 +137,106 @@ function PodiumCard({
   compact?: boolean;
 }) {
   const podiumClass =
-    rank === 1 ? "leaderboard-podium-card-gold" : rank === 2 ? "leaderboard-podium-card-silver" : "leaderboard-podium-card-bronze";
+    rank === 1
+      ? "leaderboard-podium-card-gold"
+      : rank === 2
+        ? "leaderboard-podium-card-silver"
+        : "leaderboard-podium-card-bronze";
 
   return (
-    <article
+    <LeaderboardPodiumFrame
+      rank={rank}
+      compact={compact}
       className={cn(
-        "leaderboard-podium-card surface-muted flex flex-col items-center rounded-lg border text-center",
-        compact ? "px-1.5 py-2" : "rounded-xl px-3 py-4",
-        podiumClass,
-        rank === 1 && !compact && "md:-mt-2 md:pb-5",
+        rank === 1 && !compact && "leaderboard-podium-card--first md:-mt-3",
+        rank === 2 && !compact && "leaderboard-podium-card--second md:pb-3.5",
+        rank === 3 && !compact && "leaderboard-podium-card--third md:pb-3",
       )}
     >
-      <PlayerAvatar
-        player={row}
-        className={cn("shrink-0", podiumAvatarClass(rank, compact))}
-      />
-      <p
+      <article
         className={cn(
-          "line-clamp-2 font-semibold leading-tight",
-          compact ? "mt-1 text-xs" : "body-lg mt-2",
+          "leaderboard-podium-card flex w-full min-w-0 flex-col items-center text-center",
+          compact ? "leaderboard-podium-card--compact px-1.5 py-2" : "px-3 py-3 sm:px-4 sm:py-4",
+          podiumClass,
+          rank === 1 && !compact && "md:py-5",
         )}
       >
-        {displayLabel(row, rank)}
-      </p>
-      <RankDisplay rank={rank} size={compact ? "sm" : "lg"} className={compact ? "mt-1" : "mt-2"} />
-      <p className={cn("stat-num font-bold tabular-nums", compact ? "mt-0.5 text-sm" : "mt-1 text-lg")}>
-        {row.wins}
-      </p>
-      {!compact ? <p className="caption">wins</p> : null}
-      <p className={cn("text-muted-foreground", compact ? "mt-0.5 text-[10px]" : "caption mt-2")}>
-        {row.winRate}%
-      </p>
-    </article>
+        <div className="leaderboard-podium-card__glow" aria-hidden />
+        <p className="leaderboard-podium-card__place relative z-[1]">
+          {podiumPlaceLabel(rank)}
+        </p>
+        <RankDisplay
+          rank={rank}
+          size={compact ? "sm" : "lg"}
+          className="relative z-[1] mt-1"
+        />
+        <PlayerAvatar
+          player={row}
+          className={cn(
+            "leaderboard-podium-avatar relative z-[1] shrink-0",
+            compact ? "mt-1" : "mt-2",
+            podiumAvatarClass(rank, compact),
+          )}
+        />
+        <p
+          className={cn(
+            "relative z-[1] w-full leading-tight",
+            compact ? "mt-1 px-0.5" : "mt-2 px-1",
+          )}
+        >
+          <LeaderboardPlayerName
+            row={row}
+            rank={rank}
+            align="center"
+            nameClassName={cn("font-semibold", compact ? "text-[11px]" : "body-lg")}
+          />
+        </p>
+        <div
+          className={cn(
+            "leaderboard-podium-stats relative z-[1] mt-2 grid w-full max-w-[8.5rem] grid-cols-2 gap-px overflow-hidden rounded-lg",
+            compact ? "mt-1.5 max-w-full" : "mt-3",
+          )}
+        >
+          <div className="leaderboard-podium-stats__cell flex flex-col items-center px-1 py-1.5 sm:py-2">
+            <span
+              className={cn(
+                "stat-num font-bold tabular-nums text-emerald-600 dark:text-emerald-400",
+                compact ? "text-sm" : "text-lg sm:text-xl",
+              )}
+            >
+              {row.wins}
+            </span>
+            <span
+              className={cn(
+                "font-medium uppercase tracking-wide text-muted-foreground",
+                compact ? "text-[9px]" : "text-[10px] sm:text-xs",
+              )}
+            >
+              Wins
+            </span>
+          </div>
+          <div className="leaderboard-podium-stats__cell flex flex-col items-center px-1 py-1.5 sm:py-2">
+            <span
+              className={cn(
+                "font-semibold tabular-nums text-muted-foreground",
+                compact ? "text-sm" : "text-base sm:text-lg",
+              )}
+            >
+              {row.losses}
+            </span>
+            <span
+              className={cn(
+                "font-medium uppercase tracking-wide text-muted-foreground",
+                compact ? "text-[9px]" : "text-[10px] sm:text-xs",
+              )}
+            >
+              Losses
+            </span>
+          </div>
+        </div>
+        <div className="leaderboard-podium-card__pedestal" aria-hidden />
+      </article>
+    </LeaderboardPodiumFrame>
   );
 }
 
@@ -158,9 +267,11 @@ function StandingRow({
           <RankDisplay rank={rank} size={compact ? "sm" : "md"} />
           <PlayerAvatar player={row} size={compact ? "sm" : "default"} />
           <div className="min-w-0">
-            <p className={cn("truncate font-semibold", compact ? "text-sm" : "body-lg")}>
-              {displayLabel(row, rank)}
-            </p>
+            <LeaderboardPlayerName
+              row={row}
+              rank={rank}
+              nameClassName={cn("font-semibold", compact ? "text-sm" : "body-lg")}
+            />
             {!compact ? (
               <p className="caption">
                 {row.gamesPlayed} {row.gamesPlayed === 1 ? "game" : "games"} played
@@ -240,15 +351,17 @@ export function LeaderboardStandings({
           >
             Top 3
           </p>
-          <div
-            className={cn(
-              "leaderboard-podium grid items-end",
-              compact ? "grid-cols-3 gap-1" : "grid-cols-3 gap-2 sm:gap-3",
-            )}
-          >
-            <PodiumCard row={topThree[1]!} rank={2} compact={compact} />
-            <PodiumCard row={topThree[0]!} rank={1} compact={compact} />
-            <PodiumCard row={topThree[2]!} rank={3} compact={compact} />
+          <div className={cn("leaderboard-podium-stage", compact && "leaderboard-podium-stage--compact")}>
+            <div
+              className={cn(
+                "leaderboard-podium grid items-end",
+                compact ? "grid-cols-3 gap-1.5" : "grid-cols-3 gap-2 sm:gap-3",
+              )}
+            >
+              <PodiumCard row={topThree[1]!} rank={2} compact={compact} />
+              <PodiumCard row={topThree[0]!} rank={1} compact={compact} />
+              <PodiumCard row={topThree[2]!} rank={3} compact={compact} />
+            </div>
           </div>
         </div>
       ) : null}

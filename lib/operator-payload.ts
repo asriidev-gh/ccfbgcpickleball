@@ -29,6 +29,8 @@ export type OperatorQueuePayload = {
   queue: QueueEntryView[];
   checkedOut: QueueEntryView[];
   courts: CourtView[];
+  firstTimerCount?: number;
+  birthdayThisMonthCount?: number;
 };
 
 export type OperatorDetailsPayload = {
@@ -52,6 +54,8 @@ export type OperatorFullPayload = {
   leaderboard: LeaderboardGamesPlayedRow[];
   matches: MatchHistoryView[];
   recap?: OperatorDetailsPayload["recap"];
+  firstTimerCount?: number;
+  birthdayThisMonthCount?: number;
 };
 
 export function mergeOperatorGamePayload(
@@ -74,5 +78,7 @@ export function mergeOperatorGamePayload(
     leaderboard: details?.leaderboard ?? [],
     matches: details?.matches ?? [],
     recap: details?.recap,
+    firstTimerCount: queue?.firstTimerCount ?? 0,
+    birthdayThisMonthCount: queue?.birthdayThisMonthCount ?? 0,
   };
 }

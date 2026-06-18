@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isCloudinaryConfigured } from "@/lib/cloudinary";
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
+import { RegistrationLimitError } from "@/lib/game-registration-limit";
 import { listPlayerMarketplaceOrders, submitMarketplaceOrder } from "@/lib/marketplace-orders";
 import { marketplacePaymentRequiresProof } from "@/lib/marketplace-payment-shared";
 import { parseMarketplaceOrderFormData } from "@/lib/parse-marketplace-order-form";
@@ -26,6 +27,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     });
   } catch (error) {
     if (error instanceof PlayerProfileAccessError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+    if (error instanceof RegistrationLimitError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
     return NextResponse.json(
@@ -78,6 +82,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
   } catch (error) {
     if (error instanceof PlayerProfileAccessError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+    if (error instanceof RegistrationLimitError) {
       return NextResponse.json({ message: error.message }, { status: error.status });
     }
     return NextResponse.json(

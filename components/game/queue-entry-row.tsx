@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
 import { PlayerNameWithPhoto, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import { FirstTimerPill } from "@/components/game/leaderboard-standings";
 import { SuperadminPlayerCheckInButton } from "@/components/game/superadmin-player-check-in-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,8 @@ export type QueueEntryView = {
   gamesPlayed?: number;
   wins?: number;
   losses?: number;
+  /** First ended-session record with this club owner before this open play. */
+  isFirstTimer?: boolean;
 };
 
 function NextOnCourtLabel() {
@@ -84,6 +87,30 @@ function QueueSessionStatsBadges({
         {formatSessionRecordLabel(stats)}
       </Badge>
     </div>
+  );
+}
+
+function QueuePlayerLabel({
+  entry,
+  compactName,
+  checkedOut,
+  slot,
+}: {
+  entry: QueueEntryView;
+  compactName: boolean;
+  checkedOut: boolean;
+  slot: number;
+}) {
+  const rank = checkedOut ? undefined : slot;
+  const name = compactName
+    ? formatPlayerCourtName(entry.playerId.firstName, entry.playerId.lastName, rank)
+    : formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName, rank);
+
+  return (
+    <span className="inline-flex max-w-full flex-wrap items-center gap-1">
+      <span className="min-w-0 truncate">{name}</span>
+      {entry.isFirstTimer ? <FirstTimerPill /> : null}
+    </span>
   );
 }
 
@@ -195,17 +222,12 @@ export function QueueEntryRow({
                 )}
                 nameClassName={checkedOut ? "text-muted-foreground" : undefined}
               >
-                {compactName
-                  ? formatPlayerCourtName(
-                      entry.playerId.firstName,
-                      entry.playerId.lastName,
-                      checkedOut ? undefined : slot,
-                    )
-                  : formatPlayerDisplayName(
-                      entry.playerId.firstName,
-                      entry.playerId.lastName,
-                      checkedOut ? undefined : slot,
-                    )}
+                <QueuePlayerLabel
+                  entry={entry}
+                  compactName={compactName}
+                  checkedOut={checkedOut}
+                  slot={slot}
+                />
               </PlayerNameWithPhoto>
             </div>
           </div>

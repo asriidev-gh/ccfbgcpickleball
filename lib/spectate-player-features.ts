@@ -5,6 +5,7 @@ import { isOwnerMarkedDgroupJoined } from "@/lib/owner-dgroup-requests";
 import { createPrayerRequestFromRegistration, getSpectatePlayerPrayerStatus } from "@/lib/owner-prayer-requests";
 import { MAX_PRAYER_REQUEST_LENGTH, MIN_PRAYER_REQUEST_LENGTH } from "@/lib/owner-prayer-requests-shared";
 import { assertPlayerRegisteredForGame } from "@/lib/player-profile";
+import { getPlayerQueueStatusForGame } from "@/lib/game-registration-limit";
 import { assertGameShowsCcfMinistryFeatures, resolveGameShowsCcfMinistryFeatures } from "@/lib/ccf-ministry-features";
 import { listPlayerVisibleClubAnnouncements } from "@/lib/club-announcements";
 import { buildPlayerVisibleClubAnnouncementFilter, getClubAnnouncementTodayKey } from "@/lib/club-announcement-schedule";
@@ -96,7 +97,10 @@ export async function getSpectatePlayerFeatures(
     ? await getSpectatePlayerPrayerStatus(ownerId, playerId)
     : null;
 
+  const queueStatus = await getPlayerQueueStatusForGame(gameId, playerId);
+
   return {
+    communityPostCount: published.length,
     unreadAnnouncementCount: Math.max(0, published.length - readCount),
     showCcfFeatures,
     isPartOfDgroup,
@@ -111,6 +115,25 @@ export async function getSpectatePlayerFeatures(
     hasSubmittedPrayerRequest: prayerStatus?.hasRequest ?? false,
     isPrayerRequestAcknowledged: prayerStatus?.status === "acknowledged",
     prayerReplyCount: prayerStatus?.replyCount ?? 0,
+    showMarketplace: queueStatus === "active",
+  };
+}
+
+export async function listSpectateGameAnnouncements(gameId: string) {
+  const ownerId = await getGameOwnerId(gameId);
+  const announcements = (await listPlayerVisibleClubAnnouncements(ownerId)) as AnnouncementDoc[];
+
+  const items: SpectatePlayerAnnouncement[] = announcements.map((doc) => ({
+    id: doc._id.toString(),
+    title: doc.title,
+    body: doc.body,
+    publishedAt: doc.publishedAt.toISOString(),
+    isRead: true,
+  }));
+
+  return {
+    announcements: items,
+    totalCount: items.length,
   };
 }
 

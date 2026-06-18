@@ -9,6 +9,7 @@ export type SpectatePlayerAnnouncement = {
 };
 
 export type SpectatePlayerFeatures = {
+  communityPostCount: number;
   unreadAnnouncementCount: number;
   showCcfFeatures: boolean;
   isPartOfDgroup: boolean;
@@ -23,4 +24,6 @@ export type SpectatePlayerFeatures = {
   hasSubmittedPrayerRequest: boolean;
   isPrayerRequestAcknowledged: boolean;
   prayerReplyCount: number;
+  /** Checked in to this open play (queued, on court, or done — not checked out). */
+  showMarketplace: boolean;
 };

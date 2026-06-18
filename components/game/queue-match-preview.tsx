@@ -1,6 +1,7 @@
 import { Clock, Link2, LogOut, Swords, Trophy, Users } from "lucide-react";
 
 import { PlayerAvatar } from "@/components/game/player-avatar";
+import { FirstTimerPill } from "@/components/game/leaderboard-standings";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { formatUpcomingGameBadgeLabel } from "@/lib/games-played-map";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
@@ -84,8 +85,11 @@ function MatchPreviewPlayer({
       <div className="queue-match-preview-player-main">
         <PlayerAvatar player={entry.playerId} size="sm" className="!size-10 sm:!size-11" />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium leading-tight text-foreground">
-            {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
+          <p className="flex max-w-full flex-wrap items-center gap-1 font-medium leading-tight text-foreground">
+            <span className="truncate">
+              {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
+            </span>
+            {entry.isFirstTimer ? <FirstTimerPill /> : null}
           </p>
           <p className="caption truncate text-muted-foreground">
             {formatLastMatchLine(entry.lastMatchResult)}

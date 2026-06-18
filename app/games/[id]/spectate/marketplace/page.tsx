@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 
 import { PlayerMarketplaceListingsView } from "@/components/marketplace/player-marketplace-listings-view";
 import { PlayerMarketplaceOrdersLink } from "@/components/marketplace/player-marketplace-orders-link";
+import { SpectateMarketplaceGate } from "@/components/player/spectate-marketplace-gate";
 import { Button } from "@/components/ui/button";
 
 export default function PlayerMarketplacePage() {
@@ -13,7 +14,8 @@ export default function PlayerMarketplacePage() {
   const gameId = params.id;
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-4 sm:px-6 sm:py-6">
+    <SpectateMarketplaceGate gameId={gameId}>
+      <main className="mx-auto w-full max-w-3xl px-4 py-4 sm:px-6 sm:py-6">
       <div className="mb-5">
         <div className="mb-6">
           <Link href={`/games/${gameId}/spectate`}>
@@ -38,6 +40,7 @@ export default function PlayerMarketplacePage() {
       </div>
 
       <PlayerMarketplaceListingsView gameId={gameId} />
-    </main>
+      </main>
+    </SpectateMarketplaceGate>
   );
 }

@@ -1,7 +1,10 @@
 import { computeSessionInsights, type SessionInsight } from "@/lib/session-insights";
+import { getSessionInsightIdentityKeys } from "@/lib/owner-session-insight-filter";
+import { getPlayerIdentityKey } from "@/lib/owner-session-insight-filter-shared";
 import { formatPlayerTableName } from "@/lib/utils";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
+import { PickleGame } from "@/models/PickleGame";
 import "@/models/Player";
 
 export type GameLeaderboardRecapRow = {
@@ -16,6 +19,7 @@ export type GameLeaderboardRecapRow = {
   gamesPlayed: number;
   winRate: number;
   currentStreak: number;
+  isFirstTimer: boolean;
 };
 
 type LeaderboardStatDoc = {
@@ -29,6 +33,7 @@ type LeaderboardStatDoc = {
     _id: { toString(): string };
     firstName: string;
     lastName: string;
+    email?: string;
     photoUrl?: string;
     photoPublicId?: string;
     personalQrCode?: string;
@@ -39,30 +44,48 @@ export async function loadGameLeaderboardRecap(gameId: string): Promise<{
   rows: GameLeaderboardRecapRow[];
   insights: SessionInsight[];
 }> {
-  const [stats, matches] = await Promise.all([
+  const [stats, matches, game] = await Promise.all([
     LeaderboardStats.find({ gameId }).sort({ wins: -1, winRate: -1 }).populate("playerId"),
     MatchHistory.find({ gameId })
       .sort({ endedAt: 1 })
       .populate(["teamAPlayerIds", "teamBPlayerIds"]),
+    PickleGame.findOne({ gameId }).select("ownerId").lean<{ ownerId?: { toString(): string } }>(),
   ]);
+
+  const ownerId = game?.ownerId?.toString();
+  const firstTimerIdentityKeys =
+    ownerId != null
+      ? await getSessionInsightIdentityKeys(ownerId, gameId, "new")
+      : new Set<string>();
 
   const safeStats = (stats as unknown as LeaderboardStatDoc[]).filter((item) =>
     Boolean(item.playerId),
   );
 
-  const rows: GameLeaderboardRecapRow[] = safeStats.map((item) => ({
-    id: String(item._id),
-    firstName: item.playerId!.firstName,
-    lastName: item.playerId!.lastName,
-    photoUrl: item.playerId!.photoUrl,
-    photoPublicId: item.playerId!.photoPublicId,
-    personalQrCode: item.playerId!.personalQrCode,
-    wins: item.wins,
-    losses: item.losses,
-    gamesPlayed: item.gamesPlayed,
-    winRate: item.winRate,
-    currentStreak: item.currentStreak,
-  }));
+  const rows: GameLeaderboardRecapRow[] = safeStats.map((item) => {
+    const player = item.playerId!;
+    const identityKey = getPlayerIdentityKey({
+      _id: player._id,
+      email: player.email,
+      firstName: player.firstName,
+      lastName: player.lastName,
+    });
+
+    return {
+      id: String(item._id),
+      firstName: player.firstName,
+      lastName: player.lastName,
+      photoUrl: player.photoUrl,
+      photoPublicId: player.photoPublicId,
+      personalQrCode: player.personalQrCode,
+      wins: item.wins,
+      losses: item.losses,
+      gamesPlayed: item.gamesPlayed,
+      winRate: item.winRate,
+      currentStreak: item.currentStreak,
+      isFirstTimer: firstTimerIdentityKeys.has(identityKey),
+    };
+  });
 
   const insights = computeSessionInsights(
     matches.map((m) => ({

@@ -7,6 +7,11 @@ import {
   getCourtEffectiveElapsedMs,
   toCourtTimerClock,
 } from "@/lib/court-cancel-grace";
+import {
+  buildRotationRequeuePlayerOrder,
+  countActiveRotationPlayers,
+  shouldUseRotationRequeue,
+} from "@/lib/rotation-requeue";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -616,6 +621,34 @@ export async function endGameAndRequeue(input: {
     };
   }
 
+  const activePlayerCount = await countActiveRotationPlayers(input.gameId);
+  const useRotation = shouldUseRotationRequeue(activePlayerCount);
+
+  if (useRotation) {
+    const applied = await requeueCourtPlayersWithRotation({
+      gameId: input.gameId,
+      court,
+      winnerPlayerIdSet,
+    });
+
+    if (applied) {
+      court.status = "empty";
+      court.teamA = { playerIds: [], queueEntryIds: [] };
+      court.teamB = { playerIds: [], queueEntryIds: [] };
+      court.startedAt = null;
+      Object.assign(court, clearCourtTimerPauseFields());
+      court.isRematch = false;
+      await court.save();
+
+      return {
+        ok: true,
+        rematch: false,
+        requeueMode: "rotation" as const,
+        message: "Game ended — players rotated in the queue.",
+      };
+    }
+  }
+
   const teamAPlayers = [...court.teamA.playerIds];
   const teamBPlayers = [...court.teamB.playerIds];
   const requeueOrder: Types.ObjectId[] = [
@@ -661,6 +694,83 @@ export async function endGameAndRequeue(input: {
   return {
     ok: true,
     rematch: false,
+    requeueMode: "standard" as const,
     message: "Game ended and players returned to the queue.",
   };
+}
+
+async function requeueCourtPlayersWithRotation(input: {
+  gameId: string;
+  court: {
+    teamA: { playerIds: Types.ObjectId[]; queueEntryIds: Types.ObjectId[] };
+    teamB: { playerIds: Types.ObjectId[]; queueEntryIds: Types.ObjectId[] };
+  };
+  winnerPlayerIdSet: Set<string>;
+}) {
+  const queued = await QueueEntry.find({ gameId: input.gameId, status: "queued" }).sort({
+    registeredAt: 1,
+  });
+
+  const playerOrder = buildRotationRequeuePlayerOrder({
+    queuedPlayerIds: queued.map((entry) => entry.playerId as Types.ObjectId),
+    court: {
+      teamAPlayerIds: [...input.court.teamA.playerIds],
+      teamBPlayerIds: [...input.court.teamB.playerIds],
+    },
+  });
+
+  if (!playerOrder) return false;
+
+  const pairAIds = new Set(
+    input.court.teamA.playerIds.map((id: Types.ObjectId) => id.toString()),
+  );
+  const pairBIds = new Set(
+    input.court.teamB.playerIds.map((id: Types.ObjectId) => id.toString()),
+  );
+  const courtPlayerIds = new Set([...pairAIds, ...pairBIds]);
+
+  await QueueEntry.updateMany(
+    {
+      _id: { $in: [...input.court.teamA.queueEntryIds, ...input.court.teamB.queueEntryIds] },
+    },
+    { $set: { status: "done" } },
+  );
+
+  const now = Date.now();
+  const newEntriesByPlayerId = new Map<string, (typeof queued)[number]>();
+
+  for (const playerId of [...input.court.teamA.playerIds, ...input.court.teamB.playerIds]) {
+    const playerKey = playerId.toString();
+    const isWinner = input.winnerPlayerIdSet.has(playerKey);
+    const entry = await QueueEntry.create({
+      gameId: input.gameId,
+      playerId,
+      status: "queued",
+      queueType: "normal",
+      pairGroupId: null,
+      deckPlacement: null,
+      openCourtGroupId: null,
+      openCourtTeam: null,
+      registeredAt: new Date(now),
+      lastMatchResult: isWinner ? "win" : "loss",
+      winStreak: isWinner ? 1 : 0,
+    });
+    newEntriesByPlayerId.set(playerKey, entry);
+  }
+
+  const orderedEntries = playerOrder.map((playerId) => {
+    const playerKey = playerId.toString();
+    if (courtPlayerIds.has(playerKey)) {
+      return newEntriesByPlayerId.get(playerKey)!;
+    }
+
+    const existing = queued.find((entry) => entry.playerId.toString() === playerKey);
+    if (!existing) {
+      throw new Error("Rotation requeue could not resolve a queued player.");
+    }
+    return existing;
+  });
+
+  await persistQueueOrder(orderedEntries);
+  return true;
 }

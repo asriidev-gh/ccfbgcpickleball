@@ -373,11 +373,10 @@ export function HomeSessionInsightsCharts({
     return null;
   }
 
-  const endedCount = chartSessions.filter((session) => session.status === "ended").length;
-  const chartDescriptionSuffix =
-    endedCount > 0
-      ? `Showing ${chartSessions.length} session${chartSessions.length === 1 ? "" : "s"} (${endedCount} past).`
-      : undefined;
+  const latestCreatedDateLabel = chartSessions[0]?.chartGroupDateLabel;
+  const chartDescriptionSuffix = latestCreatedDateLabel
+    ? `Showing ${chartSessions.length} session${chartSessions.length === 1 ? "" : "s"} from the latest created date (${latestCreatedDateLabel}).`
+    : undefined;
 
   const newPlayerValues = chartSessions.map((session) => session.newPlayerCount);
   const ccfNotYetValues = chartSessions.map((session) => session.ccfNotYetCount ?? 0);

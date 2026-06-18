@@ -2,8 +2,10 @@ export type HomeSessionInsightPoint = {
   gameId: string;
   title: string;
   shortLabel: string;
+  chartGroupDateLabel: string;
   chartDetailLabel: string;
   chartBulletLabel: string;
+  createdAt: string | null;
   openPlayDate: string | null;
   openPlayTimeRange: string | null;
   openPlayType: string;
@@ -41,31 +43,51 @@ function sortSessionsChronologically(sessions: HomeSessionInsightPoint[]) {
   );
 }
 
-/** Prefer past (ended) sessions so trends are not crowded out by active games. */
+function getCreatedDateKey(createdAt: string | null | undefined) {
+  if (!createdAt) return null;
+
+  const timestamp = new Date(createdAt).getTime();
+  if (Number.isNaN(timestamp)) return null;
+
+  return createdAt.slice(0, 10);
+}
+
+function getLatestCreatedDateKey(sessions: HomeSessionInsightPoint[]) {
+  let latestKey: string | null = null;
+  let latestTime = 0;
+
+  for (const session of sessions) {
+    if (!session.createdAt) continue;
+
+    const timestamp = new Date(session.createdAt).getTime();
+    if (Number.isNaN(timestamp) || timestamp <= latestTime) continue;
+
+    latestTime = timestamp;
+    latestKey = session.createdAt.slice(0, 10);
+  }
+
+  return latestKey;
+}
+
+/** Only sessions created on the same calendar day as the most recently created session. */
 export function pickChartSessions(
   sessions: HomeSessionInsightPoint[],
   limit = HOME_SESSION_CHART_LIMIT,
 ) {
-  const endedSessions = sortSessionsChronologically(
-    sessions.filter((session) => session.status === "ended"),
-  );
-  const activeSessions = sortSessionsChronologically(
+  if (sessions.length === 0) return [];
+
+  const latestCreatedDateKey = getLatestCreatedDateKey(sessions);
+  if (!latestCreatedDateKey) {
+    return sortSessionsChronologically(sessions).slice(-1);
+  }
+
+  const matchingSessions = sortSessionsChronologically(
     sessions.filter(
-      (session) => session.status !== "ended" && session.registeredCount > 0,
+      (session) => getCreatedDateKey(session.createdAt) === latestCreatedDateKey,
     ),
   );
 
-  if (endedSessions.length === 0) {
-    return activeSessions.slice(-limit);
-  }
-
-  if (endedSessions.length >= limit) {
-    return endedSessions.slice(-limit);
-  }
-
-  const activeSlots = limit - endedSessions.length;
-  const recentActive = activeSessions.slice(-activeSlots);
-  return sortSessionsChronologically([...endedSessions, ...recentActive]);
+  return matchingSessions.slice(-limit);
 }
 
 export function isHighlightedChartSession(point: HomeSessionInsightPoint) {
@@ -90,14 +112,15 @@ export function groupChartSessionsByDate(points: HomeSessionInsightPoint[]) {
   const groupIndexByKey = new Map<string, number>();
 
   points.forEach((point, index) => {
-    const dateKey = point.openPlayDate?.slice(0, 10) ?? point.gameId;
+    const dateKey =
+      point.createdAt?.slice(0, 10) ?? point.openPlayDate?.slice(0, 10) ?? point.gameId;
     const existingIndex = groupIndexByKey.get(dateKey);
 
     if (existingIndex === undefined) {
       groupIndexByKey.set(dateKey, orderedGroups.length);
       orderedGroups.push({
         dateKey,
-        dateLabel: point.openPlayDate ? point.shortLabel : point.title,
+        dateLabel: point.chartGroupDateLabel || point.title,
         sessions: [{ point, index }],
       });
       return;
@@ -117,7 +140,7 @@ function truncateChartText(value: string, maxLength: number) {
 
 type SessionChartLabelInput = Omit<
   HomeSessionInsightPoint,
-  "shortLabel" | "chartDetailLabel" | "chartBulletLabel"
+  "shortLabel" | "chartGroupDateLabel" | "chartDetailLabel" | "chartBulletLabel"
 >;
 
 export function enrichSessionChartLabels(
@@ -140,6 +163,9 @@ export function enrichSessionChartLabels(
     const hasDuplicateDate = dateKey ? (sessionsPerDate.get(dateKey) ?? 0) > 1 : false;
     const shortLabel =
       formatDate(session.openPlayDate) ?? truncateChartText(session.title, 18);
+    const chartGroupDateLabel = session.createdAt
+      ? (formatDate(session.createdAt) ?? shortLabel)
+      : shortLabel;
 
     const timeLabel = formatStartTime(session.openPlayTimeRange);
     const titleLabel = truncateChartText(session.title, 18);
@@ -189,6 +215,7 @@ export function enrichSessionChartLabels(
     return {
       ...session,
       shortLabel,
+      chartGroupDateLabel,
       chartDetailLabel,
       chartBulletLabel,
     };

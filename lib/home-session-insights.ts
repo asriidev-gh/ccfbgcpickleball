@@ -361,6 +361,8 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
 
       title: gamesById.get(game.gameId)?.title ?? game.title,
 
+      createdAt: game.createdAt ? new Date(game.createdAt).toISOString() : null,
+
       openPlayDate,
 
       openPlayTimeRange: game.openPlayTimeRange?.trim() ?? null,

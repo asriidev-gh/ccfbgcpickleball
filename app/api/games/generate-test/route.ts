@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { runWithDatabase } from "@/lib/db";
-import { DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
+import { canCreateDemoOpenPlay, DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
 import { getAuthUserFromCookie } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/superadmin";
 import { createTestGame } from "@/lib/test-game";
 import { PickleGame } from "@/models/PickleGame";
+import { User } from "@/models/User";
 
 const DEMO_OPEN_PLAY_TITLE_LABEL = "Test Open Play 1";
 
@@ -14,6 +16,19 @@ export async function POST() {
     return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+
+    const owner = await User.findById(authUser.userId).select("createdAt").lean();
+    if (
+      !canCreateDemoOpenPlay({
+        accountCreatedAt: owner?.createdAt,
+        isSuperAdmin: isSuperAdmin(authUser.email),
+      })
+    ) {
+      return NextResponse.json(
+        { message: "Demo open plays are only available during your first 3 days." },
+        { status: 403 },
+      );
+    }
 
     const existingDemo = await PickleGame.findOne({
       ownerId: authUser.userId,

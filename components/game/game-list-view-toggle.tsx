@@ -18,16 +18,17 @@ export function isGameListDesktopViewport(): boolean {
 }
 
 export function defaultGameListView(): GameListViewMode {
-  return isGameListDesktopViewport() ? "list" : "cards";
+  return "list";
 }
 
 export function loadGameListView(): GameListViewMode {
-  if (typeof window === "undefined") return "cards";
+  if (typeof window === "undefined") return "list";
+  if (!isGameListDesktopViewport()) return "list";
+
   const stored = localStorage.getItem(GAME_LIST_VIEW_STORAGE_KEY);
   if (!stored) return defaultGameListView();
-  if (stored === "cards" || stored === "qr") return stored;
-  // Saved "list" on desktop only; mobile defaults to cards.
-  return isGameListDesktopViewport() ? "list" : "cards";
+  if (stored === "cards" || stored === "qr" || stored === "list") return stored;
+  return "list";
 }
 
 export function saveGameListView(view: GameListViewMode) {
@@ -42,7 +43,7 @@ type GameListViewToggleProps = {
 export function GameListViewToggle({ value, onChange }: GameListViewToggleProps) {
   return (
     <div
-      className="game-list-view-toggle inline-flex rounded-lg border border-border bg-muted/40 p-0.5"
+      className="game-list-view-toggle hidden rounded-lg border border-border bg-muted/40 p-0.5 md:inline-flex"
       role="group"
       aria-label="Games layout"
     >

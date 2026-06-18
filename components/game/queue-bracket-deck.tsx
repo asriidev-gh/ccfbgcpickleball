@@ -1,6 +1,7 @@
 import { Clock, Link2, LogOut, UserX } from "lucide-react";
 
 import { PlayerNameWithPhoto } from "@/components/game/player-avatar";
+import { FirstTimerPill } from "@/components/game/leaderboard-standings";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { formatUpcomingGameBadgeLabel } from "@/lib/games-played-map";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
@@ -41,7 +42,12 @@ function DeckPlayer({
     >
       <div className="queue-deck-player-row">
         <PlayerNameWithPhoto player={entry.playerId} className="body-lg min-w-0">
-          {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
+          <span className="inline-flex max-w-full flex-wrap items-center gap-1">
+            <span className="min-w-0 truncate">
+              {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
+            </span>
+            {entry.isFirstTimer ? <FirstTimerPill /> : null}
+          </span>
         </PlayerNameWithPhoto>
         <Badge variant="outline" className="shrink-0 whitespace-nowrap">
           {formatUpcomingGameBadgeLabel(entry.gamesPlayed ?? 0)}

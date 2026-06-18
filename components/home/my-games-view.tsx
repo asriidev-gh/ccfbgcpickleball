@@ -28,9 +28,7 @@ import { WatchDemoButton } from "@/components/watch-demo-button";
 import { GameExportButton } from "@/components/game/game-export-button";
 import {
   GAME_LIST_DESKTOP_MEDIA,
-  GAME_LIST_VIEW_STORAGE_KEY,
   GameListViewToggle,
-  defaultGameListView,
   loadGameListView,
   saveGameListView,
   type GameListViewMode,
@@ -546,7 +544,7 @@ export function MyGamesView() {
   const setCreateGameWizardOpen = useUiStore((state) => state.setCreateGameWizardOpen);
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
   const [editingGame, setEditingGame] = useState<EditGameDialogGame | null>(null);
-  const [listView, setListView] = useState<GameListViewMode>("cards");
+  const [listView, setListView] = useState<GameListViewMode>("list");
   const [viewReady, setViewReady] = useState(false);
   const [gamesTab, setGamesTab] = useState<"active" | "past">("active");
 
@@ -559,15 +557,13 @@ export function MyGamesView() {
     syncView();
 
     const onViewportChange = () => {
-      if (!localStorage.getItem(GAME_LIST_VIEW_STORAGE_KEY)) {
-        setListView(defaultGameListView());
-      }
+      setListView(loadGameListView());
     };
     mq.addEventListener("change", onViewportChange);
     return () => mq.removeEventListener("change", onViewportChange);
   }, []);
 
-  const displayView: GameListViewMode = viewReady ? listView : "cards";
+  const displayView: GameListViewMode = viewReady ? listView : "list";
 
   const handleListViewChange = (view: GameListViewMode) => {
     setListView(view);
@@ -584,6 +580,7 @@ export function MyGamesView() {
   };
 
   const hasDemoOpenPlay = Boolean(data?.hasDemoOpenPlay);
+  const canShowDemoOpenPlayButton = Boolean(data?.canCreateDemoOpenPlay);
   const userType = data?.userType;
 
   useEffect(() => {
@@ -674,7 +671,7 @@ export function MyGamesView() {
               <Plus className="mr-2 h-5 w-5" />
               Create Open Play Session
             </Button>
-            {!hasDemoOpenPlay ? (
+            {!hasDemoOpenPlay && canShowDemoOpenPlayButton ? (
               <Button
                 size="lg"
                 variant="outline"
