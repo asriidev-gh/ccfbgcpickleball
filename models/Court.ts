@@ -16,6 +16,10 @@ const courtSchema = new Schema(
     teamA: { type: teamSchema, default: { playerIds: [], queueEntryIds: [] } },
     teamB: { type: teamSchema, default: { playerIds: [], queueEntryIds: [] } },
     startedAt: { type: Date, default: null },
+    /** When set, the court play clock is frozen until unpaused. */
+    pausedAt: { type: Date, default: null },
+    /** Accumulated paused time (ms) for the current court session. */
+    totalPausedMs: { type: Number, default: 0 },
     /** True when the current court session started via rematch (not queue fill). */
     isRematch: { type: Boolean, default: false },
   },

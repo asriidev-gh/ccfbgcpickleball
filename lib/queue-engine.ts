@@ -1,7 +1,12 @@
 import { nanoid } from "nanoid";
 import { Types } from "mongoose";
 
-import { COURT_CANCEL_GRACE_MS } from "@/lib/court-cancel-grace";
+import {
+  COURT_CANCEL_GRACE_MS,
+  clearCourtTimerPauseFields,
+  getCourtEffectiveElapsedMs,
+  toCourtTimerClock,
+} from "@/lib/court-cancel-grace";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -57,6 +62,8 @@ export async function startGameOnCourt(gameId: string, courtNumber?: number) {
 
   court.status = "active";
   court.startedAt = new Date();
+  court.pausedAt = null;
+  court.totalPausedMs = 0;
   court.isRematch = false;
   court.teamA = { playerIds: [p1.playerId, p2.playerId], queueEntryIds: [p1._id, p2._id] };
   court.teamB = { playerIds: [p3.playerId, p4.playerId], queueEntryIds: [p3._id, p4._id] };
@@ -287,6 +294,54 @@ export async function swapPlayersBetweenCourtTeams(input: {
   return court;
 }
 
+function finalizeCourtPauseDuration(court: {
+  pausedAt?: Date | null;
+  totalPausedMs?: number | null;
+}, endedAt = new Date()) {
+  if (!court.pausedAt) return;
+
+  const pauseStart = new Date(court.pausedAt).getTime();
+  if (Number.isNaN(pauseStart)) {
+    court.pausedAt = null;
+    return;
+  }
+
+  court.totalPausedMs = (court.totalPausedMs ?? 0) + (endedAt.getTime() - pauseStart);
+  court.pausedAt = null;
+}
+
+/** Pause or unpause the active court play clock. */
+export async function setCourtPaused(input: {
+  gameId: string;
+  courtNumber: number;
+  paused: boolean;
+}) {
+  const court = await Court.findOne({
+    gameId: input.gameId,
+    courtNumber: input.courtNumber,
+    status: "active",
+  });
+  if (!court) throw new Error("Active court not found.");
+  if (!court.startedAt) throw new Error("Court start time is missing.");
+
+  const now = new Date();
+
+  if (input.paused) {
+    if (!court.pausedAt) {
+      court.pausedAt = now;
+      await court.save();
+    }
+    return court;
+  }
+
+  if (court.pausedAt) {
+    finalizeCourtPauseDuration(court, now);
+    await court.save();
+  }
+
+  return court;
+}
+
 /** Undo an active court fill — return those four players to the top of the queue. */
 export async function cancelCourtAssignment(input: { gameId: string; courtNumber: number }) {
   const court = await Court.findOne({
@@ -300,7 +355,7 @@ export async function cancelCourtAssignment(input: { gameId: string; courtNumber
     throw new Error("Court start time is missing.");
   }
 
-  const elapsedMs = Date.now() - new Date(court.startedAt).getTime();
+  const elapsedMs = getCourtEffectiveElapsedMs(toCourtTimerClock(court));
   if (elapsedMs > COURT_CANCEL_GRACE_MS) {
     throw new Error("The cancel window has expired. Players are already in play.");
   }
@@ -331,6 +386,7 @@ export async function cancelCourtAssignment(input: { gameId: string; courtNumber
   court.teamA = { playerIds: [], queueEntryIds: [] };
   court.teamB = { playerIds: [], queueEntryIds: [] };
   court.startedAt = null;
+  Object.assign(court, clearCourtTimerPauseFields());
   court.isRematch = false;
   await court.save();
 
@@ -360,7 +416,7 @@ export async function cancelRematch(input: { gameId: string; courtNumber: number
     throw new Error("Court start time is missing.");
   }
 
-  const elapsedMs = Date.now() - new Date(court.startedAt).getTime();
+  const elapsedMs = getCourtEffectiveElapsedMs(toCourtTimerClock(court));
   if (elapsedMs > COURT_CANCEL_GRACE_MS) {
     throw new Error("The cancel window has expired. Players are already in play.");
   }
@@ -391,6 +447,7 @@ export async function cancelRematch(input: { gameId: string; courtNumber: number
   court.teamA = { playerIds: [], queueEntryIds: [] };
   court.teamB = { playerIds: [], queueEntryIds: [] };
   court.startedAt = null;
+  Object.assign(court, clearCourtTimerPauseFields());
   court.isRematch = false;
   await court.save();
 
@@ -494,9 +551,22 @@ export async function endGameAndRequeue(input: {
   const winnerPlayerIdSet = new Set(winnerPlayers.map((id: Types.ObjectId) => id.toString()));
 
   const endedAt = new Date();
+  finalizeCourtPauseDuration(court, endedAt);
   const startedAt = court.startedAt ? new Date(court.startedAt) : endedAt;
   const durationSeconds = court.startedAt
-    ? Math.max(0, Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000))
+    ? Math.max(
+        0,
+        Math.floor(
+          getCourtEffectiveElapsedMs(
+            {
+              startedAt: court.startedAt,
+              pausedAt: null,
+              totalPausedMs: court.totalPausedMs ?? 0,
+            },
+            endedAt.getTime(),
+          ) / 1000,
+        ),
+      )
     : 0;
 
   await MatchHistory.create({
@@ -535,6 +605,7 @@ export async function endGameAndRequeue(input: {
 
   if (input.rematch) {
     court.startedAt = new Date();
+    Object.assign(court, clearCourtTimerPauseFields());
     court.isRematch = true;
     court.markModified("isRematch");
     await court.save();
@@ -583,6 +654,7 @@ export async function endGameAndRequeue(input: {
   court.teamA = { playerIds: [], queueEntryIds: [] };
   court.teamB = { playerIds: [], queueEntryIds: [] };
   court.startedAt = null;
+  Object.assign(court, clearCourtTimerPauseFields());
   court.isRematch = false;
   await court.save();
 

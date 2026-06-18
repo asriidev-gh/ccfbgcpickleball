@@ -9,21 +9,25 @@ import {
   formatCourtElapsedTime,
   getCourtCancelGraceRemainingMs,
   getCourtElapsedMs,
+  isCourtTimerPaused,
+  type CourtTimerClock,
 } from "@/lib/court-cancel-grace";
 import { cn } from "@/lib/utils";
 
-export function useCourtPlayTimer(startedAt: string | null | undefined) {
+export function useCourtPlayTimer(clock: CourtTimerClock) {
   const [now, setNow] = useState(() => Date.now());
+  const paused = isCourtTimerPaused(clock);
 
   useEffect(() => {
-    if (!startedAt) return;
+    if (!clock.startedAt || paused) return;
     setNow(Date.now());
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [startedAt]);
+  }, [clock.startedAt, clock.pausedAt, paused]);
 
-  const elapsedMs = getCourtElapsedMs(startedAt, now);
-  const cancelRemainingMs = getCourtCancelGraceRemainingMs(startedAt, now);
+  const effectiveNow = paused && clock.pausedAt ? new Date(clock.pausedAt).getTime() : now;
+  const elapsedMs = getCourtElapsedMs(clock, effectiveNow);
+  const cancelRemainingMs = getCourtCancelGraceRemainingMs(clock, effectiveNow);
 
   return {
     elapsedMs,
@@ -32,6 +36,7 @@ export function useCourtPlayTimer(startedAt: string | null | undefined) {
     cancelRemainingMs,
     cancelLabel: formatCourtCancelCountdown(cancelRemainingMs),
     cancelProgress: cancelRemainingMs / COURT_CANCEL_GRACE_MS,
+    paused,
   };
 }
 
@@ -46,29 +51,41 @@ function PlayTimerIcon() {
 }
 
 export function CourtInPlayElapsedPanel({
-  startedAt,
+  clock,
   className,
 }: {
-  startedAt: string | null | undefined;
+  clock: CourtTimerClock;
   className?: string;
 }) {
-  const { canCancel, elapsedLabel } = useCourtPlayTimer(startedAt);
+  const { canCancel, elapsedLabel, paused } = useCourtPlayTimer(clock);
 
-  if (canCancel || !startedAt) return null;
+  if (canCancel || !clock.startedAt) return null;
 
   return (
     <div
       className={cn(
-        "court-in-play-timer flex h-11 w-full items-center gap-2.5 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3",
+        "court-in-play-timer flex h-11 w-full items-center gap-2.5 rounded-lg border px-3",
+        paused
+          ? "border-amber-500/25 bg-amber-500/5"
+          : "border-emerald-500/25 bg-emerald-500/5",
         className,
       )}
       aria-live="polite"
-      aria-label={`Playing for ${elapsedLabel}`}
+      aria-label={paused ? `Paused at ${elapsedLabel}` : `Playing for ${elapsedLabel}`}
     >
       <PlayTimerIcon />
       <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-        <span className="truncate text-left text-sm font-medium text-foreground">Playing</span>
-        <span className="shrink-0 rounded-md bg-emerald-500/10 px-2 py-0.5 font-mono text-sm font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+        <span className="truncate text-left text-sm font-medium text-foreground">
+          {paused ? "Paused" : "Playing"}
+        </span>
+        <span
+          className={cn(
+            "shrink-0 rounded-md px-2 py-0.5 font-mono text-sm font-semibold tabular-nums",
+            paused
+              ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+              : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+          )}
+        >
           {elapsedLabel}
         </span>
       </span>

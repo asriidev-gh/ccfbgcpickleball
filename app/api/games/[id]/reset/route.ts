@@ -44,6 +44,8 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
             teamA: { playerIds: [], queueEntryIds: [] },
             teamB: { playerIds: [], queueEntryIds: [] },
             startedAt: null,
+            pausedAt: null,
+            totalPausedMs: 0,
           },
         }
       ),

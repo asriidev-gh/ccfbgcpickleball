@@ -5,6 +5,7 @@ import { Clock, Loader2 } from "lucide-react";
 import { useCourtPlayTimer } from "@/components/game/court-play-timer";
 import { Button } from "@/components/ui/button";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import type { CourtTimerClock } from "@/lib/court-cancel-grace";
 import { cn } from "@/lib/utils";
 
 const RING_RADIUS = 15;
@@ -49,24 +50,21 @@ function CancelCountdownIcon({ progress }: { progress: number }) {
 
 type CourtCancelGraceVariant = "assignment" | "rematch";
 
-const CANCEL_GRACE_VARIANTS: Record<
-  CourtCancelGraceVariant,
-  { label: string; tooltipPrefix: string; buttonClass: string }
-> = {
+const CANCEL_GRACE_VARIANTS = {
   assignment: {
-    label: "Cancel court assignment",
+    label: "Cancel assignment",
     tooltipPrefix: "Cancel within",
     buttonClass: "court-cancel-assignment-btn",
   },
   rematch: {
     label: "Cancel rematch",
-    tooltipPrefix: "Cancel rematch within",
+    tooltipPrefix: "Cancel within",
     buttonClass: "court-cancel-rematch-btn",
   },
-};
+} as const;
 
 type CourtCancelAssignmentButtonProps = {
-  startedAt?: string | null;
+  clock: CourtTimerClock;
   onClick: () => void;
   pending?: boolean;
   className?: string;
@@ -74,13 +72,13 @@ type CourtCancelAssignmentButtonProps = {
 };
 
 export function CourtCancelAssignmentButton({
-  startedAt,
+  clock,
   onClick,
   pending = false,
   className,
   variant = "assignment",
 }: CourtCancelAssignmentButtonProps) {
-  const { canCancel, cancelLabel, cancelProgress } = useCourtPlayTimer(startedAt);
+  const { canCancel, cancelLabel, cancelProgress, paused } = useCourtPlayTimer(clock);
   const config = CANCEL_GRACE_VARIANTS[variant];
 
   if (!canCancel && !pending) return null;
@@ -89,7 +87,7 @@ export function CourtCancelAssignmentButton({
     <SimpleTooltip
       label={`${config.tooltipPrefix} ${cancelLabel} of ${
         variant === "rematch" ? "rematch start" : "court fill"
-      }`}
+      }${paused ? " (paused)" : ""}`}
     >
       <Button
         type="button"

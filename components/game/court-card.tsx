@@ -1,4 +1,4 @@
-import { ArrowLeftRight, CircleDot, Loader2, Shuffle, Users } from "lucide-react";
+import { ArrowLeftRight, CircleDot, Loader2, Pause, Play, Shuffle, Users } from "lucide-react";
 
 import { CourtCancelAssignmentButton } from "@/components/game/court-cancel-assignment-button";
 import { CourtInPlayElapsedPanel } from "@/components/game/court-play-timer";
@@ -13,6 +13,7 @@ import {
   getPlayerSessionStats,
   type PlayerSessionStats,
 } from "@/lib/games-played-map";
+import { isCourtTimerPaused, toCourtTimerClock } from "@/lib/court-cancel-grace";
 import {
   capitalizeNameWords,
   formatPlayerCourtName,
@@ -30,6 +31,8 @@ export type CourtView = {
   courtNumber: number;
   status: "empty" | "active";
   startedAt?: string | null;
+  pausedAt?: string | null;
+  totalPausedMs?: number;
   isRematch?: boolean;
   teamA: { playerIds: PlayerRef[] };
   teamB: { playerIds: PlayerRef[] };
@@ -138,6 +141,8 @@ type CourtCardProps = {
   cancelRematchPending?: boolean;
   onSwapTeams?: () => void;
   swapPending?: boolean;
+  onTogglePause?: () => void;
+  pausePending?: boolean;
   hideEndGame?: boolean;
   canReplacePlayers?: boolean;
   onReplacePlayer?: (input: {
@@ -163,6 +168,8 @@ export function CourtCard({
   cancelRematchPending = false,
   onSwapTeams,
   swapPending = false,
+  onTogglePause,
+  pausePending = false,
   hideEndGame = false,
   canReplacePlayers = false,
   onReplacePlayer,
@@ -173,6 +180,8 @@ export function CourtCard({
   const isActive = court.status === "active";
   const teamA = court.teamA?.playerIds ?? [];
   const teamB = court.teamB?.playerIds ?? [];
+  const timerClock = toCourtTimerClock(court);
+  const isPaused = isCourtTimerPaused(timerClock);
 
   return (
     <Card
@@ -189,10 +198,17 @@ export function CourtCard({
           className={isActive ? "court-badge-active shrink-0" : "court-badge-empty shrink-0"}
         >
           {isActive ? (
-            <>
-              <CircleDot className="mr-1 h-3 w-3" />
-              In Play
-            </>
+            isPaused ? (
+              <>
+                <Pause className="mr-1 h-3 w-3" />
+                Paused
+              </>
+            ) : (
+              <>
+                <CircleDot className="mr-1 h-3 w-3" />
+                In Play
+              </>
+            )
           ) : isClearing ? (
             <>
               <Loader2 className="mr-1 h-3 w-3 animate-spin" />
@@ -277,28 +293,56 @@ export function CourtCard({
                 {onCancelRematch ? (
                   <CourtCancelAssignmentButton
                     variant="rematch"
-                    startedAt={court.startedAt}
+                    clock={timerClock}
                     pending={cancelRematchPending}
                     onClick={onCancelRematch}
                   />
                 ) : onCancelAssignment ? (
                   <CourtCancelAssignmentButton
-                    startedAt={court.startedAt}
+                    clock={timerClock}
                     pending={cancelPending}
                     onClick={onCancelAssignment}
                   />
                 ) : null}
-                <CourtInPlayElapsedPanel startedAt={court.startedAt} />
-                <Button
-                  variant="destructive"
-                  className="court-end-btn w-full"
-                  onClick={onEndGame}
-                >
-                  End Game
-                </Button>
+                <CourtInPlayElapsedPanel clock={timerClock} />
+                <div className="grid grid-cols-2 gap-2">
+                  {onTogglePause ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="court-pause-btn w-full"
+                      disabled={pausePending}
+                      onClick={onTogglePause}
+                    >
+                      {pausePending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                          {isPaused ? "Resuming…" : "Pausing…"}
+                        </>
+                      ) : isPaused ? (
+                        <>
+                          <Play className="mr-2 h-4 w-4" aria-hidden />
+                          Unpause
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="mr-2 h-4 w-4" aria-hidden />
+                          Pause
+                        </>
+                      )}
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="destructive"
+                    className={onTogglePause ? "court-end-btn w-full" : "court-end-btn col-span-2 w-full"}
+                    onClick={onEndGame}
+                  >
+                    End Game
+                  </Button>
+                </div>
               </div>
             ) : isActive && court.startedAt ? (
-              <CourtInPlayElapsedPanel startedAt={court.startedAt} />
+              <CourtInPlayElapsedPanel clock={timerClock} />
             ) : null}
           </>
         ) : isFilling ? (

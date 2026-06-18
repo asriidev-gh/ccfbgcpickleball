@@ -464,6 +464,8 @@ function applyFillNextCourtOptimistic(
             ...court,
             status: "active",
             startedAt,
+            pausedAt: null,
+            totalPausedMs: 0,
             isRematch: false,
             teamA: { playerIds: nextFour.slice(0, 2).map((entry) => entry.playerId) },
             teamB: { playerIds: nextFour.slice(2, 4).map((entry) => entry.playerId) },
@@ -519,7 +521,13 @@ function applyEndGameOptimistic(
       ...payload,
       courts: payload.courts.map((c) =>
         c.courtNumber === input.courtNumber
-          ? { ...c, startedAt: new Date().toISOString(), isRematch: true }
+          ? {
+              ...c,
+              startedAt: new Date().toISOString(),
+              pausedAt: null,
+              totalPausedMs: 0,
+              isRematch: true,
+            }
           : c,
       ),
     };
@@ -546,12 +554,53 @@ function applyEndGameOptimistic(
             ...c,
             status: "empty",
             startedAt: null,
+            pausedAt: null,
+            totalPausedMs: 0,
             isRematch: false,
             teamA: { playerIds: [] },
             teamB: { playerIds: [] },
           }
         : c,
     ),
+  };
+}
+
+/** Instant UI while pause/unpause API request is in flight. */
+function applyCourtPauseOptimistic(
+  payload: GamePayload,
+  courtNumber: number,
+  paused: boolean,
+): GamePayload | null {
+  const court = payload.courts.find(
+    (item) => item.courtNumber === courtNumber && item.status === "active",
+  );
+  if (!court) return null;
+
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+
+  return {
+    ...payload,
+    courts: payload.courts.map((item) => {
+      if (item.courtNumber !== courtNumber) return item;
+
+      if (paused) {
+        return {
+          ...item,
+          pausedAt: nowIso,
+        };
+      }
+
+      const pauseStart = item.pausedAt ? new Date(item.pausedAt).getTime() : null;
+      const addedPause =
+        pauseStart != null && !Number.isNaN(pauseStart) ? Math.max(0, now - pauseStart) : 0;
+
+      return {
+        ...item,
+        pausedAt: null,
+        totalPausedMs: (item.totalPausedMs ?? 0) + addedPause,
+      };
+    }),
   };
 }
 
@@ -781,6 +830,8 @@ function applyCancelCourtAssignmentOptimistic(
             ...item,
             status: "empty",
             startedAt: null,
+            pausedAt: null,
+            totalPausedMs: 0,
             isRematch: false,
             teamA: { playerIds: [] },
             teamB: { playerIds: [] },
@@ -1152,6 +1203,40 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
     onError: (error) => toast.error(error.message),
+  });
+
+  const pauseCourtMutation = useMutation({
+    mutationFn: async ({ courtNumber, paused }: { courtNumber: number; paused: boolean }) => {
+      const response = await fetch(`/api/games/${gameId}/pause-court`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtNumber, paused }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onMutate: async ({ courtNumber, paused }) => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = readOperatorPayload(queryClient, gameId);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyCourtPauseOptimistic(previous, courtNumber, paused);
+      if (!optimistic) return { previous };
+
+      writeOperatorPayload(queryClient, gameId, optimistic);
+      return { previous };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error, _input, context) => {
+      if (context?.previous) {
+        writeOperatorPayload(queryClient, gameId, context.previous);
+      }
+      toast.error(error.message);
+    },
   });
 
   const cancelCourtMutation = useMutation({
@@ -2315,6 +2400,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             }
             swapPending={
               swapCourtMutation.isPending && swapCourtMutation.variables === court.courtNumber
+            }
+            onTogglePause={
+              hideControls || court.status !== "active"
+                ? undefined
+                : () =>
+                    pauseCourtMutation.mutate({
+                      courtNumber: court.courtNumber,
+                      paused: !court.pausedAt,
+                    })
+            }
+            pausePending={
+              pauseCourtMutation.isPending &&
+              pauseCourtMutation.variables?.courtNumber === court.courtNumber
             }
             onCancelAssignment={
               hideControls || court.status !== "active" || isCourtRematch(court)

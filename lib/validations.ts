@@ -518,6 +518,12 @@ export const cancelCourtAssignmentSchema = z.object({
   courtNumber: z.coerce.number().int().min(1),
 });
 
+export const pauseCourtSchema = z.object({
+  gameId: z.string().min(4),
+  courtNumber: z.coerce.number().int().min(1),
+  paused: z.boolean(),
+});
+
 export const profileBaseSchema = z.object({
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
