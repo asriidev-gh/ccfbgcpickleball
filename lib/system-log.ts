@@ -1,7 +1,11 @@
 import { SystemLog } from "@/models/SystemLog";
 import type { SystemLogLevel, SystemLogListItem } from "@/lib/system-log-shared";
+import { attachSystemLogAnalysis } from "@/lib/system-log-analysis";
+import { buildSystemLogFingerprint } from "@/lib/system-log-fingerprint";
 
 export type { SystemLogLevel, SystemLogListItem } from "@/lib/system-log-shared";
+export type { SystemLogAnalysis, SystemLogListItemWithAnalysis, SystemLogUrgency } from "@/lib/system-log-analysis";
+export { analyzeSystemLog, attachSystemLogAnalysis, urgencyBadgeClass } from "@/lib/system-log-analysis";
 export { formatSystemLogUserLabel } from "@/lib/system-log-shared";
 
 export type SystemLogActor = {
@@ -196,28 +200,76 @@ export function logApiError(input: {
   })();
 }
 
-export async function listSystemLogs(input: { limit?: number; before?: Date } = {}) {
+export async function listSystemLogs(
+  input: { limit?: number; before?: Date; level?: SystemLogLevel } = {},
+) {
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
-  const filter = input.before ? { occurredAt: { $lt: input.before } } : {};
+  const filter: Record<string, unknown> = {
+    $or: [{ resolvedAt: null }, { resolvedAt: { $exists: false } }],
+  };
+  if (input.before) filter.occurredAt = { $lt: input.before };
+  if (input.level) filter.level = input.level;
 
   const rows = await SystemLog.find(filter)
     .sort({ occurredAt: -1 })
     .limit(limit)
     .lean();
 
-  return rows.map((row) => ({
-    id: String(row._id),
-    level: row.level as SystemLogLevel,
+  return rows.map((row) =>
+    attachSystemLogAnalysis({
+      id: String(row._id),
+      level: row.level as SystemLogLevel,
+      source: row.source,
+      message: row.message,
+      stack: row.stack ?? undefined,
+      route: row.route ?? undefined,
+      method: row.method ?? undefined,
+      statusCode: row.statusCode ?? undefined,
+      userId: row.userId ?? undefined,
+      userEmail: row.userEmail ?? undefined,
+      userName: row.userName ?? undefined,
+      metadata: row.metadata as Record<string, unknown> | undefined,
+      occurredAt: row.occurredAt.toISOString(),
+    }),
+  );
+}
+
+const RESOLVE_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+
+export async function resolveSystemLogById(
+  logId: string,
+  actor: { userId: string; userEmail: string },
+) {
+  const row = await SystemLog.findById(logId).select("source message").lean();
+  if (!row) return null;
+
+  const fingerprint = buildSystemLogFingerprint(row.source, row.message);
+  const since = new Date(Date.now() - RESOLVE_LOOKBACK_MS);
+  const candidates = await SystemLog.find({
     source: row.source,
-    message: row.message,
-    stack: row.stack ?? undefined,
-    route: row.route ?? undefined,
-    method: row.method ?? undefined,
-    statusCode: row.statusCode ?? undefined,
-    userId: row.userId ?? undefined,
-    userEmail: row.userEmail ?? undefined,
-    userName: row.userName ?? undefined,
-    metadata: row.metadata as Record<string, unknown> | undefined,
-    occurredAt: row.occurredAt.toISOString(),
-  })) satisfies SystemLogListItem[];
+    occurredAt: { $gte: since },
+    $or: [{ resolvedAt: null }, { resolvedAt: { $exists: false } }],
+  })
+    .select("_id message")
+    .lean();
+
+  const ids = candidates
+    .filter((candidate) => buildSystemLogFingerprint(row.source, candidate.message) === fingerprint)
+    .map((candidate) => candidate._id);
+
+  if (ids.length === 0) {
+    return { resolvedCount: 0, fingerprint };
+  }
+
+  const resolvedAt = new Date();
+  await SystemLog.updateMany(
+    { _id: { $in: ids } },
+    {
+      resolvedAt,
+      resolvedByUserId: actor.userId,
+      resolvedByEmail: actor.userEmail,
+    },
+  );
+
+  return { resolvedCount: ids.length, fingerprint, resolvedAt: resolvedAt.toISOString() };
 }

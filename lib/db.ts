@@ -103,11 +103,14 @@ export function resolveDatabaseName(dbNameOverride?: string) {
 function getMongoOptions(dbNameOverride?: string) {
   return {
     dbName: resolveDatabaseName(dbNameOverride),
-    serverSelectionTimeoutMS: 10_000,
+    serverSelectionTimeoutMS: 15_000,
+    connectTimeoutMS: 15_000,
     socketTimeoutMS: 45_000,
     // One connection per serverless instance — keeps Atlas Free tier under its 500-connection limit.
     maxPoolSize: 1,
     minPoolSize: 0,
+    // Fail fast when disconnected so runWithDatabase can retry instead of buffering 10s per query.
+    bufferCommands: false,
   };
 }
 
@@ -128,9 +131,14 @@ function collectErrorMessages(error: unknown) {
 
 function isTransientConnectionError(error: unknown) {
   const text = collectErrorMessages(error).join(" ");
-  return /must be connected|not connected|connection closed|client was closed|operation interrupted|topology was destroyed|socket has been|connection is not ready|connection failed after multiple attempts/i.test(
+  return /must be connected|not connected|connection closed|client was closed|operation interrupted|topology was destroyed|socket has been|connection is not ready|connection failed after multiple attempts|buffering timed out|session that has ended|closed connection pool|mongoexpiredsessionerror|mongopoolclosederror/i.test(
     text,
   );
+}
+
+/** Exported for API routes to return 503 on connectivity failures. */
+export function isDatabaseConnectivityError(error: unknown) {
+  return isTransientConnectionError(error);
 }
 
 function resetCachedConnection() {

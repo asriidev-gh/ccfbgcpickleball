@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isDatabaseConnectivityError } from "@/lib/db";
 import { logApiError, type SystemLogActor } from "@/lib/system-log";
 
 type HandleApiErrorOptions = {
@@ -13,7 +14,8 @@ type HandleApiErrorOptions = {
 
 /** Log the failure (with signed-in user when available) and return a JSON error response. */
 export function handleApiError(error: unknown, options: HandleApiErrorOptions) {
-  const status = options.status ?? 400;
+  const status =
+    options.status ?? (isDatabaseConnectivityError(error) ? 503 : 400);
   logApiError({
     source: options.source,
     error,

@@ -17,6 +17,7 @@ import {
   shouldCompressClubLogo,
 } from "@/lib/compress-registration-photo";
 import { isAcceptedRegistrationPhotoType } from "@/lib/registration-photo";
+import { createClientKey } from "@/lib/create-client-key";
 import { cn } from "@/lib/utils";
 
 export type ClubOrganizerFormEntry = {
@@ -31,7 +32,7 @@ export type ClubOrganizerFormEntry = {
 
 export function createEmptyOrganizerEntry(): ClubOrganizerFormEntry {
   return {
-    id: crypto.randomUUID(),
+    id: createClientKey(),
     name: "",
     photoUrl: "",
     photoPublicId: "",
@@ -49,7 +50,7 @@ export function organizersFromSaved(
   }
 
   return saved.map((entry) => ({
-    id: crypto.randomUUID(),
+    id: createClientKey(),
     name: entry.name,
     photoUrl: entry.photoUrl,
     photoPublicId: entry.photoPublicId ?? "",

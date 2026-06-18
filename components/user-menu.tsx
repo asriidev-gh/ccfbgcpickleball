@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CircleUser, LogOut, Settings, TrendingUp } from "lucide-react";
+import { CircleUser, LogOut, ScrollText, Settings, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -87,6 +87,10 @@ export function UserMenu() {
               <DropdownMenuItem onClick={() => router.push("/insights")}>
                 <TrendingUp />
                 Insights
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/error-logs")}>
+                <ScrollText />
+                Error Logs
               </DropdownMenuItem>
             </>
           ) : null}

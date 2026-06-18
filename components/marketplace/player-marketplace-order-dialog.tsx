@@ -50,6 +50,7 @@ import {
   MarketplacePaymentProofField,
   type MarketplacePaymentProofValue,
 } from "@/components/marketplace/marketplace-payment-proof-field";
+import { createClientKey } from "@/lib/create-client-key";
 
 const SELECT_SIZE_VALUE = "Select Size";
 const SELECT_COLOR_VALUE = "Select Color";
@@ -81,7 +82,7 @@ const emptyPaymentProof: MarketplacePaymentProofValue = { file: null };
 
 function createOrderLine(): OrderLineDraft {
   return {
-    key: crypto.randomUUID(),
+    key: createClientKey(),
     size: "",
     color: "",
     quantity: 1,

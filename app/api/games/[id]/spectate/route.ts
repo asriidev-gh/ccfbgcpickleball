@@ -9,6 +9,7 @@ import {
   type SpectateScope,
 } from "@/lib/load-spectate-game";
 import { getSpectateClubProfile } from "@/lib/spectate-club-profile";
+import { SPECTATOR_VIEW_UNAVAILABLE_MESSAGE } from "@/lib/spectator-availability-shared";
 
 function parseScope(value: string | null): SpectateScope {
   if (value === "live" || value === "details" || value === "full") {
@@ -56,8 +57,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return handleApiError(error, {
       source: "api/games/spectate",
       request,
+      status: 503,
       metadata: { gameId: id },
-      message: "Failed to load game.",
+      message: SPECTATOR_VIEW_UNAVAILABLE_MESSAGE,
     });
   }
 }

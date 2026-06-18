@@ -15,6 +15,7 @@ import {
   Loader2,
   CalendarDays,
   Clock,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -121,10 +122,12 @@ import {
 import { prefetchLeaderboardRecap } from "@/lib/fetch-leaderboard";
 import {
   fetchSpectateGame,
+  isSpectatorViewUnavailableError,
   spectatorDetailsQueryKey,
   spectatorLiveQueryKey,
 } from "@/lib/fetch-spectate-game";
 import { SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
+import { SPECTATOR_VIEW_UNAVAILABLE_MESSAGE } from "@/lib/spectator-availability-shared";
 
 export type GameDashboardMode = "operator" | "spectator";
 
@@ -143,6 +146,24 @@ const CHECKED_OUT_PREVIEW_COUNT = 2;
 function isSpectatorGameNotFoundError(error: unknown) {
   const message = error instanceof Error ? error.message : "";
   return /not found/i.test(message);
+}
+
+function SpectatorUnavailableScreen({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <main className="game-dashboard--spectator flex min-h-screen items-center justify-center p-8">
+      <div className="mx-auto flex max-w-md flex-col items-center gap-4 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <AlertTriangle className="h-6 w-6" aria-hidden />
+        </div>
+        <p className="text-base font-medium text-foreground">{SPECTATOR_VIEW_UNAVAILABLE_MESSAGE}</p>
+        {onRetry ? (
+          <Button type="button" variant="outline" onClick={onRetry}>
+            Try again
+          </Button>
+        ) : null}
+      </div>
+    </main>
+  );
 }
 
 function SpectatorLoadingScreen() {
@@ -909,8 +930,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     queryFn: () => fetchSpectateGame(gameId, "live") as Promise<SpectateLivePayload>,
     enabled: !!gameId && isSpectator,
     refetchOnWindowFocus: false,
-    retry: (failureCount, error) =>
-      !isSpectatorGameNotFoundError(error) && failureCount < 8,
+    retry: (failureCount, error) => {
+      if (isSpectatorGameNotFoundError(error) || isSpectatorViewUnavailableError(error)) {
+        return false;
+      }
+      return failureCount < 8;
+    },
     retryDelay: (attempt) => Math.min(750 * (attempt + 1), 5_000),
     refetchInterval: (query) => {
       const status = query.state.data?.game?.status;
@@ -1658,16 +1683,22 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const operatorLeasePending = !isSpectator && operatorLeaseState.status === "loading";
 
   if (isSpectator && !spectatorLiveQuery.data) {
-    if (
-      spectatorLiveQuery.isError &&
-      !spectatorLiveQuery.isFetching &&
-      isSpectatorGameNotFoundError(spectatorLiveQuery.error)
-    ) {
-      return (
-        <main className="game-dashboard--spectator flex min-h-screen items-center justify-center p-8">
-          <p className="text-center text-base text-muted-foreground">This game could not be found.</p>
-        </main>
-      );
+    if (spectatorLiveQuery.isError && !spectatorLiveQuery.isFetching) {
+      if (isSpectatorGameNotFoundError(spectatorLiveQuery.error)) {
+        return (
+          <main className="game-dashboard--spectator flex min-h-screen items-center justify-center p-8">
+            <p className="text-center text-base text-muted-foreground">This game could not be found.</p>
+          </main>
+        );
+      }
+
+      if (isSpectatorViewUnavailableError(spectatorLiveQuery.error)) {
+        return (
+          <SpectatorUnavailableScreen
+            onRetry={() => void spectatorLiveQuery.refetch()}
+          />
+        );
+      }
     }
 
     return <SpectatorLoadingScreen />;
@@ -1697,6 +1728,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return <div className="p-8 text-base text-muted-foreground">{loadingLabel}</div>;
   }
   if (isSpectator && error) {
+    if (isSpectatorViewUnavailableError(error)) {
+      return (
+        <SpectatorUnavailableScreen onRetry={() => void spectatorLiveQuery.refetch()} />
+      );
+    }
+
     return (
       <div className="p-8 text-destructive">
         Failed to load game data: {error instanceof Error ? error.message : "Unknown error"}

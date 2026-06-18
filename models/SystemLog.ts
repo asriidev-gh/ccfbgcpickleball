@@ -14,6 +14,9 @@ const systemLogSchema = new Schema(
     userName: { type: String, trim: true },
     metadata: { type: Schema.Types.Mixed },
     occurredAt: { type: Date, required: true, default: Date.now },
+    resolvedAt: { type: Date, default: null, index: true },
+    resolvedByUserId: { type: String, trim: true, default: "" },
+    resolvedByEmail: { type: String, trim: true, default: "" },
   },
   { timestamps: false },
 );

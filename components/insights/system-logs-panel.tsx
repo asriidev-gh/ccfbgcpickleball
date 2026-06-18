@@ -1,8 +1,18 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ChevronDown, ChevronRight, Loader2, RefreshCw, ScrollText } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  RefreshCw,
+  ScrollText,
+  ShieldCheck,
+} from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,8 +35,16 @@ import {
 import {
   formatSystemLogUserLabel,
   type SystemLogLevel,
-  type SystemLogListItem,
 } from "@/lib/system-log-shared";
+import {
+  urgencyBadgeClass,
+  type SystemLogListItemWithAnalysis,
+} from "@/lib/system-log-analysis";
+import { buildSystemLogFingerprint } from "@/lib/system-log-fingerprint";
+import {
+  persistenceStatusBadgeClass,
+  type SystemLogPersistenceCheck,
+} from "@/lib/system-log-persistence-shared";
 import { cn } from "@/lib/utils";
 
 function formatLogTime(value: string) {
@@ -50,31 +68,42 @@ function levelBadgeClass(level: SystemLogLevel) {
   return "border-border bg-muted text-muted-foreground";
 }
 
-function SystemLogRow({ log }: { log: SystemLogListItem }) {
+function SystemLogRow({
+  log,
+  persistence,
+  persistenceLoading,
+  resolving,
+  onCheckPersistence,
+  onResolve,
+}: {
+  log: SystemLogListItemWithAnalysis;
+  persistence?: SystemLogPersistenceCheck;
+  persistenceLoading?: boolean;
+  resolving?: boolean;
+  onCheckPersistence: (log: SystemLogListItemWithAnalysis) => void;
+  onResolve: (log: SystemLogListItemWithAnalysis) => void;
+}) {
   const [open, setOpen] = useState(false);
-  const hasDetails = Boolean(log.stack || log.metadata);
 
   return (
     <>
       <TableRow>
         <TableCell className="w-10">
-          {hasDetails ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-7"
-              onClick={() => setOpen((value) => !value)}
-              aria-expanded={open}
-              aria-label={open ? "Hide log details" : "Show log details"}
-            >
-              {open ? (
-                <ChevronDown className="h-4 w-4" aria-hidden />
-              ) : (
-                <ChevronRight className="h-4 w-4" aria-hidden />
-              )}
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => setOpen((value) => !value)}
+            aria-expanded={open}
+            aria-label={open ? "Hide log details" : "Show log details"}
+          >
+            {open ? (
+              <ChevronDown className="h-4 w-4" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            )}
+          </Button>
         </TableCell>
         <TableCell className="whitespace-nowrap text-muted-foreground" suppressHydrationWarning>
           {formatLogTime(log.occurredAt)}
@@ -84,6 +113,15 @@ function SystemLogRow({ log }: { log: SystemLogListItem }) {
             {log.level}
           </Badge>
         </TableCell>
+        <TableCell>
+          <Badge
+            variant="outline"
+            className={cn("whitespace-nowrap", urgencyBadgeClass(log.analysis.urgency))}
+            title={log.analysis.category}
+          >
+            {log.analysis.label}
+          </Badge>
+        </TableCell>
         <TableCell className="font-mono text-xs text-muted-foreground">{log.source}</TableCell>
         <TableCell className="max-w-[14rem]">
           <p className="truncate font-medium" title={formatSystemLogUserLabel(log)}>
@@ -91,22 +129,111 @@ function SystemLogRow({ log }: { log: SystemLogListItem }) {
           </p>
         </TableCell>
         <TableCell className="max-w-[28rem]">
-          <p className="truncate font-medium" title={log.message}>
-            {log.message}
-          </p>
-          {log.route ? (
-            <p className="caption truncate text-muted-foreground">
-              {log.method ? `${log.method} ` : ""}
-              {log.route}
-              {log.statusCode ? ` · ${log.statusCode}` : ""}
+          <div className="flex flex-col gap-1">
+            <p className="truncate font-medium" title={log.message}>
+              {log.message}
             </p>
-          ) : null}
+            {log.route ? (
+              <p className="caption truncate text-muted-foreground">
+                {log.method ? `${log.method} ` : ""}
+                {log.route}
+                {log.statusCode ? ` · ${log.statusCode}` : ""}
+              </p>
+            ) : null}
+            {persistence ? (
+              <Badge
+                variant="outline"
+                className={cn("w-fit", persistenceStatusBadgeClass(persistence.status))}
+                title={persistence.summary}
+              >
+                {persistence.label}
+              </Badge>
+            ) : null}
+          </div>
+        </TableCell>
+        <TableCell className="w-[7.5rem] text-right">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8"
+            disabled={resolving}
+            onClick={() => onResolve(log)}
+          >
+            {resolving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <>
+                <CheckCircle2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                Resolved
+              </>
+            )}
+          </Button>
         </TableCell>
       </TableRow>
-      {open && hasDetails ? (
+      {open ? (
         <TableRow>
-          <TableCell colSpan={6} className="bg-muted/30">
+          <TableCell colSpan={8} className="bg-muted/30">
             <div className="space-y-3 py-2 text-xs">
+              <div className="rounded-md border border-border/70 bg-background/80 p-3">
+                <p className="font-medium text-foreground">Developer analysis</p>
+                <p className="mt-1 text-muted-foreground">
+                  <span className="font-medium text-foreground">Category:</span>{" "}
+                  {log.analysis.category}
+                </p>
+                <p className="mt-1 text-muted-foreground">{log.analysis.summary}</p>
+                <ul className="mt-2 list-disc space-y-1 pl-4 text-muted-foreground">
+                  {log.analysis.suggestions.map((suggestion) => (
+                    <li key={suggestion}>{suggestion}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="rounded-md border border-border/70 bg-background/80 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium text-foreground">Fix status</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={persistenceLoading}
+                    onClick={() => onCheckPersistence(log)}
+                  >
+                    {persistenceLoading ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                        Checking…
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                        Check if still occurring
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {persistence ? (
+                  <div className="mt-2 space-y-1 text-muted-foreground">
+                    <Badge
+                      variant="outline"
+                      className={cn(persistenceStatusBadgeClass(persistence.status))}
+                    >
+                      {persistence.label}
+                    </Badge>
+                    <p>{persistence.summary}</p>
+                    <p>
+                      48h: {persistence.matchCount48h} · 7d: {persistence.matchCount7d} · 30d:{" "}
+                      {persistence.matchCount30d}
+                      {persistence.lastSeenAt
+                        ? ` · Last seen ${formatLogTime(persistence.lastSeenAt)}`
+                        : ""}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-muted-foreground">
+                    Compares this error pattern against logs from the last 30 days.
+                  </p>
+                )}
+              </div>
               {log.userId ? (
                 <p className="text-muted-foreground">
                   <span className="font-medium text-foreground">User ID:</span> {log.userId}
@@ -130,18 +257,112 @@ function SystemLogRow({ log }: { log: SystemLogListItem }) {
   );
 }
 
-export function SystemLogsPanel() {
-  const [levelFilter, setLevelFilter] = useState<"all" | SystemLogLevel>("all");
-  const [extraLogs, setExtraLogs] = useState<SystemLogListItem[]>([]);
+export function SystemLogsPanel({
+  title = "System Logs",
+  description = "Server and client errors from production. Logs are kept for about 30 days.",
+  queryKey = "insights-system-logs",
+  defaultLevelFilter = "all",
+}: {
+  title?: string;
+  description?: string;
+  queryKey?: string;
+  defaultLevelFilter?: "all" | SystemLogLevel;
+} = {}) {
+  const [levelFilter, setLevelFilter] = useState<"all" | SystemLogLevel>(defaultLevelFilter);
+  const [extraLogs, setExtraLogs] = useState<SystemLogListItemWithAnalysis[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [persistenceByFingerprint, setPersistenceByFingerprint] = useState<
+    Record<string, SystemLogPersistenceCheck>
+  >({});
+  const [checkingFingerprints, setCheckingFingerprints] = useState<Set<string>>(new Set());
+  const [checkingAll, setCheckingAll] = useState(false);
+  const [resolvingLogIds, setResolvingLogIds] = useState<Set<string>>(new Set());
+  const [hiddenFingerprints, setHiddenFingerprints] = useState<Set<string>>(new Set());
+
+  const persistenceKeyForLog = (log: SystemLogListItemWithAnalysis) =>
+    buildSystemLogFingerprint(log.source, log.message);
+
+  const requestPersistenceChecks = async (logIds: string[]) => {
+    const response = await fetch("/api/insights/system-logs/persistence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ logIds }),
+    });
+    const payload = (await response.json()) as {
+      checks?: Record<string, SystemLogPersistenceCheck | null>;
+      message?: string;
+    };
+    if (!response.ok) {
+      throw new Error(payload.message ?? "Failed to check error persistence.");
+    }
+    return payload.checks ?? {};
+  };
+
+  const applyPersistenceChecks = (
+    checks: Record<string, SystemLogPersistenceCheck | null>,
+    logsToMap: SystemLogListItemWithAnalysis[],
+  ) => {
+    setPersistenceByFingerprint((current) => {
+      const next = { ...current };
+      for (const log of logsToMap) {
+        const check = checks[log.id];
+        if (check) {
+          next[persistenceKeyForLog(log)] = check;
+        }
+      }
+      return next;
+    });
+  };
+
+  const checkPersistenceForLog = async (log: SystemLogListItemWithAnalysis) => {
+    const fingerprint = persistenceKeyForLog(log);
+    setCheckingFingerprints((current) => new Set(current).add(fingerprint));
+    try {
+      const checks = await requestPersistenceChecks([log.id]);
+      applyPersistenceChecks(checks, [log]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not check error status.");
+    } finally {
+      setCheckingFingerprints((current) => {
+        const next = new Set(current);
+        next.delete(fingerprint);
+        return next;
+      });
+    }
+  };
+
+  const checkAllVisiblePersistence = async () => {
+    const uniqueByFingerprint = new Map<string, SystemLogListItemWithAnalysis>();
+    for (const log of filteredLogs) {
+      const key = persistenceKeyForLog(log);
+      if (!uniqueByFingerprint.has(key)) {
+        uniqueByFingerprint.set(key, log);
+      }
+    }
+    const logsToCheck = [...uniqueByFingerprint.values()];
+    if (logsToCheck.length === 0) return;
+
+    setCheckingAll(true);
+    try {
+      const checks = await requestPersistenceChecks(logsToCheck.map((log) => log.id));
+      applyPersistenceChecks(checks, logsToCheck);
+      toast.success(`Checked ${logsToCheck.length} error pattern(s).`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not check visible errors.");
+    } finally {
+      setCheckingAll(false);
+    }
+  };
+
+  const levelQuery = levelFilter === "all" ? "" : `&level=${levelFilter}`;
 
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ["insights-system-logs"],
+    queryKey: [queryKey, levelFilter],
     queryFn: async () => {
-      const response = await fetch("/api/insights/system-logs?limit=50");
+      const response = await fetch(`/api/insights/system-logs?limit=50${levelQuery}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message);
-      return payload as { count: number; logs: SystemLogListItem[] };
+      return payload as { count: number; logs: SystemLogListItemWithAnalysis[] };
     },
     refetchOnWindowFocus: false,
   });
@@ -156,13 +377,54 @@ export function SystemLogsPanel() {
     });
   }, [data?.logs, extraLogs]);
 
-  const filteredLogs = useMemo(
-    () => (levelFilter === "all" ? logs : logs.filter((log) => log.level === levelFilter)),
-    [levelFilter, logs],
-  );
+  const filteredLogs = useMemo(() => {
+    return [...logs]
+      .filter((log) => !hiddenFingerprints.has(persistenceKeyForLog(log)))
+      .sort((a, b) => {
+      const rank = { critical: 4, high: 3, low: 2, informational: 1 };
+      const byUrgency = rank[b.analysis.urgency] - rank[a.analysis.urgency];
+      if (byUrgency !== 0) return byUrgency;
+      return new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime();
+    });
+  }, [logs, hiddenFingerprints]);
+
+  const resolveLog = async (log: SystemLogListItemWithAnalysis) => {
+    const fingerprint = persistenceKeyForLog(log);
+    setResolvingLogIds((current) => new Set(current).add(log.id));
+    try {
+      const response = await fetch("/api/insights/system-logs/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logId: log.id }),
+      });
+      const payload = (await response.json()) as {
+        resolvedCount?: number;
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.message ?? "Failed to mark log as resolved.");
+      }
+
+      setHiddenFingerprints((current) => new Set(current).add(fingerprint));
+      toast.success(
+        payload.resolvedCount && payload.resolvedCount > 1
+          ? `Marked ${payload.resolvedCount} matching errors as resolved.`
+          : "Marked as resolved.",
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not mark as resolved.");
+    } finally {
+      setResolvingLogIds((current) => {
+        const next = new Set(current);
+        next.delete(log.id);
+        return next;
+      });
+    }
+  };
 
   const handleRefresh = async () => {
     setExtraLogs([]);
+    setHiddenFingerprints(new Set());
     await refetch();
   };
 
@@ -173,11 +435,11 @@ export function SystemLogsPanel() {
     setLoadingMore(true);
     try {
       const response = await fetch(
-        `/api/insights/system-logs?limit=50&before=${encodeURIComponent(oldest.occurredAt)}`,
+        `/api/insights/system-logs?limit=50&before=${encodeURIComponent(oldest.occurredAt)}${levelQuery}`,
       );
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message);
-      const next = payload as { logs: SystemLogListItem[] };
+      const next = payload as { logs: SystemLogListItemWithAnalysis[] };
       setExtraLogs((current) => [...current, ...next.logs]);
     } finally {
       setLoadingMore(false);
@@ -192,12 +454,15 @@ export function SystemLogsPanel() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ScrollText className="h-5 w-5 text-primary" aria-hidden />
-            <CardTitle className="section-title text-xl">System Logs</CardTitle>
+            <CardTitle className="section-title text-xl">{title}</CardTitle>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={levelFilter}
-              onValueChange={(value) => setLevelFilter(value as "all" | SystemLogLevel)}
+              onValueChange={(value) => {
+                setExtraLogs([]);
+                setLevelFilter(value as "all" | SystemLogLevel);
+              }}
             >
               <SelectTrigger className="h-9 w-[9.5rem]">
                 <SelectValue placeholder="Filter level" />
@@ -213,6 +478,20 @@ export function SystemLogsPanel() {
               type="button"
               variant="outline"
               size="sm"
+              onClick={() => void checkAllVisiblePersistence()}
+              disabled={checkingAll || isFetching || filteredLogs.length === 0}
+            >
+              {checkingAll ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <ShieldCheck className="mr-1.5 h-4 w-4" aria-hidden />
+              )}
+              Check visible errors
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => void handleRefresh()}
               disabled={isFetching}
             >
@@ -221,9 +500,7 @@ export function SystemLogsPanel() {
             </Button>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Server errors and database issues from production. Logs are kept for about 30 days.
-        </p>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -246,15 +523,28 @@ export function SystemLogsPanel() {
                   <TableHead className="w-10" />
                   <TableHead>Time</TableHead>
                   <TableHead>Level</TableHead>
+                  <TableHead>Priority</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>User</TableHead>
                   <TableHead>Message</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.map((log) => (
-                  <SystemLogRow key={log.id} log={log} />
-                ))}
+                {filteredLogs.map((log) => {
+                  const fingerprint = persistenceKeyForLog(log);
+                  return (
+                    <SystemLogRow
+                      key={log.id}
+                      log={log}
+                      persistence={persistenceByFingerprint[fingerprint]}
+                      persistenceLoading={checkingFingerprints.has(fingerprint) || checkingAll}
+                      resolving={resolvingLogIds.has(log.id)}
+                      onCheckPersistence={(entry) => void checkPersistenceForLog(entry)}
+                      onResolve={(entry) => void resolveLog(entry)}
+                    />
+                  );
+                })}
               </TableBody>
             </Table>
             {canLoadMore ? (

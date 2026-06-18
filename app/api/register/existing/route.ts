@@ -16,6 +16,7 @@ import {
   parseQrUploadCcfMode,
   resolveQrUploadCcfQuestionnaireMode,
 } from "@/lib/qr-upload-ccf-questionnaire-shared";
+import { resolveQrUploadGameContext } from "@/lib/qr-upload-game-context";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import {
@@ -26,6 +27,7 @@ import {
   qrUploadJoinDgroupExistingPlayerSchema,
   type QrUploadJoinDgroupExistingPlayerInput,
   qrUploadSkipExistingPlayerSchema,
+  type QrUploadProfileExtrasInput,
   volunteerExistingPlayerSchema,
   type VolunteerExistingPlayerInput,
 } from "@/lib/validations";
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: formatZodError(parsed.error) }, { status: 400 });
     }
     const payload = parsed.data;
+    const qrExtras = payload as typeof payload & QrUploadProfileExtrasInput;
 
     const player = await Player.findOne({ personalQrCode: payload.personalQrCode });
     if (!player) {
@@ -76,7 +79,8 @@ export async function POST(request: Request) {
     }
 
     if (isQrUploadCheckIn && !isGenericForm) {
-      const expectedMode = resolveQrUploadCcfQuestionnaireMode(player);
+      const gameContext = await resolveQrUploadGameContext(payload.gameId, player.email);
+      const expectedMode = resolveQrUploadCcfQuestionnaireMode(player, gameContext);
       if (qrUploadCcfMode !== expectedMode) {
         return NextResponse.json(
           { message: "Please scan your QR again and complete the registration questions." },
@@ -97,15 +101,31 @@ export async function POST(request: Request) {
     const shouldUpdateJoinDgroupOnly =
       !isVolunteer && !isGenericForm && isQrUploadCheckIn && qrUploadCcfMode === "join_dgroup_only";
 
+    if (isQrUploadCheckIn && qrExtras.requiresProfileUpdate) {
+      if (qrExtras.gender) player.gender = qrExtras.gender;
+      if (qrExtras.birthdate) player.birthdate = new Date(`${qrExtras.birthdate}T00:00:00.000Z`);
+      if (qrExtras.pickleballLevel) player.pickleballLevel = qrExtras.pickleballLevel;
+    }
+
     if (shouldUpdateFullCcfProfile) {
       const playerPayload = payload as ExistingPlayerInput;
       player.isPartOfDgroup = playerPayload.isPartOfDgroup;
       player.wantsToJoinDgroup = playerPayload.wantsToJoinDgroup ?? null;
       player.attendedEvents = playerPayload.attendedEvents;
       player.attendedEventsOther = playerPayload.attendedEventsOther;
+      if (playerPayload.wantsToJoinDgroup === true) {
+        player.dgroupAvailableDays = qrExtras.dgroupAvailableDays ?? [];
+        player.dgroupAvailableTimeFrom = qrExtras.dgroupAvailableTimeFrom ?? "";
+        player.dgroupAvailableTimeTo = qrExtras.dgroupAvailableTimeTo ?? "";
+      }
     } else if (shouldUpdateJoinDgroupOnly) {
       const playerPayload = payload as QrUploadJoinDgroupExistingPlayerInput;
       player.wantsToJoinDgroup = playerPayload.wantsToJoinDgroup;
+      if (playerPayload.wantsToJoinDgroup === true) {
+        player.dgroupAvailableDays = qrExtras.dgroupAvailableDays ?? [];
+        player.dgroupAvailableTimeFrom = qrExtras.dgroupAvailableTimeFrom ?? "";
+        player.dgroupAvailableTimeTo = qrExtras.dgroupAvailableTimeTo ?? "";
+      }
     }
     player.lastAttendedAt = new Date();
     await player.save();

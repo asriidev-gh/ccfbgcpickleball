@@ -349,7 +349,7 @@ export function OwnerPlayerDetailsDialog({
           {isLoading ? (
             <p className="flex items-center gap-2 py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              Loading profileâ€¦
+              Loading profile…
             </p>
           ) : isError ? (
             <p className="py-6 text-destructive">
@@ -519,7 +519,7 @@ export function OwnerPlayerDetailsDialog({
                           value={form.biography}
                           maxLength={500}
                           rows={4}
-                          placeholder="Tell others a little about yourselfâ€¦"
+                          placeholder="Tell others a little about yourself…"
                           aria-invalid={Boolean(fieldErrors.biography)}
                           disabled={saveMutation.isPending}
                           onChange={(event) => {
@@ -593,7 +593,7 @@ export function OwnerPlayerDetailsDialog({
               {saveMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                  Savingâ€¦
+                  Saving…
                 </>
               ) : (
                 "Save changes"

@@ -33,6 +33,7 @@ import {
   MAX_REGISTRATION_PHOTO_BYTES,
 } from "@/lib/registration-photo";
 import { MAX_MARKETPLACE_LISTING_PHOTOS } from "@/lib/marketplace-listings-shared";
+import { createClientKey } from "@/lib/create-client-key";
 import { cn } from "@/lib/utils";
 
 export type MarketplaceListingPhotoValue = {
@@ -270,7 +271,7 @@ export function MarketplaceListingPhotoField({
         processedFiles.push(processed);
       }
 
-      const nextIds = processedFiles.map(() => crypto.randomUUID());
+      const nextIds = processedFiles.map(() => createClientKey());
       const nextFiles = [...value.files, ...processedFiles];
       const nextClientIds = [...fileClientIds, ...nextIds];
       emitChange({

@@ -10,9 +10,15 @@ export async function GET(request: Request) {
     const searchParams = new URL(request.url).searchParams;
     const limit = Number(searchParams.get("limit") ?? "50");
     const beforeRaw = searchParams.get("before");
+    const levelRaw = searchParams.get("level");
     const before = beforeRaw ? new Date(beforeRaw) : undefined;
+    const level =
+      levelRaw === "error" || levelRaw === "warn" || levelRaw === "info" ? levelRaw : undefined;
     if (beforeRaw && Number.isNaN(before?.getTime())) {
       return NextResponse.json({ message: "Invalid before timestamp." }, { status: 400 });
+    }
+    if (levelRaw && !level) {
+      return NextResponse.json({ message: "Invalid level filter." }, { status: 400 });
     }
 
     return await runWithDatabase(async () => {
@@ -26,7 +32,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ message: "Forbidden." }, { status: 403 });
       }
 
-      const logs = await listSystemLogs({ limit, before });
+      const logs = await listSystemLogs({ limit, before, level });
       return NextResponse.json({
         count: logs.length,
         logs,

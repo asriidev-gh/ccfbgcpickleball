@@ -3,8 +3,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 import { refreshSpectatorLive } from "@/lib/fetch-spectate-game";
+import { isSpectatorViewUnavailableError } from "@/lib/spectator-availability-shared";
 import {
   getActiveQueueHighlightPlayerId,
   setQueueHighlightPlayerId,
@@ -29,8 +31,11 @@ export function useNavigateToSpectate(gameId: string) {
       setNavigating(true);
       try {
         await refreshSpectatorLive(queryClient, gameId);
-      } catch {
-        // Still open the live view; the dashboard will retry loading.
+      } catch (error) {
+        if (isSpectatorViewUnavailableError(error)) {
+          toast.error(error.message);
+        }
+        // Still open the live view so the full-screen message can appear.
       } finally {
         router.push(`/games/${gameId}/spectate`);
         setNavigating(false);

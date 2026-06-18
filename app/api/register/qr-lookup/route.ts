@@ -7,6 +7,11 @@ import { formatZodError } from "@/lib/format-zod-error";
 import { normalizePersonalQrCode } from "@/lib/normalize-personal-qr-code";
 import { recordCheckinAttemptNotification } from "@/lib/organizer-notifications";
 import { resolveQrUploadCcfQuestionnaireMode } from "@/lib/qr-upload-ccf-questionnaire-shared";
+import { resolveQrUploadGameContext } from "@/lib/qr-upload-game-context";
+import {
+  formatQrUploadBirthdate,
+  needsQrUploadProfileCompletion,
+} from "@/lib/qr-upload-profile-shared";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import { Player } from "@/models/Player";
@@ -27,13 +32,19 @@ export async function POST(request: Request) {
 
       const personalQrCode = normalizePersonalQrCode(parsed.data.personalQrCode);
       const player = await Player.findOne({ personalQrCode }).select(
-        "firstName lastName attendedEvents isPartOfDgroup",
+        "firstName lastName email gender birthdate pickleballLevel attendedEvents isPartOfDgroup wantsToJoinDgroup dgroupAvailableDays dgroupAvailableTimeFrom dgroupAvailableTimeTo",
       );
       if (!player) {
         return NextResponse.json({ message: "Player QR not found." }, { status: 404 });
       }
 
       const playerId = String(player._id);
+      const profileSnapshot = {
+        gender: player.gender,
+        birthdate: player.birthdate,
+        pickleballLevel: player.pickleballLevel,
+      };
+      const needsProfileCompletion = needsQrUploadProfileCompletion(profileSnapshot);
       let queueStatus: "active" | "checked_out" | null = null;
       let ccfQuestionnaireMode: ReturnType<typeof resolveQrUploadCcfQuestionnaireMode> | null =
         null;
@@ -42,7 +53,8 @@ export async function POST(request: Request) {
 
         const formVariant = await resolveGameRegistrationFormVariant(parsed.data.gameId);
         if (formVariant === "ccf") {
-          ccfQuestionnaireMode = resolveQrUploadCcfQuestionnaireMode(player);
+          const gameContext = await resolveQrUploadGameContext(parsed.data.gameId, player.email);
+          ccfQuestionnaireMode = resolveQrUploadCcfQuestionnaireMode(player, gameContext);
         }
 
         if (queueStatus === "checked_out") {
@@ -63,6 +75,13 @@ export async function POST(request: Request) {
         queueStatus,
         alreadyRegistered: queueStatus === "active",
         ccfQuestionnaireMode,
+        needsProfileCompletion,
+        gender: player.gender ?? "",
+        birthdate: formatQrUploadBirthdate(player.birthdate),
+        pickleballLevel: player.pickleballLevel ?? "",
+        dgroupAvailableDays: player.dgroupAvailableDays ?? [],
+        dgroupAvailableTimeFrom: player.dgroupAvailableTimeFrom ?? "",
+        dgroupAvailableTimeTo: player.dgroupAvailableTimeTo ?? "",
       });
     });
   } catch (error) {

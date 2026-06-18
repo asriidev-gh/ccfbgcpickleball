@@ -1,7 +1,6 @@
 "use client";
 
-import { Bell, Camera, ImageIcon, Loader2, QrCode } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Bell, Camera, Eye, ImageIcon, Loader2, QrCode } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ZodError } from "zod";
@@ -10,9 +9,12 @@ import {
   CcfQuestionnaireSection,
   type CcfEventsBeforeAnswer,
 } from "@/components/register/ccf-questionnaire-section";
+import { DgroupAvailabilityFields } from "@/components/register/dgroup-availability-fields";
+import { QrUploadProfileSection } from "@/components/register/qr-upload-profile-section";
 import { Button } from "@/components/ui/button";
 import { useNavigateToSpectate } from "@/components/register/use-navigate-to-spectate";
 import { CCF_ATTENDED_NOT_YET } from "@/lib/ccf-registration";
+import type { DgroupWeekday } from "@/lib/dgroup-availability-shared";
 import { decodeQrCodeFromImageFile } from "@/lib/decode-qr-from-image";
 import {
   formatZodError,
@@ -24,7 +26,16 @@ import {
   setQueueHighlightPlayerId,
 } from "@/lib/queue-highlight";
 import type { QrUploadCcfMode } from "@/lib/qr-upload-ccf-questionnaire-shared";
-import { isQrUploadCcfQuestionnaireComplete } from "@/lib/qr-upload-ccf-questionnaire-shared";
+import {
+  isQrUploadFlowComplete,
+  shouldCollectDgroupAvailability,
+} from "@/lib/qr-upload-ccf-questionnaire-shared";
+import {
+  formatQrUploadBirthdate,
+  needsQrUploadProfileCompletion,
+  type QrUploadProfileFormValues,
+  type QrUploadProfileSnapshot,
+} from "@/lib/qr-upload-profile-shared";
 import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
 import type { RegistrationFormVariant } from "@/lib/registration-variant";
 import { CHECKED_OUT_RE_REGISTER_MESSAGE, ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
@@ -49,7 +60,15 @@ type LookupPlayer = {
   personalQrCode: string;
   queueStatus: PlayerQueueStatus;
   ccfQuestionnaireMode: QrUploadCcfMode | null;
+  profileSnapshot: QrUploadProfileSnapshot;
+  needsProfileCompletion: boolean;
 };
+
+const emptyProfileForm = (): QrUploadProfileFormValues => ({
+  gender: "",
+  birthdate: "",
+  pickleballLevel: "",
+});
 
 type FieldErrors = Record<string, string>;
 
@@ -58,7 +77,6 @@ export function UploadQrIdFlow({
   formVariant,
   onBack,
 }: UploadQrIdFlowProps) {
-  const router = useRouter();
   const isCcfForm = formVariant === "ccf";
   const { navigateToSpectate, navigating } = useNavigateToSpectate(gameId);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -75,12 +93,20 @@ export function UploadQrIdFlow({
   const [attendedEvents, setAttendedEvents] = useState<string[]>([]);
   const [isPartOfDgroup, setIsPartOfDgroup] = useState<boolean | null>(null);
   const [wantsToJoinDgroup, setWantsToJoinDgroup] = useState<boolean | null>(null);
+  const [profileForm, setProfileForm] = useState<QrUploadProfileFormValues>(emptyProfileForm);
+  const [dgroupAvailableDays, setDgroupAvailableDays] = useState<DgroupWeekday[]>([]);
+  const [dgroupAvailableTimeFrom, setDgroupAvailableTimeFrom] = useState("");
+  const [dgroupAvailableTimeTo, setDgroupAvailableTimeTo] = useState("");
 
-  const resetCcfQuestionnaire = () => {
+  const resetFlowState = () => {
     setCcfEventsBefore(null);
     setAttendedEvents([]);
     setIsPartOfDgroup(null);
     setWantsToJoinDgroup(null);
+    setProfileForm(emptyProfileForm());
+    setDgroupAvailableDays([]);
+    setDgroupAvailableTimeFrom("");
+    setDgroupAvailableTimeTo("");
     setFieldErrors({});
   };
 
@@ -138,7 +164,38 @@ export function UploadQrIdFlow({
           ? data.ccfQuestionnaireMode
           : null;
 
-      resetCcfQuestionnaire();
+      const profileSnapshot: QrUploadProfileSnapshot = {
+        gender: typeof data.gender === "string" ? data.gender : "",
+        birthdate: typeof data.birthdate === "string" ? data.birthdate : "",
+        pickleballLevel: typeof data.pickleballLevel === "string" ? data.pickleballLevel : "",
+      };
+      const needsProfileCompletion =
+        data.needsProfileCompletion === true || needsQrUploadProfileCompletion(profileSnapshot);
+
+      resetFlowState();
+      setProfileForm({
+        gender: profileSnapshot.gender?.trim()
+          ? (profileSnapshot.gender as QrUploadProfileFormValues["gender"])
+          : "",
+        birthdate: formatQrUploadBirthdate(profileSnapshot.birthdate),
+        pickleballLevel: profileSnapshot.pickleballLevel?.trim()
+          ? (profileSnapshot.pickleballLevel as QrUploadProfileFormValues["pickleballLevel"])
+          : "",
+      });
+      setDgroupAvailableDays(
+        Array.isArray(data.dgroupAvailableDays)
+          ? data.dgroupAvailableDays.filter((day: string): day is DgroupWeekday =>
+              typeof day === "string",
+            )
+          : [],
+      );
+      setDgroupAvailableTimeFrom(
+        typeof data.dgroupAvailableTimeFrom === "string" ? data.dgroupAvailableTimeFrom : "",
+      );
+      setDgroupAvailableTimeTo(
+        typeof data.dgroupAvailableTimeTo === "string" ? data.dgroupAvailableTimeTo : "",
+      );
+
       setPlayer({
         playerId: typeof data.playerId === "string" ? data.playerId : "",
         firstName: data.firstName,
@@ -146,6 +203,8 @@ export function UploadQrIdFlow({
         personalQrCode: data.personalQrCode,
         queueStatus,
         ccfQuestionnaireMode,
+        profileSnapshot,
+        needsProfileCompletion,
       });
 
       if (queueStatus === "checked_out") {
@@ -173,13 +232,56 @@ export function UploadQrIdFlow({
     }
   };
 
-  const finishRegistrationSuccess = (registeredPlayerId: unknown) => {
-    if (registeredPlayerId != null) {
-      const id = String(registeredPlayerId);
-      setQueueHighlightPlayerId(gameId, id);
-      persistActiveQueueHighlight(gameId, id);
+  const finishRegistrationSuccess = async (registeredPlayerId: unknown) => {
+    const id = registeredPlayerId != null ? String(registeredPlayerId) : player?.playerId;
+    await goToSpectatorView(id);
+  };
+
+  const ccfAnswers = useMemo(
+    () => ({
+      ccfEventsBefore,
+      attendedEvents,
+      isPartOfDgroup,
+      wantsToJoinDgroup,
+    }),
+    [ccfEventsBefore, attendedEvents, isPartOfDgroup, wantsToJoinDgroup],
+  );
+
+  const dgroupAvailability = useMemo(
+    () => ({
+      dgroupAvailableDays,
+      dgroupAvailableTimeFrom,
+      dgroupAvailableTimeTo,
+    }),
+    [dgroupAvailableDays, dgroupAvailableTimeFrom, dgroupAvailableTimeTo],
+  );
+
+  const collectDgroupAvailability = useMemo(
+    () => shouldCollectDgroupAvailability(player?.ccfQuestionnaireMode ?? null, ccfAnswers),
+    [player?.ccfQuestionnaireMode, ccfAnswers],
+  );
+
+  const buildProfilePayload = () => {
+    if (!player?.needsProfileCompletion) {
+      return {};
     }
-    router.push(`/register/${gameId}/success`);
+    return {
+      requiresProfileUpdate: true as const,
+      gender: profileForm.gender,
+      birthdate: profileForm.birthdate,
+      pickleballLevel: profileForm.pickleballLevel,
+    };
+  };
+
+  const buildDgroupAvailabilityPayload = () => {
+    if (!collectDgroupAvailability) {
+      return {};
+    }
+    return {
+      dgroupAvailableDays,
+      dgroupAvailableTimeFrom,
+      dgroupAvailableTimeTo,
+    };
   };
 
   const buildCcfQuestionnairePayload = () => {
@@ -221,6 +323,7 @@ export function UploadQrIdFlow({
       gameId,
       personalQrCode: player.personalQrCode,
       registrationSource: QR_UPLOAD_REGISTRATION_SOURCE,
+      ...buildProfilePayload(),
     };
 
     if (!isCcfForm || player.ccfQuestionnaireMode === null) {
@@ -239,6 +342,7 @@ export function UploadQrIdFlow({
         ...base,
         qrUploadCcfMode: "join_dgroup_only" as const,
         wantsToJoinDgroup,
+        ...buildDgroupAvailabilityPayload(),
       };
     }
 
@@ -247,6 +351,7 @@ export function UploadQrIdFlow({
         ...base,
         qrUploadCcfMode: "full" as const,
         ...buildCcfQuestionnairePayload(),
+        ...buildDgroupAvailabilityPayload(),
       };
     }
 
@@ -319,9 +424,10 @@ export function UploadQrIdFlow({
         return;
       }
 
-      finishRegistrationSuccess(data?.player?._id);
+      await finishRegistrationSuccess(data?.player?._id);
     } catch {
       toast.error("Check-in failed. Please try again.");
+    } finally {
       setSubmitting(false);
     }
   };
@@ -342,17 +448,18 @@ export function UploadQrIdFlow({
   const showCcfQuestionnaire =
     player?.ccfQuestionnaireMode === "full" || player?.ccfQuestionnaireMode === "join_dgroup_only";
 
-  const questionnaireComplete = useMemo(
+  const flowComplete = useMemo(
     () =>
       player
-        ? isQrUploadCcfQuestionnaireComplete(player.ccfQuestionnaireMode, {
-            ccfEventsBefore,
-            attendedEvents,
-            isPartOfDgroup,
-            wantsToJoinDgroup,
+        ? isQrUploadFlowComplete({
+            playerSnapshot: player.profileSnapshot,
+            profileForm,
+            ccfMode: player.ccfQuestionnaireMode,
+            ccfAnswers,
+            dgroupAvailability,
           })
         : false,
-    [player, ccfEventsBefore, attendedEvents, isPartOfDgroup, wantsToJoinDgroup],
+    [player, profileForm, ccfAnswers, dgroupAvailability],
   );
 
   return (
@@ -456,6 +563,15 @@ export function UploadQrIdFlow({
               </div>
             ) : null}
 
+            {player.needsProfileCompletion ? (
+              <QrUploadProfileSection
+                values={profileForm}
+                fieldErrors={fieldErrors}
+                disabled={submitting}
+                onChange={(patch) => setProfileForm((current) => ({ ...current, ...patch }))}
+              />
+            ) : null}
+
             {showCcfQuestionnaire ? (
               <CcfQuestionnaireSection
                 variant={
@@ -479,13 +595,42 @@ export function UploadQrIdFlow({
                 onSelectDgroupMembership={(inDgroup) => {
                   setIsPartOfDgroup(inDgroup);
                   setWantsToJoinDgroup(inDgroup ? null : wantsToJoinDgroup);
+                  if (inDgroup) {
+                    setDgroupAvailableDays([]);
+                    setDgroupAvailableTimeFrom("");
+                    setDgroupAvailableTimeTo("");
+                  }
                 }}
-                onSelectWantsToJoinDgroup={setWantsToJoinDgroup}
+                onSelectWantsToJoinDgroup={(value) => {
+                  setWantsToJoinDgroup(value);
+                  if (value !== true) {
+                    setDgroupAvailableDays([]);
+                    setDgroupAvailableTimeFrom("");
+                    setDgroupAvailableTimeTo("");
+                  }
+                }}
                 renderFieldError={renderFieldError}
               />
             ) : null}
 
-            {questionnaireComplete ? (
+            {collectDgroupAvailability ? (
+              <DgroupAvailabilityFields
+                days={dgroupAvailableDays}
+                timeFrom={dgroupAvailableTimeFrom}
+                timeTo={dgroupAvailableTimeTo}
+                disabled={submitting}
+                fieldErrors={fieldErrors}
+                onToggleDay={(day, checked) => {
+                  setDgroupAvailableDays((current) =>
+                    checked ? [...current, day] : current.filter((value) => value !== day),
+                  );
+                }}
+                onTimeFromChange={setDgroupAvailableTimeFrom}
+                onTimeToChange={setDgroupAvailableTimeTo}
+              />
+            ) : null}
+
+            {flowComplete ? (
               <>
                 <Button
                   type="button"
@@ -494,7 +639,7 @@ export function UploadQrIdFlow({
                   className="w-full border-2 border-dashed"
                   onClick={() => {
                     setPlayer(null);
-                    resetCcfQuestionnaire();
+                    resetFlowState();
                   }}
                 >
                   <QrCode className="mr-2 h-5 w-5" aria-hidden />
@@ -505,16 +650,19 @@ export function UploadQrIdFlow({
                   type="button"
                   size="lg"
                   className="register-submit w-full"
-                  disabled={submitting || player.queueStatus === "checked_out"}
+                  disabled={submitting || navigating || player.queueStatus === "checked_out"}
                   onClick={() => void submit()}
                 >
-                  {submitting ? (
+                  {submitting || navigating ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                      Please wait..
+                      {navigating ? "Loading queue…" : "Please wait.."}
                     </>
                   ) : (
-                    "Check in with QR ID"
+                    <>
+                      <Eye className="mr-2 h-5 w-5" aria-hidden />
+                      Proceed to the Game Queue!
+                    </>
                   )}
                 </Button>
               </>

@@ -13,6 +13,7 @@ export function proxy(request: NextRequest) {
       pathname.startsWith("/games") ||
       pathname.startsWith("/leaderboard") ||
       pathname.startsWith("/insights") ||
+      pathname.startsWith("/error-logs") ||
       pathname.startsWith("/settings") ||
       pathname.startsWith("/users") ||
       pathname.startsWith("/my-games") ||
@@ -40,6 +41,7 @@ export const config = {
     "/games/:path*",
     "/leaderboard/:path*",
     "/insights/:path*",
+    "/error-logs",
     "/settings/:path*",
     "/users",
     "/my-games",

@@ -1,6 +1,12 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import {
+  SPECTATOR_VIEW_UNAVAILABLE_MESSAGE,
+  SpectatorViewUnavailableError,
+} from "@/lib/spectator-availability-shared";
 import type { SpectateDetailsPayload, SpectateLivePayload } from "@/lib/spectate-payload";
+
+export { SpectatorViewUnavailableError, isSpectatorViewUnavailableError } from "@/lib/spectator-availability-shared";
 
 export type SpectateScope = "live" | "details";
 
@@ -20,7 +26,16 @@ export async function fetchSpectateGame(
 ): Promise<SpectateLivePayload | SpectateDetailsPayload> {
   const response = await fetch(`/api/games/${gameId}/spectate?scope=${scope}`);
   const data = await response.json();
-  if (!response.ok) throw new Error(data.message ?? "Failed to load game.");
+  if (!response.ok) {
+    if (response.status === 503) {
+      throw new SpectatorViewUnavailableError(
+        typeof data.message === "string" && data.message.trim()
+          ? data.message
+          : SPECTATOR_VIEW_UNAVAILABLE_MESSAGE,
+      );
+    }
+    throw new Error(data.message ?? "Failed to load game.");
+  }
   return data as SpectateLivePayload | SpectateDetailsPayload;
 }
 

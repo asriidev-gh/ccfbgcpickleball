@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { CCF_ATTENDED_NOT_YET } from "@/lib/ccf-registration";
 import { DGROUP_WEEKDAYS, getDgroupTimeRangeError } from "@/lib/dgroup-availability-shared";
+import type { DgroupWeekday } from "@/lib/dgroup-availability-shared";
 import { MAX_PRAYER_REPLY_LENGTH } from "@/lib/owner-prayer-replies-shared";
 import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
 import {
@@ -288,26 +289,41 @@ export const genericExistingPlayerSchema = z.object({
 
 export type GenericExistingPlayerInput = z.infer<typeof genericExistingPlayerSchema>;
 
-export const existingPlayerSchema = z
-  .object({
-    gameId: z.string().min(4),
-    personalQrCode: z
-      .string()
-      .min(1, "Personal QR code is required.")
-      .min(4, "Enter your personal QR code."),
-    isPartOfDgroup: z.boolean(),
-    wantsToJoinDgroup: z.boolean().nullable().optional(),
-    attendedEvents: z
-      .array(z.string())
-      .min(1, "Answer whether you have attended other CCF events."),
-    attendedEventsOther: z.string().optional().default(""),
-    prayerRequest: z.string().trim().max(MAX_PRAYER_REQUEST_LENGTH).optional().default(""),
-    volunteerType: volunteerTypeSchema.optional(),
-    volunteerTypeOther: z.string().optional().default(""),
-  })
-  .superRefine(refineCcfQuestionnaire);
+const existingPlayerFieldsSchema = z.object({
+  gameId: z.string().min(4),
+  personalQrCode: z
+    .string()
+    .min(1, "Personal QR code is required.")
+    .min(4, "Enter your personal QR code."),
+  isPartOfDgroup: z.boolean(),
+  wantsToJoinDgroup: z.boolean().nullable().optional(),
+  attendedEvents: z
+    .array(z.string())
+    .min(1, "Answer whether you have attended other CCF events."),
+  attendedEventsOther: z.string().optional().default(""),
+  prayerRequest: z.string().trim().max(MAX_PRAYER_REQUEST_LENGTH).optional().default(""),
+  volunteerType: volunteerTypeSchema.optional(),
+  volunteerTypeOther: z.string().optional().default(""),
+});
+
+export const existingPlayerSchema = existingPlayerFieldsSchema.superRefine(refineCcfQuestionnaire);
 
 export type ExistingPlayerInput = z.infer<typeof existingPlayerSchema>;
+
+const profileGenderSchema = z.enum(["male", "female", "prefer_not_to_say", ""]);
+const profilePickleballLevelSchema = z.enum([
+  "beginner",
+  "low_intermediate",
+  "high_intermediate",
+  "advanced",
+  "pro",
+  "",
+]);
+
+const timeAvailabilitySchema = z
+  .string()
+  .trim()
+  .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Use 24-hour time (HH:MM).");
 
 const qrUploadExistingPlayerBaseSchema = z.object({
   gameId: z.string().min(4),
@@ -318,21 +334,131 @@ const qrUploadExistingPlayerBaseSchema = z.object({
   registrationSource: z.literal(QR_UPLOAD_REGISTRATION_SOURCE),
 });
 
-export const qrUploadSkipExistingPlayerSchema = qrUploadExistingPlayerBaseSchema.extend({
-  qrUploadCcfMode: z.literal("none").optional(),
-});
+const qrUploadProfileExtrasShape = {
+  requiresProfileUpdate: z.boolean().optional(),
+  gender: profileGenderSchema.optional(),
+  birthdate: z.string().trim().optional().default(""),
+  pickleballLevel: profilePickleballLevelSchema.optional(),
+  dgroupAvailableDays: z.array(z.enum(DGROUP_WEEKDAYS)).optional().default([]),
+  dgroupAvailableTimeFrom: z.string().trim().optional().default(""),
+  dgroupAvailableTimeTo: z.string().trim().optional().default(""),
+} as const;
 
-export const qrUploadJoinDgroupExistingPlayerSchema = qrUploadExistingPlayerBaseSchema.extend({
-  qrUploadCcfMode: z.literal("join_dgroup_only"),
-  wantsToJoinDgroup: z.union([z.literal(true), z.literal(false)], {
-    message: "Please indicate if you want to join a D-group.",
-  }),
-});
+type QrUploadProfileExtrasData = {
+  requiresProfileUpdate?: boolean;
+  gender?: z.infer<typeof profileGenderSchema>;
+  birthdate?: string;
+  pickleballLevel?: z.infer<typeof profilePickleballLevelSchema>;
+  dgroupAvailableDays?: DgroupWeekday[];
+  dgroupAvailableTimeFrom?: string;
+  dgroupAvailableTimeTo?: string;
+};
 
-export const qrUploadFullExistingPlayerSchema = existingPlayerSchema.extend({
-  registrationSource: z.literal(QR_UPLOAD_REGISTRATION_SOURCE),
-  qrUploadCcfMode: z.literal("full"),
-});
+function refineQrUploadProfileIfRequired(data: QrUploadProfileExtrasData, ctx: z.RefinementCtx) {
+  if (!data.requiresProfileUpdate) return;
+
+  if (!data.gender) {
+    ctx.addIssue({ code: "custom", message: "Select your gender.", path: ["gender"] });
+  }
+  if (!data.birthdate) {
+    ctx.addIssue({ code: "custom", message: "Enter your birthdate.", path: ["birthdate"] });
+  } else if (!/^\d{4}-\d{2}-\d{2}$/.test(data.birthdate)) {
+    ctx.addIssue({ code: "custom", message: "Enter a valid birthdate.", path: ["birthdate"] });
+  }
+  if (!data.pickleballLevel) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Select your self-rate level.",
+      path: ["pickleballLevel"],
+    });
+  }
+}
+
+function refineQrUploadDgroupAvailabilityIfJoining(
+  data: {
+    wantsToJoinDgroup?: boolean | null;
+    dgroupAvailableDays?: string[];
+    dgroupAvailableTimeFrom?: string;
+    dgroupAvailableTimeTo?: string;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (data.wantsToJoinDgroup !== true) return;
+
+  if (!data.dgroupAvailableDays?.length) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Select at least one day you are available.",
+      path: ["dgroupAvailableDays"],
+    });
+  }
+
+  const fromParsed = timeAvailabilitySchema.safeParse(data.dgroupAvailableTimeFrom ?? "");
+  if (!fromParsed.success) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Enter a valid start time (HH:MM).",
+      path: ["dgroupAvailableTimeFrom"],
+    });
+  }
+
+  const toParsed = timeAvailabilitySchema.safeParse(data.dgroupAvailableTimeTo ?? "");
+  if (!toParsed.success) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Enter a valid end time (HH:MM).",
+      path: ["dgroupAvailableTimeTo"],
+    });
+  }
+
+  const timeRangeError = getDgroupTimeRangeError(
+    fromParsed.success ? fromParsed.data : "",
+    toParsed.success ? toParsed.data : "",
+  );
+  if (timeRangeError) {
+    ctx.addIssue({
+      code: "custom",
+      message: timeRangeError,
+      path: ["dgroupAvailableTimeTo"],
+    });
+  }
+}
+
+export type QrUploadProfileExtrasInput = QrUploadProfileExtrasData;
+
+export const qrUploadSkipExistingPlayerSchema = qrUploadExistingPlayerBaseSchema
+  .extend({
+    ...qrUploadProfileExtrasShape,
+    qrUploadCcfMode: z.literal("none").optional(),
+  })
+  .superRefine((data, ctx) => {
+    refineQrUploadProfileIfRequired(data, ctx);
+  });
+
+export const qrUploadJoinDgroupExistingPlayerSchema = qrUploadExistingPlayerBaseSchema
+  .extend({
+    ...qrUploadProfileExtrasShape,
+    qrUploadCcfMode: z.literal("join_dgroup_only"),
+    wantsToJoinDgroup: z.union([z.literal(true), z.literal(false)], {
+      message: "Please indicate if you want to join a D-group.",
+    }),
+  })
+  .superRefine((data, ctx) => {
+    refineQrUploadProfileIfRequired(data, ctx);
+    refineQrUploadDgroupAvailabilityIfJoining(data, ctx);
+  });
+
+export const qrUploadFullExistingPlayerSchema = existingPlayerFieldsSchema
+  .extend({
+    ...qrUploadProfileExtrasShape,
+    registrationSource: z.literal(QR_UPLOAD_REGISTRATION_SOURCE),
+    qrUploadCcfMode: z.literal("full"),
+  })
+  .superRefine((data, ctx) => {
+    refineCcfQuestionnaire(data, ctx);
+    refineQrUploadProfileIfRequired(data, ctx);
+    refineQrUploadDgroupAvailabilityIfJoining(data, ctx);
+  });
 
 export type QrUploadJoinDgroupExistingPlayerInput = z.infer<
   typeof qrUploadJoinDgroupExistingPlayerSchema
@@ -391,16 +517,6 @@ export const cancelCourtAssignmentSchema = z.object({
   gameId: z.string().min(4),
   courtNumber: z.coerce.number().int().min(1),
 });
-
-const profileGenderSchema = z.enum(["male", "female", "prefer_not_to_say", ""]);
-const profilePickleballLevelSchema = z.enum([
-  "beginner",
-  "low_intermediate",
-  "high_intermediate",
-  "advanced",
-  "pro",
-  "",
-]);
 
 export const profileBaseSchema = z.object({
   firstName: z.string().min(1, "First name is required."),
@@ -954,11 +1070,6 @@ export const prayerReplyBodySchema = z.object({
       `Reply must be ${MAX_PRAYER_REPLY_LENGTH} characters or less.`,
     ),
 });
-
-const timeAvailabilitySchema = z
-  .string()
-  .trim()
-  .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Use 24-hour time (HH:MM).");
 
 export const spectatePlayerPrayerRequestSchema = z.object({
   playerId: z.string().min(1, "Player session is required."),
