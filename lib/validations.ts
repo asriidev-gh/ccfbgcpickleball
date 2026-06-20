@@ -141,6 +141,9 @@ export const createGameSchema = z
 
 export const addManualGamePlayerSchema = z.object({
   displayName: z.string().trim().min(1, "Player name is required.").max(120),
+  gender: z.enum(["male", "female"], {
+    message: "Select a gender.",
+  }),
 });
 
 export const generateDemoOpenPlaySchema = z

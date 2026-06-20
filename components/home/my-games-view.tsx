@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   CalendarDays,
   ChevronDown,
+  ClipboardList,
   Clock,
   FlaskConical,
   Gauge,
@@ -13,6 +14,7 @@ import {
   LayoutGrid,
   Loader2,
   Pencil,
+  QrCode,
   Plus,
   Trash2,
   Trophy,
@@ -57,6 +59,7 @@ import {
   isDemoOpenPlayTitle,
   type DemoOpenPlayPlayerCount,
 } from "@/lib/demo-open-play";
+import { getGameRegistrationTypeLabel } from "@/lib/game-registration-type-label";
 import { cn } from "@/lib/utils";
 
 const deleteAlertOptions = {
@@ -75,6 +78,7 @@ type GameCard = {
   expectedPlayers: number;
   strictPlayerCount?: boolean;
   allowQrRegistration?: boolean;
+  registrationMode?: "self" | "owner";
   status: "draft" | "active" | "ended";
   openPlayDate?: string | null;
   openPlayTimeRange?: string | null;
@@ -107,6 +111,9 @@ function GameMeta({
       <GameMetaRow icon={Users}>
         Expected: {game.expectedPlayers}
         {game.strictPlayerCount === true ? " (strict)" : ""}
+      </GameMetaRow>
+      <GameMetaRow icon={game.registrationMode === "owner" ? ClipboardList : QrCode}>
+        Registration: {getGameRegistrationTypeLabel(game.registrationMode)}
       </GameMetaRow>
       {variant === "past" && game.updatedAt ? (
         <GameMetaRow icon={Clock}>
@@ -190,13 +197,24 @@ function GameListInfoGrouped({
         Expected: {game.expectedPlayers}
         {game.strictPlayerCount === true ? " (strict)" : ""}
       </span>
+      {game.registrationMode === "owner" ? (
+        <ClipboardList
+          className={cn(metaIconClass, "col-start-1 row-start-5 self-center")}
+          aria-hidden
+        />
+      ) : (
+        <QrCode className={cn(metaIconClass, "col-start-1 row-start-5 self-center")} aria-hidden />
+      )}
+      <span className="col-start-2 row-start-5 text-xs text-muted-foreground md:text-sm">
+        Registration: {getGameRegistrationTypeLabel(game.registrationMode)}
+      </span>
       {variant === "past" && game.updatedAt ? (
         <>
           <Clock
-            className={cn(metaIconClass, "col-start-1 row-start-5 self-center")}
+            className={cn(metaIconClass, "col-start-1 row-start-6 self-center")}
             aria-hidden
           />
-          <span className="col-start-2 row-start-5 text-xs text-muted-foreground md:text-sm">
+          <span className="col-start-2 row-start-6 text-xs text-muted-foreground md:text-sm">
             Ended{" "}
             <span suppressHydrationWarning>
               {formatDistanceToNow(new Date(game.updatedAt), { addSuffix: true })}

@@ -12,6 +12,8 @@ export type HomeSessionInsightPoint = {
   status: "draft" | "active" | "ended";
   registeredCount: number;
   newPlayerCount: number;
+  newMalePlayerCount?: number;
+  newFemalePlayerCount?: number;
   ccfNotYetCount?: number;
   ccfAttendedCount?: number;
   maleCount?: number;
@@ -22,6 +24,10 @@ export type HomeSessionInsights = {
   showCcfInsights: boolean;
   sessions: HomeSessionInsightPoint[];
 };
+
+export function formatNewPlayersGenderCounts(male: number, female: number) {
+  return `M${male}F${female}`;
+}
 
 export function buildHomeSessionInsightsMap(sessions: HomeSessionInsightPoint[]) {
   return new Map(sessions.map((session) => [session.gameId, session]));

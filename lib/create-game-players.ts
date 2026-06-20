@@ -5,15 +5,36 @@ import {
   getGeneratedAvatarUrl,
 } from "@/lib/player-avatar-url";
 import { parsePlayerDisplayName } from "@/lib/parse-player-display-name";
+import type { GenderOption } from "@/lib/player-profile-shared";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 
+type PreRegisteredPlayerInput =
+  | string
+  | {
+      displayName: string;
+      gender?: GenderOption;
+    };
+
 type CreatePreRegisteredPlayersOptions = {
   gameId: string;
-  names: string[];
+  names: PreRegisteredPlayerInput[];
   /** When true, new entries are timestamped after the current queued tail. */
   appendToEnd?: boolean;
 };
+
+function normalizePreRegisteredPlayers(names: PreRegisteredPlayerInput[]) {
+  return names
+    .map((entry) =>
+      typeof entry === "string"
+        ? { displayName: entry.trim(), gender: undefined as GenderOption | undefined }
+        : {
+            displayName: entry.displayName.trim(),
+            gender: entry.gender,
+          },
+    )
+    .filter((entry) => entry.displayName.length > 0);
+}
 
 /** Creates queue entries for names the game owner entered at setup (Dice Bear avatars). */
 export async function createPreRegisteredPlayers({
@@ -21,18 +42,19 @@ export async function createPreRegisteredPlayers({
   names,
   appendToEnd = false,
 }: CreatePreRegisteredPlayersOptions) {
-  const trimmed = names.map((name) => name.trim()).filter(Boolean);
+  const trimmed = normalizePreRegisteredPlayers(names);
   if (trimmed.length === 0) return 0;
 
   const runId = nanoid(8);
   const players = await Player.create(
-    trimmed.map((displayName, index) => {
-      const { firstName, lastName } = parsePlayerDisplayName(displayName);
+    trimmed.map((entry, index) => {
+      const { firstName, lastName } = parsePlayerDisplayName(entry.displayName);
       const personalQrCode = `P-owner-${runId}-${index + 1}`;
       return {
         firstName,
         // Omit empty lastName so Mongoose applies schema default (single-name entries).
         ...(lastName.trim() ? { lastName: lastName.trim() } : {}),
+        ...(entry.gender ? { gender: entry.gender } : {}),
         mobileNumber: `090000${String(index + 1).padStart(5, "0")}`,
         email: `owner-${gameId}-${runId}-${index + 1}@paddleflow.local`,
         personalQrCode,

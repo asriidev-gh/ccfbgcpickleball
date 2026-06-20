@@ -151,6 +151,15 @@ function isSpectatorGameNotFoundError(error: unknown) {
   return /not found/i.test(message);
 }
 
+function getSpectatorPanelRefreshStatus(
+  isFetching: boolean,
+  isLoading: boolean,
+  isManualRefresh: boolean,
+) {
+  if (!isFetching || isLoading) return null;
+  return isManualRefresh ? "Refreshing data..." : "Auto sync in-progress..";
+}
+
 function SpectatorUnavailableScreen({ onRetry }: { onRetry?: () => void }) {
   return (
     <main className="game-dashboard--spectator flex min-h-screen items-center justify-center p-8">
@@ -957,6 +966,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const queuePanelRef = useRef<HTMLDivElement>(null);
   const fillCourtFlowRef = useRef<FillCourtFlowHandle>(null);
   const courtsPanelRef = useRef<HTMLDivElement>(null);
+  const courtsListContentRef = useRef<HTMLDivElement>(null);
+  const pendingScrollToAvailableCourtsRef = useRef(false);
   const matchHistoryPanelRef = useRef<HTMLDivElement>(null);
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);
@@ -968,6 +979,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
   const [databaseCheckInOpen, setDatabaseCheckInOpen] = useState(false);
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
+  const [spectatorManualLiveRefresh, setSpectatorManualLiveRefresh] = useState(false);
+  const [spectatorManualDetailsRefresh, setSpectatorManualDetailsRefresh] = useState(false);
   const [qrDialogData, setQrDialogData] = useState<{
     registerUrl: string;
     publicQrCodeDataUrl: string;
@@ -1100,6 +1113,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     queryFn: () => fetchSpectateGame(gameId, "details") as Promise<SpectateDetailsPayload>,
     enabled: !!gameId && spectatorWantsDetails,
     refetchOnWindowFocus: false,
+    refetchInterval: () => {
+      if (spectatorGameStatus === "ended") return false;
+      return SPECTATOR_LIVE_POLL_MS;
+    },
   });
 
   const data = useMemo((): GamePayload | undefined => {
@@ -1135,6 +1152,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   useSpectatorSessionCleanup(gameId, isSpectator);
 
+  const handleSpectatorLiveRefresh = useCallback(() => {
+    setSpectatorManualLiveRefresh(true);
+    void spectatorLiveQuery.refetch().finally(() => {
+      setSpectatorManualLiveRefresh(false);
+    });
+  }, [spectatorLiveQuery]);
+
+  const handleSpectatorDetailsRefresh = useCallback(() => {
+    setSpectatorManualDetailsRefresh(true);
+    void spectatorDetailsQuery.refetch().finally(() => {
+      setSpectatorManualDetailsRefresh(false);
+    });
+  }, [spectatorDetailsQuery]);
 
   const startMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
@@ -1856,6 +1886,40 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     mobileDashboardTab,
   ]);
 
+  const emptyCourtsForScroll = useMemo(
+    () =>
+      [...(data?.courts ?? [])]
+        .filter((c) => c.status === "empty")
+        .sort((a, b) => a.courtNumber - b.courtNumber),
+    [data?.courts],
+  );
+
+  const scrollToAvailableCourtsView = useCallback(() => {
+    const firstEmptyCourtNumber = emptyCourtsForScroll[0]?.courtNumber;
+    const target =
+      (firstEmptyCourtNumber != null
+        ? document.getElementById(`court-card-${firstEmptyCourtNumber}`)
+        : null) ?? courtsListContentRef.current;
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [emptyCourtsForScroll]);
+
+  const handleAvailableCourtsClick = useCallback(() => {
+    const needsMobileExpand = !isSpectator && !showCourts && isLgViewport === false;
+    if (needsMobileExpand) {
+      setShowCourts(true);
+      saveShowCourts(true);
+      pendingScrollToAvailableCourtsRef.current = true;
+      return;
+    }
+    scrollToAvailableCourtsView();
+  }, [isLgViewport, isSpectator, scrollToAvailableCourtsView, showCourts]);
+
+  useEffect(() => {
+    if (!showCourts || !pendingScrollToAvailableCourtsRef.current) return;
+    pendingScrollToAvailableCourtsRef.current = false;
+    scrollToAvailableCourtsView();
+  }, [scrollToAvailableCourtsView, showCourts]);
+
   const readOnly = isSpectator;
   const loadingLabel = "Loading game dashboard...";
   const operatorLeasePending = !isSpectator && operatorLeaseState.status === "loading";
@@ -2172,40 +2236,60 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   };
 
   const activeCourtCount = courts.filter((court) => court.status === "active").length;
+  const availableCourtCount = courts.length - activeCourtCount;
+  const shouldBlinkCourtsMobileTab =
+    availableCourtCount > 0 && mobileDashboardTab !== "courts";
 
-  const renderQueuePanel = () => (
+  const renderQueuePanel = () => {
+    const spectatorQueueRefreshStatus =
+      isSpectator && !isPastGame
+        ? getSpectatorPanelRefreshStatus(
+            spectatorLiveQuery.isFetching,
+            spectatorLiveQuery.isLoading,
+            spectatorManualLiveRefresh,
+          )
+        : null;
+
+    return (
     <Card ref={queuePanelRef} className="glass-panel dashboard-panel dashboard-panel--queue">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <CardTitle>Queue</CardTitle>
-          {isSpectator && !isPastGame ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="queue-refresh-btn h-8 w-8 shrink-0 px-0"
-              onClick={() => void spectatorLiveQuery.refetch()}
-              disabled={spectatorLiveQuery.isFetching}
-              aria-label="Refresh queue"
-            >
-              <RefreshCw
-                className={cn("h-4 w-4", spectatorLiveQuery.isFetching && "animate-spin")}
-              />
-            </Button>
-          ) : !hideControls ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="queue-refresh-btn h-8 w-8 shrink-0 px-0"
-              onClick={() => void operatorQueueQuery.refetch()}
-              disabled={operatorQueueQuery.isFetching}
-              aria-label="Refresh queue"
-            >
-              <RefreshCw
-                className={cn("h-4 w-4", operatorQueueQuery.isFetching && "animate-spin")}
-              />
-            </Button>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <CardTitle>Queue</CardTitle>
+            {isSpectator && !isPastGame ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="queue-refresh-btn h-8 w-8 shrink-0 px-0"
+                onClick={handleSpectatorLiveRefresh}
+                disabled={spectatorLiveQuery.isFetching}
+                aria-label="Refresh queue"
+              >
+                <RefreshCw
+                  className={cn("h-4 w-4", spectatorLiveQuery.isFetching && "animate-spin")}
+                />
+              </Button>
+            ) : !hideControls ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="queue-refresh-btn h-8 w-8 shrink-0 px-0"
+                onClick={() => void operatorQueueQuery.refetch()}
+                disabled={operatorQueueQuery.isFetching}
+                aria-label="Refresh queue"
+              >
+                <RefreshCw
+                  className={cn("h-4 w-4", operatorQueueQuery.isFetching && "animate-spin")}
+                />
+              </Button>
+            ) : null}
+          </div>
+          {spectatorQueueRefreshStatus ? (
+            <p className="caption mt-0.5 text-primary" aria-live="polite">
+              {spectatorQueueRefreshStatus}
+            </p>
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -2382,9 +2466,22 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         )}
       </CardContent>
     </Card>
-  );
+    );
+  };
 
-  const renderCourtsPanel = (inSpectatorMobileTab = false) => (
+  const renderCourtsPanel = (inSpectatorMobileTab = false) => {
+    const spectatorCourtsRefreshStatus =
+      isSpectator &&
+      !isPastGame &&
+      inSpectatorMobileTab
+        ? getSpectatorPanelRefreshStatus(
+            spectatorLiveQuery.isFetching,
+            spectatorLiveQuery.isLoading,
+            spectatorManualLiveRefresh,
+          )
+        : null;
+
+    return (
     <Card
       ref={courtsPanelRef}
       className="glass-panel courts-panel dashboard-panel dashboard-panel--courts"
@@ -2392,7 +2489,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div>
           <CardTitle>Courts</CardTitle>
-          <CourtsSummary courts={courts} />
+          <CourtsSummary courts={courts} onAvailableClick={handleAvailableCourtsClick} />
+          {spectatorCourtsRefreshStatus ? (
+            <p className="caption mt-0.5 text-primary" aria-live="polite">
+              {spectatorCourtsRefreshStatus}
+            </p>
+          ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
         {!inSpectatorMobileTab && !isSpectator ? (
@@ -2422,10 +2524,26 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             )}
           </Button>
         ) : null}
+        {isSpectator && !isPastGame && inSpectatorMobileTab ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="courts-refresh-btn h-8 w-8 shrink-0 px-0"
+            onClick={handleSpectatorLiveRefresh}
+            disabled={spectatorLiveQuery.isFetching}
+            aria-label="Refresh courts"
+          >
+            <RefreshCw
+              className={cn("h-4 w-4", spectatorLiveQuery.isFetching && "animate-spin")}
+            />
+          </Button>
+        ) : null}
           <DashboardPanelFullscreenButton containerRef={courtsPanelRef} panelName="courts" />
         </div>
       </CardHeader>
       <CardContent
+        ref={courtsListContentRef}
         id={inSpectatorMobileTab ? "courts-list-mobile" : "courts-list"}
         className={cn(
           "court-grid court-grid--list dashboard-panel-content grid grid-cols-1 gap-3",
@@ -2534,12 +2652,21 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         )}
       </CardContent>
     </Card>
-  );
+    );
+  };
 
   const renderMatchHistoryPanel = (inSpectatorMobileTab = false) => {
     const historyMatches = matches;
     const panelVisible = inSpectatorMobileTab || showMatchHistory;
     const detailsQuery = isSpectator ? spectatorDetailsQuery : operatorDetailsQuery;
+    const spectatorHistoryRefreshStatus =
+      isSpectator && panelVisible
+        ? getSpectatorPanelRefreshStatus(
+            detailsQuery.isFetching,
+            detailsQuery.isLoading,
+            spectatorManualDetailsRefresh,
+          )
+        : null;
 
     return (
       <Card
@@ -2551,6 +2678,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             <div className="min-w-0 flex-1">
               <CardTitle>Match History</CardTitle>
               <p className="caption">{spectatorMatchHistoryCaption}</p>
+              {spectatorHistoryRefreshStatus ? (
+                <p className="caption mt-0.5 text-primary" aria-live="polite">
+                  {spectatorHistoryRefreshStatus}
+                </p>
+              ) : null}
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-2 self-center">
               {panelVisible ? (
@@ -2559,7 +2691,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   variant="outline"
                   size="sm"
                   className="match-history-refresh"
-                  onClick={() => void detailsQuery.refetch()}
+                  onClick={() => {
+                    if (isSpectator) {
+                      handleSpectatorDetailsRefresh();
+                    } else {
+                      void detailsQuery.refetch();
+                    }
+                  }}
                   disabled={detailsQuery.isFetching}
                   aria-label="Refresh match history"
                 >
@@ -2811,7 +2949,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               {(
                 [
                   { id: "queue" as const, label: "Queue", count: queueWithStats.length },
-                  { id: "courts" as const, label: "Courts", count: activeCourtCount },
+                  { id: "courts" as const, label: "Courts" },
                   {
                     id: "history" as const,
                     label: "History",
@@ -2822,6 +2960,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 ] as const
               ).map((tab) => {
                 const selected = mobileDashboardTab === tab.id;
+                const courtsTabAlert = tab.id === "courts" && shouldBlinkCourtsMobileTab;
                 return (
                   <button
                     key={tab.id}
@@ -2830,16 +2969,28 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                     id={`dashboard-tab-${tab.id}`}
                     aria-selected={selected}
                     aria-controls={`dashboard-panel-${tab.id}`}
+                    aria-label={
+                      courtsTabAlert
+                        ? `Courts. ${availableCourtCount} courts available.`
+                        : undefined
+                    }
                     onClick={() => setMobileDashboardTab(tab.id)}
                     className={cn(
                       "inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-1 rounded-md px-2 py-2.5 text-xs font-medium transition-colors sm:text-sm",
                       selected
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground",
+                      courtsTabAlert && "dashboard-mobile-tab--courts-alert font-semibold",
                     )}
                   >
                     <span>{tab.label}</span>
-                    {tab.count != null && tab.count > 0 ? (
+                    {tab.id === "courts" ? (
+                      courts.length > 0 ? (
+                        <Badge variant="secondary" className="px-1.5 py-0 text-[10px] sm:text-xs">
+                          {activeCourtCount}/{courts.length}
+                        </Badge>
+                      ) : null
+                    ) : tab.count != null && tab.count > 0 ? (
                       <Badge variant="secondary" className="px-1.5 py-0 text-[10px] sm:text-xs">
                         {tab.count}
                       </Badge>

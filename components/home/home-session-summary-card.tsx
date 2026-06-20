@@ -13,6 +13,7 @@ import {
   buildRegisteredPlayersInsightHref,
   type OwnerSessionInsightFilter,
 } from "@/lib/owner-session-insight-filter-shared";
+import { formatNewPlayersGenderCounts } from "@/lib/home-session-insights-shared";
 import { prefetchRegisteredPlayersInsight } from "@/lib/fetch-registered-players";
 import {
   formatOpenPlayDate,
@@ -38,12 +39,14 @@ function SessionInsightLink({
   insight,
   count,
   label,
+  displayValue,
   icon,
 }: {
   gameId: string;
   insight: OwnerSessionInsightFilter;
   count: number;
   label: string;
+  displayValue?: string;
   icon?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -60,14 +63,14 @@ function SessionInsightLink({
       href={href}
       prefetch
       className="inline-flex items-center gap-1 rounded-md font-medium text-foreground/80 underline-offset-2 transition-colors hover:text-primary hover:underline"
-      aria-label={`${label}: ${count}. View in registered players.`}
+      aria-label={`${label}: ${displayValue ?? count}. View in registered players.`}
       onPointerEnter={warmNavigation}
       onFocus={warmNavigation}
       onPointerDown={warmNavigation}
     >
       {icon}
       <span>
-        {label}: {count}
+        {label}: {displayValue ?? count}
       </span>
     </Link>
   );
@@ -156,6 +159,10 @@ export function HomeSessionSummaryCard({
                 gameId={game.gameId}
                 insight="new"
                 count={insight.newPlayerCount}
+                displayValue={formatNewPlayersGenderCounts(
+                  insight.newMalePlayerCount ?? 0,
+                  insight.newFemalePlayerCount ?? 0,
+                )}
                 label="New players"
                 icon={
                   <Sparkles

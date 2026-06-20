@@ -323,6 +323,10 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
 
     let newPlayerCount = 0;
 
+    let newMalePlayerCount = 0;
+
+    let newFemalePlayerCount = 0;
+
     let ccfNotYetCount = 0;
 
     let ccfAttendedCount = 0;
@@ -343,7 +347,12 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
 
       );
 
-      if (!hasPriorEndedSession) newPlayerCount += 1;
+      if (!hasPriorEndedSession) {
+        newPlayerCount += 1;
+        const gender = identityToGender.get(identityKey);
+        if (gender === "male") newMalePlayerCount += 1;
+        if (gender === "female") newFemalePlayerCount += 1;
+      }
 
 
 
@@ -396,6 +405,10 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
       registeredCount: identitiesInGame.size,
 
       newPlayerCount,
+
+      newMalePlayerCount,
+
+      newFemalePlayerCount,
 
       ccfNotYetCount: showCcfInsights ? ccfNotYetCount : undefined,
 

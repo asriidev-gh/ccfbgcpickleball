@@ -47,7 +47,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         );
       }
 
-      const result = await addManualPlayerToOwnerGame(gameId, parsed.data.displayName);
+      const result = await addManualPlayerToOwnerGame(gameId, parsed.data);
 
       if (result.playerId) {
         await recordPlayerRegisteredNotification({

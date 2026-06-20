@@ -2297,6 +2297,58 @@
   }
 
   /* —— Courts layout: list (1 per row) vs tiles (grid) —— */
+  .caption .courts-summary-available--alert {
+    animation: courts-available-blink 0.85s ease-in-out infinite;
+    color: var(--primary);
+  }
+
+  .courts-summary-available--link {
+    @apply cursor-pointer rounded-sm border-0 bg-transparent p-0 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+
+  [data-theme="cupertino"]
+    .glass-panel.courts-panel
+    [data-slot="card-header"]
+    .caption
+    .courts-summary-available--alert {
+    color: var(--cupertino-blue);
+  }
+
+  @keyframes courts-available-blink {
+    0%,
+    100% {
+      opacity: 1;
+      text-shadow: 0 0 10px color-mix(in srgb, var(--primary) 55%, transparent);
+    }
+
+    50% {
+      opacity: 0.2;
+      text-shadow: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .caption .courts-summary-available--alert,
+    .dashboard-mobile-tab--courts-alert {
+      animation: none;
+      opacity: 1;
+      text-shadow: none;
+    }
+
+    .dashboard-mobile-tab--courts-alert {
+      color: var(--primary);
+    }
+  }
+
+  .dashboard-mobile-tab--courts-alert {
+    animation: courts-available-blink 0.85s ease-in-out infinite;
+    color: var(--primary);
+  }
+
+  [data-theme="cupertino"] .dashboard-mobile-tab--courts-alert {
+    color: var(--cupertino-blue);
+  }
+
   .court-grid--list {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2335,6 +2387,7 @@
   /* —— Courts: empty vs in play —— */
   .court-card {
     @apply transition-[box-shadow,border-color,background-color] duration-300;
+    scroll-margin-top: 5.5rem;
   }
 
   .court-card.court-empty {

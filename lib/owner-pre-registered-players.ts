@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import { parsePlayerDisplayName } from "@/lib/parse-player-display-name";
 import { createPreRegisteredPlayers } from "@/lib/create-game-players";
 import { formatPlayerDisplayName } from "@/lib/utils";
+import type { GenderOption } from "@/lib/player-profile-shared";
 import { Court } from "@/models/Court";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
@@ -171,15 +172,18 @@ export async function syncOwnerPreRegisteredPlayers(input: {
   return entries.length;
 }
 
-export async function addManualPlayerToOwnerGame(gameId: string, displayName: string) {
-  const trimmed = displayName.trim();
+export async function addManualPlayerToOwnerGame(
+  gameId: string,
+  input: { displayName: string; gender: GenderOption },
+) {
+  const trimmed = input.displayName.trim();
   if (!trimmed) {
     throw new Error("Player name is required.");
   }
 
   const created = await createPreRegisteredPlayers({
     gameId,
-    names: [trimmed],
+    names: [{ displayName: trimmed, gender: input.gender }],
     appendToEnd: true,
   });
   if (created === 0) {

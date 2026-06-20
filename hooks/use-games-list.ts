@@ -12,6 +12,7 @@ export type GamesListPayload = {
     expectedPlayers: number;
     strictPlayerCount?: boolean;
     allowQrRegistration?: boolean;
+    registrationMode?: "self" | "owner";
     status: "draft" | "active" | "ended";
     openPlayDate?: string | null;
     openPlayTimeRange?: string | null;

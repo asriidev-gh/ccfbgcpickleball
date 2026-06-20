@@ -191,6 +191,7 @@ export function CourtCard({
 
   return (
     <Card
+      id={`court-card-${court.courtNumber}`}
       className={`court-card overflow-hidden ${isActive ? "court-active" : "court-empty"}${isFilling ? " court-filling" : ""}${isClearing ? " court-clearing" : ""}`}
       data-court-status={court.status}
       aria-busy={isFilling || isClearing}
@@ -405,15 +406,35 @@ export function CourtCard({
   );
 }
 
-export function CourtsSummary({ courts }: { courts: CourtView[] }) {
+export function CourtsSummary({
+  courts,
+  onAvailableClick,
+}: {
+  courts: CourtView[];
+  onAvailableClick?: () => void;
+}) {
   const active = courts.filter((c) => c.status === "active").length;
   const empty = courts.length - active;
+  const hasAvailable = empty > 0;
 
   return (
     <p className="caption">
       <span className="font-medium text-foreground">{active}</span> in play
       <span className="mx-1.5 text-muted-foreground">·</span>
-      <span className="font-medium text-foreground">{empty}</span> available
+      {hasAvailable ? (
+        <button
+          type="button"
+          onClick={onAvailableClick}
+          className="courts-summary-available--alert courts-summary-available--link inline-flex font-semibold text-primary"
+          aria-label={`${empty} courts available. Scroll to empty courts.`}
+        >
+          {empty} available
+        </button>
+      ) : (
+        <span>
+          <span className="font-medium text-foreground">{empty}</span> available
+        </span>
+      )}
     </p>
   );
 }
