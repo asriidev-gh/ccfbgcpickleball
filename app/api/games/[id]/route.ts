@@ -127,11 +127,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     let strictPlayerCount = parsed.data.strictPlayerCount ?? game.strictPlayerCount === true;
     let allowQrRegistration =
       parsed.data.allowQrRegistration ?? game.allowQrRegistration !== false;
+    let allowManualPlayerAdd = game.allowManualPlayerAdd === true;
 
     if (usesOwnerRegistration) {
       if (parsed.data.allowQrRegistration != null) {
         allowQrRegistration = parsed.data.allowQrRegistration;
         strictPlayerCount = !allowQrRegistration;
+      }
+
+      if (parsed.data.allowManualPlayerAdd != null) {
+        allowManualPlayerAdd = parsed.data.allowManualPlayerAdd;
       }
 
       if (parsed.data.ownerPlayers) {
@@ -201,13 +206,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           openPlayType: parsed.data.openPlayType,
           openPlayDate: new Date(`${parsed.data.openPlayDate}T12:00:00.000Z`),
           openPlayTimeRange: parsed.data.openPlayTimeRange,
-          venueName: parsed.data.venueName ?? "",
-          venueAddress: parsed.data.venueAddress ?? "",
-          venueGoogleMapEmbedUrl: parsed.data.venueGoogleMapEmbedUrl ?? "",
+          ...(parsed.data.venueName != null ? { venueName: parsed.data.venueName } : {}),
+          ...(parsed.data.venueAddress != null ? { venueAddress: parsed.data.venueAddress } : {}),
+          ...(parsed.data.venueGoogleMapEmbedUrl != null
+            ? { venueGoogleMapEmbedUrl: parsed.data.venueGoogleMapEmbedUrl }
+            : {}),
           courtCount: parsed.data.courtCount,
           expectedPlayers,
           strictPlayerCount,
           allowQrRegistration,
+          allowManualPlayerAdd: usesOwnerRegistration ? allowManualPlayerAdd : false,
           ...(usesOwnerRegistration ? { registrationMode: "owner" as const } : {}),
         },
       },

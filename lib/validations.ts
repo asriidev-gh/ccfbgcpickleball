@@ -179,13 +179,14 @@ export const updateGameSchema = z
       .trim()
       .min(3, "Open play time range is required.")
       .max(80, "Time range must be 80 characters or less."),
-    venueName: z.string().trim().min(1, "Venue name is required.").max(120),
-    venueAddress: z.string().trim().min(1, "Venue address is required.").max(240),
-    venueGoogleMapEmbedUrl: venueGoogleMapEmbedUrlSchema,
+    venueName: z.string().trim().min(1, "Venue name is required.").max(120).optional(),
+    venueAddress: z.string().trim().min(1, "Venue address is required.").max(240).optional(),
+    venueGoogleMapEmbedUrl: venueGoogleMapEmbedUrlSchema.optional(),
     courtCount: z.coerce.number().int().min(1).max(20),
     expectedPlayers: z.coerce.number().int().min(1).max(300).optional(),
     strictPlayerCount: z.boolean().optional(),
     allowQrRegistration: z.boolean().optional(),
+    allowManualPlayerAdd: z.boolean().optional(),
     ownerPlayers: z
       .array(
         z.object({
@@ -574,6 +575,11 @@ export const cancelCourtAssignmentSchema = z.object({
 export const pauseCourtSchema = z.object({
   gameId: z.string().min(4),
   courtNumber: z.coerce.number().int().min(1),
+  paused: z.boolean(),
+});
+
+export const pauseAllCourtsSchema = z.object({
+  gameId: z.string().min(4),
   paused: z.boolean(),
 });
 

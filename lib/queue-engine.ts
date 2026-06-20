@@ -347,6 +347,51 @@ export async function setCourtPaused(input: {
   return court;
 }
 
+/** Pause or unpause every active court play clock. */
+export async function setAllActiveCourtsPaused(input: {
+  gameId: string;
+  paused: boolean;
+}) {
+  const courts = await Court.find({
+    gameId: input.gameId,
+    status: "active",
+  });
+
+  if (courts.length === 0) {
+    throw new Error("No active courts to update.");
+  }
+
+  const now = new Date();
+  let updatedCount = 0;
+
+  for (const court of courts) {
+    if (!court.startedAt) continue;
+
+    if (input.paused) {
+      if (!court.pausedAt) {
+        court.pausedAt = now;
+        await court.save();
+        updatedCount += 1;
+      }
+      continue;
+    }
+
+    if (court.pausedAt) {
+      finalizeCourtPauseDuration(court, now);
+      await court.save();
+      updatedCount += 1;
+    }
+  }
+
+  if (updatedCount === 0) {
+    throw new Error(
+      input.paused ? "All active courts are already paused." : "No paused courts to resume.",
+    );
+  }
+
+  return { updatedCount, totalActive: courts.length };
+}
+
 /** Undo an active court fill — return those four players to the top of the queue. */
 export async function cancelCourtAssignment(input: { gameId: string; courtNumber: number }) {
   const court = await Court.findOne({

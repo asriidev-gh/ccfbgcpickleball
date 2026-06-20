@@ -6,6 +6,7 @@ import {
   QrCode,
   UserPlus,
   Play,
+  Pause,
   RotateCcw,
   RefreshCw,
   House,
@@ -702,6 +703,45 @@ function applyCourtPauseOptimistic(
   };
 }
 
+/** Instant UI while pause/unpause-all API request is in flight. */
+function applyAllCourtsPauseOptimistic(
+  payload: GamePayload,
+  paused: boolean,
+): GamePayload | null {
+  const hasActive = payload.courts.some((item) => item.status === "active");
+  if (!hasActive) return null;
+
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+
+  return {
+    ...payload,
+    courts: payload.courts.map((item) => {
+      if (item.status !== "active") return item;
+
+      if (paused) {
+        if (item.pausedAt) return item;
+        return {
+          ...item,
+          pausedAt: nowIso,
+        };
+      }
+
+      if (!item.pausedAt) return item;
+
+      const pauseStart = new Date(item.pausedAt).getTime();
+      const addedPause =
+        !Number.isNaN(pauseStart) ? Math.max(0, now - pauseStart) : 0;
+
+      return {
+        ...item,
+        pausedAt: null,
+        totalPausedMs: (item.totalPausedMs ?? 0) + addedPause,
+      };
+    }),
+  };
+}
+
 function isPlayerOnActiveCourt(courts: CourtView[], playerId: string): boolean {
   return courts.some(
     (court) =>
@@ -1342,6 +1382,40 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyCourtPauseOptimistic(previous, courtNumber, paused);
+      if (!optimistic) return { previous };
+
+      writeOperatorPayload(queryClient, gameId, optimistic);
+      return { previous };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+    },
+    onError: (error, _input, context) => {
+      if (context?.previous) {
+        writeOperatorPayload(queryClient, gameId, context.previous);
+      }
+      toast.error(error.message);
+    },
+  });
+
+  const pauseAllCourtsMutation = useMutation({
+    mutationFn: async (paused: boolean) => {
+      const response = await fetch(`/api/games/${gameId}/pause-all-courts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paused }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onMutate: async (paused) => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = readOperatorPayload(queryClient, gameId);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyAllCourtsPauseOptimistic(previous, paused);
       if (!optimistic) return { previous };
 
       writeOperatorPayload(queryClient, gameId, optimistic);
@@ -2236,6 +2310,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   };
 
   const activeCourtCount = courts.filter((court) => court.status === "active").length;
+  const activeCourts = courts.filter((court) => court.status === "active");
+  const allActiveCourtsPaused =
+    activeCourts.length > 0 && activeCourts.every((court) => Boolean(court.pausedAt));
   const availableCourtCount = courts.length - activeCourtCount;
   const shouldBlinkCourtsMobileTab =
     availableCourtCount > 0 && mobileDashboardTab !== "courts";
@@ -2539,6 +2616,34 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             />
           </Button>
         ) : null}
+        {!hideControls && activeCourts.length > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="courts-pause-all-btn shrink-0"
+            disabled={pauseAllCourtsMutation.isPending}
+            onClick={() => pauseAllCourtsMutation.mutate(!allActiveCourtsPaused)}
+            aria-label={allActiveCourtsPaused ? "Unpause all courts" : "Pause all courts"}
+          >
+            {pauseAllCourtsMutation.isPending ? (
+              <>
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
+                {allActiveCourtsPaused ? "Resuming…" : "Pausing…"}
+              </>
+            ) : allActiveCourtsPaused ? (
+              <>
+                <Play className="mr-1.5 h-4 w-4" aria-hidden />
+                Unpause all
+              </>
+            ) : (
+              <>
+                <Pause className="mr-1.5 h-4 w-4" aria-hidden />
+                Pause all
+              </>
+            )}
+          </Button>
+        ) : null}
           <DashboardPanelFullscreenButton containerRef={courtsPanelRef} panelName="courts" />
         </div>
       </CardHeader>
@@ -2610,8 +2715,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                     })
             }
             pausePending={
-              pauseCourtMutation.isPending &&
-              pauseCourtMutation.variables?.courtNumber === court.courtNumber
+              pauseAllCourtsMutation.isPending ||
+              (pauseCourtMutation.isPending &&
+                pauseCourtMutation.variables?.courtNumber === court.courtNumber)
             }
             onCancelAssignment={
               hideControls || court.status !== "active" || isCourtRematch(court)

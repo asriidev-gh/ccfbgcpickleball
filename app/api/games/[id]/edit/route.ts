@@ -35,6 +35,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
         expectedPlayers: game.expectedPlayers,
         strictPlayerCount: game.strictPlayerCount === true,
         allowQrRegistration: game.allowQrRegistration !== false,
+        allowManualPlayerAdd: game.allowManualPlayerAdd === true,
         registrationMode: usesOwnerRegistration ? "owner" : "self",
       },
       ownerPlayers,

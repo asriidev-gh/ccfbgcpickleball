@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -11,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import { operatorShellQueryKey } from "@/lib/fetch-operator-game";
+import type { OperatorShellPayload } from "@/lib/operator-payload";
 import {
   formatOpenPlayTimeRange,
   getTodayOpenPlayDateInputValue,
@@ -52,6 +55,7 @@ type EditFormState = {
   expectedPlayers: number;
   strictPlayerCount: boolean;
   allowQrRegistration: boolean;
+  allowManualPlayerAdd: boolean;
   registrationMode: "self" | "owner";
   ownerPlayers: OwnerPlayerRow[];
 };
@@ -75,11 +79,13 @@ const INITIAL_FORM: EditFormState = {
   expectedPlayers: 24,
   strictPlayerCount: false,
   allowQrRegistration: true,
+  allowManualPlayerAdd: false,
   registrationMode: "self",
   ownerPlayers: [],
 };
 
 export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDialogProps) {
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [removedPlayerIds, setRemovedPlayerIds] = useState<string[]>([]);
@@ -148,6 +154,7 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
           expectedPlayers: data.game.expectedPlayers,
           strictPlayerCount: data.game.strictPlayerCount === true,
           allowQrRegistration: data.game.allowQrRegistration !== false,
+          allowManualPlayerAdd: data.game.allowManualPlayerAdd === true,
           registrationMode: data.game.registrationMode === "owner" ? "owner" : "self",
           ownerPlayers: (data.ownerPlayers ?? []).map(
             (player: {
@@ -222,6 +229,7 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
 
       if (isOwnerRegistration) {
         body.allowQrRegistration = form.allowQrRegistration;
+        body.allowManualPlayerAdd = form.allowManualPlayerAdd;
         body.ownerPlayers = [
           ...form.ownerPlayers
             .filter((player) => player.displayName.trim().length > 0)
@@ -247,6 +255,27 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
+
+      queryClient.setQueryData<OperatorShellPayload>(
+        operatorShellQueryKey(game.gameId),
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            game: {
+              ...current.game,
+              title: form.title.trim(),
+              openPlayType: form.openPlayType,
+              courtCount: form.courtCount,
+              allowQrRegistration: form.allowQrRegistration,
+              allowManualPlayerAdd: isOwnerRegistration ? form.allowManualPlayerAdd : false,
+              registrationMode: isOwnerRegistration ? "owner" : current.game.registrationMode,
+            },
+          };
+        },
+      );
+      await queryClient.invalidateQueries({ queryKey: operatorShellQueryKey(game.gameId) });
+
       toast.success("Game updated.");
       onOpenChange(false);
       onSaved();
@@ -450,6 +479,27 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
                       </span>
                       <span className="block text-xs text-muted-foreground">
                         When off, the QR opens the spectator view instead.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                    <Checkbox
+                      id="edit-allow-manual-player-add"
+                      checked={form.allowManualPlayerAdd}
+                      onCheckedChange={(checked) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          allowManualPlayerAdd: checked === true,
+                        }))
+                      }
+                    />
+                    <span className="space-y-1 leading-snug">
+                      <span className="block text-sm font-medium">
+                        Allow new users to be added manually
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        When enabled, you can add player names from the game dashboard and they will
+                        join the queue automatically.
                       </span>
                     </span>
                   </label>
