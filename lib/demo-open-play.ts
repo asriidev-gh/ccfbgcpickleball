@@ -3,6 +3,19 @@ export const DEMO_OPEN_PLAY_TITLE = /^(test|demo) open play/i;
 
 export const DEMO_OPEN_PLAY_MAX_ACCOUNT_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 
+export const DEMO_OPEN_PLAY_PLAYER_COUNTS = [12, 18, 22] as const;
+
+export type DemoOpenPlayPlayerCount = (typeof DEMO_OPEN_PLAY_PLAYER_COUNTS)[number];
+
+export const DEMO_OPEN_PLAY_DEFAULT_COURT_COUNT = 2;
+
+export const DEMO_OPEN_PLAY_DEFAULT_PLAYER_COUNT: DemoOpenPlayPlayerCount = 18;
+
+export function getDemoOpenPlayMaxCourts(playerCount: DemoOpenPlayPlayerCount): number {
+  if (playerCount === 12) return 2;
+  return 3;
+}
+
 export function isDemoOpenPlayTitle(title: string) {
   return DEMO_OPEN_PLAY_TITLE.test(title.trim());
 }

@@ -5,6 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import {
   CalendarDays,
+  ChevronDown,
   Clock,
   FlaskConical,
   Gauge,
@@ -22,6 +23,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
 
+import { CreateDemoOpenPlayDialog } from "@/components/game/create-demo-open-play-dialog";
 import { CreateGameWizard } from "@/components/game/create-game-wizard";
 import { EditGameDialog, type EditGameDialogGame } from "@/components/game/edit-game-dialog";
 import { WatchDemoButton } from "@/components/watch-demo-button";
@@ -40,25 +42,27 @@ import { GameSpectatorShareButton } from "@/components/game/game-spectator-share
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { prefetchOperatorDashboard } from "@/lib/fetch-operator-game";
 import { useGamesList } from "@/hooks/use-games-list";
 import { useUiStore } from "@/store/ui-store";
-import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
+import {
+  isDemoOpenPlayTitle,
+  type DemoOpenPlayPlayerCount,
+} from "@/lib/demo-open-play";
 import { cn } from "@/lib/utils";
 
 const deleteAlertOptions = {
   background: "#0f172a",
   color: "#e2e8f0",
   confirmButtonColor: "#ef4444",
-  cancelButtonColor: "#64748b",
-};
-
-const confirmAlertOptions = {
-  background: "#0f172a",
-  color: "#e2e8f0",
-  confirmButtonColor: "#22c55e",
   cancelButtonColor: "#64748b",
 };
 
@@ -547,6 +551,7 @@ export function MyGamesView() {
   const [listView, setListView] = useState<GameListViewMode>("list");
   const [viewReady, setViewReady] = useState(false);
   const [gamesTab, setGamesTab] = useState<"active" | "past">("active");
+  const [demoDialogOpen, setDemoDialogOpen] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia(GAME_LIST_DESKTOP_MEDIA);
@@ -581,6 +586,7 @@ export function MyGamesView() {
 
   const hasDemoOpenPlay = Boolean(data?.hasDemoOpenPlay);
   const canShowDemoOpenPlayButton = Boolean(data?.canCreateDemoOpenPlay);
+  const showDemoCreateOption = !hasDemoOpenPlay && canShowDemoOpenPlayButton;
   const userType = data?.userType;
 
   useEffect(() => {
@@ -591,8 +597,18 @@ export function MyGamesView() {
   }, [data?.games, queryClient]);
 
   const generateTestGameMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch("/api/games/generate-test", { method: "POST" });
+    mutationFn: async ({
+      courtCount,
+      playerCount,
+    }: {
+      courtCount: number;
+      playerCount: DemoOpenPlayPlayerCount;
+    }) => {
+      const response = await fetch("/api/games/generate-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courtCount, playerCount }),
+      });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message);
       return payload as { message: string; game: { gameId: string; title: string } };
@@ -600,6 +616,7 @@ export function MyGamesView() {
     onSuccess: (payload) => {
       toast.success(payload.message);
       queryClient.invalidateQueries({ queryKey: ["games"] });
+      setDemoDialogOpen(false);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to generate test game.");
@@ -623,18 +640,11 @@ export function MyGamesView() {
     onSettled: () => setDeletingGameId(null),
   });
 
-  const handleGenerateDemo = async () => {
-    const result = await Swal.fire({
-      ...confirmAlertOptions,
-      title: "Create Demo Open Play?",
-      text: "This open play is for demo purposes only and it will generate 18 players and 2 courts only.",
-      icon: "info",
-      showCancelButton: true,
-      confirmButtonText: "Confirm",
-      cancelButtonText: "Cancel",
-    });
-    if (!result.isConfirmed) return;
-    generateTestGameMutation.mutate();
+  const handleGenerateDemo = (params: {
+    courtCount: number;
+    playerCount: DemoOpenPlayPlayerCount;
+  }) => {
+    generateTestGameMutation.mutate(params);
   };
 
   const handleDeleteGame = async (game: GameCard) => {
@@ -664,34 +674,44 @@ export function MyGamesView() {
             <CardTitle className="section-title text-base font-medium text-muted-foreground">
               Open play sessions
             </CardTitle>
-            <GameListViewToggle value={displayView} onChange={handleListViewChange} />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="lg" className="min-w-44" onClick={() => setCreateGameWizardOpen(true)}>
-              <Plus className="mr-2 h-5 w-5" />
-              Create Open Play Session
-            </Button>
-            {!hasDemoOpenPlay && canShowDemoOpenPlayButton ? (
-              <Button
-                size="lg"
-                variant="outline"
-                className="min-w-44"
-                disabled={generateTestGameMutation.isPending}
-                onClick={handleGenerateDemo}
-              >
-                {generateTestGameMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Creating…
-                  </>
-                ) : (
-                  <>
-                    <FlaskConical className="mr-2 h-5 w-5" />
-                    Create Demo Open Play
-                  </>
-                )}
+            {showDemoCreateOption ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  disabled={generateTestGameMutation.isPending}
+                  render={
+                    <Button size="lg" className="min-w-28">
+                      {generateTestGameMutation.isPending ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <>
+                          <Plus className="h-5 w-5" />
+                          Create
+                          <ChevronDown className="h-4 w-4 opacity-70" />
+                        </>
+                      )}
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={() => setCreateGameWizardOpen(true)}>
+                    <Plus />
+                    Real game
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setDemoDialogOpen(true)}>
+                    <FlaskConical />
+                    Demo game
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button size="lg" className="min-w-28" onClick={() => setCreateGameWizardOpen(true)}>
+                <Plus className="h-5 w-5" />
+                Create
               </Button>
-            ) : null}
+            )}
+          </div>
+          <div className="hidden flex-wrap gap-2 md:flex">
+            <GameListViewToggle value={displayView} onChange={handleListViewChange} />
           </div>
         </CardHeader>
         <CardContent>
@@ -758,6 +778,12 @@ export function MyGamesView() {
         </CardContent>
       </Card>
       <CreateGameWizard />
+      <CreateDemoOpenPlayDialog
+        open={demoDialogOpen}
+        onOpenChange={setDemoDialogOpen}
+        isPending={generateTestGameMutation.isPending}
+        onSubmit={handleGenerateDemo}
+      />
       <EditGameDialog
         game={editingGame}
         open={Boolean(editingGame)}

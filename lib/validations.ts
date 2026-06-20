@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import { CCF_ATTENDED_NOT_YET } from "@/lib/ccf-registration";
+import {
+  DEMO_OPEN_PLAY_PLAYER_COUNTS,
+  getDemoOpenPlayMaxCourts,
+  type DemoOpenPlayPlayerCount,
+} from "@/lib/demo-open-play";
 import { DGROUP_WEEKDAYS, getDgroupTimeRangeError } from "@/lib/dgroup-availability-shared";
 import type { DgroupWeekday } from "@/lib/dgroup-availability-shared";
 import { MAX_PRAYER_REPLY_LENGTH } from "@/lib/owner-prayer-replies-shared";
@@ -115,6 +120,29 @@ export const createGameSchema = z
         code: "custom",
         message: "Expected players must be at least 4.",
         path: ["expectedPlayers"],
+      });
+    }
+  });
+
+export const generateDemoOpenPlaySchema = z
+  .object({
+    courtCount: z.coerce.number().int().min(1),
+    playerCount: z.coerce
+      .number()
+      .int()
+      .refine(
+        (value): value is DemoOpenPlayPlayerCount =>
+          (DEMO_OPEN_PLAY_PLAYER_COUNTS as readonly number[]).includes(value),
+        { message: "Player count must be 12, 18, or 22." },
+      ),
+  })
+  .superRefine((data, ctx) => {
+    const maxCourts = getDemoOpenPlayMaxCourts(data.playerCount);
+    if (data.courtCount > maxCourts) {
+      ctx.addIssue({
+        code: "custom",
+        message: `${data.playerCount} players allows at most ${maxCourts} courts.`,
+        path: ["courtCount"],
       });
     }
   });
