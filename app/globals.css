@@ -2365,8 +2365,18 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  @media (min-width: 640px) {
+    .court-grid--tiles-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .court-grid--tiles-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
   @media (min-width: 768px) {
-    .court-grid--tiles {
+    .court-grid--tiles:not(.court-grid--tiles-2):not(.court-grid--tiles-3) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
@@ -2382,6 +2392,89 @@
 
   .court-grid--tiles .court-player-name--first {
     @apply hidden md:inline lg:hidden;
+  }
+
+  .court-grid--hide-photos .court-player-row .player-avatar {
+    @apply hidden;
+  }
+
+  .court-grid--tiles-3.court-grid--hide-photos .court-team-players-list .court-player-row {
+    @apply w-full max-w-full flex-row items-center gap-1.5 text-left;
+  }
+
+  .court-grid--tiles-3.court-grid--hide-photos .court-player-info {
+    @apply w-full min-w-0 flex-1;
+  }
+
+  .court-grid--tiles-3.court-grid--hide-photos .court-player-main {
+    @apply flex w-full min-w-0 flex-row items-center gap-1;
+  }
+
+  .court-grid--tiles-3.court-grid--hide-photos .court-player-name {
+    @apply text-left;
+  }
+
+  .court-grid--tiles-3.court-grid--hide-photos .court-replace-btn {
+    @apply static ml-0 mt-0 size-7 shrink-0;
+  }
+
+  /* 3×3 tiles on tablet / 1024-wide viewports: stack avatar + name, hide W-L */
+  @media (min-width: 640px) and (max-width: 1279px) {
+    .court-grid--tiles-3 .court-team {
+      @apply flex flex-col items-center p-2 text-center;
+    }
+
+    .court-grid--tiles-3 .court-team-label {
+      @apply w-full text-center;
+    }
+
+    .court-grid--tiles-3 .court-team-players-list {
+      @apply w-full list-none space-y-2 pl-0;
+    }
+
+    .court-grid--tiles-3 .court-team-players-list .court-player-row {
+      @apply flex-col items-center gap-1.5 px-1 text-center;
+    }
+
+    .court-grid--tiles-3 .court-player-info {
+      @apply w-full flex-none;
+    }
+
+    .court-grid--tiles-3 .court-player-main {
+      @apply w-full flex-col items-center gap-1;
+    }
+
+    .court-grid--tiles-3 .court-player-name {
+      @apply text-center text-xs leading-snug;
+    }
+
+    .court-grid--tiles-3 .court-player-name--full {
+      @apply hidden;
+    }
+
+    .court-grid--tiles-3 .court-player-name--first {
+      @apply inline;
+    }
+
+    .court-grid--tiles-3 .court-player-session-record {
+      @apply hidden;
+    }
+
+    .court-grid--tiles-3 .court-replace-btn {
+      @apply static mt-0 size-7 shrink-0;
+    }
+
+    .court-grid--tiles-3.court-grid--hide-photos .court-team-players-list .court-player-row {
+      @apply flex-row items-center gap-1.5 px-0 text-left;
+    }
+
+    .court-grid--tiles-3.court-grid--hide-photos .court-player-main {
+      @apply flex-row items-center gap-1;
+    }
+
+    .court-grid--tiles-3 .court-teams {
+      @apply gap-1.5;
+    }
   }
 
   /* —— Courts: empty vs in play —— */
@@ -3678,8 +3771,14 @@
   }
 
   @media (min-width: 768px) {
-    [data-theme="cupertino"] .glass-panel.courts-panel [data-slot="card-content"].court-grid--tiles {
+    [data-theme="cupertino"] .glass-panel.courts-panel [data-slot="card-content"].court-grid--tiles:not(.court-grid--tiles-3) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+
+    [data-theme="cupertino"] .glass-panel.courts-panel [data-slot="card-content"].court-grid--tiles-3,
+    [data-theme="cupertino"] .glass-panel.courts-panel .court-grid--tiles-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 0.75rem;
     }
   }

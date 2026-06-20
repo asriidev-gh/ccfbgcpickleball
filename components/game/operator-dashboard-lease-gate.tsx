@@ -2,18 +2,14 @@
 
 import { Loader2, MonitorSmartphone, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import Swal from "sweetalert2";
 
+import {
+  confirmOperatorDashboardTakeover,
+  formatOperatorLeaseLastSeen,
+} from "@/components/game/operator-dashboard-lease-banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-const alertOptions = {
-  background: "#0f172a",
-  color: "#e2e8f0",
-  confirmButtonColor: "#22c55e",
-  cancelButtonColor: "#64748b",
-};
 
 type OperatorDashboardLeaseGateProps = {
   gameTitle?: string;
@@ -26,16 +22,6 @@ type OperatorDashboardLeaseGateProps = {
   checking?: boolean;
 };
 
-function formatLastSeen(value?: string) {
-  if (!value) return null;
-  return new Date(value).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 export function OperatorDashboardLeaseGate({
   gameTitle,
   deviceHint,
@@ -47,15 +33,7 @@ export function OperatorDashboardLeaseGate({
   checking = false,
 }: OperatorDashboardLeaseGateProps) {
   const handleTakeOver = async () => {
-    const result = await Swal.fire({
-      ...alertOptions,
-      title: "Take over this dashboard?",
-      html: "The other device will lose operator control of this game. Only do this if you closed the dashboard there or need to switch devices.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Take over",
-      cancelButtonText: "Cancel",
-    });
+    const result = await confirmOperatorDashboardTakeover();
     if (!result.isConfirmed) return;
     onTakeOver();
   };
@@ -71,7 +49,7 @@ export function OperatorDashboardLeaseGate({
     );
   }
 
-  const lastSeenLabel = formatLastSeen(lastSeenAt);
+  const lastSeenLabel = formatOperatorLeaseLastSeen(lastSeenAt);
 
   return (
     <main className="game-dashboard--operator flex min-h-screen items-center justify-center p-6">

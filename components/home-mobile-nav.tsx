@@ -15,7 +15,7 @@ export function HomeMobileNav({ onCreateGame }: HomeMobileNavProps) {
   const pathname = usePathname();
 
   const isHome = pathname === "/";
-  const isMyGames = pathname === "/my-games";
+  const isMyGames = pathname === "/my-games" || pathname.startsWith("/my-games/");
   const isMyClub = pathname === "/my-club";
   const isMarketplace = pathname === "/marketplace";
 

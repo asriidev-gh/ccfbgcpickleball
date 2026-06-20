@@ -45,6 +45,7 @@ export const config = {
     "/settings/:path*",
     "/users",
     "/my-games",
+    "/my-games/:path*",
     "/my-club",
     "/marketplace",
     "/login",

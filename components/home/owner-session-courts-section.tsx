@@ -1,0 +1,275 @@
+"use client";
+
+import { ArrowRight, Gauge, Loader2, Pause, Play } from "lucide-react";
+import Link from "next/link";
+import { useCallback, useMemo, useRef, useState } from "react";
+
+import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
+import { GameCourtsGrid } from "@/components/game/game-courts-grid";
+import { OperatorCourtActionDialogs } from "@/components/game/operator-court-action-dialogs";
+import { OperatorDashboardLeaseBanner } from "@/components/game/operator-dashboard-lease-banner";
+import type { CourtsViewLayout } from "@/components/game/courts-view-layout-toggle";
+import { ReplacePlayerDialog } from "@/components/game/replace-player-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useOperatorDashboardLease } from "@/hooks/use-operator-dashboard-lease";
+import { useOperatorCourtActions } from "@/hooks/use-operator-court-actions";
+import {
+  attachSessionStatsToQueueEntry,
+  buildPlayerSessionStatsMap,
+} from "@/lib/games-played-map";
+import { getMatchScoreInputError } from "@/lib/match-score-validation";
+import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
+import { cn } from "@/lib/utils";
+
+type OwnerSessionCourtsSectionProps = {
+  session: OwnerCourtsViewSession;
+  layout: CourtsViewLayout;
+  showPlayerPhotos?: boolean;
+};
+
+export function OwnerSessionCourtsSection({
+  session,
+  layout,
+  showPlayerPhotos = true,
+}: OwnerSessionCourtsSectionProps) {
+  const fillCourtFlowRef = useRef<FillCourtFlowHandle>(null);
+  const [leaseChecking, setLeaseChecking] = useState(false);
+
+  const {
+    leaseState: operatorLeaseState,
+    checkAgain: checkOperatorDashboardLease,
+    takeOver: takeOverOperatorDashboard,
+    hasDashboardLease,
+  } = useOperatorDashboardLease(session.gameId, true);
+
+  const handleLeaseCheckAgain = useCallback(async () => {
+    setLeaseChecking(true);
+    try {
+      await checkOperatorDashboardLease();
+    } finally {
+      setLeaseChecking(false);
+    }
+  }, [checkOperatorDashboardLease]);
+
+  const handleLeaseTakeOver = useCallback(async () => {
+    setLeaseChecking(true);
+    try {
+      await takeOverOperatorDashboard();
+    } finally {
+      setLeaseChecking(false);
+    }
+  }, [takeOverOperatorDashboard]);
+
+  const operatorLeaseBlocked = operatorLeaseState.status === "blocked";
+  const operatorLeaseLoading = operatorLeaseState.status === "loading";
+  const showLeaseBlock = operatorLeaseLoading || operatorLeaseBlocked;
+  const canOperateSession = hasDashboardLease && !operatorLeaseLoading;
+
+  const playerSessionStats = useMemo(
+    () => buildPlayerSessionStatsMap(session.leaderboard),
+    [session.leaderboard],
+  );
+
+  const queueWithStats = useMemo(
+    () =>
+      session.queue.map((entry) => attachSessionStatsToQueueEntry(entry, playerSessionStats)),
+    [session.queue, playerSessionStats],
+  );
+
+  const waitingLineEntries = useMemo(() => queueWithStats.slice(4), [queueWithStats]);
+
+  const emptyCourtNumbers = useMemo(
+    () =>
+      [...session.courts]
+        .filter((court) => court.status === "empty")
+        .sort((a, b) => a.courtNumber - b.courtNumber)
+        .map((court) => court.courtNumber),
+    [session.courts],
+  );
+
+  const canFillNextCourt = queueWithStats.length >= 4 && emptyCourtNumbers.length > 0;
+  const fillCourtTeamA = queueWithStats.slice(0, 2);
+  const fillCourtTeamB = queueWithStats.slice(2, 4);
+
+  const courtActions = useOperatorCourtActions({
+    gameId: session.gameId,
+    courts: session.courts,
+    enabled: canOperateSession,
+    invalidateQueryKey: ["games", "courts-view"],
+  });
+
+  const endGameScoreError =
+    courtActions.pendingWinner != null
+      ? getMatchScoreInputError(
+          courtActions.pendingWinner,
+          courtActions.teamAScore,
+          courtActions.teamBScore,
+          { required: true },
+        )
+      : null;
+
+  const getCourtCardProps = useCallback(
+    (court: (typeof session.courts)[number]) =>
+      courtActions.getCourtCardProps(court, queueWithStats.length, (courtNumber) =>
+        fillCourtFlowRef.current?.openFillCourt(courtNumber),
+      ),
+    [courtActions, queueWithStats.length],
+  );
+
+  const showPauseAll = canOperateSession && courtActions.activeCourts.length > 0;
+
+  const pauseAllButton = showPauseAll ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="courts-pause-all-btn h-7 shrink-0 px-2 text-xs"
+      disabled={courtActions.pauseAllCourtsMutation.isPending}
+      onClick={() =>
+        courtActions.pauseAllCourtsMutation.mutate(!courtActions.allActiveCourtsPaused)
+      }
+      aria-label={
+        courtActions.allActiveCourtsPaused ? "Unpause all courts" : "Pause all courts"
+      }
+    >
+      {courtActions.pauseAllCourtsMutation.isPending ? (
+        <>
+          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />
+          {courtActions.allActiveCourtsPaused ? "Resuming…" : "Pausing…"}
+        </>
+      ) : courtActions.allActiveCourtsPaused ? (
+        <>
+          <Play className="mr-1 h-3.5 w-3.5" aria-hidden />
+          Unpause all
+        </>
+      ) : (
+        <>
+          <Pause className="mr-1 h-3.5 w-3.5" aria-hidden />
+          Pause all
+        </>
+      )}
+    </Button>
+  ) : null;
+
+  return (
+    <Card className="glass-panel courts-panel dashboard-panel--courts">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <CardTitle className="truncate">{session.title}</CardTitle>
+          <p className="caption flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="inline-flex items-center gap-1">
+              <Gauge className="h-3.5 w-3.5" aria-hidden />
+              {session.openPlayType}
+            </span>
+            {session.openPlayTimeRange ? (
+              <>
+                <span className="text-muted-foreground">·</span>
+                <span>{session.openPlayTimeRange}</span>
+              </>
+            ) : null}
+            {showPauseAll ? (
+              <>
+                <span className="hidden text-muted-foreground sm:inline">·</span>
+                <span className="hidden sm:inline-flex">{pauseAllButton}</span>
+              </>
+            ) : null}
+          </p>
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+          {showPauseAll ? <div className="sm:hidden">{pauseAllButton}</div> : null}
+          <Link
+            href={`/games/${session.gameId}`}
+            className={cn(
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "inline-flex shrink-0",
+            )}
+          >
+            Game Dashboard
+            <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {showLeaseBlock ? (
+        <OperatorDashboardLeaseBanner
+          loading={operatorLeaseLoading}
+          deviceHint={operatorLeaseBlocked ? operatorLeaseState.deviceHint : undefined}
+          lastSeenAt={operatorLeaseBlocked ? operatorLeaseState.lastSeenAt : undefined}
+          takenOver={operatorLeaseBlocked ? operatorLeaseState.takenOver : false}
+          checking={leaseChecking}
+          onCheckAgain={() => void handleLeaseCheckAgain()}
+          onTakeOver={() => void handleLeaseTakeOver()}
+        />
+      ) : null}
+
+      <GameCourtsGrid
+        courts={session.courts}
+        leaderboard={session.leaderboard}
+        gameId={session.gameId}
+        layout={layout}
+        showPlayerPhotos={showPlayerPhotos}
+        getCourtCardProps={getCourtCardProps}
+      />
+
+      {canOperateSession ? (
+        <>
+          <FillCourtFlow
+            ref={fillCourtFlowRef}
+            hideTrigger
+            canFillNextCourt={canFillNextCourt}
+            queuePlayerCount={queueWithStats.length}
+            teamA={fillCourtTeamA}
+            teamB={fillCourtTeamB}
+            waitingLineEntries={waitingLineEntries}
+            emptyCourtNumbers={emptyCourtNumbers}
+            fillPending={courtActions.startMutation.isPending}
+            replacePendingSourceIndex={courtActions.replacePendingSourceIndex}
+            onConfirmFill={(courtNumber) => courtActions.startMutation.mutate(courtNumber)}
+            onShuffle={async () => {
+              await courtActions.shuffleNextMutation.mutateAsync();
+            }}
+            onReplace={(sourceIndex, sourceEntry) => {
+              courtActions.setReplaceDialog({ kind: "queue", sourceIndex, sourceEntry });
+            }}
+          />
+          <ReplacePlayerDialog
+            open={courtActions.replaceDialog !== null}
+            onOpenChange={(open) => {
+              if (!open) courtActions.setReplaceDialog(null);
+            }}
+            state={courtActions.replaceDialog}
+            waitingEntries={waitingLineEntries}
+            courtReplaceEntries={queueWithStats}
+            onConfirm={courtActions.handleReplaceConfirm}
+          />
+          <OperatorCourtActionDialogs
+            courts={session.courts}
+            cancelCourtTarget={courtActions.cancelCourtTarget}
+            onCancelCourtTargetChange={courtActions.setCancelCourtTarget}
+            onConfirmCancelCourt={(courtNumber) => courtActions.cancelCourtMutation.mutate(courtNumber)}
+            cancelRematchTarget={courtActions.cancelRematchTarget}
+            onCancelRematchTargetChange={courtActions.setCancelRematchTarget}
+            onConfirmCancelRematch={(courtNumber) =>
+              courtActions.cancelRematchMutation.mutate(courtNumber)
+            }
+            cancelRematchPending={courtActions.cancelRematchMutation.isPending}
+            endTargetCourt={courtActions.endTargetCourt}
+            pendingWinner={courtActions.pendingWinner}
+            onPendingWinnerChange={courtActions.setPendingWinner}
+            endGameRematch={courtActions.endGameRematch}
+            onEndGameRematchChange={courtActions.setEndGameRematch}
+            teamAScore={courtActions.teamAScore}
+            onTeamAScoreChange={courtActions.setTeamAScore}
+            teamBScore={courtActions.teamBScore}
+            onTeamBScoreChange={courtActions.setTeamBScore}
+            onCloseEndDialog={courtActions.closeEndDialog}
+            onSubmitEndGame={(input) => courtActions.endMutation.mutate(input)}
+            endGameScoreError={endGameScoreError}
+          />
+        </>
+      ) : null}
+      </CardContent>
+    </Card>
+  );
+}

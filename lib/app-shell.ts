@@ -15,7 +15,7 @@ export function getBrandShellClasses(pathname: string) {
     };
   }
 
-  if (pathname === "/" || pathname === "/my-games" || pathname === "/my-club" || pathname === "/marketplace") {
+  if (pathname === "/" || pathname === "/my-games" || pathname.startsWith("/my-games/") || pathname === "/my-club" || pathname === "/marketplace") {
     return {
       pad: "px-6 lg:px-10",
       container: "max-w-7xl",
@@ -48,6 +48,10 @@ export function isPublicAppPath(pathname: string, fromParam: string | null) {
 
 const OWNER_HUB_PATHS = new Set(["/my-games", "/users", "/my-club", "/marketplace"]);
 
+function isOwnerHubPath(pathname: string) {
+  return OWNER_HUB_PATHS.has(pathname) || pathname.startsWith("/my-games/");
+}
+
 const OWNER_DASHBOARD_NAV_HIDDEN_PATHS = new Set([
   "/",
   "/users",
@@ -59,12 +63,12 @@ const OWNER_DASHBOARD_NAV_HIDDEN_PATHS = new Set([
 
 /** Owner hub sub-pages link back to the home dashboard from the header. */
 export function shouldShowDashboardHeaderLink(pathname: string) {
-  return OWNER_HUB_PATHS.has(pathname);
+  return isOwnerHubPath(pathname);
 }
 
 /** Greeting is hidden on owner hub sub-pages where the dashboard button is shown. */
 export function shouldShowUserHeaderGreeting(pathname: string) {
-  return !OWNER_HUB_PATHS.has(pathname);
+  return !isOwnerHubPath(pathname);
 }
 
 /** Dashboard and dedicated pages already expose owner navigation in-page. */

@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   ChevronDown,
@@ -562,6 +563,7 @@ function GameList({
 }
 
 export function MyGamesView() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const setCreateGameWizardOpen = useUiStore((state) => state.setCreateGameWizardOpen);
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
@@ -683,6 +685,13 @@ export function MyGamesView() {
   const games = data?.games ?? [];
   const activeGames = games.filter((game) => game.status !== "ended");
   const pastGames = games.filter((game) => game.status === "ended");
+  const showCourtsView = activeGames.length >= 2;
+
+  useEffect(() => {
+    if (showCourtsView) {
+      router.prefetch("/my-games/courts-view");
+    }
+  }, [showCourtsView, router]);
 
   return (
     <>
@@ -690,7 +699,20 @@ export function MyGamesView() {
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <GameListViewToggle value={displayView} onChange={handleListViewChange} />
-            {showDemoCreateOption ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {showCourtsView ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="w-full sm:w-auto"
+                  onClick={() => router.push("/my-games/courts-view")}
+                >
+                  <LayoutGrid className="h-4 w-4" aria-hidden />
+                  Courts View
+                </Button>
+              ) : null}
+              {showDemoCreateOption ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   disabled={generateTestGameMutation.isPending}
@@ -725,6 +747,7 @@ export function MyGamesView() {
                 Create
               </Button>
             )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>

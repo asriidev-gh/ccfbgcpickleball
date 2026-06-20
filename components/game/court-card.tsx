@@ -85,45 +85,47 @@ function TeamPlayers({
             className="court-player-row flex items-center gap-2"
           >
             <PlayerAvatar player={player} />
-            <div className="min-w-0 flex-1">
-              <div className="body-lg min-w-0">
-                <PlayerProfileTrigger player={player} className="court-player-name min-w-0 truncate">
-                  <span className="court-player-name--first">{firstName || courtName}</span>
-                  <span className="court-player-name--full">{courtName}</span>
-                </PlayerProfileTrigger>
+            <div className="court-player-info min-w-0 flex-1">
+              <div className="court-player-main flex min-w-0 items-center gap-1.5">
+                <div className="body-lg min-w-0 flex-1">
+                  <PlayerProfileTrigger player={player} className="court-player-name min-w-0 truncate">
+                    <span className="court-player-name--first">{firstName || courtName}</span>
+                    <span className="court-player-name--full">{courtName}</span>
+                  </PlayerProfileTrigger>
+                </div>
+                {onReplacePlayer ? (
+                  <SimpleTooltip
+                    label={
+                      canReplace
+                        ? `Replace ${fullName}`
+                        : "No players in the queue"
+                    }
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="court-replace-btn group/button size-8 shrink-0"
+                      aria-label={`Replace ${fullName}`}
+                      onClick={() => onReplacePlayer(index, player)}
+                      disabled={
+                        !canReplace ||
+                        replacePendingKey === courtReplacePendingKey(courtNumber, team, index)
+                      }
+                    >
+                      {replacePendingKey === courtReplacePendingKey(courtNumber, team, index) ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                      ) : (
+                        <ArrowLeftRight className="size-3.5" aria-hidden />
+                      )}
+                    </Button>
+                  </SimpleTooltip>
+                ) : null}
               </div>
               <p className="court-player-session-record">
                 {formatSessionRecordLabel(stats)}
               </p>
             </div>
-            {onReplacePlayer ? (
-              <SimpleTooltip
-                label={
-                  canReplace
-                    ? `Replace ${fullName}`
-                    : "No players in the queue"
-                }
-              >
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="court-replace-btn group/button size-8 shrink-0"
-                  aria-label={`Replace ${fullName}`}
-                  onClick={() => onReplacePlayer(index, player)}
-                  disabled={
-                    !canReplace ||
-                    replacePendingKey === courtReplacePendingKey(courtNumber, team, index)
-                  }
-                >
-                  {replacePendingKey === courtReplacePendingKey(courtNumber, team, index) ? (
-                    <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                  ) : (
-                    <ArrowLeftRight className="size-3.5" aria-hidden />
-                  )}
-                </Button>
-              </SimpleTooltip>
-            ) : null}
           </li>
         );
       })}
@@ -133,6 +135,7 @@ function TeamPlayers({
 
 type CourtCardProps = {
   court: CourtView;
+  elementId?: string;
   playerSessionStats: Map<string, PlayerSessionStats>;
   onEndGame: () => void;
   onCancelAssignment?: () => void;
@@ -163,6 +166,7 @@ type CourtCardProps = {
 
 export function CourtCard({
   court,
+  elementId,
   playerSessionStats,
   onEndGame,
   onCancelAssignment,
@@ -191,7 +195,7 @@ export function CourtCard({
 
   return (
     <Card
-      id={`court-card-${court.courtNumber}`}
+      id={elementId ?? `court-card-${court.courtNumber}`}
       className={`court-card overflow-hidden ${isActive ? "court-active" : "court-empty"}${isFilling ? " court-filling" : ""}${isClearing ? " court-clearing" : ""}`}
       data-court-status={court.status}
       aria-busy={isFilling || isClearing}
