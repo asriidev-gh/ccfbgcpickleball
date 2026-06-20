@@ -27,62 +27,6 @@ function summarizeDeviceHint(userAgent?: string) {
   return "Another device";
 }
 
-export async function acquireOperatorDashboardLease(input: {
-  gameId: string;
-  ownerId: string;
-  leaseId: string;
-  userAgent?: string;
-  force?: boolean;
-}): Promise<OperatorDashboardLeaseResult> {
-  const now = new Date();
-  const deviceHint = summarizeDeviceHint(input.userAgent);
-  const existing = await OperatorDashboardLease.findOne({ gameId: input.gameId });
-
-  if (!existing || isLeaseExpired(existing.lastHeartbeatAt, now.getTime())) {
-    await OperatorDashboardLease.findOneAndUpdate(
-      { gameId: input.gameId },
-      {
-        $set: {
-          ownerId: input.ownerId,
-          leaseId: input.leaseId,
-          deviceHint,
-          lastHeartbeatAt: now,
-        },
-        $setOnInsert: {
-          createdAt: now,
-        },
-      },
-      { upsert: true, returnDocument: 'after' },
-    );
-    return { status: "active" };
-  }
-
-  if (existing.ownerId !== input.ownerId) {
-    return { status: "blocked", deviceHint: existing.deviceHint ?? "Another device" };
-  }
-
-  if (existing.leaseId === input.leaseId) {
-    existing.lastHeartbeatAt = now;
-    existing.deviceHint = deviceHint;
-    await existing.save();
-    return { status: "active" };
-  }
-
-  if (input.force) {
-    existing.leaseId = input.leaseId;
-    existing.deviceHint = deviceHint;
-    existing.lastHeartbeatAt = now;
-    await existing.save();
-    return { status: "active" };
-  }
-
-  return {
-    status: "blocked",
-    deviceHint: existing.deviceHint ?? "Another device",
-    lastSeenAt: existing.lastHeartbeatAt.toISOString(),
-  };
-}
-
 function buildBlockedLeaseResult(existing: {
   deviceHint?: string | null;
   lastHeartbeatAt: Date;
@@ -95,6 +39,86 @@ function buildBlockedLeaseResult(existing: {
   };
 }
 
+async function upsertActiveLease(input: {
+  gameId: string;
+  ownerId: string;
+  leaseId: string;
+  deviceHint: string;
+  now: Date;
+}) {
+  await OperatorDashboardLease.findOneAndUpdate(
+    { gameId: input.gameId },
+    {
+      $set: {
+        ownerId: input.ownerId,
+        leaseId: input.leaseId,
+        deviceHint: input.deviceHint,
+        lastHeartbeatAt: input.now,
+      },
+      $setOnInsert: {
+        createdAt: input.now,
+      },
+    },
+    { upsert: true },
+  );
+}
+
+export async function acquireOperatorDashboardLease(input: {
+  gameId: string;
+  ownerId: string;
+  leaseId: string;
+  userAgent?: string;
+  force?: boolean;
+}): Promise<OperatorDashboardLeaseResult> {
+  const now = new Date();
+  const deviceHint = summarizeDeviceHint(input.userAgent);
+  const existing = await OperatorDashboardLease.findOne({ gameId: input.gameId });
+
+  if (!existing || isLeaseExpired(existing.lastHeartbeatAt, now.getTime())) {
+    await upsertActiveLease({
+      gameId: input.gameId,
+      ownerId: input.ownerId,
+      leaseId: input.leaseId,
+      deviceHint,
+      now,
+    });
+    return { status: "active" };
+  }
+
+  if (existing.ownerId !== input.ownerId) {
+    return { status: "blocked", deviceHint: existing.deviceHint ?? "Another device" };
+  }
+
+  if (existing.leaseId === input.leaseId || input.force) {
+    const updated = await OperatorDashboardLease.findOneAndUpdate(
+      { gameId: input.gameId, ownerId: input.ownerId },
+      {
+        $set: {
+          leaseId: input.leaseId,
+          deviceHint,
+          lastHeartbeatAt: now,
+        },
+      },
+    );
+    if (updated) return { status: "active" };
+
+    await upsertActiveLease({
+      gameId: input.gameId,
+      ownerId: input.ownerId,
+      leaseId: input.leaseId,
+      deviceHint,
+      now,
+    });
+    return { status: "active" };
+  }
+
+  return {
+    status: "blocked",
+    deviceHint: existing.deviceHint ?? "Another device",
+    lastSeenAt: existing.lastHeartbeatAt.toISOString(),
+  };
+}
+
 export async function renewOperatorDashboardLease(input: {
   gameId: string;
   ownerId: string;
@@ -102,11 +126,25 @@ export async function renewOperatorDashboardLease(input: {
   userAgent?: string;
 }) {
   const now = new Date();
-  const existing = await OperatorDashboardLease.findOne({
-    gameId: input.gameId,
-    ownerId: input.ownerId,
-  });
+  const deviceHint = summarizeDeviceHint(input.userAgent);
 
+  const renewed = await OperatorDashboardLease.findOneAndUpdate(
+    {
+      gameId: input.gameId,
+      ownerId: input.ownerId,
+      leaseId: input.leaseId,
+    },
+    {
+      $set: {
+        deviceHint,
+        lastHeartbeatAt: now,
+      },
+    },
+  );
+
+  if (renewed) return { status: "active" as const };
+
+  const existing = await OperatorDashboardLease.findOne({ gameId: input.gameId });
   if (!existing || isLeaseExpired(existing.lastHeartbeatAt, now.getTime())) {
     return acquireOperatorDashboardLease(input);
   }
@@ -115,11 +153,30 @@ export async function renewOperatorDashboardLease(input: {
     return buildBlockedLeaseResult(existing);
   }
 
-  existing.lastHeartbeatAt = now;
-  existing.deviceHint = summarizeDeviceHint(input.userAgent);
-  await existing.save();
+  return acquireOperatorDashboardLease(input);
+}
 
-  return { status: "active" as const };
+export async function checkOperatorDashboardLease(input: {
+  gameId: string;
+  ownerId: string;
+  leaseId: string;
+}): Promise<OperatorDashboardLeaseResult> {
+  const now = new Date();
+  const existing = await OperatorDashboardLease.findOne({ gameId: input.gameId });
+
+  if (!existing || isLeaseExpired(existing.lastHeartbeatAt, now.getTime())) {
+    return { status: "blocked" };
+  }
+
+  if (existing.ownerId !== input.ownerId) {
+    return { status: "blocked", deviceHint: existing.deviceHint ?? "Another device" };
+  }
+
+  if (existing.leaseId !== input.leaseId) {
+    return buildBlockedLeaseResult(existing);
+  }
+
+  return { status: "active" };
 }
 
 export async function releaseOperatorDashboardLease(input: {

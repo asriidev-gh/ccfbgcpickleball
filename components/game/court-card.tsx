@@ -22,7 +22,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SimpleTooltip } from "@/components/ui/tooltip";
 
 type PlayerRef = PlayerPhotoRef & { _id?: string };
 
@@ -94,32 +93,32 @@ function TeamPlayers({
                   </PlayerProfileTrigger>
                 </div>
                 {onReplacePlayer ? (
-                  <SimpleTooltip
-                    label={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="court-replace-btn group/button relative z-10 size-8 shrink-0"
+                    aria-label={`Replace ${fullName}`}
+                    title={
                       canReplace
                         ? `Replace ${fullName}`
                         : "No players in the queue"
                     }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onReplacePlayer(index, player);
+                    }}
+                    disabled={
+                      !canReplace ||
+                      replacePendingKey === courtReplacePendingKey(courtNumber, team, index)
+                    }
                   >
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="court-replace-btn group/button size-8 shrink-0"
-                      aria-label={`Replace ${fullName}`}
-                      onClick={() => onReplacePlayer(index, player)}
-                      disabled={
-                        !canReplace ||
-                        replacePendingKey === courtReplacePendingKey(courtNumber, team, index)
-                      }
-                    >
-                      {replacePendingKey === courtReplacePendingKey(courtNumber, team, index) ? (
-                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                      ) : (
-                        <ArrowLeftRight className="size-3.5" aria-hidden />
-                      )}
-                    </Button>
-                  </SimpleTooltip>
+                    {replacePendingKey === courtReplacePendingKey(courtNumber, team, index) ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      <ArrowLeftRight className="size-3.5" aria-hidden />
+                    )}
+                  </Button>
                 ) : null}
               </div>
               <p className="court-player-session-record">

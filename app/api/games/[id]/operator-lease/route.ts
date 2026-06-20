@@ -5,6 +5,7 @@ import { authorizeAuthPayload, readAuthTokenPayload } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import {
   acquireOperatorDashboardLease,
+  checkOperatorDashboardLease,
   releaseOperatorDashboardLease,
   renewOperatorDashboardLease,
 } from "@/lib/operator-dashboard-lease";
@@ -12,7 +13,7 @@ import { PickleGame } from "@/models/PickleGame";
 
 const leaseBodySchema = z.object({
   leaseId: z.string().min(8),
-  action: z.enum(["acquire", "renew", "takeover", "release"]).default("acquire"),
+  action: z.enum(["acquire", "renew", "takeover", "release", "check"]).default("acquire"),
 });
 
 async function authorizeGameOwner(gameId: string, userId: string) {
@@ -66,6 +67,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return NextResponse.json(result);
       }
 
+      if (action === "check") {
+        const result = await checkOperatorDashboardLease({
+          gameId,
+          ownerId: authUser.userId,
+          leaseId,
+        });
+        if (result.status === "blocked") {
+          return NextResponse.json(result, { status: 409 });
+        }
+        return NextResponse.json(result);
+      }
+
       const result = await acquireOperatorDashboardLease({
         gameId,
         ownerId: authUser.userId,
@@ -81,9 +94,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json(result);
     });
   } catch (error) {
+    console.error("Operator dashboard lease error:", error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "Failed to update dashboard lease." },
-      { status: 400 },
+      { message: "Failed to update dashboard lease." },
+      { status: 500 },
     );
   }
 }

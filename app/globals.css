@@ -2613,6 +2613,10 @@
     @apply border-border bg-background shadow-sm;
   }
 
+  .court-replace-btn {
+    @apply relative z-10;
+  }
+
   .court-replace-btn:not(:disabled) {
     @apply border-amber-400/60 bg-amber-500/15 text-amber-800 shadow-sm;
     @apply hover:border-amber-400/80 hover:bg-amber-500/25 hover:text-amber-900;
@@ -5951,6 +5955,52 @@
 
   .game-list-action-btn {
     @apply font-medium shadow-sm;
+  }
+
+  .game-list-actions--menu {
+    @apply w-full max-w-none;
+  }
+
+  .game-list-actions-menu__content {
+    @apply gap-2 p-2.5;
+  }
+
+  .game-list-actions-menu__item {
+    @apply my-0.5 rounded-lg transition-[background-color,box-shadow,transform] duration-150 ease-out;
+  }
+
+  .game-list-actions-menu__item:hover:not([data-disabled]) {
+    @apply bg-accent shadow-sm;
+  }
+
+  .game-list-actions-menu__item:active:not([data-disabled]) {
+    @apply scale-[0.99] bg-accent;
+  }
+
+  .game-list-actions-menu__item[data-variant="destructive"]:hover:not([data-disabled]) {
+    @apply bg-destructive/10 shadow-sm;
+  }
+
+  .game-list-actions-menu__item[data-variant="destructive"]:active:not([data-disabled]) {
+    @apply scale-[0.99] bg-destructive/15;
+  }
+
+  @media (max-width: 1023px) {
+    .game-list-col-actions .game-list-actions--menu .game-list-action-btn {
+      @apply h-11 min-h-11;
+    }
+
+    .game-list-actions-menu__content {
+      @apply gap-4 p-4;
+    }
+
+    .game-list-actions-menu__item {
+      @apply my-2 min-h-12 gap-3 px-4 py-4 text-base;
+    }
+
+    .game-list-actions-menu__item svg {
+      @apply size-5;
+    }
   }
 
   .game-list-actions__toolbar {

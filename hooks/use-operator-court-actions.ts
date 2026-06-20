@@ -352,7 +352,11 @@ export function useOperatorCourtActions({
   }, []);
 
   const getCourtCardProps = useCallback(
-    (court: CourtView, queueLength: number, onFillCourt: (courtNumber: number) => void) => {
+    (
+      court: CourtView,
+      queueCounts: { queuedCount: number; waitingLineCount: number },
+      onFillCourt: (courtNumber: number) => void,
+    ) => {
       if (!enabled) {
         return {
           hideEndGame: true,
@@ -364,9 +368,13 @@ export function useOperatorCourtActions({
         .filter((item) => item.status === "empty")
         .map((item) => item.courtNumber);
 
+      const canReplaceFromCourt =
+        court.status === "active" &&
+        (queueCounts.queuedCount > 0 || queueCounts.waitingLineCount > 0);
+
       return {
         hideEndGame: false,
-        canReplacePlayers: court.status === "active" && queueLength > 0,
+        canReplacePlayers: canReplaceFromCourt,
         onReplacePlayer: ({
           courtNumber,
           team,
@@ -421,7 +429,7 @@ export function useOperatorCourtActions({
           court.status === "empty" &&
           !clearingCourtNumbers.has(court.courtNumber) &&
           emptyCourtNumbers.includes(court.courtNumber) &&
-          queueLength >= 4,
+          queueCounts.queuedCount >= 4,
         fillCourtPending: startMutation.isPending && startMutation.variables === court.courtNumber,
       };
     },

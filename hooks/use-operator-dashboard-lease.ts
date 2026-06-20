@@ -41,10 +41,14 @@ function getOrCreateLeaseId(gameId: string) {
   return leaseId;
 }
 
+function getStoredLeaseId(gameId: string) {
+  return sessionStorage.getItem(storageKey(gameId));
+}
+
 async function postLease(
   gameId: string,
   leaseId: string,
-  action: "acquire" | "renew" | "takeover",
+  action: "acquire" | "renew" | "takeover" | "check",
 ) {
   const response = await fetch(`/api/games/${gameId}/operator-lease`, {
     method: "POST",
@@ -167,9 +171,14 @@ export function useOperatorDashboardLease(gameId: string, enabled: boolean) {
         return;
       }
 
+      if (response.status >= 500) {
+        setState({ status: "loading" });
+        startBlockedRetry();
+        return;
+      }
+
       markBlocked({
-        deviceHint:
-          typeof payload.message === "string" ? payload.message : "Could not open dashboard.",
+        deviceHint: "Could not open dashboard.",
       });
       startBlockedRetry();
     },
@@ -262,7 +271,8 @@ export function useOperatorDashboardLease(gameId: string, enabled: boolean) {
       stopBlockedRetry();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handlePageHide);
-      release();
+      // Do not release on React unmount: client navigations (e.g. dashboard → courts view)
+      // reuse the same tab leaseId and a release here would delete the next page's lease.
     };
   }, [
     enabled,
@@ -280,5 +290,49 @@ export function useOperatorDashboardLease(gameId: string, enabled: boolean) {
     checkAgain,
     takeOver,
     hasDashboardLease: !enabled || state.status === "active",
+  };
+}
+
+/** Read-only lease check for pages like leaderboard (no acquire/heartbeat). */
+export function useOperatorDashboardLeaseCheck(gameId: string, enabled: boolean) {
+  const [state, setState] = useState<"loading" | "active" | "blocked">(() =>
+    enabled ? "loading" : "active",
+  );
+
+  useEffect(() => {
+    if (!enabled || !gameId) {
+      setState("active");
+      return;
+    }
+
+    let cancelled = false;
+    const leaseId = getStoredLeaseId(gameId);
+    if (!leaseId) {
+      setState("blocked");
+      return;
+    }
+
+    void (async () => {
+      try {
+        const { response, payload } = await postLease(gameId, leaseId, "check");
+        if (cancelled) return;
+        if (response.ok && payload.status === "active") {
+          setState("active");
+          return;
+        }
+        setState("blocked");
+      } catch {
+        if (!cancelled) setState("blocked");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, gameId]);
+
+  return {
+    hasDashboardLease: !enabled || state === "active",
+    leaseCheckState: state,
   };
 }

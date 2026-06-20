@@ -3,7 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, LayoutGrid, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   CourtsViewLayoutToggle,
@@ -22,8 +23,12 @@ import {
   saveHiddenCourtsViewSessionIds,
 } from "@/components/game/courts-view-sessions-select";
 import { OwnerSessionCourtsSection } from "@/components/home/owner-session-courts-section";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  COURTS_VIEW_FOCUS_GAME_ID_PARAM,
+  hiddenCourtsViewSessionIdsForFocus,
+} from "@/lib/courts-view-focus";
 import { COURTS_VIEW_DESKTOP_MEDIA } from "@/lib/courts-view-viewport";
 import type { OwnerCourtsViewPayload } from "@/lib/owner-courts-view-payload";
 import { cn } from "@/lib/utils";
@@ -38,6 +43,10 @@ async function fetchOwnerCourtsView() {
 }
 
 export function OwnerCourtsView() {
+  const searchParams = useSearchParams();
+  const focusGameId = searchParams.get(COURTS_VIEW_FOCUS_GAME_ID_PARAM);
+  const appliedFocusGameIdRef = useRef<string | null>(null);
+
   const [layout, setLayout] = useState<CourtsViewLayout>("list");
   const [showPhotos, setShowPhotos] = useState(true);
   const [viewPrefsReady, setViewPrefsReady] = useState(false);
@@ -91,6 +100,17 @@ export function OwnerCourtsView() {
   });
 
   const sessions = query.data?.sessions ?? [];
+
+  useEffect(() => {
+    if (!hiddenSessionsReady || sessions.length === 0 || !focusGameId) return;
+    if (appliedFocusGameIdRef.current === focusGameId) return;
+    if (!sessions.some((session) => session.gameId === focusGameId)) return;
+
+    appliedFocusGameIdRef.current = focusGameId;
+    const next = hiddenCourtsViewSessionIdsForFocus(sessions, focusGameId);
+    setHiddenSessionIds(next);
+    saveHiddenCourtsViewSessionIds(next);
+  }, [focusGameId, hiddenSessionsReady, sessions]);
 
   useEffect(() => {
     if (!hiddenSessionsReady || sessions.length === 0) return;
@@ -177,17 +197,19 @@ export function OwnerCourtsView() {
             <CourtsViewLayoutToggle value={displayLayout} onChange={handleLayoutChange} />
             <CourtsViewPhotosToggle value={displayShowPhotos} onChange={handleShowPhotosChange} />
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-fit"
-            onClick={() => void query.refetch()}
-            disabled={query.isFetching}
-          >
-            <RefreshCw className={cn("mr-1.5 h-4 w-4", query.isFetching && "animate-spin")} />
-            Refresh
-          </Button>
+          {query.isRefetching ? (
+            <span
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "inline-flex w-fit items-center pointer-events-none",
+              )}
+              role="status"
+              aria-live="polite"
+            >
+              <RefreshCw className="mr-1.5 h-4 w-4 animate-spin" aria-hidden />
+              Refreshing…
+            </span>
+          ) : null}
         </div>
       </div>
 

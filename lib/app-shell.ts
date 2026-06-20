@@ -74,7 +74,9 @@ export function shouldShowUserHeaderGreeting(pathname: string) {
 /** Dashboard and dedicated pages already expose owner navigation in-page. */
 export function shouldShowOwnerDashboardNavLinks(pathname: string) {
   if (OWNER_DASHBOARD_NAV_HIDDEN_PATHS.has(pathname)) return false;
+  if (pathname.startsWith("/my-games/")) return false;
   if (pathname.startsWith("/games/")) return false;
+  if (pathname.startsWith("/leaderboard/")) return false;
   return true;
 }
 

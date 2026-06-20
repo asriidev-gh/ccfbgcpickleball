@@ -7,8 +7,10 @@ import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   ChevronDown,
+  CirclePlay,
   ClipboardList,
   Clock,
+  Download,
   FlaskConical,
   Gauge,
   LayoutDashboard,
@@ -17,6 +19,7 @@ import {
   Pencil,
   QrCode,
   Plus,
+  Share2,
   Trash2,
   Trophy,
   Users,
@@ -28,7 +31,11 @@ import { toast } from "sonner";
 
 import { CreateDemoOpenPlayDialog } from "@/components/game/create-demo-open-play-dialog";
 import { CreateGameWizard } from "@/components/game/create-game-wizard";
+import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
+import { DemoVideoDialog } from "@/components/demo-video-dialog";
 import { EditGameDialog, type EditGameDialogGame } from "@/components/game/edit-game-dialog";
+import { GameQrDialog } from "@/components/game/game-qr-dialog";
+import { GameSpectatorShareDialog } from "@/components/game/game-spectator-share-dialog";
 import { WatchDemoButton } from "@/components/watch-demo-button";
 import { GameExportButton } from "@/components/game/game-export-button";
 import {
@@ -42,6 +49,10 @@ import { GameListQrMode } from "@/components/game/game-list-qr-mode";
 import { GameQrRegistrationButton } from "@/components/game/game-qr-registration-button";
 import { GameQrRegistrationSlot } from "@/components/game/game-qr-registration-slot";
 import { GameSpectatorShareButton } from "@/components/game/game-spectator-share-button";
+import {
+  fetchGameRegistrationStatus,
+  promptIfRegistrationFull,
+} from "@/components/game/registration-capacity-prompt";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +65,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { prefetchOperatorDashboard } from "@/lib/fetch-operator-game";
+import { getClientSpectatorShareUrl } from "@/lib/app-url";
 import { useGamesList } from "@/hooks/use-games-list";
 import { useUiStore } from "@/store/ui-store";
 import {
@@ -304,6 +316,206 @@ function GameListIconToolbar({
   );
 }
 
+function parseExportFilename(header: string | null, gameTitle: string) {
+  if (!header) return `${gameTitle.replace(/\s+/g, "-")}-registrations.xlsx`;
+  const match = /filename="([^"]+)"/i.exec(header) ?? /filename=([^;]+)/i.exec(header);
+  return match?.[1]?.trim() ?? `${gameTitle.replace(/\s+/g, "-")}-registrations.xlsx`;
+}
+
+function GameListActionsMenu({
+  game,
+  variant,
+  onEdit,
+  onDelete,
+  deletingGameId,
+  userType,
+}: {
+  game: GameCard;
+  variant: "active" | "past";
+  onEdit: (game: GameCard) => void;
+  onDelete: (game: GameCard) => void;
+  deletingGameId: string | null;
+  userType?: string | null;
+}) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const isDemo = isDemoOpenPlayTitle(game.title);
+  const dashboardHref = `/games/${game.gameId}`;
+  const dashboardLabel = variant === "active" ? "Open Dashboard" : "View Dashboard";
+  const spectatorUrl = getClientSpectatorShareUrl(game.gameId);
+
+  const [shareOpen, setShareOpen] = useState(false);
+  const [demoOpen, setDemoOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [registerUrl, setRegisterUrl] = useState<string | null>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [isSpectatorQr, setIsSpectatorQr] = useState(false);
+
+  const warmDashboard = () => {
+    if (variant === "active") {
+      prefetchOperatorDashboard(queryClient, game.gameId);
+    }
+  };
+
+  const openQrDialog = async () => {
+    setQrLoading(true);
+    try {
+      const status = await fetchGameRegistrationStatus(game.gameId);
+      const spectatorQr = status.allowQrRegistration === false;
+      setIsSpectatorQr(spectatorQr);
+
+      const canProceed = await promptIfRegistrationFull(game.gameId);
+      if (!canProceed) return;
+
+      if (registerUrl && qrCodeDataUrl) {
+        setQrOpen(true);
+        return;
+      }
+
+      const response = await fetch(`/api/games/${game.gameId}/qr`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message);
+      setRegisterUrl(payload.registerUrl);
+      setQrCodeDataUrl(payload.publicQrCodeDataUrl);
+      setIsSpectatorQr(spectatorQr || payload.registerUrl?.includes("/spectate"));
+      setQrOpen(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load registration QR.");
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      const response = await fetch(`/api/games/${game.gameId}/export`);
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(payload?.message ?? "Export failed.");
+      }
+
+      const blob = await response.blob();
+      const filename = parseExportFilename(response.headers.get("Content-Disposition"), game.title);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast.success("Registration export downloaded.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export failed.");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="game-list-actions game-list-actions--menu w-full min-w-0 lg:mx-auto lg:max-w-[16rem]">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            disabled={deletingGameId === game.gameId}
+            className="w-full"
+            render={
+              <Button
+                type="button"
+                variant={variant === "active" ? "default" : "outline"}
+                size="sm"
+                className="game-list-action-btn h-11 w-full gap-1.5 px-4 lg:h-10"
+              >
+                Actions
+                <ChevronDown className="h-4 w-4 opacity-70" aria-hidden />
+              </Button>
+            }
+          />
+          <DropdownMenuContent
+            align="center"
+            className="game-list-actions-menu__content w-(--anchor-width) min-w-[12rem] sm:min-w-56"
+          >
+            <DropdownMenuItem
+              className="game-list-actions-menu__item"
+              onClick={() => {
+                warmDashboard();
+                router.push(dashboardHref);
+              }}
+            >
+              <LayoutDashboard aria-hidden />
+              {dashboardLabel}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="game-list-actions-menu__item md:hidden"
+              disabled={qrLoading}
+              onClick={() => void openQrDialog()}
+            >
+              {qrLoading ? <Loader2 className="animate-spin" aria-hidden /> : <QrCode aria-hidden />}
+              QR registration
+            </DropdownMenuItem>
+            <DropdownMenuItem className="game-list-actions-menu__item" onClick={() => setShareOpen(true)}>
+              <Share2 aria-hidden />
+              Share spectator view
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="game-list-actions-menu__item"
+              disabled={exportLoading}
+              onClick={() => void handleExport()}
+            >
+              {exportLoading ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <Download aria-hidden />
+              )}
+              Download player list
+            </DropdownMenuItem>
+            {isDemo ? (
+              <DropdownMenuItem className="game-list-actions-menu__item" onClick={() => setDemoOpen(true)}>
+                <CirclePlay aria-hidden />
+                Watch demo
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem className="game-list-actions-menu__item" onClick={() => onEdit(game)}>
+              <Pencil aria-hidden />
+              Edit open session
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="game-list-actions-menu__item"
+              variant="destructive"
+              disabled={deletingGameId === game.gameId}
+              onClick={() => onDelete(game)}
+            >
+              <Trash2 aria-hidden />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <GameSpectatorShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        gameTitle={game.title}
+        spectatorUrl={spectatorUrl}
+      />
+      {registerUrl && qrCodeDataUrl ? (
+        <GameQrDialog
+          open={qrOpen}
+          onOpenChange={setQrOpen}
+          gameTitle={game.title}
+          registerUrl={registerUrl}
+          qrCodeDataUrl={qrCodeDataUrl}
+          mode={isSpectatorQr ? "spectator" : "registration"}
+        />
+      ) : null}
+      {isDemo ? (
+        <DemoVideoDialog open={demoOpen} onOpenChange={setDemoOpen} userType={userType ?? undefined} />
+      ) : null}
+    </>
+  );
+}
+
 function GameListActions({
   game,
   variant,
@@ -513,39 +725,29 @@ function GameList({
       {games.map((game) => (
         <div
           key={game._id}
-          className="game-list-row surface-muted relative grid grid-cols-1 overflow-hidden rounded-xl border border-border/50 md:grid-cols-[minmax(0,4fr)_minmax(0,3fr)_minmax(0,3fr)] md:items-center md:gap-5 md:border-0 md:p-4 lg:gap-6"
+          className="game-list-row surface-muted grid grid-cols-1 overflow-hidden rounded-xl border border-border/50 lg:grid-cols-[minmax(0,4fr)_minmax(0,3fr)_minmax(0,3fr)] lg:items-center lg:gap-6 lg:border-0 lg:p-4"
         >
-          <div className="game-list-mobile-toolbar absolute top-3 right-3 z-10 md:hidden">
-            <GameListIconToolbar
-              game={game}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              deletingGameId={deletingGameId}
-              includeQr
-            />
-          </div>
           <section
-            className="game-list-col-details min-w-0 px-4 pt-4 pr-[11rem] pb-3 md:p-0 md:pr-0"
+            className="game-list-col-details min-w-0 px-4 pt-4 pb-3 lg:p-0"
             aria-label={`Details for ${game.title}`}
           >
             <GameListInfoGrouped game={game} variant={variant} />
           </section>
           <section
-            className="game-list-col-actions flex min-w-0 flex-col justify-center border-t border-border/50 bg-muted/25 px-4 py-3 md:border-t-0 md:bg-transparent md:px-0 md:py-0"
+            className="game-list-col-actions flex min-w-0 flex-col justify-center border-t border-border/50 bg-muted/25 px-4 py-3.5 sm:px-5 sm:py-4 lg:border-t-0 lg:bg-transparent lg:px-0 lg:py-0"
             aria-label={`Actions for ${game.title}`}
           >
-            <GameListActions
+            <GameListActionsMenu
               game={game}
               variant={variant}
               onEdit={onEdit}
               onDelete={onDelete}
               deletingGameId={deletingGameId}
               userType={userType ?? undefined}
-              hideToolbarOnMobile
             />
           </section>
           <section
-            className="game-list-col-register hidden min-w-0 justify-center border-t border-border/50 px-4 py-3 md:flex md:justify-end md:border-t-0 md:px-0 md:py-0"
+            className="game-list-col-register hidden min-w-0 justify-center border-t border-border/50 px-4 py-3 sm:px-5 sm:py-4 md:flex lg:justify-end lg:border-t-0 lg:px-0 lg:py-0"
             aria-label={`Registration for ${game.title}`}
           >
             <GameQrRegistrationSlot
@@ -700,18 +902,7 @@ export function MyGamesView() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <GameListViewToggle value={displayView} onChange={handleListViewChange} />
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {showCourtsView ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className="w-full sm:w-auto"
-                  onClick={() => router.push("/my-games/courts-view")}
-                >
-                  <LayoutGrid className="h-4 w-4" aria-hidden />
-                  Courts View
-                </Button>
-              ) : null}
+              {showCourtsView ? <SwitchToCourtViewButton /> : null}
               {showDemoCreateOption ? (
               <DropdownMenu>
                 <DropdownMenuTrigger

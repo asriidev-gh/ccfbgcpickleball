@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, MonitorSmartphone, RefreshCw } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, MonitorSmartphone, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type OperatorDashboardLeaseGateProps = {
+  gameId: string;
   gameTitle?: string;
   deviceHint?: string;
   lastSeenAt?: string;
@@ -23,6 +24,7 @@ type OperatorDashboardLeaseGateProps = {
 };
 
 export function OperatorDashboardLeaseGate({
+  gameId,
   gameTitle,
   deviceHint,
   lastSeenAt,
@@ -81,9 +83,22 @@ export function OperatorDashboardLeaseGate({
               Take over dashboard
             </Button>
           </div>
-          <Link href="/" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
-            Back to My Games
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Link
+              href="/my-games"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex")}
+            >
+              <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
+              Back to My Games
+            </Link>
+            <Link
+              href={`/games/${gameId}/spectate`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex")}
+            >
+              Spectator view
+              <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </main>

@@ -109,12 +109,20 @@ export function OwnerSessionCourtsSection({
         )
       : null;
 
+  const queueCounts = useMemo(
+    () => ({
+      queuedCount: queueWithStats.length,
+      waitingLineCount: waitingLineEntries.length,
+    }),
+    [queueWithStats.length, waitingLineEntries.length],
+  );
+
   const getCourtCardProps = useCallback(
     (court: (typeof session.courts)[number]) =>
-      courtActions.getCourtCardProps(court, queueWithStats.length, (courtNumber) =>
+      courtActions.getCourtCardProps(court, queueCounts, (courtNumber) =>
         fillCourtFlowRef.current?.openFillCourt(courtNumber),
       ),
-    [courtActions, queueWithStats.length],
+    [courtActions, queueCounts],
   );
 
   const showPauseAll = canOperateSession && courtActions.activeCourts.length > 0;
@@ -213,61 +221,61 @@ export function OwnerSessionCourtsSection({
       />
 
       {canOperateSession ? (
-        <>
-          <FillCourtFlow
-            ref={fillCourtFlowRef}
-            hideTrigger
-            canFillNextCourt={canFillNextCourt}
-            queuePlayerCount={queueWithStats.length}
-            teamA={fillCourtTeamA}
-            teamB={fillCourtTeamB}
-            waitingLineEntries={waitingLineEntries}
-            emptyCourtNumbers={emptyCourtNumbers}
-            fillPending={courtActions.startMutation.isPending}
-            replacePendingSourceIndex={courtActions.replacePendingSourceIndex}
-            onConfirmFill={(courtNumber) => courtActions.startMutation.mutate(courtNumber)}
-            onShuffle={async () => {
-              await courtActions.shuffleNextMutation.mutateAsync();
-            }}
-            onReplace={(sourceIndex, sourceEntry) => {
-              courtActions.setReplaceDialog({ kind: "queue", sourceIndex, sourceEntry });
-            }}
-          />
-          <ReplacePlayerDialog
-            open={courtActions.replaceDialog !== null}
-            onOpenChange={(open) => {
-              if (!open) courtActions.setReplaceDialog(null);
-            }}
-            state={courtActions.replaceDialog}
-            waitingEntries={waitingLineEntries}
-            courtReplaceEntries={queueWithStats}
-            onConfirm={courtActions.handleReplaceConfirm}
-          />
-          <OperatorCourtActionDialogs
-            courts={session.courts}
-            cancelCourtTarget={courtActions.cancelCourtTarget}
-            onCancelCourtTargetChange={courtActions.setCancelCourtTarget}
-            onConfirmCancelCourt={(courtNumber) => courtActions.cancelCourtMutation.mutate(courtNumber)}
-            cancelRematchTarget={courtActions.cancelRematchTarget}
-            onCancelRematchTargetChange={courtActions.setCancelRematchTarget}
-            onConfirmCancelRematch={(courtNumber) =>
-              courtActions.cancelRematchMutation.mutate(courtNumber)
-            }
-            cancelRematchPending={courtActions.cancelRematchMutation.isPending}
-            endTargetCourt={courtActions.endTargetCourt}
-            pendingWinner={courtActions.pendingWinner}
-            onPendingWinnerChange={courtActions.setPendingWinner}
-            endGameRematch={courtActions.endGameRematch}
-            onEndGameRematchChange={courtActions.setEndGameRematch}
-            teamAScore={courtActions.teamAScore}
-            onTeamAScoreChange={courtActions.setTeamAScore}
-            teamBScore={courtActions.teamBScore}
-            onTeamBScoreChange={courtActions.setTeamBScore}
-            onCloseEndDialog={courtActions.closeEndDialog}
-            onSubmitEndGame={(input) => courtActions.endMutation.mutate(input)}
-            endGameScoreError={endGameScoreError}
-          />
-        </>
+        <FillCourtFlow
+          ref={fillCourtFlowRef}
+          hideTrigger
+          canFillNextCourt={canFillNextCourt}
+          queuePlayerCount={queueWithStats.length}
+          teamA={fillCourtTeamA}
+          teamB={fillCourtTeamB}
+          waitingLineEntries={waitingLineEntries}
+          emptyCourtNumbers={emptyCourtNumbers}
+          fillPending={courtActions.startMutation.isPending}
+          replacePendingSourceIndex={courtActions.replacePendingSourceIndex}
+          onConfirmFill={(courtNumber) => courtActions.startMutation.mutate(courtNumber)}
+          onShuffle={async () => {
+            await courtActions.shuffleNextMutation.mutateAsync();
+          }}
+          onReplace={(sourceIndex, sourceEntry) => {
+            courtActions.setReplaceDialog({ kind: "queue", sourceIndex, sourceEntry });
+          }}
+        />
+      ) : null}
+      <ReplacePlayerDialog
+        open={courtActions.replaceDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) courtActions.setReplaceDialog(null);
+        }}
+        state={courtActions.replaceDialog}
+        waitingEntries={waitingLineEntries}
+        courtReplaceEntries={queueWithStats}
+        onConfirm={courtActions.handleReplaceConfirm}
+      />
+      {canOperateSession ? (
+        <OperatorCourtActionDialogs
+          courts={session.courts}
+          cancelCourtTarget={courtActions.cancelCourtTarget}
+          onCancelCourtTargetChange={courtActions.setCancelCourtTarget}
+          onConfirmCancelCourt={(courtNumber) => courtActions.cancelCourtMutation.mutate(courtNumber)}
+          cancelRematchTarget={courtActions.cancelRematchTarget}
+          onCancelRematchTargetChange={courtActions.setCancelRematchTarget}
+          onConfirmCancelRematch={(courtNumber) =>
+            courtActions.cancelRematchMutation.mutate(courtNumber)
+          }
+          cancelRematchPending={courtActions.cancelRematchMutation.isPending}
+          endTargetCourt={courtActions.endTargetCourt}
+          pendingWinner={courtActions.pendingWinner}
+          onPendingWinnerChange={courtActions.setPendingWinner}
+          endGameRematch={courtActions.endGameRematch}
+          onEndGameRematchChange={courtActions.setEndGameRematch}
+          teamAScore={courtActions.teamAScore}
+          onTeamAScoreChange={courtActions.setTeamAScore}
+          teamBScore={courtActions.teamBScore}
+          onTeamBScoreChange={courtActions.setTeamBScore}
+          onCloseEndDialog={courtActions.closeEndDialog}
+          onSubmitEndGame={(input) => courtActions.endMutation.mutate(input)}
+          endGameScoreError={endGameScoreError}
+        />
       ) : null}
       </CardContent>
     </Card>

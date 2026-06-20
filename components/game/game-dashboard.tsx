@@ -45,6 +45,7 @@ import {
 } from "@/components/game/match-history-list";
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
+import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
 import {
   ReplacePlayerDialog,
   type ReplacePlayerConfirmInput,
@@ -2031,6 +2032,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   if (!isSpectator && operatorLeaseState.status === "blocked") {
     return (
       <OperatorDashboardLeaseGate
+        gameId={gameId}
+        gameTitle={operatorShellQuery.data?.game.title}
         deviceHint={operatorLeaseState.deviceHint}
         lastSeenAt={operatorLeaseState.lastSeenAt}
         takenOver={operatorLeaseState.takenOver}
@@ -2644,6 +2647,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             )}
           </Button>
         ) : null}
+        {!isSpectator && !isPastGame ? <SwitchToCourtViewButton gameId={gameId} /> : null}
           <DashboardPanelFullscreenButton containerRef={courtsPanelRef} panelName="courts" />
         </div>
       </CardHeader>
