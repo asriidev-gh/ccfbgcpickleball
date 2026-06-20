@@ -444,6 +444,11 @@ async function speakPhrasesOnce(
   }
 }
 
+export function cancelCallNamesSpeech() {
+  if (typeof window === "undefined") return;
+  window.speechSynthesis?.cancel();
+}
+
 export async function callNamesInSequence(
   phrases: Array<string | CallPhraseStep>,
   options: CallNamesSpeechOptions = {},

@@ -275,6 +275,7 @@ function prepareMigrationDocuments(key: string, documents: Record<string, unknow
         assignObjectIdField(doc, "_id");
         const hasOwner = assignObjectIdField(doc, "ownerId");
         doc.allowQrRegistration ??= true;
+        doc.allowManualPlayerAdd ??= false;
         doc.strictPlayerCount ??= false;
         doc.registrationMode ??= "self";
         doc.status ??= "active";

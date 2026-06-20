@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, Loader2, Play, Shuffle, Volume2 } from "lucide-react";
+import { ArrowLeftRight, Loader2, Play, Shuffle, Volume2, VolumeX } from "lucide-react";
 
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,6 +34,7 @@ type FillCourtConfirmDialogProps = {
   onShuffle: () => Promise<void>;
   callingNames?: boolean;
   onCallNames?: (teamA: QueueEntryView[], teamB: QueueEntryView[]) => void;
+  onCancelCallNames?: () => void;
 };
 
 type TeamPreview = { teamA: QueueEntryView[]; teamB: QueueEntryView[] };
@@ -191,6 +192,7 @@ export function FillCourtConfirmDialog({
   onShuffle,
   callingNames = false,
   onCallNames,
+  onCancelCallNames,
 }: FillCourtConfirmDialogProps) {
   const [isShuffling, setIsShuffling] = useState(false);
   const [isRevealing, setIsRevealing] = useState(false);
@@ -342,29 +344,39 @@ export function FillCourtConfirmDialog({
           />
         </div>
 
-        <DialogFooter className="!mx-0 !mb-0 mt-0 shrink-0 flex-col gap-3 rounded-none border-t border-border bg-muted/30 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <DialogFooter className="!mx-0 !mb-0 mt-0 shrink-0 !flex-row items-center justify-between gap-2 rounded-none border-t border-border bg-muted/30 px-5 py-4 sm:gap-3">
           <Button
             type="button"
             className={cn(
-              "call-names-btn h-11 w-full px-5 text-sm tracking-wide sm:min-w-[11rem] sm:w-auto",
+              "call-names-btn h-11 min-w-0 flex-1 px-3 text-sm tracking-wide sm:min-w-[11rem] sm:flex-none sm:px-5",
               callingNames && "call-names-btn--calling",
+              callingNames && "call-names-btn--cancel",
               courtNumber != null && !callingNames && "call-names-btn--glow",
             )}
-            onClick={() => onCallNames?.(displayTeamA, displayTeamB)}
+            onClick={() => {
+              if (callingNames) {
+                onCancelCallNames?.();
+                return;
+              }
+              onCallNames?.(displayTeamA, displayTeamB);
+            }}
             disabled={
               !onCallNames ||
               actionsDisabled ||
-              callingNames ||
-              displayTeamA.length + displayTeamB.length === 0
+              (!callingNames && displayTeamA.length + displayTeamB.length === 0)
             }
-            aria-label="Call player names aloud"
+            aria-label={callingNames ? "Cancel call names" : "Call player names aloud"}
           >
-            <Volume2 className="call-names-btn-icon mr-2 h-4 w-4" aria-hidden />
-            {callingNames ? "Calling…" : "Call Names"}
+            {callingNames ? (
+              <VolumeX className="call-names-btn-icon mr-2 h-4 w-4" aria-hidden />
+            ) : (
+              <Volume2 className="call-names-btn-icon mr-2 h-4 w-4" aria-hidden />
+            )}
+            {callingNames ? "Cancel" : "Call Names"}
           </Button>
           <Button
             type="button"
-            className="w-full sm:w-auto"
+            className="h-11 min-w-0 flex-1 sm:w-auto sm:flex-none"
             disabled={actionsDisabled || !canShuffle}
             onClick={onConfirmFill}
           >

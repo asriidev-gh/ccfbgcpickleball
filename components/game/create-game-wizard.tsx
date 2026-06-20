@@ -10,8 +10,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
+import { GoogleMapEmbedDialog } from "@/components/google-map-embed-dialog";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import { Separator } from "@/components/ui/separator";
+import {
+  getDefaultGameVenueForUserType,
+} from "@/lib/default-game-venue";
+import { useGamesList } from "@/hooks/use-games-list";
 import {
   formatOpenPlayTimeRange,
   getTodayOpenPlayDateInputValue,
@@ -35,12 +42,17 @@ type CreateGameForm = {
   openPlayFromMeridiem: Meridiem | "";
   openPlayToHour: string;
   openPlayToMeridiem: Meridiem | "";
+  venueName: string;
+  venueAddress: string;
+  venueGoogleMapEmbedUrl: string;
   courtCount: number;
   expectedPlayers: number;
   strictPlayerCount: boolean;
 };
 
-function createInitialForm(): CreateGameForm {
+function createInitialForm(userType?: string | null): CreateGameForm {
+  const venueDefaults = getDefaultGameVenueForUserType(userType);
+
   return {
     title: "",
     openPlayType: "Beginner" as (typeof types)[number],
@@ -49,6 +61,9 @@ function createInitialForm(): CreateGameForm {
     openPlayFromMeridiem: "PM",
     openPlayToHour: "10",
     openPlayToMeridiem: "PM",
+    venueName: venueDefaults.venueName,
+    venueAddress: venueDefaults.venueAddress,
+    venueGoogleMapEmbedUrl: venueDefaults.venueGoogleMapEmbedUrl,
     courtCount: 2,
     expectedPlayers: 24,
     strictPlayerCount: false,
@@ -82,13 +97,16 @@ function getStepKind(step: number, mode: RegistrationMode | "") {
 export function CreateGameWizard() {
   const router = useRouter();
   const { createGameWizardOpen, setCreateGameWizardOpen } = useUiStore();
+  const { data: gamesData } = useGamesList();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode | "">("self");
   const [playerNames, setPlayerNames] = useState<string[]>([""]);
   const [allowQrRegistration, setAllowQrRegistration] = useState(false);
+  const [allowManualPlayerAdd, setAllowManualPlayerAdd] = useState(false);
   const [form, setForm] = useState<CreateGameForm>(createInitialForm);
   const [timeRangeError, setTimeRangeError] = useState("");
+  const [venueMapDialogOpen, setVenueMapDialogOpen] = useState(false);
 
   const totalSteps = getTotalSteps(registrationMode);
   const stepKind = getStepKind(step, registrationMode);
@@ -104,10 +122,12 @@ export function CreateGameWizard() {
     setRegistrationMode("self");
     setPlayerNames([""]);
     setAllowQrRegistration(false);
-    setForm(createInitialForm());
+    setAllowManualPlayerAdd(false);
+    setForm(createInitialForm(gamesData?.userType));
     setTimeRangeError("");
+    setVenueMapDialogOpen(false);
     setLoading(false);
-  }, [createGameWizardOpen]);
+  }, [createGameWizardOpen, gamesData?.userType]);
 
   useEffect(() => {
     if (stepKind !== "openPlayType" || !isOpenPlayTimeComplete(form)) {
@@ -142,6 +162,7 @@ export function CreateGameWizard() {
 
   const canGoNext = () => {
     if (stepKind === "openPlayType") {
+      if (!form.venueName.trim() || !form.venueAddress.trim()) return false;
       if (!isOpenPlayTimeComplete(form)) return false;
       return getOpenPlayTimeValidation()?.ok ?? false;
     }
@@ -153,7 +174,9 @@ export function CreateGameWizard() {
   const goNext = () => {
     if (!canGoNext()) {
       if (stepKind === "openPlayType") {
-        if (!isOpenPlayTimeComplete(form)) {
+        if (!form.venueName.trim() || !form.venueAddress.trim()) {
+          toast.error("Enter a venue name and address.");
+        } else if (!isOpenPlayTimeComplete(form)) {
           toast.error("Select from and to times.");
         } else {
           const validation = getOpenPlayTimeValidation();
@@ -216,6 +239,7 @@ export function CreateGameWizard() {
         body.preRegisteredPlayerNames = trimmedPlayerNames;
         body.expectedPlayers = trimmedPlayerNames.length;
         body.allowQrRegistration = allowQrRegistration;
+        body.allowManualPlayerAdd = allowManualPlayerAdd;
         body.strictPlayerCount = !allowQrRegistration;
       }
 
@@ -242,20 +266,26 @@ export function CreateGameWizard() {
   };
 
   return (
-    <Dialog open={createGameWizardOpen} onOpenChange={setCreateGameWizardOpen}>
+    <>
+      <Dialog open={createGameWizardOpen} onOpenChange={setCreateGameWizardOpen}>
       <DialogContent className="flex max-h-[min(92dvh,52rem)] w-[calc(100%-1.5rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl">
-        <DialogHeader className="border-b px-6 py-5">
+        <DialogHeader className="border-b px-4 py-5">
           <DialogTitle className="text-xl">Create Open Play Session</DialogTitle>
           <p className="text-sm text-muted-foreground">
             Step {step} of {totalSteps}
           </p>
         </DialogHeader>
 
-        <div className="min-h-[280px] flex-1 overflow-y-auto px-6 py-6">
+        <div className="min-h-[280px] flex-1 overflow-y-auto px-4 py-6">
           {stepKind === "openPlayType" ? (
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <Label className="text-base">Players Level</Label>
+            <div className="w-full space-y-8">
+              <section className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-base font-medium text-foreground">Players level</h3>
+                  <p className="text-sm text-muted-foreground">
+                    What skill level is this session for?
+                  </p>
+                </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {types.map((type) => (
                     <Button
@@ -269,11 +299,18 @@ export function CreateGameWizard() {
                     </Button>
                   ))}
                 </div>
-              </div>
-              <div className="mx-auto w-full max-w-md space-y-4">
+              </section>
+
+              <Separator />
+
+              <section className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-base font-medium text-foreground">Schedule</h3>
+                  <p className="text-sm text-muted-foreground">When does this open play happen?</p>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="openPlayDate" className="text-base">
-                    Open Play Date
+                    Open play date
                   </Label>
                   <Input
                     id="openPlayDate"
@@ -287,7 +324,7 @@ export function CreateGameWizard() {
                 </div>
                 <OpenPlayTimeField
                   idPrefix="openPlayFrom"
-                  label="From Time"
+                  label="From time"
                   hour={form.openPlayFromHour}
                   meridiem={form.openPlayFromMeridiem}
                   onHourChange={(openPlayFromHour) =>
@@ -299,7 +336,7 @@ export function CreateGameWizard() {
                 />
                 <OpenPlayTimeField
                   idPrefix="openPlayTo"
-                  label="To Time"
+                  label="To time"
                   hour={form.openPlayToHour}
                   meridiem={form.openPlayToMeridiem}
                   onHourChange={(openPlayToHour) =>
@@ -314,7 +351,101 @@ export function CreateGameWizard() {
                     {timeRangeError}
                   </p>
                 ) : null}
-              </div>
+              </section>
+
+              <Separator />
+
+              <section className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-base font-medium text-foreground">Venue</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Where players will meet for this open play.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="venueName" className="text-base">
+                    Venue name
+                  </Label>
+                  <Input
+                    id="venueName"
+                    className="h-11 text-base"
+                    placeholder="e.g. Dragonsmash Taguig Branch"
+                    maxLength={120}
+                    value={form.venueName}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, venueName: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="venueAddress" className="text-base">
+                    Address
+                  </Label>
+                  <Textarea
+                    id="venueAddress"
+                    className="min-h-[5.5rem] resize-y border-input bg-transparent text-base dark:bg-input/30"
+                    placeholder="Street, city, or directions to the courts"
+                    maxLength={240}
+                    rows={3}
+                    value={form.venueAddress}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, venueAddress: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-base">Google Map</Label>
+                  {form.venueGoogleMapEmbedUrl ? (
+                    <div className="space-y-3">
+                      <div className="aspect-video overflow-hidden rounded-xl border border-border/70 bg-muted/20">
+                        <iframe
+                          src={form.venueGoogleMapEmbedUrl}
+                          title="Venue location map"
+                          className="h-full w-full border-0"
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          allowFullScreen
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setVenueMapDialogOpen(true)}
+                        >
+                          Change map
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                          onClick={() =>
+                            setForm((prev) => ({ ...prev, venueGoogleMapEmbedUrl: "" }))
+                          }
+                        >
+                          <Trash2 className="mr-1.5 h-4 w-4" aria-hidden />
+                          Remove map
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 w-full border-dashed sm:w-auto"
+                      onClick={() => setVenueMapDialogOpen(true)}
+                    >
+                      <Plus className="mr-2 h-4 w-4" aria-hidden />
+                      Add Google Map
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Optional. Embed a map from Google Maps so players can see where to go.
+                  </p>
+                </div>
+              </section>
             </div>
           ) : null}
 
@@ -351,7 +482,7 @@ export function CreateGameWizard() {
           ) : null}
 
           {stepKind === "playerNames" ? (
-            <div className="mx-auto w-full max-w-md space-y-4">
+            <div className="w-full space-y-4">
               <div className="space-y-1">
                 <Label className="text-base">Enter player names</Label>
                 <p className="text-sm text-muted-foreground">
@@ -417,11 +548,27 @@ export function CreateGameWizard() {
                   </span>
                 </span>
               </label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <Checkbox
+                  id="allowManualPlayerAdd"
+                  checked={allowManualPlayerAdd}
+                  onCheckedChange={(checked) => setAllowManualPlayerAdd(checked === true)}
+                />
+                <span className="space-y-1 leading-snug">
+                  <span className="block text-sm font-medium">
+                    Allow new users to be added manually
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    When enabled, you can add player names from the game dashboard and they will join
+                    the queue automatically.
+                  </span>
+                </span>
+              </label>
             </div>
           ) : null}
 
           {stepKind === "courtCount" ? (
-            <div className="mx-auto w-full max-w-md space-y-3">
+            <div className="w-full space-y-3">
               <Label htmlFor="courtCount" className="text-base">
                 How many courts?
               </Label>
@@ -436,7 +583,7 @@ export function CreateGameWizard() {
           ) : null}
 
           {stepKind === "expectedPlayers" && registrationMode === "self" ? (
-            <div className="mx-auto w-full max-w-md space-y-4">
+            <div className="w-full space-y-4">
               <div className="space-y-3">
                 <Label htmlFor="expectedPlayers" className="text-base">
                   How many players do you expect?
@@ -474,7 +621,7 @@ export function CreateGameWizard() {
           ) : null}
 
           {stepKind === "title" ? (
-            <div className="mx-auto w-full max-w-md space-y-3">
+            <div className="w-full space-y-3">
               <Label htmlFor="title" className="text-base">
                 Game title
               </Label>
@@ -489,7 +636,7 @@ export function CreateGameWizard() {
           ) : null}
         </div>
 
-        <div className="flex justify-between gap-3 border-t bg-muted/40 px-6 py-4">
+        <div className="flex justify-between gap-3 border-t bg-muted/40 px-4 py-4">
           <Button variant="outline" size="lg" disabled={step === 1} onClick={goBack}>
             Back
           </Button>
@@ -504,6 +651,16 @@ export function CreateGameWizard() {
           )}
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+      <GoogleMapEmbedDialog
+        open={venueMapDialogOpen}
+        onOpenChange={setVenueMapDialogOpen}
+        initialValue={form.venueGoogleMapEmbedUrl}
+        textareaId="venue-google-map-embed"
+        onSave={(embedUrl) =>
+          setForm((prev) => ({ ...prev, venueGoogleMapEmbedUrl: embedUrl }))
+        }
+      />
+    </>
   );
 }

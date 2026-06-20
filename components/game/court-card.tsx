@@ -156,6 +156,9 @@ type CourtCardProps = {
   isFilling?: boolean;
   /** Ending or cancelling a game; court is clearing before it can be filled again. */
   isClearing?: boolean;
+  canFillCourt?: boolean;
+  fillCourtPending?: boolean;
+  onFillCourt?: () => void;
 };
 
 export function CourtCard({
@@ -176,6 +179,9 @@ export function CourtCard({
   replacePendingKey = null,
   isFilling = false,
   isClearing = false,
+  canFillCourt = false,
+  fillCourtPending = false,
+  onFillCourt,
 }: CourtCardProps) {
   const isActive = court.status === "active";
   const teamA = court.teamA?.playerIds ?? [];
@@ -368,8 +374,30 @@ export function CourtCard({
             </div>
             <p className="court-empty-title">No game in progress</p>
             <p className="caption text-center">
-              Fill a court from the queue when at least four players are waiting.
+              {onFillCourt
+                ? "Assign the next four players from the queue to this court."
+                : "Fill a court from the queue when at least four players are waiting."}
             </p>
+            {onFillCourt ? (
+              <Button
+                type="button"
+                className="mt-2 w-full"
+                onClick={onFillCourt}
+                disabled={!canFillCourt || fillCourtPending || isClearing}
+              >
+                {fillCourtPending || isFilling ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                    Filling…
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" aria-hidden />
+                    Fill this court
+                  </>
+                )}
+              </Button>
+            ) : null}
           </div>
         )}
       </CardContent>

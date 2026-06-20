@@ -671,9 +671,7 @@ export function MyGamesView() {
       <Card className="glass-panel">
         <CardHeader className="gap-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="section-title text-base font-medium text-muted-foreground">
-              Open play sessions
-            </CardTitle>
+            <GameListViewToggle value={displayView} onChange={handleListViewChange} />
             {showDemoCreateOption ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -709,9 +707,6 @@ export function MyGamesView() {
                 Create
               </Button>
             )}
-          </div>
-          <div className="hidden flex-wrap gap-2 md:flex">
-            <GameListViewToggle value={displayView} onChange={handleListViewChange} />
           </div>
         </CardHeader>
         <CardContent>

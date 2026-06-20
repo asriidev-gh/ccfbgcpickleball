@@ -65,6 +65,8 @@ type PlayerInsightDoc = {
 
   attendedEvents?: string[];
 
+  gender?: string;
+
 };
 
 
@@ -235,7 +237,7 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
 
       : ((await Player.find({ _id: { $in: playerIds } })
 
-          .select("firstName lastName email attendedEvents")
+          .select("firstName lastName email attendedEvents gender")
 
           .lean()) as PlayerInsightDoc[]);
 
@@ -250,6 +252,8 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
   const gameIdToIdentities = new Map<string, Set<string>>();
 
   const identityToAttendedEvents = new Map<string, string[]>();
+
+  const identityToGender = new Map<string, string>();
 
 
 
@@ -270,6 +274,12 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
     if (player && !identityToAttendedEvents.has(identityKey)) {
 
       identityToAttendedEvents.set(identityKey, player.attendedEvents ?? []);
+
+    }
+
+    if (player?.gender?.trim() && !identityToGender.has(identityKey)) {
+
+      identityToGender.set(identityKey, player.gender.trim().toLowerCase());
 
     }
 
@@ -317,6 +327,10 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
 
     let ccfAttendedCount = 0;
 
+    let maleCount = 0;
+
+    let femaleCount = 0;
+
 
 
     for (const identityKey of identitiesInGame) {
@@ -340,6 +354,14 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
         if (isPlayerCcfNotYet(attendedEvents)) ccfNotYetCount += 1;
 
         if (isPlayerCcfAttended(attendedEvents)) ccfAttendedCount += 1;
+
+      } else {
+
+        const gender = identityToGender.get(identityKey);
+
+        if (gender === "male") maleCount += 1;
+
+        if (gender === "female") femaleCount += 1;
 
       }
 
@@ -378,6 +400,10 @@ export async function getHomeSessionInsights(ownerId: string): Promise<HomeSessi
       ccfNotYetCount: showCcfInsights ? ccfNotYetCount : undefined,
 
       ccfAttendedCount: showCcfInsights ? ccfAttendedCount : undefined,
+
+      maleCount: showCcfInsights ? undefined : maleCount,
+
+      femaleCount: showCcfInsights ? undefined : femaleCount,
 
     };
 

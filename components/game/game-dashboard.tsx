@@ -35,6 +35,7 @@ import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-
 import { SpectateBirthdaysThisMonthBadge } from "@/components/player/spectate-birthdays-this-month";
 import { SpectateFirstTimersBadge } from "@/components/player/spectate-first-timers";
 import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
+import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import {
@@ -42,7 +43,7 @@ import {
   type MatchHistoryView,
 } from "@/components/game/match-history-list";
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
-import { FillCourtFlow } from "@/components/game/fill-court-flow";
+import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
 import {
   ReplacePlayerDialog,
   type ReplacePlayerConfirmInput,
@@ -954,6 +955,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [isLgViewport, setIsLgViewport] = useState<boolean | null>(null);
   const [compactQueue, setCompactQueue] = useState(false);
   const queuePanelRef = useRef<HTMLDivElement>(null);
+  const fillCourtFlowRef = useRef<FillCourtFlowHandle>(null);
   const courtsPanelRef = useRef<HTMLDivElement>(null);
   const matchHistoryPanelRef = useRef<HTMLDivElement>(null);
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
@@ -965,6 +967,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrDialogLoading, setQrDialogLoading] = useState(false);
   const [databaseCheckInOpen, setDatabaseCheckInOpen] = useState(false);
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [qrDialogData, setQrDialogData] = useState<{
     registerUrl: string;
     publicQrCodeDataUrl: string;
@@ -1974,6 +1977,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const canCheckoutFromQueue = !isPastGame;
   const showOperatorMobileNav = !showSpectatorEndedRecap && !isSpectator;
   const showQrRegistration = !readOnly && !isPastGame && game.allowQrRegistration !== false;
+  const showManualAddPlayer =
+    !readOnly &&
+    !isPastGame &&
+    game.registrationMode === "owner" &&
+    game.allowManualPlayerAdd === true;
   const resolvedQrDialogData =
     qrDialogData ??
     (game.registerUrl && game.publicQrCodeDataUrl
@@ -2202,22 +2210,22 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {!hideControls ? (
-            <FillCourtFlow
-              canFillNextCourt={canFillNextCourt}
-              courtsClearingInProgress={courtsClearingInProgress}
-              queuePlayerCount={queueWithStats.length}
-              teamA={fillCourtTeamA}
-              teamB={fillCourtTeamB}
-              waitingLineEntries={waitingLineEntries}
-              emptyCourtNumbers={emptyCourtNumbers}
-              fillPending={startMutation.isPending}
-              replacePendingSourceIndex={
-                replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
-              }
-              onConfirmFill={handleFillCourtConfirm}
-              onShuffle={handleFillCourtShuffle}
-              onReplace={handleFillCourtReplace}
-            />
+            <Button
+              onClick={() => fillCourtFlowRef.current?.openFillNextCourt()}
+              disabled={startMutation.isPending || !canFillNextCourt}
+            >
+              {startMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  Filling…
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" aria-hidden />
+                  Fill next court
+                </>
+              )}
+            </Button>
           ) : null}
           <DashboardPanelFullscreenButton containerRef={queuePanelRef} panelName="queue" />
         </div>
@@ -2507,6 +2515,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             }
             isFilling={fillingCourtNumber != null && court.courtNumber === fillingCourtNumber}
             isClearing={clearingCourtNumbers.has(court.courtNumber)}
+            onFillCourt={
+              hideControls || court.status !== "empty"
+                ? undefined
+                : () => fillCourtFlowRef.current?.openFillCourt(court.courtNumber)
+            }
+            canFillCourt={
+              !hideControls &&
+              court.status === "empty" &&
+              !clearingCourtNumbers.has(court.courtNumber) &&
+              queueWithStats.length >= 4
+            }
+            fillCourtPending={
+              startMutation.isPending && startMutation.variables === court.courtNumber
+            }
           />
         ))
         )}
@@ -2732,6 +2754,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   Check in from database
                 </Button>
               ) : null}
+              {showManualAddPlayer ? (
+                <Button size="lg" variant="outline" onClick={() => setAddPlayerOpen(true)}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Add player
+                </Button>
+              ) : null}
               {!readOnly && !isPastGame ? (
                 <Button
                   size="lg"
@@ -2837,6 +2865,26 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
       {!readOnly ? (
         <>
+          {!hideControls ? (
+            <FillCourtFlow
+              ref={fillCourtFlowRef}
+              hideTrigger
+              canFillNextCourt={canFillNextCourt}
+              courtsClearingInProgress={courtsClearingInProgress}
+              queuePlayerCount={queueWithStats.length}
+              teamA={fillCourtTeamA}
+              teamB={fillCourtTeamB}
+              waitingLineEntries={waitingLineEntries}
+              emptyCourtNumbers={emptyCourtNumbers}
+              fillPending={startMutation.isPending}
+              replacePendingSourceIndex={
+                replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
+              }
+              onConfirmFill={handleFillCourtConfirm}
+              onShuffle={handleFillCourtShuffle}
+              onReplace={handleFillCourtReplace}
+            />
+          ) : null}
           <ReplacePlayerDialog
             open={replaceDialog !== null}
             onOpenChange={(open) => {
@@ -2934,6 +2982,21 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           gameId={gameId}
           open={databaseCheckInOpen}
           onOpenChange={setDatabaseCheckInOpen}
+        />
+      ) : null}
+
+      {showManualAddPlayer ? (
+        <AddManualPlayerDialog
+          gameId={gameId}
+          open={addPlayerOpen}
+          onOpenChange={setAddPlayerOpen}
+          onPlayerAdded={() => {
+            setShowWaitingList(true);
+            saveShowWaitingList(true);
+            if (!isLgViewport) {
+              setMobileDashboardTab("queue");
+            }
+          }}
         />
       ) : null}
 

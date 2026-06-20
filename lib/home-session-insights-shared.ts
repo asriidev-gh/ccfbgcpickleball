@@ -14,6 +14,8 @@ export type HomeSessionInsightPoint = {
   newPlayerCount: number;
   ccfNotYetCount?: number;
   ccfAttendedCount?: number;
+  maleCount?: number;
+  femaleCount?: number;
 };
 
 export type HomeSessionInsights = {

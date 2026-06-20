@@ -2576,6 +2576,15 @@
     animation: call-names-calling 0.9s ease-in-out infinite;
   }
 
+  .call-names-btn--cancel {
+    @apply !from-rose-500 !via-rose-400 !to-rose-500 !text-white;
+    animation: none;
+  }
+
+  .call-names-btn--cancel:hover:not(:disabled) {
+    @apply !from-rose-400 !via-rose-300 !to-rose-400;
+  }
+
   .call-names-btn-icon {
     @apply shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)];
   }
@@ -4092,7 +4101,8 @@
     @apply border-primary bg-primary text-primary-foreground;
   }
 
-  [data-theme="cosmos"] [data-slot="input"] {
+  [data-theme="cosmos"] [data-slot="input"],
+  [data-theme="cosmos"] [data-slot="textarea"] {
     @apply border-border bg-input text-foreground;
   }
 
@@ -4433,7 +4443,8 @@
     @apply border-primary bg-primary text-primary-foreground;
   }
 
-  [data-theme="session"] [data-slot="input"] {
+  [data-theme="session"] [data-slot="input"],
+  [data-theme="session"] [data-slot="textarea"] {
     @apply border-border bg-input text-foreground;
   }
 
@@ -4816,11 +4827,13 @@
     @apply border-primary bg-primary;
   }
 
-  [data-theme="makati"] [data-slot="input"] {
+  [data-theme="makati"] [data-slot="input"],
+  [data-theme="makati"] [data-slot="textarea"] {
     @apply border-border bg-input text-foreground;
   }
 
-  [data-theme="makati"] [data-slot="input"]:focus {
+  [data-theme="makati"] [data-slot="input"]:focus,
+  [data-theme="makati"] [data-slot="textarea"]:focus {
     border-color: var(--makati-gold);
   }
 

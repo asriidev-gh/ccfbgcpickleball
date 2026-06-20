@@ -11,12 +11,15 @@ import { QueueEntry } from "@/models/QueueEntry";
 type CreatePreRegisteredPlayersOptions = {
   gameId: string;
   names: string[];
+  /** When true, new entries are timestamped after the current queued tail. */
+  appendToEnd?: boolean;
 };
 
 /** Creates queue entries for names the game owner entered at setup (Dice Bear avatars). */
 export async function createPreRegisteredPlayers({
   gameId,
   names,
+  appendToEnd = false,
 }: CreatePreRegisteredPlayersOptions) {
   const trimmed = names.map((name) => name.trim()).filter(Boolean);
   if (trimmed.length === 0) return 0;
@@ -44,11 +47,20 @@ export async function createPreRegisteredPlayers({
     }),
   );
 
+  let baseMs = Date.now();
+  if (appendToEnd) {
+    const lastQueued = await QueueEntry.findOne({ gameId, status: "queued" })
+      .sort({ registeredAt: -1 })
+      .select("registeredAt")
+      .lean<{ registeredAt?: Date } | null>();
+    baseMs = (lastQueued?.registeredAt ? new Date(lastQueued.registeredAt).getTime() : Date.now()) + 1000;
+  }
+
   await QueueEntry.create(
     players.map((player, index) => ({
       gameId,
       playerId: player._id,
-      registeredAt: new Date(Date.now() + index * 1000),
+      registeredAt: new Date(baseMs + index * 1000),
     })),
   );
 

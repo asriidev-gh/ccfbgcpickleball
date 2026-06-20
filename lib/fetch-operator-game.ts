@@ -54,3 +54,10 @@ export async function fetchOperatorQueue(gameId: string) {
 export async function fetchOperatorDetails(gameId: string) {
   return (await fetchOperatorGame(gameId, "details")) as OperatorDetailsPayload;
 }
+
+export async function refetchOperatorQueueData(
+  queryClient: QueryClient,
+  gameId: string,
+) {
+  await queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+}

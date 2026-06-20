@@ -15,6 +15,8 @@ export type OperatorGameSummary = {
   openPlayDate?: string | null;
   openPlayTimeRange?: string | null;
   allowQrRegistration?: boolean;
+  registrationMode?: "self" | "owner";
+  allowManualPlayerAdd?: boolean;
   registerUrl?: string;
   publicQrCodeDataUrl?: string;
 };

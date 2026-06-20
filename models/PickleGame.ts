@@ -12,6 +12,9 @@ const pickleGameSchema = new Schema(
     },
     openPlayDate: { type: Date },
     openPlayTimeRange: { type: String, trim: true },
+    venueName: { type: String, trim: true, default: "" },
+    venueAddress: { type: String, trim: true, default: "" },
+    venueGoogleMapEmbedUrl: { type: String, trim: true, maxlength: 2000, default: "" },
     courtCount: { type: Number, required: true, min: 1 },
     expectedPlayers: { type: Number, required: true, min: 4 },
     strictPlayerCount: { type: Boolean, required: true, default: false },
@@ -21,6 +24,7 @@ const pickleGameSchema = new Schema(
       enum: ["self", "owner"],
       default: "self",
     },
+    allowManualPlayerAdd: { type: Boolean, required: true, default: false },
     registerUrl: { type: String, required: false },
     publicQrCodeDataUrl: { type: String, required: true },
     status: {

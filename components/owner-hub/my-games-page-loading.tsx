@@ -24,11 +24,8 @@ export function MyGamesPageLoading() {
         <Card className="glass-panel">
           <CardHeader className="gap-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <Skeleton className="h-5 w-36" />
+              <Skeleton className="hidden h-9 w-64 rounded-md md:block" />
               <Skeleton className="h-11 min-w-28 rounded-md" />
-            </div>
-            <div className="hidden md:block">
-              <Skeleton className="h-9 w-64 rounded-md" />
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

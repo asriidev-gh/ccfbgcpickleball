@@ -170,3 +170,37 @@ export async function syncOwnerPreRegisteredPlayers(input: {
   const entries = await QueueEntry.distinct("playerId", { gameId: input.gameId });
   return entries.length;
 }
+
+export async function addManualPlayerToOwnerGame(gameId: string, displayName: string) {
+  const trimmed = displayName.trim();
+  if (!trimmed) {
+    throw new Error("Player name is required.");
+  }
+
+  const created = await createPreRegisteredPlayers({
+    gameId,
+    names: [trimmed],
+    appendToEnd: true,
+  });
+  if (created === 0) {
+    throw new Error("Player name is required.");
+  }
+
+  const registeredCount = await QueueEntry.distinct("playerId", { gameId });
+  const game = await PickleGame.findOne({ gameId });
+  if (game && registeredCount.length > game.expectedPlayers) {
+    game.expectedPlayers = registeredCount.length;
+    await game.save();
+  }
+
+  const entry = await QueueEntry.findOne({ gameId, status: "queued" })
+    .sort({ registeredAt: -1 })
+    .select("_id playerId")
+    .lean<{ _id: Types.ObjectId; playerId: Types.ObjectId } | null>();
+
+  return {
+    displayName: trimmed,
+    playerId: entry?.playerId?.toString() ?? "",
+    queueEntryId: entry?._id?.toString() ?? "",
+  };
+}

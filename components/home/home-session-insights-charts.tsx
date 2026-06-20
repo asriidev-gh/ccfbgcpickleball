@@ -59,8 +59,34 @@ function resolveLegendColorClass(seriesKey: string) {
       return "bg-amber-500 dark:bg-amber-400";
     case "attended":
       return "bg-emerald-500 dark:bg-emerald-400";
+    case "male":
+      return "bg-sky-500 dark:bg-sky-400";
+    case "female":
+      return "bg-rose-500 dark:bg-rose-400";
     default:
       return "bg-muted";
+  }
+}
+
+function resolveLineStrokeClass(seriesKey: string) {
+  switch (seriesKey) {
+    case "male":
+      return "stroke-sky-500 dark:stroke-sky-400";
+    case "female":
+      return "stroke-rose-500 dark:stroke-rose-400";
+    default:
+      return "stroke-muted-foreground";
+  }
+}
+
+function resolveLineFillClass(seriesKey: string) {
+  switch (seriesKey) {
+    case "male":
+      return "fill-sky-500 dark:fill-sky-400";
+    case "female":
+      return "fill-rose-500 dark:fill-rose-400";
+    default:
+      return "fill-muted-foreground";
   }
 }
 
@@ -274,6 +300,173 @@ function ChartDateGroup({
   );
 }
 
+const LINE_CHART_HEIGHT = 176;
+const LINE_CHART_MIN_WIDTH_PER_POINT = 56;
+
+function buildLineChartTicks(maxValue: number) {
+  if (maxValue <= 4) {
+    return Array.from({ length: maxValue + 1 }, (_, index) => index);
+  }
+
+  const step = Math.max(1, Math.ceil(maxValue / 4));
+  const ticks = [0];
+  for (let value = step; value < maxValue; value += step) {
+    ticks.push(value);
+  }
+  ticks.push(maxValue);
+  return ticks;
+}
+
+function SimpleLineChart({
+  title,
+  titleClassName,
+  description,
+  points,
+  series,
+  className,
+}: {
+  title: string;
+  titleClassName?: string;
+  description?: string;
+  points: HomeSessionInsightPoint[];
+  series: ChartSeries[];
+  className?: string;
+}) {
+  if (points.length === 0) {
+    return (
+      <div className={cn("rounded-2xl border border-border/70 bg-card/60 p-4", className)}>
+        <h3 className={cn("text-sm font-semibold text-foreground", titleClassName ?? "normal-case")}>
+          {title}
+        </h3>
+        <p className="mt-2 text-sm text-muted-foreground">No session data yet.</p>
+      </div>
+    );
+  }
+
+  const allValues = points.flatMap((_, index) => series.map((item) => item.values[index] ?? 0));
+  const maxValue = Math.max(1, ...allValues);
+  const ticks = buildLineChartTicks(maxValue);
+  const chartInnerWidth = Math.max(points.length * LINE_CHART_MIN_WIDTH_PER_POINT, 240);
+  const padding = { top: 16, right: 20, bottom: 52, left: 36 };
+  const innerHeight = LINE_CHART_HEIGHT - padding.top - padding.bottom;
+  const totalWidth = chartInnerWidth + padding.left + padding.right;
+
+  const xAt = (index: number) => {
+    if (points.length === 1) return padding.left + chartInnerWidth / 2;
+    return padding.left + (index / (points.length - 1)) * chartInnerWidth;
+  };
+
+  const yAt = (value: number) =>
+    padding.top + innerHeight - (value / maxValue) * innerHeight;
+
+  return (
+    <div className={cn("rounded-2xl border border-border/70 bg-card/60 p-4", className)}>
+      <div className="space-y-1">
+        <h3 className={cn("text-sm font-semibold text-foreground", titleClassName ?? "normal-case")}>
+          {title}
+        </h3>
+        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
+        {series.map((item) => (
+          <span key={item.key} className="inline-flex items-center gap-1.5">
+            <span className={cn("size-2.5 rounded-full", resolveLegendColorClass(item.key))} aria-hidden />
+            {item.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <svg
+          width={totalWidth}
+          height={LINE_CHART_HEIGHT}
+          className="min-w-full"
+          role="img"
+          aria-label={title}
+        >
+          {ticks.map((tick) => {
+            const y = yAt(tick);
+            return (
+              <g key={tick}>
+                <line
+                  x1={padding.left}
+                  x2={totalWidth - padding.right}
+                  y1={y}
+                  y2={y}
+                  className="stroke-border/60"
+                  strokeDasharray={tick === 0 ? undefined : "4 4"}
+                />
+                <text
+                  x={padding.left - 8}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-muted-foreground text-[0.625rem]"
+                >
+                  {tick}
+                </text>
+              </g>
+            );
+          })}
+
+          {series.map((item) => {
+            const coordinates = points.map((_, index) => ({
+              x: xAt(index),
+              y: yAt(item.values[index] ?? 0),
+              value: item.values[index] ?? 0,
+            }));
+
+            return (
+              <g key={item.key}>
+                {coordinates.length > 1 ? (
+                  <polyline
+                    points={coordinates.map((point) => `${point.x},${point.y}`).join(" ")}
+                    fill="none"
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={resolveLineStrokeClass(item.key)}
+                  />
+                ) : null}
+                {coordinates.map((point, index) => (
+                  <g key={`${item.key}-${points[index]?.gameId ?? index}`}>
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r={4}
+                      className={resolveLineFillClass(item.key)}
+                    />
+                    <text
+                      x={point.x}
+                      y={point.y - 10}
+                      textAnchor="middle"
+                      className="fill-foreground text-[0.625rem] font-medium"
+                    >
+                      {point.value}
+                    </text>
+                  </g>
+                ))}
+              </g>
+            );
+          })}
+
+          {points.map((point, index) => (
+            <text
+              key={point.gameId}
+              x={xAt(index)}
+              y={LINE_CHART_HEIGHT - 12}
+              textAnchor="middle"
+              className="fill-muted-foreground text-[0.5625rem]"
+            >
+              {point.chartBulletLabel || point.shortLabel}
+            </text>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function SimpleBarChart({
   title,
   titleClassName,
@@ -381,6 +574,8 @@ export function HomeSessionInsightsCharts({
   const newPlayerValues = chartSessions.map((session) => session.newPlayerCount);
   const ccfNotYetValues = chartSessions.map((session) => session.ccfNotYetCount ?? 0);
   const ccfAttendedValues = chartSessions.map((session) => session.ccfAttendedCount ?? 0);
+  const maleValues = chartSessions.map((session) => session.maleCount ?? 0);
+  const femaleValues = chartSessions.map((session) => session.femaleCount ?? 0);
 
   return (
     <div className={cn("home-session-insights-charts grid gap-4 lg:grid-cols-2", className)}>
@@ -429,7 +624,32 @@ export function HomeSessionInsightsCharts({
             },
           ]}
         />
-      ) : null}
+      ) : (
+        <SimpleLineChart
+          title="Male and female per session"
+          titleClassName="normal-case"
+          description={
+            chartDescriptionSuffix
+              ? `Registered players with gender on file. ${chartDescriptionSuffix}`
+              : "Registered players with gender on file."
+          }
+          points={chartSessions}
+          series={[
+            {
+              key: "male",
+              label: "Male",
+              colorClass: "bg-sky-500 dark:bg-sky-400",
+              values: maleValues,
+            },
+            {
+              key: "female",
+              label: "Female",
+              colorClass: "bg-rose-500 dark:bg-rose-400",
+              values: femaleValues,
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

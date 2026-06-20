@@ -79,6 +79,17 @@ const openPlayDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Open play date is required.");
 
+const venueGoogleMapEmbedUrlSchema = z
+  .string()
+  .trim()
+  .max(MAX_CLUB_GOOGLE_MAP_EMBED_URL_LENGTH)
+  .optional()
+  .default("")
+  .transform(normalizeClubGoogleMapEmbedUrl)
+  .refine(isValidClubGoogleMapEmbedUrl, {
+    message: "Use a Google Maps embed link (Share → Embed a map → copy HTML).",
+  });
+
 export const createGameSchema = z
   .object({
     title: z.string().min(2, "Game title is required.").max(80),
@@ -89,12 +100,16 @@ export const createGameSchema = z
       .trim()
       .min(3, "Open play time range is required.")
       .max(80, "Time range must be 80 characters or less."),
+    venueName: z.string().trim().min(1, "Venue name is required.").max(120),
+    venueAddress: z.string().trim().min(1, "Venue address is required.").max(240),
+    venueGoogleMapEmbedUrl: venueGoogleMapEmbedUrlSchema,
     courtCount: z.coerce.number().int().min(1).max(20),
     expectedPlayers: z.coerce.number().int().min(1).max(300),
     strictPlayerCount: z.boolean().default(false),
     registrationMode: z.enum(["self", "owner"]).optional(),
     preRegisteredPlayerNames: z.array(z.string().trim().min(1, "Player name is required.")).optional(),
     allowQrRegistration: z.boolean().optional(),
+    allowManualPlayerAdd: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     const timeRangeValidation = validateOpenPlayTimeRangeString(data.openPlayTimeRange);
@@ -123,6 +138,10 @@ export const createGameSchema = z
       });
     }
   });
+
+export const addManualGamePlayerSchema = z.object({
+  displayName: z.string().trim().min(1, "Player name is required.").max(120),
+});
 
 export const generateDemoOpenPlaySchema = z
   .object({
@@ -157,6 +176,9 @@ export const updateGameSchema = z
       .trim()
       .min(3, "Open play time range is required.")
       .max(80, "Time range must be 80 characters or less."),
+    venueName: z.string().trim().min(1, "Venue name is required.").max(120),
+    venueAddress: z.string().trim().min(1, "Venue address is required.").max(240),
+    venueGoogleMapEmbedUrl: venueGoogleMapEmbedUrlSchema,
     courtCount: z.coerce.number().int().min(1).max(20),
     expectedPlayers: z.coerce.number().int().min(1).max(300).optional(),
     strictPlayerCount: z.boolean().optional(),
