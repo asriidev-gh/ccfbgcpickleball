@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
+import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
 import { GameCourtsGrid } from "@/components/game/game-courts-grid";
+import { SpectatorNextOnQueueButton } from "@/components/game/spectator-next-on-queue-dialog";
 import { OperatorCourtActionDialogs } from "@/components/game/operator-court-action-dialogs";
-import { OperatorDashboardLeaseBanner } from "@/components/game/operator-dashboard-lease-banner";
+import { OperatorDashboardLeaseBanner, OperatorDashboardLeaseBannerCollapsed } from "@/components/game/operator-dashboard-lease-banner";
 import type { CourtsViewLayout } from "@/components/game/courts-view-layout-toggle";
 import { ReplacePlayerDialog } from "@/components/game/replace-player-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -28,6 +30,8 @@ type OwnerSessionCourtsSectionProps = {
   layout: CourtsViewLayout;
   showPlayerPhotos?: boolean;
   courtTheme?: CourtsViewCourtTheme;
+  leaseBannerCollapsed?: boolean;
+  onLeaseBannerCollapsedChange?: (collapsed: boolean) => void;
 };
 
 export function OwnerSessionCourtsSection({
@@ -35,32 +39,25 @@ export function OwnerSessionCourtsSection({
   layout,
   showPlayerPhotos = true,
   courtTheme = "classic",
+  leaseBannerCollapsed = false,
+  onLeaseBannerCollapsedChange,
 }: OwnerSessionCourtsSectionProps) {
   const fillCourtFlowRef = useRef<FillCourtFlowHandle>(null);
-  const [leaseChecking, setLeaseChecking] = useState(false);
+  const courtsSectionRef = useRef<HTMLDivElement>(null);
+  const [takeOverPending, setTakeOverPending] = useState(false);
 
   const {
     leaseState: operatorLeaseState,
-    checkAgain: checkOperatorDashboardLease,
     takeOver: takeOverOperatorDashboard,
     hasDashboardLease,
   } = useOperatorDashboardLease(session.gameId, true);
 
-  const handleLeaseCheckAgain = useCallback(async () => {
-    setLeaseChecking(true);
-    try {
-      await checkOperatorDashboardLease();
-    } finally {
-      setLeaseChecking(false);
-    }
-  }, [checkOperatorDashboardLease]);
-
   const handleLeaseTakeOver = useCallback(async () => {
-    setLeaseChecking(true);
+    setTakeOverPending(true);
     try {
       await takeOverOperatorDashboard();
     } finally {
-      setLeaseChecking(false);
+      setTakeOverPending(false);
     }
   }, [takeOverOperatorDashboard]);
 
@@ -164,7 +161,10 @@ export function OwnerSessionCourtsSection({
   ) : null;
 
   return (
-    <Card className="glass-panel courts-panel dashboard-panel--courts">
+    <Card
+      ref={courtsSectionRef}
+      className="glass-panel courts-panel dashboard-panel dashboard-panel--courts"
+    >
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
           <CardTitle className="truncate">{session.title}</CardTitle>
@@ -199,20 +199,36 @@ export function OwnerSessionCourtsSection({
             Game Dashboard
             <ArrowRight className="ml-1.5 h-4 w-4" aria-hidden />
           </Link>
+          <DashboardPanelFullscreenButton
+            containerRef={courtsSectionRef}
+            panelName="courts"
+          />
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="dashboard-panel-content space-y-3">
         {showLeaseBlock ? (
-        <OperatorDashboardLeaseBanner
-          loading={operatorLeaseLoading}
-          deviceHint={operatorLeaseBlocked ? operatorLeaseState.deviceHint : undefined}
-          lastSeenAt={operatorLeaseBlocked ? operatorLeaseState.lastSeenAt : undefined}
-          takenOver={operatorLeaseBlocked ? operatorLeaseState.takenOver : false}
-          checking={leaseChecking}
-          onCheckAgain={() => void handleLeaseCheckAgain()}
-          onTakeOver={() => void handleLeaseTakeOver()}
-        />
-      ) : null}
+          operatorLeaseLoading ? (
+            <OperatorDashboardLeaseBanner loading />
+          ) : leaseBannerCollapsed ? (
+            <OperatorDashboardLeaseBannerCollapsed
+              takenOver={operatorLeaseBlocked ? operatorLeaseState.takenOver : false}
+              onShow={() => onLeaseBannerCollapsedChange?.(false)}
+            />
+          ) : (
+            <OperatorDashboardLeaseBanner
+              deviceHint={operatorLeaseBlocked ? operatorLeaseState.deviceHint : undefined}
+              lastSeenAt={operatorLeaseBlocked ? operatorLeaseState.lastSeenAt : undefined}
+              takenOver={operatorLeaseBlocked ? operatorLeaseState.takenOver : false}
+              takeOverPending={takeOverPending}
+              onTakeOver={() => void handleLeaseTakeOver()}
+              onHide={
+                onLeaseBannerCollapsedChange
+                  ? () => onLeaseBannerCollapsedChange(true)
+                  : undefined
+              }
+            />
+          )
+        ) : null}
 
       <GameCourtsGrid
         courts={session.courts}
@@ -222,6 +238,7 @@ export function OwnerSessionCourtsSection({
         showPlayerPhotos={showPlayerPhotos}
         layoutVariant="pickleball"
         courtTheme={courtTheme}
+        summaryAddon={<SpectatorNextOnQueueButton queue={queueWithStats} />}
         getCourtCardProps={getCourtCardProps}
       />
 

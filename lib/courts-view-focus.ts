@@ -5,6 +5,10 @@ export function courtsViewHref(focusGameId?: string) {
   return `/my-games/courts-view?${COURTS_VIEW_FOCUS_GAME_ID_PARAM}=${encodeURIComponent(focusGameId)}`;
 }
 
+export function spectatorCourtsViewHref(gameId: string) {
+  return `/games/${gameId}/spectate/courts-view`;
+}
+
 export function hiddenCourtsViewSessionIdsForFocus(
   sessions: readonly { gameId: string }[],
   focusGameId: string,

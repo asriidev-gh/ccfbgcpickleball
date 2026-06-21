@@ -17,7 +17,7 @@ import {
 } from "@/lib/games-played-map";
 import type { CourtsViewCourtTheme } from "@/lib/courts-view-court-theme";
 import { cn } from "@/lib/utils";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 type CourtCardOperatorProps = Omit<
   ComponentProps<typeof CourtCard>,
@@ -31,6 +31,7 @@ type GameCourtsGridProps = {
   gameId?: string;
   className?: string;
   showSummary?: boolean;
+  summaryAddon?: ReactNode;
   layout?: CourtsViewLayout;
   showPlayerPhotos?: boolean;
   layoutVariant?: "standard" | "pickleball";
@@ -45,6 +46,7 @@ export function GameCourtsGrid({
   gameId,
   className,
   showSummary = true,
+  summaryAddon,
   layout = defaultCourtsViewLayout(),
   showPlayerPhotos = defaultCourtsViewShowPhotos(),
   layoutVariant = "standard",
@@ -60,7 +62,12 @@ export function GameCourtsGrid({
 
   return (
     <div className={cn("space-y-3", className)}>
-      {showSummary ? <CourtsSummary courts={courts} /> : null}
+      {showSummary ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <CourtsSummary courts={courts} />
+          {summaryAddon}
+        </div>
+      ) : null}
       <div
         className={cn(
           courtsViewLayoutGridClassName(layout),

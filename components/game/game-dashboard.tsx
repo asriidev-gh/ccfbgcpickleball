@@ -2656,7 +2656,12 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             )}
           </Button>
         ) : null}
-        {!isSpectator && !isPastGame ? <SwitchToCourtViewButton gameId={gameId} /> : null}
+        {!isPastGame ? (
+          <SwitchToCourtViewButton
+            gameId={gameId}
+            variant={isSpectator ? "spectator" : "operator"}
+          />
+        ) : null}
           <DashboardPanelFullscreenButton containerRef={courtsPanelRef} panelName="courts" />
         </div>
       </CardHeader>

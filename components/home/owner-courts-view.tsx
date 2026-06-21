@@ -40,6 +40,10 @@ import {
   saveCourtsViewCourtTheme,
   type CourtsViewCourtTheme,
 } from "@/lib/courts-view-court-theme";
+import {
+  loadCourtsViewLeaseBannerCollapsed,
+  saveCourtsViewLeaseBannerCollapsed,
+} from "@/lib/courts-view-lease-banner-pref";
 import { COURTS_VIEW_DESKTOP_MEDIA } from "@/lib/courts-view-viewport";
 import type { OwnerCourtsViewPayload } from "@/lib/owner-courts-view-payload";
 import { cn } from "@/lib/utils";
@@ -67,12 +71,14 @@ export function OwnerCourtsView() {
   const [hiddenSessionIds, setHiddenSessionIds] = useState<Set<string>>(() => new Set());
   const [hiddenSessionsReady, setHiddenSessionsReady] = useState(false);
   const [courtTheme, setCourtTheme] = useState<CourtsViewCourtTheme>("classic");
+  const [leaseBannerCollapsed, setLeaseBannerCollapsed] = useState(false);
 
   useEffect(() => {
     setLayout(loadCourtsViewLayout());
     setShowPhotos(loadCourtsViewShowPhotos());
     setHiddenSessionIds(loadHiddenCourtsViewSessionIds());
     setCourtTheme(loadCourtsViewCourtTheme());
+    setLeaseBannerCollapsed(loadCourtsViewLeaseBannerCollapsed());
     setViewPrefsReady(true);
     setHiddenSessionsReady(true);
   }, []);
@@ -106,6 +112,11 @@ export function OwnerCourtsView() {
     setCourtTheme(nextTheme);
     saveCourtsViewCourtTheme(nextTheme);
   };
+
+  const handleLeaseBannerCollapsedChange = useCallback((collapsed: boolean) => {
+    setLeaseBannerCollapsed(collapsed);
+    saveCourtsViewLeaseBannerCollapsed(collapsed);
+  }, []);
 
   const displayLayout =
     viewPrefsReady && isDesktopViewport === true ? layout : "list";
@@ -277,6 +288,8 @@ export function OwnerCourtsView() {
               layout={displayLayout}
               showPlayerPhotos={displayShowPhotos}
               courtTheme={courtTheme}
+              leaseBannerCollapsed={leaseBannerCollapsed}
+              onLeaseBannerCollapsedChange={handleLeaseBannerCollapsedChange}
             />
           ))}
         </div>

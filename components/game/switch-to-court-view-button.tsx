@@ -14,32 +14,47 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { courtsViewHref } from "@/lib/courts-view-focus";
+import { courtsViewHref, spectatorCourtsViewHref } from "@/lib/courts-view-focus";
 import { cn } from "@/lib/utils";
 
 type SwitchToCourtViewButtonProps = {
   /** When set, Court View opens focused on this session. */
   gameId?: string;
+  variant?: "operator" | "spectator";
   className?: string;
   buttonClassName?: string;
 };
 
 export function SwitchToCourtViewButton({
   gameId,
+  variant = "operator",
   className,
   buttonClassName,
 }: SwitchToCourtViewButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const allCourtsView = !gameId;
+  const isSpectator = variant === "spectator";
 
   const handleConfirm = () => {
     setOpen(false);
+    if (isSpectator && gameId) {
+      router.push(spectatorCourtsViewHref(gameId));
+      return;
+    }
     router.push(courtsViewHref(gameId));
   };
 
-  const dialogTitle = allCourtsView ? "All courts view" : "Switch to Court View?";
-  const confirmLabel = allCourtsView ? "All Courts View" : "Switch to Court View";
+  const dialogTitle = allCourtsView
+    ? "All courts view"
+    : isSpectator
+      ? "Switch to Court View?"
+      : "Switch to Court View?";
+  const confirmLabel = allCourtsView
+    ? "All Courts View"
+    : isSpectator
+      ? "Open Court View"
+      : "Switch to Court View";
 
   return (
     <>
@@ -84,6 +99,16 @@ export function SwitchToCourtViewButton({
                   <span className="block">
                     From Court View you can manage courts, fill games, pause courts, and choose
                     which sessions to show.
+                  </span>
+                </>
+              ) : isSpectator ? (
+                <>
+                  <span className="block">
+                    You will open a courts-focused view of this session with larger court layouts.
+                  </span>
+                  <span className="block">
+                    Court View is read-only for spectators — queue and match history stay on the
+                    game dashboard.
                   </span>
                 </>
               ) : (

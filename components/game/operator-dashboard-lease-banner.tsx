@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, MonitorSmartphone, RefreshCw } from "lucide-react";
+import { Eye, EyeOff, Loader2, MonitorSmartphone } from "lucide-react";
 import Swal from "sweetalert2";
 
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,9 @@ type OperatorDashboardLeaseBannerProps = {
   lastSeenAt?: string;
   takenOver?: boolean;
   loading?: boolean;
-  checking?: boolean;
-  onCheckAgain: () => void;
-  onTakeOver: () => void;
+  takeOverPending?: boolean;
+  onTakeOver?: () => void;
+  onHide?: () => void;
   className?: string;
 };
 
@@ -51,14 +51,15 @@ export function OperatorDashboardLeaseBanner({
   lastSeenAt,
   takenOver = false,
   loading = false,
-  checking = false,
-  onCheckAgain,
+  takeOverPending = false,
   onTakeOver,
+  onHide,
   className,
 }: OperatorDashboardLeaseBannerProps) {
   const lastSeenLabel = formatOperatorLeaseLastSeen(lastSeenAt);
 
   const handleTakeOver = async () => {
+    if (!onTakeOver) return;
     const result = await confirmOperatorDashboardTakeover();
     if (!result.isConfirmed) return;
     onTakeOver();
@@ -106,15 +107,60 @@ export function OperatorDashboardLeaseBanner({
           </div>
         </div>
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-          <Button type="button" size="sm" variant="outline" onClick={onCheckAgain} disabled={checking}>
-            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", checking && "animate-spin")} aria-hidden />
-            Check again
-          </Button>
-          <Button type="button" size="sm" onClick={() => void handleTakeOver()} disabled={checking}>
-            Take over dashboard
-          </Button>
+          {onHide ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="size-8 shrink-0"
+              onClick={onHide}
+              aria-label="Hide dashboard notice"
+            >
+              <EyeOff className="h-4 w-4" aria-hidden />
+            </Button>
+          ) : null}
+          {onTakeOver ? (
+            <Button type="button" size="sm" onClick={() => void handleTakeOver()} disabled={takeOverPending}>
+              Take over dashboard
+            </Button>
+          ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+type OperatorDashboardLeaseBannerCollapsedProps = {
+  takenOver?: boolean;
+  onShow: () => void;
+  className?: string;
+};
+
+export function OperatorDashboardLeaseBannerCollapsed({
+  takenOver = false,
+  onShow,
+  className,
+}: OperatorDashboardLeaseBannerCollapsedProps) {
+  return (
+    <div
+      className={cn(
+        "operator-dashboard-lease-banner-collapsed flex items-center justify-between gap-2 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2",
+        className,
+      )}
+    >
+      <p className="min-w-0 truncate text-xs font-medium text-foreground sm:text-sm">
+        {takenOver ? "Dashboard opened elsewhere" : "Dashboard in use on another tab"}
+      </p>
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="size-7 shrink-0 sm:size-8"
+        onClick={onShow}
+        aria-label="Show dashboard notice"
+      >
+        <Eye className="h-4 w-4" aria-hidden />
+      </Button>
     </div>
   );
 }

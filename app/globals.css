@@ -3032,27 +3032,77 @@
   }
 
   .court-card--pickleball .court-empty-state {
-    @apply absolute inset-x-3 top-1/2 z-10 -translate-y-1/2 border-0 bg-black/55 px-3 py-4 backdrop-blur-sm;
+    @apply absolute inset-0 z-10 flex max-h-full min-h-0 flex-col items-center justify-center gap-1 overflow-hidden border-0 bg-black/55 px-2 py-1.5 text-center backdrop-blur-sm sm:gap-1.5 sm:px-3 sm:py-2;
   }
 
   .court-card--pickleball .court-empty-state--filling {
-    @apply bg-primary/25;
+    @apply gap-1.5 bg-primary/25 py-2;
   }
 
   .court-card--pickleball .court-empty-wrap {
-    @apply relative;
+    @apply relative isolate overflow-hidden rounded-md;
   }
 
   .court-card--pickleball .court-empty-title {
-    @apply text-white;
+    @apply shrink-0 text-[0.6875rem] leading-tight text-white sm:text-xs;
   }
 
   .court-card--pickleball .court-empty-state .caption {
-    @apply text-white/75;
+    @apply line-clamp-2 shrink text-[0.625rem] leading-snug text-white/75 sm:text-xs;
   }
 
   .court-card--pickleball .court-empty-icon {
-    @apply bg-white/15 text-white/80;
+    @apply h-9 w-9 shrink-0 bg-white/15 text-white/80 sm:h-11 sm:w-11;
+  }
+
+  .court-card--pickleball .court-empty-icon svg {
+    @apply h-4 w-4 sm:h-5 sm:w-5;
+  }
+
+  .court-card--pickleball .court-empty-state .mt-2 {
+    @apply mt-1 w-full max-w-full shrink-0;
+  }
+
+  .court-card--pickleball .court-empty-state button {
+    @apply h-7 max-w-full px-2 text-[0.6875rem] sm:h-8 sm:text-xs;
+  }
+
+  @media (max-width: 639px) {
+    .court-card--pickleball .court-empty-state .caption {
+      @apply line-clamp-1;
+    }
+  }
+
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-state {
+    @apply gap-0.5 px-1.5 py-1;
+  }
+
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-state .caption {
+    @apply hidden;
+  }
+
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-icon {
+    @apply h-8 w-8;
+  }
+
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-icon svg {
+    @apply h-3.5 w-3.5;
+  }
+
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-title {
+    @apply text-[0.625rem];
+  }
+
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-state button {
+    @apply h-6 px-1.5 text-[0.625rem];
+  }
+
+  .court-card--pickleball .court-empty-state--filling svg {
+    @apply h-7 w-7 shrink-0 sm:h-8 sm:w-8;
+  }
+
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-state--filling svg {
+    @apply h-6 w-6;
   }
 
   .court-grid--hide-photos .pickleball-court__avatar {
