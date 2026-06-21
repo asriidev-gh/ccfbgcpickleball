@@ -1,13 +1,12 @@
-import { ArrowLeftRight, LogIn, LogOut, UserX, Trophy } from "lucide-react";
+import { Trophy } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
 import { PlayerNameWithPhoto, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { FirstTimerPill } from "@/components/game/leaderboard-standings";
-import { SuperadminPlayerCheckInButton } from "@/components/game/superadmin-player-check-in-button";
+import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-menu";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   formatSessionRecordLabel,
   isSessionUndefeated,
@@ -36,15 +35,6 @@ function NextOnCourtLabel() {
     <>
       <span className="xl:hidden">Next</span>
       <span className="hidden xl:inline">Next on court</span>
-    </>
-  );
-}
-
-function RemovePlayerLabel() {
-  return (
-    <>
-      <span className="queue-remove-player-label--short">Remove</span>
-      <span className="queue-remove-player-label--full">Remove player</span>
     </>
   );
 }
@@ -190,6 +180,17 @@ export function QueueEntryRow({
         ? "queue-loser"
         : "queue-item-default border-border bg-muted/50";
 
+  const showReplace = !checkedOut && isNextUp && !hideReplacePanel;
+  const checkInAsPlayer =
+    gameId && playerMongoId
+      ? { gameId, playerId: playerMongoId, playerName: playerDisplayName }
+      : undefined;
+  const showActionsMenu =
+    showReplace ||
+    Boolean(onRemove) ||
+    Boolean(onRemovePlayer) ||
+    (checkedOut && Boolean(onCheckBackIn));
+
   return (
     <div
       id={`queue-entry-${entry._id}`}
@@ -233,27 +234,7 @@ export function QueueEntryRow({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5 xl:flex-row xl:items-center">
-          {gameId && playerMongoId ? (
-            <SuperadminPlayerCheckInButton
-              gameId={gameId}
-              playerId={playerMongoId}
-              playerName={playerDisplayName}
-              compact
-            />
-          ) : null}
-          {checkedOut && onCheckBackIn ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="queue-check-back-in-btn"
-              onClick={onCheckBackIn}
-              disabled={checkBackInPending}
-            >
-              <LogIn className="mr-1.5 h-3.5 w-3.5" />
-              {checkBackInPending ? "Checking in…" : "Check back in"}
-            </Button>
-          ) : checkedOut ? null : isNextUp ? (
+          {checkedOut ? null : isNextUp ? (
             <>
               <QueueSessionStatsBadges
                 wins={sessionStats.wins}
@@ -296,87 +277,26 @@ export function QueueEntryRow({
         )}
       </p>
 
-      {!checkedOut && isNextUp && !hideReplacePanel ? (
-        <div className="queue-swap-panel">
-          <div className="flex flex-wrap justify-end gap-1 xl:gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="queue-replace-btn h-7 min-h-7 gap-0.5 px-2 text-[11px] leading-tight xl:h-9 xl:min-h-9 xl:px-3 xl:text-sm"
-              onClick={onReplace}
-              disabled={replacePending || !canReplace}
-            >
-              <ArrowLeftRight className="size-3 shrink-0 xl:size-3.5" />
-              Replace
-            </Button>
-            {onRemove ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="queue-remove-btn h-7 min-h-7 gap-0.5 border-destructive/50 px-2 text-[11px] leading-tight text-destructive xl:h-9 xl:min-h-9 xl:px-3 xl:text-sm"
-                onClick={onRemove}
-                disabled={removePending}
-              >
-                <LogOut className="size-3 shrink-0 xl:size-3.5" />
-                Check Out
-              </Button>
-            ) : null}
-            {onRemovePlayer ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="queue-remove-player-btn h-7 min-h-7 gap-0.5 border-destructive/50 px-2 text-[11px] leading-tight text-destructive xl:h-9 xl:min-h-9 xl:px-3 xl:text-sm"
-                onClick={onRemovePlayer}
-                disabled={removePlayerPending}
-                aria-label="Remove player"
-              >
-                <UserX className="size-3 shrink-0 xl:size-3.5" />
-                <RemovePlayerLabel />
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : !checkedOut && (onRemove || onRemovePlayer) ? (
-        <div className="mt-2 flex flex-wrap justify-end gap-1">
-          {onRemove ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="queue-remove-btn border-destructive/50 text-destructive"
-              onClick={onRemove}
-              disabled={removePending}
-            >
-              <LogOut className="mr-1.5 h-3.5 w-3.5" />
-              Check Out
-            </Button>
-          ) : null}
-          {onRemovePlayer ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="queue-remove-player-btn border-destructive/50 text-destructive"
-              onClick={onRemovePlayer}
-              disabled={removePlayerPending}
-              aria-label="Remove player"
-            >
-              <UserX className="mr-1.5 h-3.5 w-3.5" />
-              <RemovePlayerLabel />
-            </Button>
-          ) : null}
-        </div>
-      ) : checkedOut && onRemovePlayer ? (
-        <div className="mt-2 flex justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            className="queue-remove-player-btn border-destructive/50 text-destructive"
-            onClick={onRemovePlayer}
-            disabled={removePlayerPending}
-            aria-label="Remove player"
-          >
-            <UserX className="mr-1.5 h-3.5 w-3.5" />
-            <RemovePlayerLabel />
-          </Button>
+      {showActionsMenu ? (
+        <div
+          className={cn(
+            showReplace ? "queue-swap-panel" : "mt-2",
+            "flex flex-wrap justify-end gap-1 xl:gap-2",
+          )}
+        >
+          <QueuePlayerActionsMenu
+            onReplace={showReplace ? onReplace : undefined}
+            canReplace={canReplace}
+            replacePending={replacePending}
+            onCheckBackIn={checkedOut ? onCheckBackIn : undefined}
+            checkBackInPending={checkBackInPending}
+            checkInAsPlayer={checkInAsPlayer}
+            onCheckOut={onRemove}
+            checkOutPending={removePending}
+            onRemovePlayer={onRemovePlayer}
+            removePlayerPending={removePlayerPending}
+            compact={showReplace}
+          />
         </div>
       ) : null}
     </div>

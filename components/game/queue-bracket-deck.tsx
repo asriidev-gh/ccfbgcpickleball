@@ -1,13 +1,13 @@
-import { Clock, Link2, LogOut, UserX } from "lucide-react";
+import { Clock, Link2 } from "lucide-react";
 
 import { PlayerNameWithPhoto } from "@/components/game/player-avatar";
 import { FirstTimerPill } from "@/components/game/leaderboard-standings";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
+import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-menu";
 import { formatUpcomingGameBadgeLabel } from "@/lib/games-played-map";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
 import type { QueueBracketDeck } from "@/lib/queue-display-segments";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 function formatLastMatchLine(result: QueueEntryView["lastMatchResult"]) {
@@ -56,30 +56,12 @@ function DeckPlayer({
       <p className="caption text-muted-foreground">{formatLastMatchLine(entry.lastMatchResult)}</p>
       {!hideControls && (onRemove || onRemovePlayer) ? (
         <div className="mt-2 flex flex-wrap justify-end gap-1">
-          {onRemove ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="queue-remove-btn border-destructive/50 text-destructive"
-              onClick={onRemove}
-              disabled={removePending}
-            >
-              <LogOut className="mr-1.5 h-3.5 w-3.5" />
-              Check Out
-            </Button>
-          ) : null}
-          {onRemovePlayer ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="queue-remove-player-btn border-destructive/50 text-destructive"
-              onClick={onRemovePlayer}
-              disabled={removePlayerPending}
-            >
-              <UserX className="mr-1.5 h-3.5 w-3.5" />
-              Remove player
-            </Button>
-          ) : null}
+          <QueuePlayerActionsMenu
+            onCheckOut={onRemove}
+            checkOutPending={removePending}
+            onRemovePlayer={onRemovePlayer}
+            removePlayerPending={removePlayerPending}
+          />
         </div>
       ) : null}
     </div>

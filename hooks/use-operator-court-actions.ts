@@ -396,7 +396,9 @@ export function useOperatorCourtActions({
           }),
         replacePendingKey: courtReplacePendingKey,
         onEndGame: () => openEndGameDialog(court.courtNumber),
-        onSwapTeams: () => swapCourtMutation.mutate(court.courtNumber),
+        onSwapTeams: async () => {
+          await swapCourtMutation.mutateAsync(court.courtNumber);
+        },
         swapPending: swapCourtMutation.isPending && swapCourtMutation.variables === court.courtNumber,
         onTogglePause:
           court.status === "active"

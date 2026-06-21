@@ -3423,15 +3423,44 @@
     .fill-court-shuffle-status,
     .fill-court-roulette-ring,
     .fill-court-roulette-ring::before,
-    .fill-court-shuffle-btn--spinning svg {
+    .fill-court-shuffle-btn--spinning svg,
+    .pickleball-court--reveal .pickleball-court__box {
       animation: none !important;
     }
 
-    .fill-court-player-row--obscured {
+    .fill-court-player-row--obscured,
+    .pickleball-court__box--obscured {
       filter: none;
       opacity: 0.75;
       transform: none;
     }
+  }
+
+  .pickleball-court--shuffling .pickleball-court__service {
+    @apply border-primary/25 shadow-[0_0_24px_-4px] shadow-primary/20;
+  }
+
+  .pickleball-court__service--obscured {
+    @apply border-primary/20;
+  }
+
+  .pickleball-court__box--obscured {
+    filter: blur(5px);
+    opacity: 0.55;
+    transform: scale(0.98);
+    pointer-events: none;
+  }
+
+  .pickleball-court--reveal .pickleball-court__box {
+    animation: fill-court-reveal-row 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .pickleball-court--reveal .pickleball-court__service {
+    animation: fill-court-reveal-section 0.55s ease-out forwards;
+  }
+
+  .pickleball-court__net .fill-court-shuffle-row {
+    min-height: 2.25rem;
   }
 
   .end-game-rematch-block {

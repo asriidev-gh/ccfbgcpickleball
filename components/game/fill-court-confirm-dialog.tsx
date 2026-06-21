@@ -1,11 +1,12 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo } from "react";
 import { ArrowLeftRight, Loader2, Play, Shuffle, Volume2, VolumeX } from "lucide-react";
 
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useShuffleTeamsAnimation } from "@/hooks/use-shuffle-teams-animation";
 import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
 import {
   Dialog,
@@ -15,10 +16,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
-
-const SHUFFLE_DURATION_MS = 3000;
-const SHUFFLE_TICK_MS = 75;
-const SHUFFLE_REVEAL_MS = 650;
 
 type FillCourtConfirmDialogProps = {
   open: boolean;
@@ -36,22 +33,6 @@ type FillCourtConfirmDialogProps = {
   onCallNames?: (teamA: QueueEntryView[], teamB: QueueEntryView[]) => void;
   onCancelCallNames?: () => void;
 };
-
-type TeamPreview = { teamA: QueueEntryView[]; teamB: QueueEntryView[] };
-
-function shuffleArray<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function randomTeamSplit(pool: QueueEntryView[]): TeamPreview {
-  const shuffled = shuffleArray(pool);
-  return { teamA: shuffled.slice(0, 2), teamB: shuffled.slice(2, 4) };
-}
 
 function playerInitials(firstName: string, lastName: string) {
   const name = formatPlayerDisplayName(firstName, lastName);
@@ -194,76 +175,24 @@ export function FillCourtConfirmDialog({
   onCallNames,
   onCancelCallNames,
 }: FillCourtConfirmDialogProps) {
-  const [isShuffling, setIsShuffling] = useState(false);
-  const [isRevealing, setIsRevealing] = useState(false);
-  const [preview, setPreview] = useState<TeamPreview | null>(null);
-  const shuffleRunId = useRef(0);
+  const {
+    isShuffling,
+    isRevealing,
+    obscured,
+    displayTeamA,
+    displayTeamB,
+    canShuffle,
+    handleShuffleClick,
+  } = useShuffleTeamsAnimation({
+    teamA,
+    teamB,
+    onShuffle,
+    enabled: open,
+    resetKey: open,
+  });
 
-  const canShuffle = teamA.length + teamB.length >= 4;
   const actionsDisabled = fillPending || isShuffling;
   const courtLabel = courtNumber != null ? `Court ${courtNumber}` : "the next court";
-  const obscured = isShuffling;
-  const displayTeamA = isShuffling && preview ? preview.teamA : teamA;
-  const displayTeamB = isShuffling && preview ? preview.teamB : teamB;
-
-  useEffect(() => {
-    if (!open) {
-      shuffleRunId.current += 1;
-      setIsShuffling(false);
-      setIsRevealing(false);
-      setPreview(null);
-    }
-  }, [open]);
-
-  const handleShuffleClick = useCallback(async () => {
-    const pool = [...teamA, ...teamB];
-    if (pool.length < 4 || isShuffling) return;
-
-    const runId = shuffleRunId.current + 1;
-    shuffleRunId.current = runId;
-
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const duration = prefersReducedMotion ? 0 : SHUFFLE_DURATION_MS;
-
-    setIsShuffling(true);
-    setIsRevealing(false);
-    setPreview(randomTeamSplit(pool));
-
-    const tickInterval =
-      duration > 0
-        ? window.setInterval(() => {
-            if (shuffleRunId.current !== runId) return;
-            setPreview(randomTeamSplit(pool));
-          }, SHUFFLE_TICK_MS)
-        : undefined;
-
-    try {
-      await Promise.all([onShuffle(), new Promise<void>((resolve) => setTimeout(resolve, duration))]);
-    } catch {
-      if (shuffleRunId.current === runId) {
-        setPreview(null);
-        setIsShuffling(false);
-        setIsRevealing(false);
-      }
-      return;
-    } finally {
-      if (tickInterval != null) window.clearInterval(tickInterval);
-    }
-
-    if (shuffleRunId.current !== runId) return;
-
-    setPreview(null);
-    setIsShuffling(false);
-
-    if (duration > 0) {
-      setIsRevealing(true);
-      window.setTimeout(() => {
-        if (shuffleRunId.current === runId) setIsRevealing(false);
-      }, SHUFFLE_REVEAL_MS);
-    }
-  }, [isShuffling, onShuffle, teamA, teamB]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

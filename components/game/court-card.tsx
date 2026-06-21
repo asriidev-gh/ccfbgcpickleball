@@ -142,7 +142,7 @@ type CourtCardProps = {
   cancelPending?: boolean;
   onCancelRematch?: () => void;
   cancelRematchPending?: boolean;
-  onSwapTeams?: () => void;
+  onSwapTeams?: () => void | Promise<void>;
   swapPending?: boolean;
   onTogglePause?: () => void;
   pausePending?: boolean;

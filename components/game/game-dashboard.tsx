@@ -2716,7 +2716,11 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   }
             }
             onSwapTeams={
-              hideControls ? undefined : () => swapCourtMutation.mutate(court.courtNumber)
+              hideControls
+                ? undefined
+                : async () => {
+                    await swapCourtMutation.mutateAsync(court.courtNumber);
+                  }
             }
             swapPending={
               swapCourtMutation.isPending && swapCourtMutation.variables === court.courtNumber
