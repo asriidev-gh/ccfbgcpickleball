@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { sanitizeErrorMessage } from "@/lib/infrastructure-error";
 import type {
   OperatorDetailsPayload,
   OperatorQueuePayload,
@@ -39,7 +40,9 @@ export function prefetchOperatorDashboard(queryClient: QueryClient, gameId: stri
 export async function fetchOperatorGame(gameId: string, scope: OperatorGameScope) {
   const response = await fetch(`/api/games/${gameId}?scope=${scope}`);
   const data = await response.json();
-  if (!response.ok) throw new Error(data.message);
+  if (!response.ok) {
+    throw new Error(sanitizeErrorMessage(data.message, "Failed to load game."));
+  }
   return data;
 }
 

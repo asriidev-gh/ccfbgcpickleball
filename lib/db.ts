@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+import { isInfrastructureError } from "@/lib/infrastructure-error";
+
 type MongooseCache = {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
@@ -118,22 +120,8 @@ function isConnectionReady() {
   return mongoose.connection.readyState === 1;
 }
 
-function collectErrorMessages(error: unknown) {
-  const messages: string[] = [];
-  let current: unknown = error;
-  while (current instanceof Error) {
-    messages.push(current.message);
-    current = current.cause;
-  }
-  if (typeof current === "string") messages.push(current);
-  return messages;
-}
-
 function isTransientConnectionError(error: unknown) {
-  const text = collectErrorMessages(error).join(" ");
-  return /must be connected|not connected|connection closed|client was closed|operation interrupted|topology was destroyed|socket has been|connection is not ready|connection failed after multiple attempts|buffering timed out|session that has ended|closed connection pool|mongoexpiredsessionerror|mongopoolclosederror/i.test(
-    text,
-  );
+  return isInfrastructureError(error);
 }
 
 /** Exported for API routes to return 503 on connectivity failures. */

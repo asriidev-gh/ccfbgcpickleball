@@ -22,6 +22,11 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  getPublicErrorMessage,
+  shouldSuppressUserNotification,
+} from "@/lib/infrastructure-error";
+import { toastOperationError } from "@/lib/toast-error";
 import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import { swalAlertBaseOptions, selfQueueCheckoutMessageHtml } from "@/lib/swal-theme";
@@ -1044,7 +1049,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
       setQrDialogOpen(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not check registration status.");
+      toastOperationError(error, "Could not load registration QR.");
     } finally {
       setQrDialogLoading(false);
     }
@@ -1252,7 +1257,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previous) {
         writeOperatorPayload(queryClient, gameId, context.previous);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to fill court.");
     },
   });
 
@@ -1312,7 +1317,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previousRematchCourtNumbers) {
         setRematchCourtNumbers(context.previousRematchCourtNumbers);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to end game.");
     },
   });
 
@@ -1327,7 +1332,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       toast.success(data.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toastOperationError(error, "Failed to shuffle teams."),
   });
 
   const handleFillCourtConfirm = useCallback(
@@ -1363,7 +1368,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       toast.success(data.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toastOperationError(error, "Failed to swap court players."),
   });
 
   const pauseCourtMutation = useMutation({
@@ -1396,7 +1401,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previous) {
         writeOperatorPayload(queryClient, gameId, context.previous);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to update court timer.");
     },
   });
 
@@ -1430,7 +1435,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previous) {
         writeOperatorPayload(queryClient, gameId, context.previous);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to pause courts.");
     },
   });
 
@@ -1476,7 +1481,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previousRematchCourtNumbers) {
         setRematchCourtNumbers(context.previousRematchCourtNumbers);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to cancel assignment.");
     },
   });
 
@@ -1501,7 +1506,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       setCancelRematchTarget(null);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toastOperationError(error, "Failed to cancel rematch."),
   });
 
   const resetMutation = useMutation({
@@ -1515,7 +1520,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       toast.success(payload.message);
       queryClient.invalidateQueries({ queryKey: ["game", gameId] });
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toastOperationError(error, "Failed to reset game."),
   });
 
   const endOpenPlayMutation = useMutation({
@@ -1530,7 +1535,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       await queryClient.invalidateQueries({ queryKey: ["games"] });
       router.replace("/");
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => toastOperationError(error, "Failed to end open play."),
   });
 
   const reorderQueueMutation = useMutation({
@@ -1559,7 +1564,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previous) {
         writeOperatorPayload(queryClient, gameId, context.previous);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to reorder queue.");
     },
   });
 
@@ -1594,7 +1599,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previous) {
         writeOperatorPayload(queryClient, gameId, context.previous);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to replace player.");
     },
   });
 
@@ -1629,7 +1634,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previous) {
         writeOperatorPayload(queryClient, gameId, context.previous);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to replace player.");
     },
   });
 
@@ -1700,7 +1705,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previous) {
         writeOperatorPayload(queryClient, gameId, context.previous);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to remove player from queue.");
     },
   });
 
@@ -1737,7 +1742,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (context?.previous) {
         writeOperatorPayload(queryClient, gameId, context.previous);
       }
-      toast.error(error.message);
+      toastOperationError(error, "Failed to remove player.");
     },
   });
 
@@ -1809,11 +1814,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       await checkBackInMutation.mutateAsync(entry._id);
       Swal.close();
     } catch (error) {
+      Swal.close();
+      if (shouldSuppressUserNotification(error)) return;
       Swal.fire({
         ...alertBaseOptions,
         icon: "error",
         title: "Check-in failed",
-        text: error instanceof Error ? error.message : "Failed to check player back in.",
+        text: getPublicErrorMessage(error, "Failed to check player back in."),
         confirmButtonText: "OK",
       });
     }
@@ -2047,7 +2054,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return <div className="p-8 text-base text-muted-foreground">{loadingLabel}</div>;
   }
   if (isSpectator && error) {
-    if (isSpectatorViewUnavailableError(error)) {
+    if (isSpectatorViewUnavailableError(error) || shouldSuppressUserNotification(error)) {
       return (
         <SpectatorUnavailableScreen onRetry={() => void spectatorLiveQuery.refetch()} />
       );
@@ -2055,7 +2062,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
     return (
       <div className="p-8 text-destructive">
-        Failed to load game data: {error instanceof Error ? error.message : "Unknown error"}
+        Failed to load game data:{" "}
+        {getPublicErrorMessage(error, "Unable to load game data. Please try again.")}
       </div>
     );
   }
@@ -2398,12 +2406,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         {operatorQueueLoading ? (
           <DashboardPanelLoading label="Loading queue…" />
         ) : operatorQueueQuery.isError && !operatorQueueQuery.data ? (
+          shouldSuppressUserNotification(operatorQueueQuery.error) ? (
+            <DashboardPanelLoading label="Loading queue…" />
+          ) : (
           <p className="text-destructive">
             Failed to load queue:{" "}
-            {operatorQueueQuery.error instanceof Error
-              ? operatorQueueQuery.error.message
-              : "Unknown error"}
+            {getPublicErrorMessage(operatorQueueQuery.error, "Unable to load queue.")}
           </p>
+          )
         ) : queueWithStats.length === 0 && checkedOutWithStats.length === 0 ? (
           <p className="text-muted-foreground">Queue is empty.</p>
         ) : (
@@ -2662,12 +2672,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         {operatorQueueLoading ? (
           <DashboardPanelLoading label="Loading courts…" />
         ) : operatorQueueQuery.isError && !operatorQueueQuery.data ? (
+          shouldSuppressUserNotification(operatorQueueQuery.error) ? (
+            <DashboardPanelLoading label="Loading courts…" />
+          ) : (
           <p className="text-destructive">
             Failed to load courts:{" "}
-            {operatorQueueQuery.error instanceof Error
-              ? operatorQueueQuery.error.message
-              : "Unknown error"}
+            {getPublicErrorMessage(operatorQueueQuery.error, "Unable to load courts.")}
           </p>
+          )
         ) : courts.length === 0 ? (
           <p className="text-muted-foreground">No courts configured.</p>
         ) : (

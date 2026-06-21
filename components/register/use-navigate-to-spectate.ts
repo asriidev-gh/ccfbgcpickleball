@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
+import { shouldSuppressUserNotification } from "@/lib/infrastructure-error";
 import { refreshSpectatorLive } from "@/lib/fetch-spectate-game";
 import { isSpectatorViewUnavailableError } from "@/lib/spectator-availability-shared";
 import {
@@ -32,7 +33,7 @@ export function useNavigateToSpectate(gameId: string) {
       try {
         await refreshSpectatorLive(queryClient, gameId);
       } catch (error) {
-        if (isSpectatorViewUnavailableError(error)) {
+        if (isSpectatorViewUnavailableError(error) && !shouldSuppressUserNotification(error)) {
           toast.error(error.message);
         }
         // Still open the live view so the full-screen message can appear.

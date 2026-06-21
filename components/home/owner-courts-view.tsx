@@ -26,6 +26,11 @@ import { OwnerSessionCourtsSection } from "@/components/home/owner-session-court
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  getPublicErrorMessage,
+  sanitizeErrorMessage,
+  shouldSuppressUserNotification,
+} from "@/lib/infrastructure-error";
+import {
   COURTS_VIEW_FOCUS_GAME_ID_PARAM,
   hiddenCourtsViewSessionIdsForFocus,
 } from "@/lib/courts-view-focus";
@@ -38,7 +43,9 @@ const OWNER_COURTS_VIEW_POLL_MS = 30_000;
 async function fetchOwnerCourtsView() {
   const response = await fetch("/api/games/courts-view");
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.message ?? "Failed to load courts view.");
+  if (!response.ok) {
+    throw new Error(sanitizeErrorMessage(payload.message, "Failed to load courts view."));
+  }
   return payload as OwnerCourtsViewPayload;
 }
 
@@ -219,11 +226,18 @@ export function OwnerCourtsView() {
           Loading courts…
         </div>
       ) : query.isError ? (
+        shouldSuppressUserNotification(query.error) ? (
+          <div className="flex min-h-40 items-center justify-center text-muted-foreground">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
+            Loading courts…
+          </div>
+        ) : (
         <Card className="glass-panel">
           <CardContent className="py-10 text-center text-destructive">
-            {query.error instanceof Error ? query.error.message : "Failed to load courts view."}
+            {getPublicErrorMessage(query.error, "Failed to load courts view.")}
           </CardContent>
         </Card>
+        )
       ) : sessions.length === 0 ? (
         <Card className="glass-panel">
           <CardContent className="py-10 text-center text-muted-foreground">

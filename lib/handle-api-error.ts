@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { isDatabaseConnectivityError } from "@/lib/db";
+import { isInfrastructureError } from "@/lib/infrastructure-error";
 import { logApiError, type SystemLogActor } from "@/lib/system-log";
 
 type HandleApiErrorOptions = {
@@ -14,8 +14,8 @@ type HandleApiErrorOptions = {
 
 /** Log the failure (with signed-in user when available) and return a JSON error response. */
 export function handleApiError(error: unknown, options: HandleApiErrorOptions) {
-  const status =
-    options.status ?? (isDatabaseConnectivityError(error) ? 503 : 400);
+  const isInfra = isInfrastructureError(error);
+  const status = options.status ?? (isInfra ? 503 : 400);
   logApiError({
     source: options.source,
     error,
@@ -25,9 +25,10 @@ export function handleApiError(error: unknown, options: HandleApiErrorOptions) {
     metadata: options.metadata,
   });
 
-  const message =
-    options.message ??
-    (error instanceof Error ? error.message : "Request failed.");
+  const message = isInfra
+    ? (options.message ?? "Service temporarily unavailable. Please try again.")
+    : (options.message ??
+      (error instanceof Error ? error.message : "Request failed."));
 
   return NextResponse.json({ message }, { status });
 }

@@ -5,6 +5,9 @@ import { ChevronLeft, ChevronRight, Loader2, Search, UserPlus } from "lucide-rea
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { getPublicErrorMessage, shouldSuppressUserNotification } from "@/lib/infrastructure-error";
+import { toastOperationError } from "@/lib/toast-error";
+
 import { PlayerAvatar } from "@/components/game/player-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,7 +121,7 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
       void queryClient.invalidateQueries({ queryKey: ["database-check-in-players", gameId] });
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toastOperationError(error, "Failed to check in player.");
     },
     onSettled: () => {
       setCheckingInPlayerId(null);
@@ -170,11 +173,16 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
               Loading players…
             </div>
           ) : playersQuery.isError ? (
+            shouldSuppressUserNotification(playersQuery.error) ? (
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Loading players…
+              </div>
+            ) : (
             <p className="py-8 text-center text-sm text-destructive">
-              {playersQuery.error instanceof Error
-                ? playersQuery.error.message
-                : "Failed to load players."}
+              {getPublicErrorMessage(playersQuery.error, "Failed to load players.")}
             </p>
+            )
           ) : playersQuery.data?.players.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               {searchQuery

@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
+import { sanitizeErrorMessage } from "@/lib/infrastructure-error";
 import {
   SPECTATOR_VIEW_UNAVAILABLE_MESSAGE,
   SpectatorViewUnavailableError,
@@ -34,7 +35,7 @@ export async function fetchSpectateGame(
           : SPECTATOR_VIEW_UNAVAILABLE_MESSAGE,
       );
     }
-    throw new Error(data.message ?? "Failed to load game.");
+    throw new Error(sanitizeErrorMessage(data.message, "Failed to load game."));
   }
   return data as SpectateLivePayload | SpectateDetailsPayload;
 }

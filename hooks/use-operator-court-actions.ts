@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { toastOperationError } from "@/lib/toast-error";
 
 import type { CourtView } from "@/components/game/court-card";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
@@ -77,7 +78,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to fill court.");
+      toastOperationError(error, "Failed to fill court.");
     },
   });
 
@@ -113,7 +114,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to end game.");
+      toastOperationError(error, "Failed to end game.");
     },
   });
 
@@ -133,7 +134,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to shuffle teams.");
+      toastOperationError(error, "Failed to shuffle teams.");
     },
   });
 
@@ -153,7 +154,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to update court timer.");
+      toastOperationError(error, "Failed to update court timer.");
     },
   });
 
@@ -173,7 +174,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to pause courts.");
+      toastOperationError(error, "Failed to pause courts.");
     },
   });
 
@@ -199,7 +200,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel assignment.");
+      toastOperationError(error, "Failed to cancel assignment.");
     },
   });
 
@@ -225,7 +226,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel rematch.");
+      toastOperationError(error, "Failed to cancel rematch.");
     },
   });
 
@@ -241,7 +242,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to shuffle queue.");
+      toastOperationError(error, "Failed to shuffle queue.");
     },
   });
 
@@ -262,7 +263,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to replace player.");
+      toastOperationError(error, "Failed to replace player.");
     },
   });
 
@@ -288,7 +289,7 @@ export function useOperatorCourtActions({
       invalidate();
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to replace player.");
+      toastOperationError(error, "Failed to replace player.");
     },
   });
 
