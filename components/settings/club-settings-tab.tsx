@@ -14,6 +14,7 @@ import {
   Share2,
   Sparkles,
   Trash2,
+  X,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -371,24 +372,48 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
           className="lg:col-span-2"
         >
           <div className="space-y-4">
-            <button
-              type="button"
-              disabled={saveMutation.isPending || processingLogo || !data?.logoUploadConfigured}
-              onClick={() => fileInputRef.current?.click()}
+            <div
+              role="button"
+              tabIndex={saveMutation.isPending || processingLogo || !data?.logoUploadConfigured ? -1 : 0}
+              aria-disabled={saveMutation.isPending || processingLogo || !data?.logoUploadConfigured}
+              onClick={() => {
+                if (saveMutation.isPending || processingLogo || !data?.logoUploadConfigured) return;
+                fileInputRef.current?.click();
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                if (saveMutation.isPending || processingLogo || !data?.logoUploadConfigured) return;
+                fileInputRef.current?.click();
+              }}
               className={cn(
                 "club-profile-logo-zone group relative flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors",
                 data?.logoUploadConfigured
-                  ? clubProfileSurfaceClass
+                  ? cn(clubProfileSurfaceClass, "cursor-pointer")
                   : "cursor-not-allowed border-border/50 bg-muted/20 opacity-70",
               )}
             >
               {displayLogoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={displayLogoUrl}
-                  alt="Club logo preview"
-                  className="size-28 rounded-2xl border border-border/70 bg-white object-contain p-2 shadow-sm"
-                />
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={displayLogoUrl}
+                    alt="Club logo preview"
+                    className="size-28 rounded-2xl border border-border/70 bg-white object-contain p-2 shadow-sm"
+                  />
+                  <button
+                    type="button"
+                    className="absolute -right-1.5 -top-1.5 rounded-lg bg-black/75 p-1 text-white shadow-sm hover:bg-black/90 disabled:opacity-50"
+                    disabled={saveMutation.isPending}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      clearLogoSelection();
+                    }}
+                    aria-label="Remove logo"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
               ) : (
                 <span className="flex size-28 items-center justify-center rounded-2xl border border-border/60 bg-muted/30 text-muted-foreground">
                   <ImagePlus className="h-10 w-10 opacity-60" aria-hidden />
@@ -404,21 +429,7 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
               <span className="max-w-xs text-xs text-muted-foreground">
                 Square image, at least 200×200 px. JPG, PNG, WebP, or GIF up to 2 MB.
               </span>
-            </button>
-
-            {displayLogoUrl ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full border-destructive/40 text-destructive hover:bg-destructive/10"
-                disabled={saveMutation.isPending}
-                onClick={clearLogoSelection}
-              >
-                <Trash2 className="mr-2 h-4 w-4" aria-hidden />
-                Remove logo
-              </Button>
-            ) : null}
+            </div>
 
             {!data?.logoUploadConfigured ? (
               <p className="text-sm text-muted-foreground">

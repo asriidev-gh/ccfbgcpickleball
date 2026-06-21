@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, Plus, Trash2, UserRound } from "lucide-react";
+import { ImagePlus, Plus, Trash2, UserRound, X } from "lucide-react";
 import { useRef } from "react";
 import { toast } from "sonner";
 
@@ -114,28 +114,41 @@ function OrganizerPhotoField({
     <div className="space-y-2">
       <Label className="text-sm font-medium">Photo</Label>
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={disabled || !uploadConfigured}
-          onClick={() => fileInputRef.current?.click()}
-          className={cn(
-            "relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed transition-colors",
-            uploadConfigured
-              ? "club-profile-surface hover:border-sky-500/40"
-              : "cursor-not-allowed border-border/50 bg-muted/20 opacity-70",
-          )}
-        >
+        <div className="relative size-16 shrink-0">
+          <button
+            type="button"
+            disabled={disabled || !uploadConfigured}
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              "relative flex size-full items-center justify-center overflow-hidden rounded-full border-2 border-dashed transition-colors",
+              uploadConfigured
+                ? "club-profile-surface hover:border-sky-500/40"
+                : "cursor-not-allowed border-border/50 bg-muted/20 opacity-70",
+            )}
+          >
+            {displayPhotoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={displayPhotoUrl}
+                alt=""
+                className="size-full object-cover"
+              />
+            ) : (
+              <UserRound className="h-7 w-7 text-muted-foreground/70" aria-hidden />
+            )}
+          </button>
           {displayPhotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={displayPhotoUrl}
-              alt=""
-              className="size-full object-cover"
-            />
-          ) : (
-            <UserRound className="h-7 w-7 text-muted-foreground/70" aria-hidden />
-          )}
-        </button>
+            <button
+              type="button"
+              className="absolute -right-1 -top-1 rounded-lg bg-black/75 p-1 text-white shadow-sm hover:bg-black/90 disabled:opacity-50"
+              disabled={disabled}
+              onClick={onPhotoRemove}
+              aria-label="Remove photo"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          ) : null}
+        </div>
         <div className="flex min-w-0 flex-col gap-2">
           <Button
             type="button"
@@ -147,19 +160,6 @@ function OrganizerPhotoField({
             <ImagePlus className="mr-1.5 h-4 w-4" aria-hidden />
             {displayPhotoUrl ? "Change photo" : "Add photo"}
           </Button>
-          {displayPhotoUrl ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 justify-start px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              disabled={disabled}
-              onClick={onPhotoRemove}
-            >
-              <Trash2 className="mr-1.5 h-4 w-4" aria-hidden />
-              Remove photo
-            </Button>
-          ) : null}
         </div>
       </div>
       <input
