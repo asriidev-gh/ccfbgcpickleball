@@ -1,17 +1,48 @@
 "use client";
 
 import { Grid2x2, Grid3x3, LayoutList } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { isCourtsViewDesktopViewport } from "@/lib/courts-view-viewport";
+import {
+  COURTS_VIEW_DESKTOP_MEDIA,
+  isCourtsViewDesktopViewport,
+} from "@/lib/courts-view-viewport";
 import { cn } from "@/lib/utils";
 
 export type CourtsViewLayout = "list" | "tiles-2" | "tiles-3";
 
 export const COURTS_VIEW_LAYOUT_STORAGE_KEY = "ccf-courts-view-layout";
+export const COURTS_VIEW_LAYOUT_BY_SESSION_STORAGE_KEY = "ccf-courts-view-layout-by-session";
 
 export function defaultCourtsViewLayout(): CourtsViewLayout {
   return "list";
+}
+
+function parseCourtsViewLayout(value: unknown): CourtsViewLayout | null {
+  if (value === "list" || value === "tiles-2" || value === "tiles-3") return value;
+  return null;
+}
+
+function loadCourtsViewLayoutMap(): Record<string, CourtsViewLayout> {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const raw = localStorage.getItem(COURTS_VIEW_LAYOUT_BY_SESSION_STORAGE_KEY);
+    if (!raw) return {};
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+
+    const map: Record<string, CourtsViewLayout> = {};
+    for (const [gameId, layout] of Object.entries(parsed)) {
+      const parsedLayout = parseCourtsViewLayout(layout);
+      if (parsedLayout) map[gameId] = parsedLayout;
+    }
+    return map;
+  } catch {
+    return {};
+  }
 }
 
 export function loadCourtsViewLayout(): CourtsViewLayout {
@@ -19,12 +50,63 @@ export function loadCourtsViewLayout(): CourtsViewLayout {
   if (!isCourtsViewDesktopViewport()) return defaultCourtsViewLayout();
 
   const stored = localStorage.getItem(COURTS_VIEW_LAYOUT_STORAGE_KEY);
-  if (stored === "list" || stored === "tiles-2" || stored === "tiles-3") return stored;
-  return defaultCourtsViewLayout();
+  return parseCourtsViewLayout(stored) ?? defaultCourtsViewLayout();
+}
+
+export function loadCourtsViewLayoutForSession(gameId: string): CourtsViewLayout {
+  if (typeof window === "undefined") return defaultCourtsViewLayout();
+  if (!isCourtsViewDesktopViewport()) return defaultCourtsViewLayout();
+
+  const sessionLayout = loadCourtsViewLayoutMap()[gameId];
+  if (sessionLayout) return sessionLayout;
+
+  return loadCourtsViewLayout();
 }
 
 export function saveCourtsViewLayout(layout: CourtsViewLayout) {
   localStorage.setItem(COURTS_VIEW_LAYOUT_STORAGE_KEY, layout);
+}
+
+export function saveCourtsViewLayoutForSession(gameId: string, layout: CourtsViewLayout) {
+  const map = loadCourtsViewLayoutMap();
+  map[gameId] = layout;
+  localStorage.setItem(COURTS_VIEW_LAYOUT_BY_SESSION_STORAGE_KEY, JSON.stringify(map));
+}
+
+export function useCourtsViewSessionLayout(gameId: string) {
+  const [layout, setLayout] = useState<CourtsViewLayout>(defaultCourtsViewLayout);
+  const [ready, setReady] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setLayout(loadCourtsViewLayoutForSession(gameId));
+    setReady(true);
+  }, [gameId]);
+
+  useEffect(() => {
+    const media = window.matchMedia(COURTS_VIEW_DESKTOP_MEDIA);
+    const syncViewport = () => setIsDesktopViewport(media.matches);
+    syncViewport();
+    media.addEventListener("change", syncViewport);
+    return () => media.removeEventListener("change", syncViewport);
+  }, []);
+
+  const displayLayout = ready && isDesktopViewport === true ? layout : "list";
+
+  const setSessionLayout = useCallback(
+    (nextLayout: CourtsViewLayout) => {
+      setLayout(nextLayout);
+      saveCourtsViewLayoutForSession(gameId, nextLayout);
+    },
+    [gameId],
+  );
+
+  return {
+    layout: displayLayout,
+    setLayout: setSessionLayout,
+    ready,
+    isDesktopViewport,
+  };
 }
 
 type CourtsViewLayoutToggleProps = {

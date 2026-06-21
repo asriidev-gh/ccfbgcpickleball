@@ -14,7 +14,9 @@ import {
 } from "@/components/game/courts-view-layout-toggle";
 import {
   CourtsViewPhotosToggle,
+  courtsViewShowsPhotosToggle,
   loadCourtsViewShowPhotos,
+  resolveCourtsViewShowPlayerPhotos,
   saveCourtsViewShowPhotos,
 } from "@/components/game/courts-view-photos-toggle";
 import { CourtsViewCourtThemeSelect } from "@/components/game/courts-view-court-theme-select";
@@ -100,6 +102,10 @@ export function SpectatorCourtsView() {
     viewPrefsReady && isDesktopViewport === true ? layout : "list";
   const displayShowPhotos =
     viewPrefsReady && isDesktopViewport === true ? showPhotos : true;
+  const displayShowPlayerPhotos = resolveCourtsViewShowPlayerPhotos(
+    displayLayout,
+    displayShowPhotos,
+  );
 
   const liveQuery = useQuery({
     queryKey: spectatorLiveQueryKey(gameId),
@@ -135,7 +141,10 @@ export function SpectatorCourtsView() {
     setViewPrefsReady(true);
     saveCourtsViewLayout(nextLayout);
 
-    if (nextLayout === "tiles-3" && layout !== "tiles-3") {
+    if (nextLayout === "list") {
+      setShowPhotos(true);
+      saveCourtsViewShowPhotos(true);
+    } else if (nextLayout === "tiles-3" && layout !== "tiles-3") {
       setShowPhotos(false);
       saveCourtsViewShowPhotos(false);
     }
@@ -185,7 +194,9 @@ export function SpectatorCourtsView() {
         </Link>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <CourtsViewLayoutToggle value={displayLayout} onChange={handleLayoutChange} />
-          <CourtsViewPhotosToggle value={displayShowPhotos} onChange={handleShowPhotosChange} />
+          {courtsViewShowsPhotosToggle(displayLayout) ? (
+            <CourtsViewPhotosToggle value={displayShowPhotos} onChange={handleShowPhotosChange} />
+          ) : null}
           {liveQuery.isRefetching ? (
             <span
               className={cn(
@@ -272,11 +283,17 @@ export function SpectatorCourtsView() {
               playerSessionStats={playerSessionStats}
               gameId={gameId}
               layout={displayLayout}
-              showPlayerPhotos={displayShowPhotos}
+              showPlayerPhotos={displayShowPlayerPhotos}
               layoutVariant="pickleball"
               courtTheme={courtTheme}
               showLeaderboardRank
-              summaryAddon={<SpectatorNextOnQueueButton queue={queueWithStats} />}
+              summaryAddon={
+                <SpectatorNextOnQueueButton
+                  queue={queueWithStats}
+                  showLeaderboardRank
+                  leaderboard={detailsQuery.data?.leaderboard ?? []}
+                />
+              }
               getCourtCardProps={() => ({
                 hideEndGame: true,
                 onEndGame: () => {},

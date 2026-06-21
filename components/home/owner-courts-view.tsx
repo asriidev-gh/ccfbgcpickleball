@@ -7,17 +7,6 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  CourtsViewLayoutToggle,
-  loadCourtsViewLayout,
-  saveCourtsViewLayout,
-  type CourtsViewLayout,
-} from "@/components/game/courts-view-layout-toggle";
-import {
-  CourtsViewPhotosToggle,
-  loadCourtsViewShowPhotos,
-  saveCourtsViewShowPhotos,
-} from "@/components/game/courts-view-photos-toggle";
-import {
   CourtsViewSessionsSelect,
   loadHiddenCourtsViewSessionIds,
   saveHiddenCourtsViewSessionIds,
@@ -44,7 +33,6 @@ import {
   loadCourtsViewLeaseBannerCollapsed,
   saveCourtsViewLeaseBannerCollapsed,
 } from "@/lib/courts-view-lease-banner-pref";
-import { COURTS_VIEW_DESKTOP_MEDIA } from "@/lib/courts-view-viewport";
 import type { OwnerCourtsViewPayload } from "@/lib/owner-courts-view-payload";
 import { cn } from "@/lib/utils";
 
@@ -64,49 +52,17 @@ export function OwnerCourtsView() {
   const focusGameId = searchParams.get(COURTS_VIEW_FOCUS_GAME_ID_PARAM);
   const appliedFocusGameIdRef = useRef<string | null>(null);
 
-  const [layout, setLayout] = useState<CourtsViewLayout>("list");
-  const [showPhotos, setShowPhotos] = useState(true);
-  const [viewPrefsReady, setViewPrefsReady] = useState(false);
-  const [isDesktopViewport, setIsDesktopViewport] = useState<boolean | null>(null);
   const [hiddenSessionIds, setHiddenSessionIds] = useState<Set<string>>(() => new Set());
   const [hiddenSessionsReady, setHiddenSessionsReady] = useState(false);
   const [courtTheme, setCourtTheme] = useState<CourtsViewCourtTheme>("classic");
   const [leaseBannerCollapsed, setLeaseBannerCollapsed] = useState(false);
 
   useEffect(() => {
-    setLayout(loadCourtsViewLayout());
-    setShowPhotos(loadCourtsViewShowPhotos());
     setHiddenSessionIds(loadHiddenCourtsViewSessionIds());
     setCourtTheme(loadCourtsViewCourtTheme());
     setLeaseBannerCollapsed(loadCourtsViewLeaseBannerCollapsed());
-    setViewPrefsReady(true);
     setHiddenSessionsReady(true);
   }, []);
-
-  useEffect(() => {
-    const media = window.matchMedia(COURTS_VIEW_DESKTOP_MEDIA);
-    const syncViewport = () => setIsDesktopViewport(media.matches);
-    syncViewport();
-    media.addEventListener("change", syncViewport);
-    return () => media.removeEventListener("change", syncViewport);
-  }, []);
-
-  const handleLayoutChange = (nextLayout: CourtsViewLayout) => {
-    setLayout(nextLayout);
-    setViewPrefsReady(true);
-    saveCourtsViewLayout(nextLayout);
-
-    if (nextLayout === "tiles-3" && layout !== "tiles-3") {
-      setShowPhotos(false);
-      saveCourtsViewShowPhotos(false);
-    }
-  };
-
-  const handleShowPhotosChange = (nextShowPhotos: boolean) => {
-    setShowPhotos(nextShowPhotos);
-    setViewPrefsReady(true);
-    saveCourtsViewShowPhotos(nextShowPhotos);
-  };
 
   const handleCourtThemeChange = (nextTheme: CourtsViewCourtTheme) => {
     setCourtTheme(nextTheme);
@@ -117,11 +73,6 @@ export function OwnerCourtsView() {
     setLeaseBannerCollapsed(collapsed);
     saveCourtsViewLeaseBannerCollapsed(collapsed);
   }, []);
-
-  const displayLayout =
-    viewPrefsReady && isDesktopViewport === true ? layout : "list";
-  const displayShowPhotos =
-    viewPrefsReady && isDesktopViewport === true ? showPhotos : true;
 
   const query = useQuery({
     queryKey: ["games", "courts-view"],
@@ -215,23 +166,19 @@ export function OwnerCourtsView() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Link
           href="/my-games"
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex w-fit")}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex shrink-0")}
         >
           <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
           Back to My Games
         </Link>
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <CourtsViewCourtThemeSelect
             value={courtTheme}
             onChange={handleCourtThemeChange}
           />
-          <div className="hidden items-center gap-2 sm:flex">
-            <CourtsViewLayoutToggle value={displayLayout} onChange={handleLayoutChange} />
-            <CourtsViewPhotosToggle value={displayShowPhotos} onChange={handleShowPhotosChange} />
-          </div>
           {query.isRefetching ? (
             <span
               className={cn(
@@ -285,8 +232,6 @@ export function OwnerCourtsView() {
             <OwnerSessionCourtsSection
               key={session.gameId}
               session={session}
-              layout={displayLayout}
-              showPlayerPhotos={displayShowPhotos}
               courtTheme={courtTheme}
               leaseBannerCollapsed={leaseBannerCollapsed}
               onLeaseBannerCollapsedChange={handleLeaseBannerCollapsedChange}

@@ -20,6 +20,10 @@ import {
   cancelCallNamesSpeech,
   isCallNamesSpeechSupported,
 } from "@/lib/call-names-speech";
+import {
+  buildPlayerLeaderboardRankMap,
+  type LeaderboardGamesPlayedRow,
+} from "@/lib/games-played-map";
 import { cn } from "@/lib/utils";
 
 type SpectatorNextOnQueueButtonProps = {
@@ -31,6 +35,8 @@ type SpectatorNextOnQueueButtonProps = {
   canFillNextCourt?: boolean;
   fillPending?: boolean;
   onFillNextCourt?: () => void;
+  showLeaderboardRank?: boolean;
+  leaderboard?: LeaderboardGamesPlayedRow[];
 };
 
 export function SpectatorNextOnQueueButton({
@@ -42,6 +48,8 @@ export function SpectatorNextOnQueueButton({
   canFillNextCourt = false,
   fillPending = false,
   onFillNextCourt,
+  showLeaderboardRank = false,
+  leaderboard = [],
 }: SpectatorNextOnQueueButtonProps) {
   const [open, setOpen] = useState(false);
   const [callingNames, setCallingNames] = useState(false);
@@ -50,6 +58,10 @@ export function SpectatorNextOnQueueButton({
   const teamA = useMemo(() => nextUp.slice(0, 2), [nextUp]);
   const teamB = useMemo(() => nextUp.slice(2, 4), [nextUp]);
   const count = nextUp.length;
+  const leaderboardRankMap = useMemo(
+    () => (showLeaderboardRank ? buildPlayerLeaderboardRankMap(leaderboard) : new Map()),
+    [leaderboard, showLeaderboardRank],
+  );
   const showCallNames = enableCallNames && isCallNamesSpeechSupported() && count > 0;
   const showFillNextCourt = Boolean(onFillNextCourt && hasEmptyCourt);
   const showFooter = showCallNames || showFillNextCourt;
@@ -161,6 +173,8 @@ export function SpectatorNextOnQueueButton({
                     hideReplacePanel
                     onReplace={() => {}}
                     replacePending={false}
+                    showLeaderboardRank={showLeaderboardRank}
+                    leaderboardRankMap={leaderboardRankMap}
                   />
                 ))}
               </div>

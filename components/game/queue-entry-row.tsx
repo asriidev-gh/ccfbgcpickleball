@@ -9,6 +9,8 @@ import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-m
 import { Badge } from "@/components/ui/badge";
 import {
   formatSessionRecordLabel,
+  formatSessionRecordWithRankLabel,
+  getPlayerLeaderboardRank,
   isSessionUndefeated,
 } from "@/lib/games-played-map";
 import { cn, formatPlayerCourtName, formatPlayerDisplayName } from "@/lib/utils";
@@ -61,20 +63,27 @@ function UndefeatedBadge({ className }: { className?: string }) {
 function QueueSessionStatsBadges({
   wins,
   losses,
+  rank,
+  showLeaderboardRank = false,
   className,
 }: {
   wins: number;
   losses: number;
+  rank?: number | null;
+  showLeaderboardRank?: boolean;
   className?: string;
 }) {
   const stats = { wins, losses, gamesPlayed: wins + losses };
   const showUndefeated = isSessionUndefeated(stats);
+  const recordLabel = showLeaderboardRank
+    ? formatSessionRecordWithRankLabel(stats, rank)
+    : formatSessionRecordLabel(stats);
 
   return (
     <div className={cn("flex flex-wrap items-center justify-end gap-1", className)}>
       {showUndefeated ? <UndefeatedBadge /> : null}
       <Badge variant="outline" className="whitespace-nowrap tabular-nums">
-        {formatSessionRecordLabel(stats)}
+        {recordLabel}
       </Badge>
     </div>
   );
@@ -132,6 +141,8 @@ type QueueEntryRowProps = {
   hideSessionStats?: boolean;
   /** When set, superadmins can open this player's spectate view. */
   gameId?: string;
+  showLeaderboardRank?: boolean;
+  leaderboardRankMap?: Map<string, number>;
 };
 
 export function QueueEntryRow({
@@ -155,6 +166,8 @@ export function QueueEntryRow({
   compactName = false,
   hideSessionStats = false,
   gameId,
+  showLeaderboardRank = false,
+  leaderboardRankMap,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const playerMongoId = resolvePlayerId(entry.playerId);
@@ -168,7 +181,13 @@ export function QueueEntryRow({
     wins: entry.wins ?? 0,
     losses: entry.losses ?? 0,
   };
-  const sessionRecordLabel = formatSessionRecordLabel(sessionStats);
+  const leaderboardRank =
+    showLeaderboardRank && leaderboardRankMap
+      ? getPlayerLeaderboardRank(leaderboardRankMap, entry.playerId)
+      : null;
+  const sessionRecordLabel = showLeaderboardRank
+    ? formatSessionRecordWithRankLabel(sessionStats, leaderboardRank)
+    : formatSessionRecordLabel(sessionStats);
   const showUndefeated = isSessionUndefeated(sessionStats);
   const rowClass = checkedOut
     ? "queue-checked-out"
@@ -239,6 +258,8 @@ export function QueueEntryRow({
               <QueueSessionStatsBadges
                 wins={sessionStats.wins}
                 losses={sessionStats.losses}
+                rank={leaderboardRank}
+                showLeaderboardRank={showLeaderboardRank}
                 className="xl:hidden"
               />
               <div className="hidden items-center gap-1.5 xl:flex">
@@ -249,7 +270,12 @@ export function QueueEntryRow({
               </div>
             </>
           ) : hideSessionStats ? null : (
-            <QueueSessionStatsBadges wins={sessionStats.wins} losses={sessionStats.losses} />
+            <QueueSessionStatsBadges
+              wins={sessionStats.wins}
+              losses={sessionStats.losses}
+              rank={leaderboardRank}
+              showLeaderboardRank={showLeaderboardRank}
+            />
           )}
         </div>
       </div>

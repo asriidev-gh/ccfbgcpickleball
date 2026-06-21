@@ -10,7 +10,17 @@ import { GameCourtsGrid } from "@/components/game/game-courts-grid";
 import { SpectatorNextOnQueueButton } from "@/components/game/spectator-next-on-queue-dialog";
 import { OperatorCourtActionDialogs } from "@/components/game/operator-court-action-dialogs";
 import { OperatorDashboardLeaseBanner, OperatorDashboardLeaseBannerCollapsed } from "@/components/game/operator-dashboard-lease-banner";
-import type { CourtsViewLayout } from "@/components/game/courts-view-layout-toggle";
+import {
+  CourtsViewLayoutToggle,
+  useCourtsViewSessionLayout,
+  type CourtsViewLayout,
+} from "@/components/game/courts-view-layout-toggle";
+import {
+  CourtsViewPhotosToggle,
+  courtsViewShowsPhotosToggle,
+  resolveCourtsViewShowPlayerPhotos,
+  useCourtsViewSessionPhotos,
+} from "@/components/game/courts-view-photos-toggle";
 import { ReplacePlayerDialog } from "@/components/game/replace-player-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,8 +37,6 @@ import { cn } from "@/lib/utils";
 
 type OwnerSessionCourtsSectionProps = {
   session: OwnerCourtsViewSession;
-  layout: CourtsViewLayout;
-  showPlayerPhotos?: boolean;
   courtTheme?: CourtsViewCourtTheme;
   leaseBannerCollapsed?: boolean;
   onLeaseBannerCollapsedChange?: (collapsed: boolean) => void;
@@ -36,12 +44,23 @@ type OwnerSessionCourtsSectionProps = {
 
 export function OwnerSessionCourtsSection({
   session,
-  layout,
-  showPlayerPhotos = true,
   courtTheme = "classic",
   leaseBannerCollapsed = false,
   onLeaseBannerCollapsedChange,
 }: OwnerSessionCourtsSectionProps) {
+  const { layout, setLayout } = useCourtsViewSessionLayout(session.gameId);
+  const { showPhotos, setShowPhotos } = useCourtsViewSessionPhotos(session.gameId);
+  const sessionShowPlayerPhotos = resolveCourtsViewShowPlayerPhotos(layout, showPhotos);
+
+  const handleLayoutChange = useCallback(
+    (nextLayout: CourtsViewLayout) => {
+      setLayout(nextLayout);
+      if (nextLayout === "list") {
+        setShowPhotos(true);
+      }
+    },
+    [setLayout, setShowPhotos],
+  );
   const fillCourtFlowRef = useRef<FillCourtFlowHandle>(null);
   const courtsSectionRef = useRef<HTMLDivElement>(null);
   const [takeOverPending, setTakeOverPending] = useState(false);
@@ -189,6 +208,12 @@ export function OwnerSessionCourtsSection({
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
           {showPauseAll ? <div className="sm:hidden">{pauseAllButton}</div> : null}
+          <div className="hidden items-center gap-2 sm:flex">
+            <CourtsViewLayoutToggle value={layout} onChange={handleLayoutChange} />
+            {courtsViewShowsPhotosToggle(layout) ? (
+              <CourtsViewPhotosToggle value={showPhotos} onChange={setShowPhotos} />
+            ) : null}
+          </div>
           <Link
             href={`/games/${session.gameId}`}
             className={cn(
@@ -235,7 +260,7 @@ export function OwnerSessionCourtsSection({
         leaderboard={session.leaderboard}
         gameId={session.gameId}
         layout={layout}
-        showPlayerPhotos={showPlayerPhotos}
+        showPlayerPhotos={sessionShowPlayerPhotos}
         layoutVariant="pickleball"
         courtTheme={courtTheme}
         showLeaderboardRank
@@ -252,6 +277,8 @@ export function OwnerSessionCourtsSection({
                 ? () => fillCourtFlowRef.current?.openFillNextCourt()
                 : undefined
             }
+            showLeaderboardRank
+            leaderboard={session.leaderboard}
           />
         }
         getCourtCardProps={getCourtCardProps}
