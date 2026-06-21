@@ -5,6 +5,7 @@ import {
   ChevronDown,
   LogIn,
   LogOut,
+  MoreHorizontal,
   UserRoundCheck,
   UserX,
 } from "lucide-react";
@@ -205,6 +206,7 @@ export function QueuePlayerActionsMenu({
           />
         }
       >
+        <MoreHorizontal className={cn(iconClass, "opacity-80")} aria-hidden />
         Actions
         <ChevronDown className={cn(iconClass, "opacity-70")} aria-hidden />
       </DropdownMenuTrigger>

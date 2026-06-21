@@ -95,7 +95,7 @@ export function AddManualPlayerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add player</DialogTitle>
+          <DialogTitle>Add player manually</DialogTitle>
           <DialogDescription>
             Enter a name and gender. The player will be added to the end of the queue.
           </DialogDescription>
@@ -151,7 +151,7 @@ export function AddManualPlayerDialog({
                   Adding…
                 </>
               ) : (
-                "Add player"
+                "Add player manually"
               )}
             </Button>
           </div>

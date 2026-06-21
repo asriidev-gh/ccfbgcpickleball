@@ -4,13 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Trophy,
   QrCode,
-  UserPlus,
   Play,
   Pause,
   RotateCcw,
   RefreshCw,
   House,
-  Flag,
   Zap,
   ChevronDown,
   ChevronUp,
@@ -42,6 +40,7 @@ import { SpectateBirthdaysThisMonthBadge } from "@/components/player/spectate-bi
 import { SpectateFirstTimersBadge } from "@/components/player/spectate-first-timers";
 import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
 import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
+import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
 import {
@@ -3008,34 +3007,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   {qrDialogLoading ? "Checking…" : "QR Registration"}
                 </Button>
               ) : null}
-              {!readOnly && !isPastGame ? (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={() => setDatabaseCheckInOpen(true)}
-                >
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  Check in from database
-                </Button>
-              ) : null}
-              {showManualAddPlayer ? (
-                <Button size="lg" variant="outline" onClick={() => setAddPlayerOpen(true)}>
-                  <UserPlus className="mr-2 h-4 w-4" />
-                  Add player
-                </Button>
-              ) : null}
-              {!readOnly && !isPastGame ? (
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="border-destructive/50 text-destructive"
-                  onClick={handleEndOpenPlay}
-                  disabled={endOpenPlayMutation.isPending}
-                >
-                  <Flag className="mr-2 h-4 w-4" />
-                  {endOpenPlayMutation.isPending ? "Ending..." : "End Open Play"}
-                </Button>
-              ) : null}
+              <GameSessionActionsMenu
+                showDatabaseCheckIn={!readOnly && !isPastGame}
+                onDatabaseCheckIn={() => setDatabaseCheckInOpen(true)}
+                showAddPlayer={showManualAddPlayer}
+                onAddPlayer={() => setAddPlayerOpen(true)}
+                showEndOpenPlay={!readOnly && !isPastGame}
+                endOpenPlayPending={endOpenPlayMutation.isPending}
+                onEndOpenPlay={handleEndOpenPlay}
+              />
               {!readOnly && canResetGame ? (
                 <Button
                   size="lg"
