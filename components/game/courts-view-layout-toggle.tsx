@@ -123,7 +123,7 @@ export function CourtsViewLayoutToggle({
   return (
     <div
       className={cn(
-        "courts-view-layout-toggle inline-flex rounded-lg border border-border bg-muted/40 p-0.5",
+        "courts-view-layout-toggle inline-flex h-7 items-stretch rounded-lg border border-border bg-muted/40 p-0.5",
         className,
       )}
       role="group"
@@ -131,35 +131,32 @@ export function CourtsViewLayoutToggle({
     >
       <Button
         type="button"
-        size="sm"
         variant={value === "list" ? "default" : "ghost"}
-        className="courts-view-layout-toggle-btn h-8 gap-1.5 px-2.5 sm:px-3"
+        className="courts-view-layout-toggle-btn h-full min-h-0 gap-1 px-2 sm:px-2.5 text-[0.8rem]"
         onClick={() => onChange("list")}
         aria-pressed={value === "list"}
       >
-        <LayoutList className="h-4 w-4 shrink-0" aria-hidden />
+        <LayoutList className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="hidden sm:inline">List</span>
       </Button>
       <Button
         type="button"
-        size="sm"
         variant={value === "tiles-2" ? "default" : "ghost"}
-        className="courts-view-layout-toggle-btn h-8 gap-1.5 px-2.5 sm:px-3"
+        className="courts-view-layout-toggle-btn h-full min-h-0 gap-1 px-2 sm:px-2.5 text-[0.8rem]"
         onClick={() => onChange("tiles-2")}
         aria-pressed={value === "tiles-2"}
       >
-        <Grid2x2 className="h-4 w-4 shrink-0" aria-hidden />
+        <Grid2x2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="hidden sm:inline">2×2</span>
       </Button>
       <Button
         type="button"
-        size="sm"
         variant={value === "tiles-3" ? "default" : "ghost"}
-        className="courts-view-layout-toggle-btn h-8 gap-1.5 px-2.5 sm:px-3"
+        className="courts-view-layout-toggle-btn h-full min-h-0 gap-1 px-2 sm:px-2.5 text-[0.8rem]"
         onClick={() => onChange("tiles-3")}
         aria-pressed={value === "tiles-3"}
       >
-        <Grid3x3 className="h-4 w-4 shrink-0" aria-hidden />
+        <Grid3x3 className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="hidden sm:inline">3×3</span>
       </Button>
     </div>

@@ -142,30 +142,28 @@ export function CourtsViewPhotosToggle({
   return (
     <div
       className={cn(
-        "courts-view-photos-toggle inline-flex rounded-lg border border-border bg-muted/40 p-0.5",
+        "courts-view-photos-toggle inline-flex h-7 items-stretch rounded-lg border border-border bg-muted/40 p-0.5",
         className,
       )}
     >
       <Button
         type="button"
-        size="sm"
         variant={value ? "default" : "ghost"}
-        className="courts-view-photos-toggle-btn h-8 gap-1.5 px-2.5 sm:px-3"
+        className="courts-view-photos-toggle-btn h-full min-h-0 gap-1 px-2 sm:px-2.5 text-[0.8rem]"
         onClick={() => onChange(true)}
         aria-pressed={value}
       >
-        <Image className="h-4 w-4 shrink-0" aria-hidden />
+        <Image className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="hidden sm:inline">Photos</span>
       </Button>
       <Button
         type="button"
-        size="sm"
         variant={!value ? "default" : "ghost"}
-        className="courts-view-photos-toggle-btn h-8 gap-1.5 px-2.5 sm:px-3"
+        className="courts-view-photos-toggle-btn h-full min-h-0 gap-1 px-2 sm:px-2.5 text-[0.8rem]"
         onClick={() => onChange(false)}
         aria-pressed={!value}
       >
-        <ImageOff className="h-4 w-4 shrink-0" aria-hidden />
+        <ImageOff className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="hidden sm:inline">Hide</span>
       </Button>
     </div>
