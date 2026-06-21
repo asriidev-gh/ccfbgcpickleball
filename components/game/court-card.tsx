@@ -2,6 +2,7 @@ import { ArrowLeftRight, CircleDot, Loader2, Pause, Play, Shuffle, Users } from 
 
 import { CourtCancelAssignmentButton } from "@/components/game/court-cancel-assignment-button";
 import { CourtInPlayElapsedPanel } from "@/components/game/court-play-timer";
+import { PickleballCourtLayout } from "@/components/game/pickleball-court-layout";
 
 import {
   PlayerAvatar,
@@ -161,6 +162,8 @@ type CourtCardProps = {
   canFillCourt?: boolean;
   fillCourtPending?: boolean;
   onFillCourt?: () => void;
+  /** Visual layout: standard cards or pickleball court diagram (Courts View). */
+  layoutVariant?: "standard" | "pickleball";
 };
 
 export function CourtCard({
@@ -185,17 +188,19 @@ export function CourtCard({
   canFillCourt = false,
   fillCourtPending = false,
   onFillCourt,
+  layoutVariant = "standard",
 }: CourtCardProps) {
   const isActive = court.status === "active";
   const teamA = court.teamA?.playerIds ?? [];
   const teamB = court.teamB?.playerIds ?? [];
   const timerClock = toCourtTimerClock(court);
   const isPaused = isCourtTimerPaused(timerClock);
+  const usePickleballLayout = layoutVariant === "pickleball";
 
   return (
     <Card
       id={elementId ?? `court-card-${court.courtNumber}`}
-      className={`court-card overflow-hidden ${isActive ? "court-active" : "court-empty"}${isFilling ? " court-filling" : ""}${isClearing ? " court-clearing" : ""}`}
+      className={`court-card overflow-hidden ${isActive ? "court-active" : "court-empty"}${isFilling ? " court-filling" : ""}${isClearing ? " court-clearing" : ""}${usePickleballLayout ? " court-card--pickleball" : ""}`}
       data-court-status={court.status}
       aria-busy={isFilling || isClearing}
     >
@@ -233,6 +238,20 @@ export function CourtCard({
       <CardContent className="space-y-3 pt-0">
         {isActive ? (
           <>
+            {usePickleballLayout ? (
+              <PickleballCourtLayout
+                courtNumber={court.courtNumber}
+                teamA={teamA}
+                teamB={teamB}
+                playerSessionStats={playerSessionStats}
+                canReplacePlayers={canReplacePlayers}
+                onReplacePlayer={onReplacePlayer}
+                replacePendingKey={replacePendingKey}
+                onSwapTeams={onSwapTeams}
+                swapPending={swapPending}
+                hideEndGame={hideEndGame}
+              />
+            ) : (
             <div className="court-teams">
               <div className="court-team court-team-a">
                 <p className="court-team-label">Team A</p>
@@ -298,6 +317,7 @@ export function CourtCard({
                 />
               </div>
             </div>
+            )}
             {!hideEndGame ? (
               <div className="flex flex-col gap-2">
                 {onCancelRematch ? (
@@ -356,6 +376,24 @@ export function CourtCard({
             ) : null}
           </>
         ) : isFilling ? (
+          usePickleballLayout ? (
+            <div className="court-empty-wrap">
+              <PickleballCourtLayout
+                courtNumber={court.courtNumber}
+                teamA={[]}
+                teamB={[]}
+                playerSessionStats={playerSessionStats}
+                empty
+              />
+              <div className="court-empty-state court-empty-state--filling">
+                <Loader2 className="h-9 w-9 animate-spin text-primary" aria-hidden />
+                <p className="court-empty-title">Filling court…</p>
+                <p className="caption text-center text-muted-foreground">
+                  Assigning players from the queue
+                </p>
+              </div>
+            </div>
+          ) : (
           <div className="court-empty-state court-empty-state--filling">
             <Loader2 className="h-9 w-9 animate-spin text-primary" aria-hidden />
             <p className="court-empty-title">Filling court…</p>
@@ -363,13 +401,74 @@ export function CourtCard({
               Assigning players from the queue
             </p>
           </div>
+          )
         ) : isClearing ? (
+          usePickleballLayout ? (
+            <div className="court-empty-wrap">
+              <PickleballCourtLayout
+                courtNumber={court.courtNumber}
+                teamA={[]}
+                teamB={[]}
+                playerSessionStats={playerSessionStats}
+                empty
+              />
+              <div className="court-empty-state court-empty-state--filling">
+                <Loader2 className="h-9 w-9 animate-spin text-muted-foreground" aria-hidden />
+                <p className="court-empty-title">Clearing court…</p>
+                <p className="caption text-center text-muted-foreground">
+                  Finishing the previous game before this court can be filled again
+                </p>
+              </div>
+            </div>
+          ) : (
           <div className="court-empty-state court-empty-state--filling">
             <Loader2 className="h-9 w-9 animate-spin text-muted-foreground" aria-hidden />
             <p className="court-empty-title">Clearing court…</p>
             <p className="caption text-center text-muted-foreground">
               Finishing the previous game before this court can be filled again
             </p>
+          </div>
+          )
+        ) : usePickleballLayout ? (
+          <div className="court-empty-wrap">
+            <PickleballCourtLayout
+              courtNumber={court.courtNumber}
+              teamA={[]}
+              teamB={[]}
+              playerSessionStats={playerSessionStats}
+              empty
+            />
+            <div className="court-empty-state">
+              <div className="court-empty-icon" aria-hidden>
+                <Users className="h-8 w-8" />
+              </div>
+              <p className="court-empty-title">No game in progress</p>
+              <p className="caption text-center">
+                {onFillCourt
+                  ? "Assign the next four players from the queue to this court."
+                  : "Fill a court from the queue when at least four players are waiting."}
+              </p>
+              {onFillCourt ? (
+                <Button
+                  type="button"
+                  className="mt-2 w-full"
+                  onClick={onFillCourt}
+                  disabled={!canFillCourt || fillCourtPending || isClearing}
+                >
+                  {fillCourtPending || isFilling ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                      Filling…
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" aria-hidden />
+                      Fill this court
+                    </>
+                  )}
+                </Button>
+              ) : null}
+            </div>
           </div>
         ) : (
           <div className="court-empty-state">

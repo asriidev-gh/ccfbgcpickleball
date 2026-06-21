@@ -15,6 +15,7 @@ import {
   type LeaderboardGamesPlayedRow,
   type PlayerSessionStats,
 } from "@/lib/games-played-map";
+import type { CourtsViewCourtTheme } from "@/lib/courts-view-court-theme";
 import { cn } from "@/lib/utils";
 import type { ComponentProps } from "react";
 
@@ -32,6 +33,8 @@ type GameCourtsGridProps = {
   showSummary?: boolean;
   layout?: CourtsViewLayout;
   showPlayerPhotos?: boolean;
+  layoutVariant?: "standard" | "pickleball";
+  courtTheme?: CourtsViewCourtTheme;
   getCourtCardProps?: (court: CourtView) => CourtCardOperatorProps;
 };
 
@@ -44,6 +47,8 @@ export function GameCourtsGrid({
   showSummary = true,
   layout = defaultCourtsViewLayout(),
   showPlayerPhotos = defaultCourtsViewShowPhotos(),
+  layoutVariant = "standard",
+  courtTheme = "classic",
   getCourtCardProps,
 }: GameCourtsGridProps) {
   const playerSessionStats =
@@ -60,7 +65,9 @@ export function GameCourtsGrid({
         className={cn(
           courtsViewLayoutGridClassName(layout),
           courtsViewPhotosGridClassName(showPlayerPhotos),
+          layoutVariant === "pickleball" && "court-grid-theme",
         )}
+        data-court-theme={layoutVariant === "pickleball" ? courtTheme : undefined}
       >
         {courts.map((court) => {
           const operatorProps = getCourtCardProps?.(court) ?? {
@@ -78,6 +85,7 @@ export function GameCourtsGrid({
               }
               court={court}
               playerSessionStats={playerSessionStats}
+              layoutVariant={layoutVariant}
               {...operatorProps}
             />
           );

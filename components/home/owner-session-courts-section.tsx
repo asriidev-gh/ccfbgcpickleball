@@ -20,18 +20,21 @@ import {
 } from "@/lib/games-played-map";
 import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
+import type { CourtsViewCourtTheme } from "@/lib/courts-view-court-theme";
 import { cn } from "@/lib/utils";
 
 type OwnerSessionCourtsSectionProps = {
   session: OwnerCourtsViewSession;
   layout: CourtsViewLayout;
   showPlayerPhotos?: boolean;
+  courtTheme?: CourtsViewCourtTheme;
 };
 
 export function OwnerSessionCourtsSection({
   session,
   layout,
   showPlayerPhotos = true,
+  courtTheme = "classic",
 }: OwnerSessionCourtsSectionProps) {
   const fillCourtFlowRef = useRef<FillCourtFlowHandle>(null);
   const [leaseChecking, setLeaseChecking] = useState(false);
@@ -217,6 +220,8 @@ export function OwnerSessionCourtsSection({
         gameId={session.gameId}
         layout={layout}
         showPlayerPhotos={showPlayerPhotos}
+        layoutVariant="pickleball"
+        courtTheme={courtTheme}
         getCourtCardProps={getCourtCardProps}
       />
 

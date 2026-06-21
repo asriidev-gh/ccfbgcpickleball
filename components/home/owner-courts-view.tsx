@@ -23,6 +23,7 @@ import {
   saveHiddenCourtsViewSessionIds,
 } from "@/components/game/courts-view-sessions-select";
 import { OwnerSessionCourtsSection } from "@/components/home/owner-session-courts-section";
+import { CourtsViewCourtThemeSelect } from "@/components/game/courts-view-court-theme-select";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -34,6 +35,11 @@ import {
   COURTS_VIEW_FOCUS_GAME_ID_PARAM,
   hiddenCourtsViewSessionIdsForFocus,
 } from "@/lib/courts-view-focus";
+import {
+  loadCourtsViewCourtTheme,
+  saveCourtsViewCourtTheme,
+  type CourtsViewCourtTheme,
+} from "@/lib/courts-view-court-theme";
 import { COURTS_VIEW_DESKTOP_MEDIA } from "@/lib/courts-view-viewport";
 import type { OwnerCourtsViewPayload } from "@/lib/owner-courts-view-payload";
 import { cn } from "@/lib/utils";
@@ -60,11 +66,13 @@ export function OwnerCourtsView() {
   const [isDesktopViewport, setIsDesktopViewport] = useState<boolean | null>(null);
   const [hiddenSessionIds, setHiddenSessionIds] = useState<Set<string>>(() => new Set());
   const [hiddenSessionsReady, setHiddenSessionsReady] = useState(false);
+  const [courtTheme, setCourtTheme] = useState<CourtsViewCourtTheme>("classic");
 
   useEffect(() => {
     setLayout(loadCourtsViewLayout());
     setShowPhotos(loadCourtsViewShowPhotos());
     setHiddenSessionIds(loadHiddenCourtsViewSessionIds());
+    setCourtTheme(loadCourtsViewCourtTheme());
     setViewPrefsReady(true);
     setHiddenSessionsReady(true);
   }, []);
@@ -92,6 +100,11 @@ export function OwnerCourtsView() {
     setShowPhotos(nextShowPhotos);
     setViewPrefsReady(true);
     saveCourtsViewShowPhotos(nextShowPhotos);
+  };
+
+  const handleCourtThemeChange = (nextTheme: CourtsViewCourtTheme) => {
+    setCourtTheme(nextTheme);
+    saveCourtsViewCourtTheme(nextTheme);
   };
 
   const displayLayout =
@@ -200,6 +213,10 @@ export function OwnerCourtsView() {
           Back to My Games
         </Link>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <CourtsViewCourtThemeSelect
+            value={courtTheme}
+            onChange={handleCourtThemeChange}
+          />
           <div className="hidden items-center gap-2 sm:flex">
             <CourtsViewLayoutToggle value={displayLayout} onChange={handleLayoutChange} />
             <CourtsViewPhotosToggle value={displayShowPhotos} onChange={handleShowPhotosChange} />
@@ -259,6 +276,7 @@ export function OwnerCourtsView() {
               session={session}
               layout={displayLayout}
               showPlayerPhotos={displayShowPhotos}
+              courtTheme={courtTheme}
             />
           ))}
         </div>
