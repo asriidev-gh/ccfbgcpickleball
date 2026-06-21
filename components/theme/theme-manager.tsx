@@ -14,7 +14,8 @@ export type AppTheme =
   | "cupertino"
   | "cosmos"
   | "session"
-  | "makati";
+  | "makati"
+  | "smarthome";
 
 export const APP_THEMES: { value: AppTheme; label: string }[] = [
   { value: "makati", label: "Dark Blue Theme" },
@@ -26,6 +27,7 @@ export const APP_THEMES: { value: AppTheme; label: string }[] = [
   { value: "fintech", label: "Fintech Pro" },
   { value: "material", label: "Material UI" },
   { value: "cupertino", label: "Apple iOS" },
+  { value: "smarthome", label: "Smart Home" },
 ];
 
 export function applyTheme(theme: AppTheme) {

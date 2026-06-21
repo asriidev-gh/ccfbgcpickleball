@@ -352,6 +352,58 @@
   --chart-5: var(--makati-text-muted);
 }
 
+/* Smart Home: warm cream canvas, white cards, gold accents */
+[data-theme="smarthome"] {
+  color-scheme: light;
+  --smarthome-bg: #f8f7f2;
+  --smarthome-surface: #ffffff;
+  --smarthome-surface-soft: #f0efe9;
+  --smarthome-surface-muted: #e8e4da;
+  --smarthome-border: #e5e2d9;
+  --smarthome-border-muted: #ebe8e0;
+  --smarthome-text: #1a1a1a;
+  --smarthome-text-muted: #757575;
+  --smarthome-gold: #a88143;
+  --smarthome-gold-bright: #c5a358;
+  --smarthome-gold-deep: #8f6b35;
+  --smarthome-green: #2e7d32;
+  --smarthome-green-soft: #e8f5e9;
+  --smarthome-shadow: 0 4px 20px rgb(0 0 0 / 0.05);
+  --smarthome-shadow-lg: 0 8px 32px rgb(0 0 0 / 0.08);
+  --radius: 1.25rem;
+  --background: var(--smarthome-bg);
+  --foreground: var(--smarthome-text);
+  --card: var(--smarthome-surface);
+  --card-foreground: var(--smarthome-text);
+  --popover: var(--smarthome-surface);
+  --popover-foreground: var(--smarthome-text);
+  --primary: var(--smarthome-gold);
+  --primary-foreground: #ffffff;
+  --secondary: var(--smarthome-surface-soft);
+  --secondary-foreground: var(--smarthome-text);
+  --muted: var(--smarthome-surface-soft);
+  --muted-foreground: var(--smarthome-text-muted);
+  --accent: var(--smarthome-surface-muted);
+  --accent-foreground: var(--smarthome-gold-deep);
+  --destructive: #c62828;
+  --border: var(--smarthome-border-muted);
+  --input: var(--smarthome-surface);
+  --ring: var(--smarthome-gold);
+  --chart-1: var(--smarthome-gold);
+  --chart-2: var(--smarthome-green);
+  --chart-3: #64b5f6;
+  --chart-4: #ef5350;
+  --chart-5: #ffb74d;
+  --sidebar: var(--smarthome-surface);
+  --sidebar-foreground: var(--smarthome-text);
+  --sidebar-primary: var(--smarthome-gold);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--smarthome-surface-soft);
+  --sidebar-accent-foreground: var(--smarthome-text);
+  --sidebar-border: var(--smarthome-border-muted);
+  --sidebar-ring: var(--smarthome-gold);
+}
+
  .dark {
   --background: oklch(0.13 0.03 275);
   --foreground: oklch(0.97 0.01 260);
@@ -436,8 +488,31 @@
 
   [data-theme="fintech"] .date-input,
   [data-theme="material"] .date-input,
-  [data-theme="cupertino"] .date-input {
+  [data-theme="cupertino"] .date-input,
+  [data-theme="smarthome"] .date-input {
     color-scheme: light;
+  }
+
+  [data-theme="smarthome"] body {
+    background-color: var(--smarthome-bg);
+    color: var(--smarthome-text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  [data-theme="smarthome"] main {
+    padding: 16px !important;
+  }
+
+  @media (min-width: 768px) {
+    [data-theme="smarthome"] main {
+      padding: 24px 28px !important;
+    }
+  }
+
+  [data-theme="smarthome"] main > section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
   }
 
   [data-theme="fintech"] body {
@@ -1256,8 +1331,46 @@
       0 1px 3px 0 rgb(0 0 0 / 12%);
   }
 
+  [data-theme="smarthome"] .glass-panel,
+  [data-theme="smarthome"] [data-slot="card"] {
+    @apply gap-0 overflow-hidden rounded-3xl border-0 bg-card py-0 text-card-foreground ring-0;
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .glass-panel [data-slot="card-header"],
+  [data-theme="smarthome"] [data-slot="card-header"] {
+    @apply gap-2 border-b px-5 pb-3 pt-5;
+    border-color: var(--smarthome-border-muted);
+    background-color: var(--smarthome-surface);
+  }
+
+  [data-theme="smarthome"] .glass-panel [data-slot="card-title"],
+  [data-theme="smarthome"] [data-slot="card-title"] {
+    @apply text-base font-semibold tracking-tight;
+    color: var(--smarthome-text);
+  }
+
+  [data-theme="smarthome"] .glass-panel [data-slot="card-content"],
+  [data-theme="smarthome"] [data-slot="card-content"] {
+    @apply bg-card px-5 pb-5 pt-4;
+  }
+
+  [data-theme="smarthome"] .app-brand-bar {
+    @apply border-b bg-card/95 backdrop-blur-sm;
+    border-color: var(--smarthome-border-muted);
+    box-shadow: var(--smarthome-shadow);
+  }
+
   .surface-muted {
     @apply border border-white/10 bg-slate-950/35;
+  }
+
+  [data-theme="smarthome"] .surface-muted {
+    @apply rounded-3xl border;
+    border-color: var(--smarthome-border-muted);
+    background-color: var(--smarthome-surface);
+    color: var(--smarthome-text);
+    box-shadow: var(--smarthome-shadow);
   }
 
   .queue-list {
@@ -4897,6 +5010,253 @@
   [data-theme="session"] .register-checklist-item.is-checked,
   [data-theme="session"] .register-checklist-item:has([data-checked]) {
     box-shadow: inset 0 0 0 2px var(--session-lime);
+  }
+
+  /* —— Smart Home (warm minimalist dashboard) —— */
+  [data-theme="smarthome"] .page-title {
+    @apply text-2xl font-semibold tracking-tight md:text-3xl;
+    color: var(--smarthome-text);
+  }
+
+  [data-theme="smarthome"] .section-title {
+    @apply text-lg font-semibold tracking-tight;
+    color: var(--smarthome-text);
+  }
+
+  [data-theme="smarthome"] .body-lg {
+    @apply font-medium;
+    color: var(--smarthome-text);
+  }
+
+  [data-theme="smarthome"] .caption {
+    color: var(--smarthome-text-muted);
+  }
+
+  [data-theme="smarthome"] .group\/button.bg-primary {
+    @apply rounded-full border-0 font-semibold shadow-sm;
+    background: linear-gradient(180deg, var(--smarthome-gold-bright) 0%, var(--smarthome-gold) 100%);
+    color: #ffffff;
+  }
+
+  [data-theme="smarthome"] .group\/button.bg-primary:hover {
+    filter: brightness(0.96);
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .group\/button.border-border {
+    @apply rounded-full border bg-white font-medium;
+    border-color: var(--smarthome-border);
+    color: var(--smarthome-text);
+  }
+
+  [data-theme="smarthome"] .group\/button.border-border:hover {
+    background-color: var(--smarthome-surface-soft);
+    border-color: var(--smarthome-gold);
+    color: var(--smarthome-gold-deep);
+  }
+
+  [data-theme="smarthome"] .group\/button.text-destructive,
+  [data-theme="smarthome"] .court-end-btn {
+    @apply rounded-full border-0 font-semibold text-white;
+    background-color: var(--destructive);
+  }
+
+  [data-theme="smarthome"] .group\/button.text-destructive:hover,
+  [data-theme="smarthome"] .court-end-btn:hover {
+    filter: brightness(0.95);
+  }
+
+  [data-theme="smarthome"] [data-slot="badge"] {
+    @apply rounded-full font-medium;
+  }
+
+  [data-theme="smarthome"] .court-badge-active {
+    background-color: var(--smarthome-green-soft);
+    color: var(--smarthome-green);
+    @apply border-0 font-semibold;
+  }
+
+  [data-theme="smarthome"] .court-card.court-empty {
+    @apply border border-dashed bg-white;
+    border-color: var(--smarthome-border);
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .court-card.court-active {
+    @apply border bg-white;
+    border-color: rgb(168 129 67 / 35%);
+    box-shadow: var(--smarthome-shadow-lg);
+  }
+
+  [data-theme="smarthome"] .court-empty-state {
+    @apply rounded-2xl border bg-white;
+    border-color: var(--smarthome-border-muted);
+  }
+
+  [data-theme="smarthome"] .court-team-a {
+    @apply rounded-xl border-l-4 bg-[color:var(--smarthome-surface-soft)];
+    border-left-color: var(--smarthome-gold);
+  }
+
+  [data-theme="smarthome"] .court-team-b {
+    @apply rounded-xl border-l-4 bg-[color:var(--smarthome-surface-soft)];
+    border-left-color: #8d6e63;
+  }
+
+  [data-theme="smarthome"] .queue-next-up-group {
+    @apply rounded-2xl border bg-white;
+    border-color: rgb(168 129 67 / 30%);
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .queue-next-up-banner {
+    @apply rounded-xl border bg-[color:var(--smarthome-surface-soft)];
+    border-color: var(--smarthome-border-muted);
+  }
+
+  [data-theme="smarthome"] .queue-next-up-title {
+    color: var(--smarthome-gold-deep);
+  }
+
+  [data-theme="smarthome"] .badge-next-up-count {
+    background-color: var(--smarthome-gold);
+    color: #ffffff;
+    @apply border-0;
+  }
+
+  [data-theme="smarthome"] .queue-winner {
+    @apply border-0 bg-white;
+    box-shadow: inset 3px 0 0 0 var(--smarthome-green);
+  }
+
+  [data-theme="smarthome"] .queue-loser {
+    @apply border-0 bg-white;
+    box-shadow: inset 3px 0 0 0 #ef5350;
+  }
+
+  [data-theme="smarthome"] .my-games-page-intro__icon {
+    @apply rounded-2xl;
+    background-color: rgb(168 129 67 / 12%);
+    color: var(--smarthome-gold-deep);
+  }
+
+  [data-theme="smarthome"] .game-list-row.surface-muted {
+    @apply lg:gap-6 lg:p-5;
+    border-color: var(--smarthome-border-muted);
+    background-color: var(--smarthome-surface);
+    color: var(--smarthome-text);
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .game-list-row .game-list-col-details,
+  [data-theme="smarthome"] .game-list-row .game-list-col-actions,
+  [data-theme="smarthome"] .game-list-row .game-list-col-register {
+    border-color: var(--smarthome-border-muted);
+    background-color: transparent;
+  }
+
+  [data-theme="smarthome"] .game-list-row .text-lg,
+  [data-theme="smarthome"] .game-list-row .font-semibold,
+  [data-theme="smarthome"] .game-list-card .font-semibold,
+  [data-theme="smarthome"] .game-list-card [data-slot="card-title"] {
+    color: var(--smarthome-text);
+  }
+
+  [data-theme="smarthome"] .game-list-info-grouped .text-muted-foreground,
+  [data-theme="smarthome"] .game-list-info-grouped .text-muted-foreground\/75,
+  [data-theme="smarthome"] .game-list-card .text-muted-foreground {
+    color: var(--smarthome-text-muted);
+  }
+
+  [data-theme="smarthome"] .game-list-info-grouped .text-primary\/70,
+  [data-theme="smarthome"] .game-list-card .text-primary\/70 {
+    color: var(--smarthome-gold);
+  }
+
+  [data-theme="smarthome"] .game-list-card {
+    @apply rounded-3xl border bg-white;
+    border-color: var(--smarthome-border-muted);
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .game-list-card:hover {
+    box-shadow: var(--smarthome-shadow-lg);
+  }
+
+  [data-theme="smarthome"] .game-list-card [data-slot="card-footer"] {
+    @apply border-t bg-[color:var(--smarthome-surface-soft)];
+    border-color: var(--smarthome-border-muted);
+  }
+
+  [data-theme="smarthome"] .game-list-card-toolbar {
+    @apply rounded-full border bg-white;
+    border-color: var(--smarthome-border-muted);
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .game-list-qr-panel {
+    @apply rounded-2xl border;
+    border-color: rgb(168 129 67 / 22%);
+    background-color: var(--smarthome-surface-soft);
+    box-shadow: none;
+  }
+
+  [data-theme="smarthome"] .game-list-qr-panel .font-semibold.uppercase {
+    color: var(--smarthome-gold-deep);
+  }
+
+  [data-theme="smarthome"] .game-list-qr-mode-item {
+    @apply rounded-3xl border bg-white;
+    border-color: var(--smarthome-border-muted);
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .game-list-view-toggle {
+    @apply rounded-full border bg-white p-1;
+    border-color: var(--smarthome-border-muted);
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .game-list-actions-menu__content {
+    @apply rounded-2xl border bg-white p-2;
+    border-color: var(--smarthome-border-muted);
+    box-shadow: var(--smarthome-shadow-lg);
+  }
+
+  [data-theme="smarthome"] .game-list-actions-menu__item:hover:not([data-disabled]) {
+    background-color: var(--smarthome-surface-soft);
+  }
+
+  [data-theme="smarthome"] [data-slot="tabs-list"] {
+    @apply rounded-full border bg-[color:var(--smarthome-surface-soft)] p-1;
+    border-color: var(--smarthome-border-muted);
+  }
+
+  [data-theme="smarthome"] [data-slot="tabs-trigger"][data-active] {
+    @apply rounded-full bg-white text-[color:var(--smarthome-text)] shadow-sm;
+  }
+
+  [data-theme="smarthome"] .owner-hub-nav {
+    @apply rounded-3xl border bg-white p-1.5;
+    border-color: var(--smarthome-border-muted);
+    box-shadow: var(--smarthome-shadow);
+  }
+
+  [data-theme="smarthome"] .owner-hub-nav__icon {
+    @apply rounded-xl bg-[color:var(--smarthome-surface-soft)] text-[color:var(--smarthome-gold-deep)];
+  }
+
+  [data-theme="smarthome"] .owner-hub-nav__link:hover:not(.owner-hub-nav__link--active) {
+    @apply border-transparent bg-[color:var(--smarthome-surface-soft)] text-[color:var(--smarthome-text)];
+  }
+
+  [data-theme="smarthome"] .owner-hub-nav__link--active.owner-hub-nav__link--games {
+    @apply border-0 text-white shadow-sm;
+    background: linear-gradient(180deg, var(--smarthome-gold-bright) 0%, var(--smarthome-gold) 100%);
+  }
+
+  [data-theme="smarthome"] .owner-hub-nav__link--active.owner-hub-nav__link--games .owner-hub-nav__icon {
+    @apply bg-white/20 text-white;
   }
 
   /* —— Dark Blue theme —— */
