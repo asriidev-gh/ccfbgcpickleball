@@ -238,6 +238,7 @@ export function OwnerSessionCourtsSection({
         showPlayerPhotos={showPlayerPhotos}
         layoutVariant="pickleball"
         courtTheme={courtTheme}
+        showLeaderboardRank
         summaryAddon={<SpectatorNextOnQueueButton queue={queueWithStats} />}
         getCourtCardProps={getCourtCardProps}
       />

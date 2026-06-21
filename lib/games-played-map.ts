@@ -52,6 +52,59 @@ export function formatSessionRecordLabel(stats: PlayerSessionStats) {
   return `(W${wins}/L${losses})`;
 }
 
+/** e.g. "(W1/L1/Rank:1)" when rank is known; falls back to wins/losses only. */
+export function formatSessionRecordWithRankLabel(
+  stats: PlayerSessionStats,
+  rank?: number | null,
+) {
+  const { wins, losses } = stats;
+  if (rank == null) return formatSessionRecordLabel(stats);
+  return `(W${wins}/L${losses}/Rank:${rank})`;
+}
+
+function leaderboardWinRate(stats: Pick<PlayerSessionStats, "wins" | "losses" | "gamesPlayed">) {
+  const gamesPlayed = stats.gamesPlayed || stats.wins + stats.losses;
+  return gamesPlayed > 0 ? Math.round((stats.wins / gamesPlayed) * 100) : 0;
+}
+
+/** Rank map keyed by player id (1 = top of session leaderboard). */
+export function buildPlayerLeaderboardRankMap(
+  rows: LeaderboardGamesPlayedRow[] | undefined,
+): Map<string, number> {
+  const ranked = (rows ?? [])
+    .map((row) => {
+      const id = resolvePlayerId(row.playerId);
+      if (!id) return null;
+      const wins = row.wins ?? 0;
+      const losses = row.losses ?? 0;
+      const gamesPlayed = row.gamesPlayed ?? wins + losses;
+      const stats = { wins, losses, gamesPlayed };
+      return { id, ...stats, winRate: leaderboardWinRate(stats) };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry != null)
+    .sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+      if (a.losses !== b.losses) return a.losses - b.losses;
+      return b.gamesPlayed - a.gamesPlayed;
+    });
+
+  const map = new Map<string, number>();
+  ranked.forEach((entry, index) => {
+    map.set(entry.id, index + 1);
+  });
+  return map;
+}
+
+export function getPlayerLeaderboardRank(
+  map: Map<string, number>,
+  playerId: { _id?: { toString(): string } | string } | string | null | undefined,
+): number | null {
+  const id = resolvePlayerId(playerId);
+  if (!id) return null;
+  return map.get(id) ?? null;
+}
+
 /** At least 3 wins this session and no losses yet. */
 export function isSessionUndefeated(stats: Pick<PlayerSessionStats, "wins" | "losses">) {
   return stats.wins >= 3 && stats.losses === 0;

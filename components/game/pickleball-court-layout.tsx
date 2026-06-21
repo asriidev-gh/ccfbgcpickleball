@@ -9,6 +9,8 @@ import {
 } from "@/components/game/player-avatar";
 import {
   formatSessionRecordLabel,
+  formatSessionRecordWithRankLabel,
+  getPlayerLeaderboardRank,
   getPlayerSessionStats,
   type PlayerSessionStats,
 } from "@/lib/games-played-map";
@@ -37,6 +39,8 @@ type ServiceBoxProps = {
   courtNumber: number;
   team: "A" | "B";
   playerSessionStats: Map<string, PlayerSessionStats>;
+  playerLeaderboardRanks?: Map<string, number>;
+  showLeaderboardRank?: boolean;
   canReplace?: boolean;
   onReplacePlayer?: (slotIndex: number, player: PlayerRef) => void;
   replacePendingKey?: string | null;
@@ -50,6 +54,8 @@ function ServiceBox({
   courtNumber,
   team,
   playerSessionStats,
+  playerLeaderboardRanks,
+  showLeaderboardRank = false,
   canReplace = false,
   onReplacePlayer,
   replacePendingKey = null,
@@ -70,6 +76,12 @@ function ServiceBox({
   const courtName = formatPlayerCourtName(player.firstName, player.lastName);
   const fullName = formatPlayerDisplayName(player.firstName, player.lastName);
   const stats = getPlayerSessionStats(playerSessionStats, player._id);
+  const rank = showLeaderboardRank
+    ? getPlayerLeaderboardRank(playerLeaderboardRanks ?? new Map(), player._id)
+    : null;
+  const sessionRecordLabel = showLeaderboardRank
+    ? formatSessionRecordWithRankLabel(stats, rank)
+    : formatSessionRecordLabel(stats);
   const pending =
     replacePendingKey === courtReplacePendingKey(courtNumber, team, slotIndex);
 
@@ -136,7 +148,7 @@ function ServiceBox({
             obscured && "fill-court-player-name--obscured",
           )}
         >
-          {formatSessionRecordLabel(stats)}
+          {sessionRecordLabel}
         </p>
       </div>
     </div>
@@ -148,6 +160,8 @@ type PickleballCourtLayoutProps = {
   teamA: PlayerRef[];
   teamB: PlayerRef[];
   playerSessionStats: Map<string, PlayerSessionStats>;
+  playerLeaderboardRanks?: Map<string, number>;
+  showLeaderboardRank?: boolean;
   canReplacePlayers?: boolean;
   onReplacePlayer?: (input: {
     courtNumber: number;
@@ -167,6 +181,8 @@ export function PickleballCourtLayout({
   teamA,
   teamB,
   playerSessionStats,
+  playerLeaderboardRanks,
+  showLeaderboardRank = false,
   canReplacePlayers = false,
   onReplacePlayer,
   replacePendingKey = null,
@@ -236,6 +252,8 @@ export function PickleballCourtLayout({
             courtNumber={courtNumber}
             team="A"
             playerSessionStats={playerSessionStats}
+            playerLeaderboardRanks={playerLeaderboardRanks}
+            showLeaderboardRank={showLeaderboardRank}
             canReplace={canReplacePlayers}
             onReplacePlayer={replaceHandler?.("A")}
             replacePendingKey={replacePendingKey}
@@ -248,6 +266,8 @@ export function PickleballCourtLayout({
             courtNumber={courtNumber}
             team="A"
             playerSessionStats={playerSessionStats}
+            playerLeaderboardRanks={playerLeaderboardRanks}
+            showLeaderboardRank={showLeaderboardRank}
             canReplace={canReplacePlayers}
             onReplacePlayer={replaceHandler?.("A")}
             replacePendingKey={replacePendingKey}
@@ -304,6 +324,8 @@ export function PickleballCourtLayout({
             courtNumber={courtNumber}
             team="B"
             playerSessionStats={playerSessionStats}
+            playerLeaderboardRanks={playerLeaderboardRanks}
+            showLeaderboardRank={showLeaderboardRank}
             canReplace={canReplacePlayers}
             onReplacePlayer={replaceHandler?.("B")}
             replacePendingKey={replacePendingKey}
@@ -316,6 +338,8 @@ export function PickleballCourtLayout({
             courtNumber={courtNumber}
             team="B"
             playerSessionStats={playerSessionStats}
+            playerLeaderboardRanks={playerLeaderboardRanks}
+            showLeaderboardRank={showLeaderboardRank}
             canReplace={canReplacePlayers}
             onReplacePlayer={replaceHandler?.("B")}
             replacePendingKey={replacePendingKey}

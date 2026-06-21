@@ -12,12 +12,14 @@ import {
 } from "@/components/game/courts-view-photos-toggle";
 import {
   buildPlayerSessionStatsMap,
+  buildPlayerLeaderboardRankMap,
   type LeaderboardGamesPlayedRow,
   type PlayerSessionStats,
 } from "@/lib/games-played-map";
 import type { CourtsViewCourtTheme } from "@/lib/courts-view-court-theme";
 import { cn } from "@/lib/utils";
 import type { ComponentProps, ReactNode } from "react";
+import { useMemo } from "react";
 
 type CourtCardOperatorProps = Omit<
   ComponentProps<typeof CourtCard>,
@@ -32,6 +34,7 @@ type GameCourtsGridProps = {
   className?: string;
   showSummary?: boolean;
   summaryAddon?: ReactNode;
+  showLeaderboardRank?: boolean;
   layout?: CourtsViewLayout;
   showPlayerPhotos?: boolean;
   layoutVariant?: "standard" | "pickleball";
@@ -47,6 +50,7 @@ export function GameCourtsGrid({
   className,
   showSummary = true,
   summaryAddon,
+  showLeaderboardRank = false,
   layout = defaultCourtsViewLayout(),
   showPlayerPhotos = defaultCourtsViewShowPhotos(),
   layoutVariant = "standard",
@@ -55,6 +59,10 @@ export function GameCourtsGrid({
 }: GameCourtsGridProps) {
   const playerSessionStats =
     playerSessionStatsProp ?? buildPlayerSessionStatsMap(leaderboard);
+  const playerLeaderboardRanks = useMemo(
+    () => (showLeaderboardRank ? buildPlayerLeaderboardRankMap(leaderboard) : new Map()),
+    [leaderboard, showLeaderboardRank],
+  );
 
   if (courts.length === 0) {
     return <p className="text-muted-foreground">No courts configured.</p>;
@@ -92,6 +100,8 @@ export function GameCourtsGrid({
               }
               court={court}
               playerSessionStats={playerSessionStats}
+              showLeaderboardRank={showLeaderboardRank}
+              playerLeaderboardRanks={playerLeaderboardRanks}
               layoutVariant={layoutVariant}
               {...operatorProps}
             />

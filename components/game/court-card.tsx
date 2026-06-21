@@ -11,6 +11,8 @@ import {
 } from "@/components/game/player-avatar";
 import {
   formatSessionRecordLabel,
+  formatSessionRecordWithRankLabel,
+  getPlayerLeaderboardRank,
   getPlayerSessionStats,
   type PlayerSessionStats,
 } from "@/lib/games-played-map";
@@ -49,6 +51,8 @@ function courtReplacePendingKey(
 function TeamPlayers({
   players,
   playerSessionStats,
+  playerLeaderboardRanks,
+  showLeaderboardRank = false,
   courtNumber,
   team,
   canReplace = false,
@@ -57,6 +61,8 @@ function TeamPlayers({
 }: {
   players: PlayerRef[];
   playerSessionStats: Map<string, PlayerSessionStats>;
+  playerLeaderboardRanks?: Map<string, number>;
+  showLeaderboardRank?: boolean;
   courtNumber: number;
   team: "A" | "B";
   canReplace?: boolean;
@@ -74,6 +80,12 @@ function TeamPlayers({
         const courtName = formatPlayerCourtName(player.firstName, player.lastName);
         const fullName = formatPlayerDisplayName(player.firstName, player.lastName);
         const stats = getPlayerSessionStats(playerSessionStats, player._id);
+        const rank = showLeaderboardRank
+          ? getPlayerLeaderboardRank(playerLeaderboardRanks ?? new Map(), player._id)
+          : null;
+        const sessionRecordLabel = showLeaderboardRank
+          ? formatSessionRecordWithRankLabel(stats, rank)
+          : formatSessionRecordLabel(stats);
 
         return (
           <li
@@ -123,7 +135,7 @@ function TeamPlayers({
                 ) : null}
               </div>
               <p className="court-player-session-record">
-                {formatSessionRecordLabel(stats)}
+                {sessionRecordLabel}
               </p>
             </div>
           </li>
@@ -137,6 +149,8 @@ type CourtCardProps = {
   court: CourtView;
   elementId?: string;
   playerSessionStats: Map<string, PlayerSessionStats>;
+  playerLeaderboardRanks?: Map<string, number>;
+  showLeaderboardRank?: boolean;
   onEndGame: () => void;
   onCancelAssignment?: () => void;
   cancelPending?: boolean;
@@ -170,6 +184,8 @@ export function CourtCard({
   court,
   elementId,
   playerSessionStats,
+  playerLeaderboardRanks,
+  showLeaderboardRank = false,
   onEndGame,
   onCancelAssignment,
   cancelPending = false,
@@ -244,6 +260,8 @@ export function CourtCard({
                 teamA={teamA}
                 teamB={teamB}
                 playerSessionStats={playerSessionStats}
+                playerLeaderboardRanks={playerLeaderboardRanks}
+                showLeaderboardRank={showLeaderboardRank}
                 canReplacePlayers={canReplacePlayers}
                 onReplacePlayer={onReplacePlayer}
                 replacePendingKey={replacePendingKey}
@@ -258,6 +276,8 @@ export function CourtCard({
                 <TeamPlayers
                   players={teamA}
                   playerSessionStats={playerSessionStats}
+                  playerLeaderboardRanks={playerLeaderboardRanks}
+                  showLeaderboardRank={showLeaderboardRank}
                   courtNumber={court.courtNumber}
                   team="A"
                   canReplace={canReplacePlayers}
@@ -299,6 +319,8 @@ export function CourtCard({
                 <TeamPlayers
                   players={teamB}
                   playerSessionStats={playerSessionStats}
+                  playerLeaderboardRanks={playerLeaderboardRanks}
+                  showLeaderboardRank={showLeaderboardRank}
                   courtNumber={court.courtNumber}
                   team="B"
                   canReplace={canReplacePlayers}

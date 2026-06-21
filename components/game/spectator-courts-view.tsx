@@ -275,6 +275,7 @@ export function SpectatorCourtsView() {
               showPlayerPhotos={displayShowPhotos}
               layoutVariant="pickleball"
               courtTheme={courtTheme}
+              showLeaderboardRank
               summaryAddon={<SpectatorNextOnQueueButton queue={queueWithStats} />}
               getCourtCardProps={() => ({
                 hideEndGame: true,
