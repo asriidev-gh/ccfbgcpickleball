@@ -3,6 +3,7 @@
 import { Flag, House, Loader2, QrCode, RotateCcw, Trophy, UserPlus } from "lucide-react";
 import { usePathname } from "next/navigation";
 
+import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
 import { MobileBottomNavButton, MobileBottomNavShell } from "@/components/mobile-bottom-nav";
 
 type GameDashboardMobileNavProps = {
@@ -45,6 +46,7 @@ export function GameDashboardMobileNav({
         label="Home"
         icon={<House className="h-5 w-5 shrink-0" aria-hidden />}
       />
+      <GameCheckoutNotificationBell gameId={gameId} variant="mobileNav" />
       <MobileBottomNavButton
         href={leaderboardHref}
         label="Leaderboard"

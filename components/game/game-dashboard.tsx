@@ -2096,9 +2096,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const spectatorMatchHistoryEmptyMessage = "No matches recorded for this session yet.";
 
-  const leaderboardHref = isSpectator
-    ? `/leaderboard/${game.gameId}?from=spectator`
-    : `/leaderboard/${game.gameId}`;
+  const leaderboardHref = `/leaderboard/${game.gameId}`;
 
   const isCourtRematch = (court: CourtView) =>
     court.isRematch === true || rematchCourtNumbers.has(court.courtNumber);
@@ -2656,12 +2654,6 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             )}
           </Button>
         ) : null}
-        {!isPastGame && !isSpectator ? (
-          <SwitchToCourtViewButton
-            gameId={gameId}
-            variant="operator"
-          />
-        ) : null}
           <DashboardPanelFullscreenButton containerRef={courtsPanelRef} panelName="courts" />
         </div>
       </CardHeader>
@@ -2922,41 +2914,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
           <CardContent className="game-dashboard-header-content relative">
             {!showSpectatorEndedRecap ? (
               <div className="game-dashboard-header-actions">
-                {!isSpectator ? <GameCheckoutNotificationBell gameId={gameId} /> : null}
-                {isSpectator && !isPastGame ? (
+                {!isPastGame ? (
                   <SwitchToCourtViewButton
                     gameId={gameId}
-                    variant="spectator"
+                    variant={isSpectator ? "spectator" : "operator"}
                     showLabel
                     buttonClassName="game-dashboard-court-view-btn h-8 gap-1 px-2 text-xs font-semibold shadow-sm sm:gap-1.5 sm:px-2.5 lg:h-11 lg:gap-2 lg:px-5 lg:text-base"
                   />
                 ) : null}
-                <Link
-                  href={leaderboardHref}
-                  className="game-dashboard-header-leaderboard group/leaderboard inline-flex rounded-lg"
-                  onMouseEnter={() =>
-                    prefetchLeaderboardRecap(queryClient, gameId, isSpectator)
-                  }
-                  onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, isSpectator)}
-                >
-                  <Button
-                    size="sm"
-                    variant="default"
-                    aria-label="Leaderboard"
-                    className="game-dashboard-leaderboard-btn h-8 gap-1 px-2 text-xs font-semibold shadow-md sm:gap-1.5 sm:px-2.5 lg:h-11 lg:gap-2 lg:px-5 lg:text-base"
-                  >
-                    <Trophy
-                      className="game-dashboard-leaderboard-icon h-3.5 w-3.5 shrink-0 lg:h-5 lg:w-5"
-                      aria-hidden
-                    />
-                    <span className="hidden sm:inline">Leaderboard</span>
-                  </Button>
-                </Link>
               </div>
             ) : null}
             <div className="game-dashboard-header-top">
               <div className="game-dashboard-header-main min-w-0">
-                <h1 className={cn("page-title", isSpectator && "mb-[13px]")}>
+                <h1 className="page-title">
                   {operatorShellLoading ? "Loading session…" : game.title}
                 </h1>
                 {operatorLeasePending ? (
@@ -3004,9 +2974,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             </div>
             {!showSpectatorEndedRecap && !isSpectator ? (
             <div className="game-toolbar mt-4 hidden flex-wrap items-center gap-2 lg:flex">
+              <GameCheckoutNotificationBell gameId={gameId} />
               <Link href="/">
                 <Button size="lg" variant="outline">
                   <House className="mr-2 h-4 w-4" /> Home
+                </Button>
+              </Link>
+              <Link
+                href={leaderboardHref}
+                onMouseEnter={() => prefetchLeaderboardRecap(queryClient, gameId, false)}
+                onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, false)}
+              >
+                <Button size="lg" variant="outline">
+                  <Trophy className="mr-2 h-4 w-4" /> Leaderboard
                 </Button>
               </Link>
               {showQrRegistration ? (

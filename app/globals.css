@@ -3031,11 +3031,11 @@
     @apply opacity-50;
   }
 
-  .court-card--pickleball .court-empty-state {
+  .court-card--pickleball .court-empty-wrap .court-empty-state {
     @apply absolute inset-0 z-10 flex max-h-full min-h-0 flex-col items-center justify-center gap-1 overflow-hidden border-0 bg-black/55 px-2 py-1.5 text-center backdrop-blur-sm sm:gap-1.5 sm:px-3 sm:py-2;
   }
 
-  .court-card--pickleball .court-empty-state--filling {
+  .court-card--pickleball .court-empty-wrap .court-empty-state--filling {
     @apply gap-1.5 bg-primary/25 py-2;
   }
 
@@ -3043,65 +3043,65 @@
     @apply relative isolate overflow-hidden rounded-md;
   }
 
-  .court-card--pickleball .court-empty-title {
+  .court-card--pickleball .court-empty-wrap .court-empty-title {
     @apply shrink-0 text-[0.6875rem] leading-tight text-white sm:text-xs;
   }
 
-  .court-card--pickleball .court-empty-state .caption {
+  .court-card--pickleball .court-empty-wrap .court-empty-state .caption {
     @apply line-clamp-2 shrink text-[0.625rem] leading-snug text-white/75 sm:text-xs;
   }
 
-  .court-card--pickleball .court-empty-icon {
+  .court-card--pickleball .court-empty-wrap .court-empty-icon {
     @apply h-9 w-9 shrink-0 bg-white/15 text-white/80 sm:h-11 sm:w-11;
   }
 
-  .court-card--pickleball .court-empty-icon svg {
+  .court-card--pickleball .court-empty-wrap .court-empty-icon svg {
     @apply h-4 w-4 sm:h-5 sm:w-5;
   }
 
-  .court-card--pickleball .court-empty-state .mt-2 {
+  .court-card--pickleball .court-empty-wrap .court-empty-state .mt-2 {
     @apply mt-1 w-full max-w-full shrink-0;
   }
 
-  .court-card--pickleball .court-empty-state button {
+  .court-card--pickleball .court-empty-wrap .court-empty-state button {
     @apply h-7 max-w-full px-2 text-[0.6875rem] sm:h-8 sm:text-xs;
   }
 
   @media (max-width: 639px) {
-    .court-card--pickleball .court-empty-state .caption {
+    .court-card--pickleball .court-empty-wrap .court-empty-state .caption {
       @apply line-clamp-1;
     }
   }
 
-  .court-grid--tiles-3 .court-card--pickleball .court-empty-state {
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-wrap .court-empty-state {
     @apply gap-0.5 px-1.5 py-1;
   }
 
-  .court-grid--tiles-3 .court-card--pickleball .court-empty-state .caption {
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-wrap .court-empty-state .caption {
     @apply hidden;
   }
 
-  .court-grid--tiles-3 .court-card--pickleball .court-empty-icon {
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-wrap .court-empty-icon {
     @apply h-8 w-8;
   }
 
-  .court-grid--tiles-3 .court-card--pickleball .court-empty-icon svg {
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-wrap .court-empty-icon svg {
     @apply h-3.5 w-3.5;
   }
 
-  .court-grid--tiles-3 .court-card--pickleball .court-empty-title {
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-wrap .court-empty-title {
     @apply text-[0.625rem];
   }
 
-  .court-grid--tiles-3 .court-card--pickleball .court-empty-state button {
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-wrap .court-empty-state button {
     @apply h-6 px-1.5 text-[0.625rem];
   }
 
-  .court-card--pickleball .court-empty-state--filling svg {
+  .court-card--pickleball .court-empty-wrap .court-empty-state--filling svg {
     @apply h-7 w-7 shrink-0 sm:h-8 sm:w-8;
   }
 
-  .court-grid--tiles-3 .court-card--pickleball .court-empty-state--filling svg {
+  .court-grid--tiles-3 .court-card--pickleball .court-empty-wrap .court-empty-state--filling svg {
     @apply h-6 w-6;
   }
 
@@ -3573,7 +3573,7 @@
     @apply border-emerald-400/70 bg-emerald-50 shadow-md shadow-emerald-200/40;
   }
 
-  [data-theme="fintech"] .court-empty-state {
+  [data-theme="fintech"] .court-card:not(.court-card--pickleball) .court-empty-state {
     @apply border-violet-200/80 bg-white;
   }
 
@@ -3606,7 +3606,7 @@
     @apply border-l-[#7b1fa2] bg-[#f3e5f5]/60;
   }
 
-  [data-theme="material"] .court-empty-state {
+  [data-theme="material"] .court-card:not(.court-card--pickleball) .court-empty-state {
     @apply border-[#e0e0e0] bg-white;
   }
 
@@ -3770,12 +3770,16 @@
     @apply min-w-0;
   }
 
+  .game-dashboard-header-main .page-title {
+    @apply mb-4 sm:mb-5;
+  }
+
   .game-dashboard--spectator .game-dashboard-header-main {
-    @apply pr-[11.5rem] sm:pr-[19rem] lg:pr-72;
+    @apply pr-[9.5rem] sm:pr-[12.5rem] lg:pr-48;
   }
 
   .game-dashboard--operator .game-dashboard-header-main {
-    @apply pr-[5.25rem] sm:pr-[11rem] lg:pr-56;
+    @apply pr-[9.5rem] sm:pr-[12.5rem] lg:pr-48;
   }
 
   .game-dashboard-header-actions {
@@ -4917,7 +4921,7 @@
     @apply rounded-full border border-border bg-secondary font-medium text-muted-foreground;
   }
 
-  [data-theme="cosmos"] .court-empty-state {
+  [data-theme="cosmos"] .court-card:not(.court-card--pickleball) .court-empty-state {
     @apply rounded-xl border-2 border-dashed border-border bg-background/60;
   }
 
@@ -5398,7 +5402,7 @@
     box-shadow: var(--smarthome-shadow-lg);
   }
 
-  [data-theme="smarthome"] .court-empty-state {
+  [data-theme="smarthome"] .court-card:not(.court-card--pickleball) .court-empty-state {
     @apply rounded-2xl border bg-white;
     border-color: var(--smarthome-border-muted);
   }
@@ -5645,7 +5649,7 @@
     box-shadow: var(--travel-shadow-lg);
   }
 
-  [data-theme="travel"] .court-empty-state {
+  [data-theme="travel"] .court-card:not(.court-card--pickleball) .court-empty-state {
     @apply rounded-2xl border bg-white;
     border-color: var(--travel-border-muted);
   }
@@ -5658,6 +5662,26 @@
   [data-theme="travel"] .court-team-b {
     @apply rounded-xl border-l-4 bg-[color:var(--travel-surface-soft)];
     border-left-color: #00838f;
+  }
+
+  /* Pickleball empty-court overlay: beat per-theme .court-empty-state card styles */
+  [data-theme] .court-card--pickleball .court-empty-wrap .court-empty-state {
+    border-width: 0;
+    background-color: rgb(0 0 0 / 55%);
+    color: #fff;
+  }
+
+  [data-theme] .court-card--pickleball .court-empty-wrap .court-empty-title {
+    color: #fff;
+  }
+
+  [data-theme] .court-card--pickleball .court-empty-wrap .court-empty-state .caption {
+    color: rgb(255 255 255 / 0.75);
+  }
+
+  [data-theme] .court-card--pickleball .court-empty-wrap .court-empty-icon {
+    background-color: rgb(255 255 255 / 0.15);
+    color: rgb(255 255 255 / 0.8);
   }
 
   [data-theme="travel"] .queue-next-up-group {

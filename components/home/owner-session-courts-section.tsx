@@ -239,7 +239,21 @@ export function OwnerSessionCourtsSection({
         layoutVariant="pickleball"
         courtTheme={courtTheme}
         showLeaderboardRank
-        summaryAddon={<SpectatorNextOnQueueButton queue={queueWithStats} />}
+        summaryAddon={
+          <SpectatorNextOnQueueButton
+            queue={queueWithStats}
+            enableCallNames
+            courtNumber={emptyCourtNumbers[0] ?? null}
+            hasEmptyCourt={emptyCourtNumbers.length > 0}
+            canFillNextCourt={canFillNextCourt}
+            fillPending={courtActions.startMutation.isPending}
+            onFillNextCourt={
+              canOperateSession
+                ? () => fillCourtFlowRef.current?.openFillNextCourt()
+                : undefined
+            }
+          />
+        }
         getCourtCardProps={getCourtCardProps}
       />
 
