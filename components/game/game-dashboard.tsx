@@ -2656,10 +2656,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             )}
           </Button>
         ) : null}
-        {!isPastGame ? (
+        {!isPastGame && !isSpectator ? (
           <SwitchToCourtViewButton
             gameId={gameId}
-            variant={isSpectator ? "spectator" : "operator"}
+            variant="operator"
           />
         ) : null}
           <DashboardPanelFullscreenButton containerRef={courtsPanelRef} panelName="courts" />
@@ -2923,6 +2923,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             {!showSpectatorEndedRecap ? (
               <div className="game-dashboard-header-actions">
                 {!isSpectator ? <GameCheckoutNotificationBell gameId={gameId} /> : null}
+                {isSpectator && !isPastGame ? (
+                  <SwitchToCourtViewButton
+                    gameId={gameId}
+                    variant="spectator"
+                    showLabel
+                    buttonClassName="game-dashboard-court-view-btn h-8 gap-1 px-2 text-xs font-semibold shadow-sm sm:gap-1.5 sm:px-2.5 lg:h-11 lg:gap-2 lg:px-5 lg:text-base"
+                  />
+                ) : null}
                 <Link
                   href={leaderboardHref}
                   className="game-dashboard-header-leaderboard group/leaderboard inline-flex rounded-lg"

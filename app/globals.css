@@ -3771,7 +3771,7 @@
   }
 
   .game-dashboard--spectator .game-dashboard-header-main {
-    @apply pr-[6.75rem] sm:pr-[7.5rem] lg:pr-48;
+    @apply pr-[11.5rem] sm:pr-[19rem] lg:pr-72;
   }
 
   .game-dashboard--operator .game-dashboard-header-main {

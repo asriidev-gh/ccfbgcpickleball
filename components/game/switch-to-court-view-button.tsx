@@ -21,6 +21,8 @@ type SwitchToCourtViewButtonProps = {
   /** When set, Court View opens focused on this session. */
   gameId?: string;
   variant?: "operator" | "spectator";
+  /** Show a text label on sm+ viewports (for dashboard header placement). */
+  showLabel?: boolean;
   className?: string;
   buttonClassName?: string;
 };
@@ -28,6 +30,7 @@ type SwitchToCourtViewButtonProps = {
 export function SwitchToCourtViewButton({
   gameId,
   variant = "operator",
+  showLabel = false,
   className,
   buttonClassName,
 }: SwitchToCourtViewButtonProps) {
@@ -69,6 +72,18 @@ export function SwitchToCourtViewButton({
         >
           <ArrowLeftRight className="h-4 w-4 shrink-0" aria-hidden />
           All Courts View
+        </Button>
+      ) : showLabel ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={cn("courts-view-btn inline-flex shrink-0", className, buttonClassName)}
+          aria-label="Switch Court View"
+          onClick={() => setOpen(true)}
+        >
+          <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 lg:h-5 lg:w-5" aria-hidden />
+          <span>Switch Court View</span>
         </Button>
       ) : (
         <SimpleTooltip label="Switch to Court View">
