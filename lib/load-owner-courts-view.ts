@@ -35,7 +35,7 @@ export async function loadOwnerCourtsView(ownerId: string): Promise<OwnerCourtsV
         status: game.status as OwnerCourtsViewPayload["sessions"][number]["status"],
         openPlayDate: game.openPlayDate ? new Date(game.openPlayDate).toISOString() : null,
         openPlayTimeRange: game.openPlayTimeRange ?? null,
-        courts: courts as OwnerCourtsViewPayload["sessions"][number]["courts"],
+        courts: courts as unknown as OwnerCourtsViewPayload["sessions"][number]["courts"],
         queue: serializeQueueEntriesForPayload(
           queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
           firstTimerIdentityKeys,
