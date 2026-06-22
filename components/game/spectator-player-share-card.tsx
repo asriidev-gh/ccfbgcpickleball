@@ -2,6 +2,7 @@
 
 import { forwardRef } from "react";
 
+import type { AppTheme } from "@/components/theme/theme-manager";
 import type { PlayerPhotoRef } from "@/components/game/player-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -24,6 +25,7 @@ export type SpectatorPlayerShareCardProps = {
   clubTagline?: string | null;
   openPlaySchedule?: string | null;
   siteLabel?: string | null;
+  theme?: AppTheme;
   className?: string;
 };
 
@@ -37,9 +39,11 @@ function getInitials(player: PlayerPhotoRef) {
 
 function ShareStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="spectator-share-stat rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-center">
-      <p className="text-[10px] font-semibold tracking-[0.14em] text-white/70 uppercase">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-white tabular-nums">{value}</p>
+    <div className="spectator-share-stat rounded-xl border border-border/80 bg-background/50 px-3 py-2 text-center">
+      <p className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-semibold text-foreground tabular-nums">{value}</p>
     </div>
   );
 }
@@ -57,6 +61,7 @@ export const SpectatorPlayerShareCard = forwardRef<HTMLDivElement, SpectatorPlay
       clubTagline,
       openPlaySchedule,
       siteLabel,
+      theme,
       className,
     },
     ref,
@@ -72,13 +77,14 @@ export const SpectatorPlayerShareCard = forwardRef<HTMLDivElement, SpectatorPlay
     return (
       <div
         ref={ref}
+        data-theme={theme}
         className={cn(
-          "spectator-player-share-card relative flex w-[min(100%,22rem)] flex-col overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-[#0f3d2e] via-[#145c42] to-[#1d7a57] p-5 text-white shadow-xl",
+          "spectator-player-share-card relative flex w-[min(100%,22rem)] flex-col overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-background via-card to-primary/20 p-5 text-foreground shadow-xl",
           className,
         )}
       >
-        <div className="pointer-events-none absolute -top-10 -right-10 size-32 rounded-full bg-white/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-12 -left-8 size-36 rounded-full bg-emerald-200/10 blur-2xl" />
+        <div className="pointer-events-none absolute -top-10 -right-10 size-32 rounded-full bg-primary/15 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-12 -left-8 size-36 rounded-full bg-accent/15 blur-2xl" />
 
         <div className="relative flex min-h-0 flex-1 flex-col space-y-4">
           {clubName ? (
@@ -90,15 +96,15 @@ export const SpectatorPlayerShareCard = forwardRef<HTMLDivElement, SpectatorPlay
                     src={logoUrl}
                     alt=""
                     crossOrigin="anonymous"
-                    className="size-9 shrink-0 rounded-full border border-white/25 bg-white/10 object-cover"
+                    className="size-9 shrink-0 rounded-full border border-border/80 bg-muted object-cover"
                   />
                 ) : null}
-                <p className="text-[11px] font-semibold tracking-[0.18em] text-emerald-100/80 uppercase">
+                <p className="text-[11px] font-semibold tracking-[0.18em] text-primary uppercase">
                   {clubName}
                 </p>
               </div>
               {tagline ? (
-                <p className="text-[11px] leading-snug text-emerald-50/80 italic">
+                <p className="text-[11px] leading-snug text-muted-foreground italic">
                   &ldquo;{tagline}&rdquo;
                 </p>
               ) : null}
@@ -108,29 +114,29 @@ export const SpectatorPlayerShareCard = forwardRef<HTMLDivElement, SpectatorPlay
           {gameTitle || openPlaySchedule ? (
             <div className="space-y-1 text-center">
               {gameTitle ? (
-                <p className="truncate text-xs text-emerald-50/85">{gameTitle}</p>
+                <p className="truncate text-xs text-foreground/90">{gameTitle}</p>
               ) : null}
               {openPlaySchedule ? (
-                <p className="text-[11px] leading-snug text-emerald-100/75">{openPlaySchedule}</p>
+                <p className="text-[11px] leading-snug text-muted-foreground">{openPlaySchedule}</p>
               ) : null}
             </div>
           ) : null}
 
           <div className="flex flex-col items-center gap-3">
-            <Avatar className="size-24 border-2 border-white/30 bg-white/10 shadow-lg">
+            <Avatar className="size-24 border-2 border-border bg-muted shadow-lg">
               <AvatarImage
                 src={photoUrl}
                 alt={`${displayName} photo`}
                 crossOrigin="anonymous"
                 className="object-cover"
               />
-              <AvatarFallback className="bg-emerald-900/60 text-lg font-semibold text-white">
+              <AvatarFallback className="bg-primary/15 text-lg font-semibold text-primary">
                 {getInitials(player)}
               </AvatarFallback>
             </Avatar>
             <div className="space-y-1 text-center">
               <h2 className="text-xl font-semibold tracking-tight">{displayName}</h2>
-              <p className="text-sm text-emerald-50/90">
+              <p className="text-sm text-muted-foreground">
                 {gender} · {skillLevel}
               </p>
             </div>
@@ -143,7 +149,7 @@ export const SpectatorPlayerShareCard = forwardRef<HTMLDivElement, SpectatorPlay
           </div>
 
           {siteLabel ? (
-            <p className="pt-1 text-center text-[10px] tracking-wide text-emerald-100/70">
+            <p className="pt-1 text-center text-[10px] tracking-wide text-muted-foreground">
               {siteLabel}
             </p>
           ) : null}

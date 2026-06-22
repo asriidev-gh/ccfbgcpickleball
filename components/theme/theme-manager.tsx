@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export const THEME_STORAGE_KEY = "ccf-theme";
 export const DEFAULT_THEME = "neon";
@@ -34,6 +34,34 @@ export const APP_THEMES: { value: AppTheme; label: string }[] = [
 
 export function applyTheme(theme: AppTheme) {
   document.documentElement.setAttribute("data-theme", theme);
+}
+
+export function getAppTheme(): AppTheme {
+  if (typeof document === "undefined") return DEFAULT_THEME;
+  const fromDom = document.documentElement.getAttribute("data-theme") as AppTheme | null;
+  if (fromDom && APP_THEMES.some((option) => option.value === fromDom)) {
+    return fromDom;
+  }
+  const saved = localStorage.getItem(THEME_STORAGE_KEY) as AppTheme | null;
+  return saved && APP_THEMES.some((option) => option.value === saved) ? saved : DEFAULT_THEME;
+}
+
+export function useAppTheme(): AppTheme {
+  const [theme, setTheme] = useState<AppTheme>(DEFAULT_THEME);
+
+  useEffect(() => {
+    setTheme(getAppTheme());
+    const observer = new MutationObserver(() => {
+      setTheme(getAppTheme());
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return theme;
 }
 
 export function ThemeManager() {

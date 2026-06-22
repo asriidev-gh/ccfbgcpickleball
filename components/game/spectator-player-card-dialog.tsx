@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { SpectatorPlayerShareCard } from "@/components/game/spectator-player-share-card";
+import { useAppTheme } from "@/components/theme/theme-manager";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +66,7 @@ export function SpectatorPlayerCardDialog({
 }: SpectatorPlayerCardDialogProps) {
   const shareCardRef = useRef<HTMLDivElement>(null);
   const [sharing, setSharing] = useState(false);
+  const theme = useAppTheme();
   const siteLabel = useMemo(() => getShareCardSiteLabel(), []);
 
   const player = entry?.playerId as SpectatorPlayerCardPlayer | undefined;
@@ -162,6 +164,7 @@ export function SpectatorPlayerCardDialog({
               >
                 <SpectatorPlayerShareCard
                   ref={shareCardRef}
+                  theme={theme}
                   player={player}
                   wins={wins}
                   losses={losses}
