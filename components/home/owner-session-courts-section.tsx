@@ -30,8 +30,11 @@ import {
   attachSessionStatsToQueueEntry,
   buildPlayerSessionStatsMap,
 } from "@/lib/games-played-map";
+import { operatorPayloadToCourtsViewSession } from "@/lib/local-courts-view";
+import { getQuickGameDashboardPath, isQuickGame } from "@/lib/local-game-id";
 import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
+import { useQuickGameSession } from "@/lib/quick-game-store";
 import type { CourtsViewCourtTheme } from "@/lib/courts-view-court-theme";
 import { cn } from "@/lib/utils";
 
@@ -43,11 +46,19 @@ type OwnerSessionCourtsSectionProps = {
 };
 
 export function OwnerSessionCourtsSection({
-  session,
+  session: sessionProp,
   courtTheme = "classic",
   leaseBannerCollapsed = false,
   onLeaseBannerCollapsedChange,
 }: OwnerSessionCourtsSectionProps) {
+  const isBrowserQuickGame = isQuickGame(sessionProp.gameId);
+  const localPayload = useQuickGameSession(sessionProp.gameId);
+  const session = useMemo(
+    () =>
+      localPayload ? operatorPayloadToCourtsViewSession(localPayload) : sessionProp,
+    [localPayload, sessionProp],
+  );
+
   const { layout, setLayout } = useCourtsViewSessionLayout(session.gameId);
   const { showPhotos, setShowPhotos } = useCourtsViewSessionPhotos(session.gameId);
   const sessionShowPlayerPhotos = resolveCourtsViewShowPlayerPhotos(layout, showPhotos);
@@ -69,7 +80,7 @@ export function OwnerSessionCourtsSection({
     leaseState: operatorLeaseState,
     takeOver: takeOverOperatorDashboard,
     hasDashboardLease,
-  } = useOperatorDashboardLease(session.gameId, true);
+  } = useOperatorDashboardLease(session.gameId, !isBrowserQuickGame);
 
   const handleLeaseTakeOver = useCallback(async () => {
     setTakeOverPending(true);
@@ -82,8 +93,8 @@ export function OwnerSessionCourtsSection({
 
   const operatorLeaseBlocked = operatorLeaseState.status === "blocked";
   const operatorLeaseLoading = operatorLeaseState.status === "loading";
-  const showLeaseBlock = operatorLeaseLoading || operatorLeaseBlocked;
-  const canOperateSession = hasDashboardLease && !operatorLeaseLoading;
+  const showLeaseBlock = !isBrowserQuickGame && (operatorLeaseLoading || operatorLeaseBlocked);
+  const canOperateSession = isBrowserQuickGame || (hasDashboardLease && !operatorLeaseLoading);
 
   const playerSessionStats = useMemo(
     () => buildPlayerSessionStatsMap(session.leaderboard),
@@ -215,7 +226,11 @@ export function OwnerSessionCourtsSection({
             ) : null}
           </div>
           <Link
-            href={`/games/${session.gameId}`}
+            href={
+              isBrowserQuickGame
+                ? getQuickGameDashboardPath(session.gameId)
+                : `/games/${session.gameId}`
+            }
             className={cn(
               buttonVariants({ variant: "outline", size: "sm" }),
               "inline-flex shrink-0",

@@ -17,6 +17,10 @@ export type OperatorGameSummary = {
   allowQrRegistration?: boolean;
   registrationMode?: "self" | "owner";
   allowManualPlayerAdd?: boolean;
+  /** When false, queue state is client-only (no DB queue records). */
+  liveQueue?: boolean;
+  /** Browser quick game: account sessions may sync to QuickGameSession; ephemeral never saves. */
+  quickGamePersistence?: "account" | "ephemeral";
   registerUrl?: string;
   publicQrCodeDataUrl?: string;
 };

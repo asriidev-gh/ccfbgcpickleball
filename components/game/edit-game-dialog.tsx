@@ -23,6 +23,10 @@ import {
   type OpenPlayMeridiem,
 } from "@/lib/open-play-time-range";
 import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
+import {
+  MAX_PLAYER_DISPLAY_NAME_LENGTH,
+  sanitizePlayerDisplayNameInput,
+} from "@/lib/player-profile-shared";
 
 const types = OPEN_PLAY_TYPES;
 
@@ -424,9 +428,13 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
                           className="h-11 flex-1 text-base"
                           placeholder={`Player ${index + 1} name`}
                           value={player.displayName}
+                          maxLength={MAX_PLAYER_DISPLAY_NAME_LENGTH}
                           onChange={(event) => {
                             const next = [...form.ownerPlayers];
-                            next[index] = { ...next[index], displayName: event.target.value };
+                            next[index] = {
+                              ...next[index],
+                              displayName: sanitizePlayerDisplayNameInput(event.target.value),
+                            };
                             setForm((prev) => ({ ...prev, ownerPlayers: next }));
                           }}
                         />

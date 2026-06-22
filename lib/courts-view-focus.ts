@@ -1,7 +1,16 @@
+import { isEphemeralQuickGame } from "@/lib/local-game-id";
+
 export const COURTS_VIEW_FOCUS_GAME_ID_PARAM = "gameId";
+
+export function ephemeralCourtsViewHref(gameId: string) {
+  return `/play/${gameId}/courts-view`;
+}
 
 export function courtsViewHref(focusGameId?: string) {
   if (!focusGameId) return "/my-games/courts-view";
+  if (isEphemeralQuickGame(focusGameId)) {
+    return ephemeralCourtsViewHref(focusGameId);
+  }
   return `/my-games/courts-view?${COURTS_VIEW_FOCUS_GAME_ID_PARAM}=${encodeURIComponent(focusGameId)}`;
 }
 

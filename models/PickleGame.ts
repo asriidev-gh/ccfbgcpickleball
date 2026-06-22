@@ -25,6 +25,7 @@ const pickleGameSchema = new Schema(
       default: "self",
     },
     allowManualPlayerAdd: { type: Boolean, required: true, default: false },
+    liveQueue: { type: Boolean, required: true, default: true },
     registerUrl: { type: String, required: false },
     publicQrCodeDataUrl: { type: String, required: true },
     status: {

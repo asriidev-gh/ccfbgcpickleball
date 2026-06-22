@@ -18,12 +18,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const payload = createGameSchema.parse(body);
 
-    const preRegisteredNames =
-      payload.registrationMode === "owner" ? (payload.preRegisteredPlayerNames ?? []) : [];
+    const preRegisteredPlayers =
+      payload.registrationMode === "owner"
+        ? (payload.preRegisteredPlayers ??
+          (payload.preRegisteredPlayerNames ?? []).map((displayName) => ({ displayName })))
+        : [];
     const expectedPlayers =
-      preRegisteredNames.length > 0 ? preRegisteredNames.length : payload.expectedPlayers;
+      preRegisteredPlayers.length > 0 ? preRegisteredPlayers.length : payload.expectedPlayers;
     const strictPlayerCount =
-      preRegisteredNames.length > 0
+      preRegisteredPlayers.length > 0
         ? payload.allowQrRegistration !== true
         : payload.strictPlayerCount;
     const allowQrRegistration =
@@ -33,6 +36,9 @@ export async function POST(request: Request) {
     const { registerUrl, publicQrCodeDataUrl } = await buildGameRegistrationQr(gameId, {
       allowQrRegistration,
     });
+
+    const liveQueue =
+      payload.registrationMode === "owner" ? payload.liveQueue !== false : true;
 
     const game = await PickleGame.create({
       title: payload.title,
@@ -48,6 +54,7 @@ export async function POST(request: Request) {
       allowQrRegistration,
       allowManualPlayerAdd:
         payload.registrationMode === "owner" ? payload.allowManualPlayerAdd === true : false,
+      liveQueue,
       registrationMode: payload.registrationMode === "owner" ? "owner" : "self",
       gameId,
       ownerId: authUser.userId,
@@ -63,10 +70,10 @@ export async function POST(request: Request) {
     );
 
     let preRegisteredCount = 0;
-    if (preRegisteredNames.length > 0) {
+    if (preRegisteredPlayers.length > 0 && liveQueue) {
       preRegisteredCount = await createPreRegisteredPlayers({
         gameId,
-        names: preRegisteredNames,
+        names: preRegisteredPlayers,
         checkInAllPlayers: payload.defaultCheckInAllPlayers !== false,
       });
     }

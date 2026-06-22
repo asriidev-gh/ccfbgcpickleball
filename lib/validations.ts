@@ -11,6 +11,12 @@ import type { DgroupWeekday } from "@/lib/dgroup-availability-shared";
 import { MAX_PRAYER_REPLY_LENGTH } from "@/lib/owner-prayer-replies-shared";
 import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
 import {
+  MAX_PLAYER_DISPLAY_NAME_LENGTH,
+  PLAYER_DISPLAY_NAME_PATTERN,
+  playerDisplayNameInvalidCharacterMessage,
+  playerDisplayNameTooLongMessage,
+} from "@/lib/player-profile-shared";
+import {
   MAX_PRAYER_REQUEST_LENGTH,
   MIN_PRAYER_REQUEST_LENGTH,
 } from "@/lib/owner-prayer-requests-shared";
@@ -90,6 +96,15 @@ const venueGoogleMapEmbedUrlSchema = z
     message: "Use a Google Maps embed link (Share → Embed a map → copy HTML).",
   });
 
+function playerDisplayNameSchema() {
+  return z
+    .string()
+    .trim()
+    .min(1, "Player name is required.")
+    .max(MAX_PLAYER_DISPLAY_NAME_LENGTH, playerDisplayNameTooLongMessage())
+    .regex(PLAYER_DISPLAY_NAME_PATTERN, playerDisplayNameInvalidCharacterMessage());
+}
+
 export const createGameSchema = z
   .object({
     title: z.string().min(2, "Game title is required.").max(80),
@@ -107,10 +122,21 @@ export const createGameSchema = z
     expectedPlayers: z.coerce.number().int().min(1).max(300),
     strictPlayerCount: z.boolean().default(false),
     registrationMode: z.enum(["self", "owner"]).optional(),
-    preRegisteredPlayerNames: z.array(z.string().trim().min(1, "Player name is required.")).optional(),
+    preRegisteredPlayerNames: z.array(playerDisplayNameSchema()).optional(),
+    preRegisteredPlayers: z
+      .array(
+        z.object({
+          displayName: playerDisplayNameSchema(),
+          gender: z.enum(["male", "female"], {
+            message: "Select a gender.",
+          }),
+        }),
+      )
+      .optional(),
     allowQrRegistration: z.boolean().optional(),
     allowManualPlayerAdd: z.boolean().optional(),
     defaultCheckInAllPlayers: z.boolean().optional(),
+    liveQueue: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     const timeRangeValidation = validateOpenPlayTimeRangeString(data.openPlayTimeRange);
@@ -123,12 +149,13 @@ export const createGameSchema = z
     }
 
     if (data.registrationMode === "owner") {
-      const count = data.preRegisteredPlayerNames?.length ?? 0;
-      if (count < 1) {
+      const count =
+        data.preRegisteredPlayers?.length ?? data.preRegisteredPlayerNames?.length ?? 0;
+      if (count < 4) {
         ctx.addIssue({
           code: "custom",
-          message: "Add at least one player name.",
-          path: ["preRegisteredPlayerNames"],
+          message: "Add at least 4 players.",
+          path: ["preRegisteredPlayers"],
         });
       }
     } else if (data.expectedPlayers < 4) {
@@ -141,7 +168,7 @@ export const createGameSchema = z
   });
 
 export const addManualGamePlayerSchema = z.object({
-  displayName: z.string().trim().min(1, "Player name is required.").max(120),
+  displayName: playerDisplayNameSchema(),
   gender: z.enum(["male", "female"], {
     message: "Select a gender.",
   }),
@@ -192,7 +219,7 @@ export const updateGameSchema = z
       .array(
         z.object({
           playerId: z.string().optional(),
-          displayName: z.string().trim().min(1, "Player name is required."),
+          displayName: playerDisplayNameSchema(),
           remove: z.boolean().optional(),
         }),
       )

@@ -8,6 +8,9 @@ import { MobileBottomNavButton, MobileBottomNavShell } from "@/components/mobile
 
 type GameDashboardMobileNavProps = {
   gameId: string;
+  isQuickGameSession?: boolean;
+  homeHref?: string;
+  homeLabel?: string;
   showQr: boolean;
   qrLoading: boolean;
   onQrClick: () => void;
@@ -23,6 +26,9 @@ type GameDashboardMobileNavProps = {
 
 export function GameDashboardMobileNav({
   gameId,
+  isQuickGameSession = false,
+  homeHref = "/",
+  homeLabel = "Home",
   showQr,
   qrLoading,
   onQrClick,
@@ -38,15 +44,20 @@ export function GameDashboardMobileNav({
   const pathname = usePathname();
   const leaderboardHref = `/leaderboard/${gameId}`;
   const isLeaderboard = pathname === leaderboardHref;
+  const notificationBell = (
+    <GameCheckoutNotificationBell gameId={gameId} variant="mobileNav" iconOnly />
+  );
+  const homeButton = (
+    <MobileBottomNavButton
+      href={homeHref}
+      label={homeLabel}
+      icon={<House className="h-5 w-5 shrink-0" aria-hidden />}
+    />
+  );
 
   return (
     <MobileBottomNavShell ariaLabel="Game actions">
-      <MobileBottomNavButton
-        href="/"
-        label="Home"
-        icon={<House className="h-5 w-5 shrink-0" aria-hidden />}
-      />
-      <GameCheckoutNotificationBell gameId={gameId} variant="mobileNav" />
+      {homeButton}
       <MobileBottomNavButton
         href={leaderboardHref}
         label="Leaderboard"
@@ -104,6 +115,7 @@ export function GameDashboardMobileNav({
           }
         />
       ) : null}
+      {!isQuickGameSession ? notificationBell : null}
     </MobileBottomNavShell>
   );
 }

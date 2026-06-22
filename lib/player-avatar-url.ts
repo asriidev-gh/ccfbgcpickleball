@@ -18,6 +18,7 @@ export type PlayerAvatarSeed = {
   photoPublicId?: string | null;
   personalQrCode?: string;
   _id?: string;
+  gender?: string;
 };
 
 function hashCode(value: string) {

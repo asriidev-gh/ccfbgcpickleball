@@ -9,6 +9,21 @@ import type { CourtView } from "@/components/game/court-card";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import type { ReplacePlayerConfirmInput } from "@/components/game/replace-player-dialog";
 import type { ReplacePlayerDialogState } from "@/components/game/replace-player-dialog";
+import { applyLocalGameMutation } from "@/lib/apply-local-game-mutation";
+import {
+  applyAllCourtsPauseOptimistic,
+  applyCancelCourtAssignmentOptimistic,
+  applyCancelRematchOptimistic,
+  applyCourtPauseOptimistic,
+  applyCourtReplaceOptimistic,
+  applyEndGameOptimistic,
+  applyEndGameWithHistoryOptimistic,
+  applyFillNextCourtOptimistic,
+  applyQueueSwapOptimistic,
+  applyShuffleNextOptimistic,
+  applySwapCourtTeamsOptimistic,
+} from "@/lib/game-payload-mutations";
+import { isQuickGame } from "@/lib/local-game-id";
 
 type UseOperatorCourtActionsOptions = {
   gameId: string;
@@ -24,6 +39,7 @@ export function useOperatorCourtActions({
   invalidateQueryKey,
 }: UseOperatorCourtActionsOptions) {
   const queryClient = useQueryClient();
+  const isLocalGame = isQuickGame(gameId);
 
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);
@@ -36,8 +52,9 @@ export function useOperatorCourtActions({
   const [rematchCourtNumbers, setRematchCourtNumbers] = useState<Set<number>>(() => new Set());
 
   const invalidate = useCallback(() => {
+    if (isLocalGame) return;
     void queryClient.invalidateQueries({ queryKey: invalidateQueryKey });
-  }, [invalidateQueryKey, queryClient]);
+  }, [invalidateQueryKey, isLocalGame, queryClient]);
 
   const closeEndDialog = useCallback(() => {
     setEndTargetCourt(null);
@@ -49,6 +66,16 @@ export function useOperatorCourtActions({
 
   const startMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyFillNextCourtOptimistic(payload, courtNumber),
+          "Failed to fill court.",
+        );
+        return { ok: true };
+      }
+
       const maxAttempts = 3;
       let lastMessage = "Failed to fill court.";
 
@@ -90,6 +117,24 @@ export function useOperatorCourtActions({
       teamBScore: number;
       rematch: boolean;
     }) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) =>
+            input.rematch
+              ? applyEndGameOptimistic(payload, input)
+              : applyEndGameWithHistoryOptimistic(payload, input),
+          "Failed to end game.",
+        );
+        return {
+          message: input.rematch
+            ? `Court ${input.courtNumber} rematch started — same players, fresh clock.`
+            : "Game ended and players returned to the queue.",
+          rematch: input.rematch,
+        };
+      }
+
       const response = await fetch(`/api/games/${gameId}/end`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -120,6 +165,16 @@ export function useOperatorCourtActions({
 
   const swapCourtMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applySwapCourtTeamsOptimistic(payload, courtNumber),
+          "Active court not found.",
+        );
+        return { message: "Court teams shuffled." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/swap-court`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,6 +195,16 @@ export function useOperatorCourtActions({
 
   const pauseCourtMutation = useMutation({
     mutationFn: async ({ courtNumber, paused }: { courtNumber: number; paused: boolean }) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyCourtPauseOptimistic(payload, courtNumber, paused),
+          "Active court not found.",
+        );
+        return { message: paused ? "Court timer paused." : "Court timer resumed." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/pause-court`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,6 +225,16 @@ export function useOperatorCourtActions({
 
   const pauseAllCourtsMutation = useMutation({
     mutationFn: async (paused: boolean) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyAllCourtsPauseOptimistic(payload, paused),
+          "No active courts to update.",
+        );
+        return { message: paused ? "All courts paused." : "All courts resumed." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/pause-all-courts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -180,6 +255,16 @@ export function useOperatorCourtActions({
 
   const cancelCourtMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyCancelCourtAssignmentOptimistic(payload, courtNumber),
+          "Failed to cancel assignment.",
+        );
+        return { message: "Court assignment cancelled — players returned to the queue." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/cancel-court`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -206,6 +291,16 @@ export function useOperatorCourtActions({
 
   const cancelRematchMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyCancelRematchOptimistic(payload, courtNumber),
+          "Failed to cancel rematch.",
+        );
+        return { message: "Rematch cancelled — players returned to the queue." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/cancel-rematch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -232,6 +327,16 @@ export function useOperatorCourtActions({
 
   const shuffleNextMutation = useMutation({
     mutationFn: async () => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          applyShuffleNextOptimistic,
+          "Not enough queued players.",
+        );
+        return { message: "Next four players shuffled into new teams." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/shuffle-next`, { method: "POST" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
@@ -248,6 +353,16 @@ export function useOperatorCourtActions({
 
   const replaceMutation = useMutation({
     mutationFn: async (input: { sourceIndex: number; targetIndex: number }) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyQueueSwapOptimistic(payload, input),
+          "Failed to replace player.",
+        );
+        return { message: "Queue player replaced." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/swap-next`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -274,6 +389,16 @@ export function useOperatorCourtActions({
       slotIndex: number;
       targetIndex: number;
     }) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyCourtReplaceOptimistic(payload, input),
+          "Failed to replace player.",
+        );
+        return { message: "Court player replaced." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/replace-court-player`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

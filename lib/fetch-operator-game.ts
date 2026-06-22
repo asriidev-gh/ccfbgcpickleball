@@ -1,6 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { sanitizeErrorMessage } from "@/lib/infrastructure-error";
+import { isQuickGame } from "@/lib/local-game-id";
+import { seedLocalGameOperatorCache } from "@/lib/operator-game-cache";
 import type {
   OperatorDetailsPayload,
   OperatorQueuePayload,
@@ -24,6 +26,11 @@ export function operatorDetailsQueryKey(gameId: string) {
 /** Warm shell + queue cache before navigating to the operator dashboard. */
 export function prefetchOperatorDashboard(queryClient: QueryClient, gameId: string) {
   if (!gameId) return;
+
+  if (isQuickGame(gameId)) {
+    seedLocalGameOperatorCache(queryClient, gameId);
+    return;
+  }
 
   void queryClient.prefetchQuery({
     queryKey: operatorShellQueryKey(gameId),

@@ -38,9 +38,10 @@ export function saveGameListView(view: GameListViewMode) {
 type GameListViewToggleProps = {
   value: GameListViewMode;
   onChange: (view: GameListViewMode) => void;
+  hideQrMode?: boolean;
 };
 
-export function GameListViewToggle({ value, onChange }: GameListViewToggleProps) {
+export function GameListViewToggle({ value, onChange, hideQrMode = false }: GameListViewToggleProps) {
   return (
     <div
       className="game-list-view-toggle hidden rounded-lg border border-border bg-muted/40 p-0.5 md:inline-flex"
@@ -69,6 +70,7 @@ export function GameListViewToggle({ value, onChange }: GameListViewToggleProps)
         <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />
         <span className="hidden sm:inline">Cards</span>
       </Button>
+      {hideQrMode ? null : (
       <Button
         type="button"
         size="sm"
@@ -80,6 +82,7 @@ export function GameListViewToggle({ value, onChange }: GameListViewToggleProps)
         <QrCode className="h-4 w-4 shrink-0" aria-hidden />
         <span className="hidden sm:inline">QR Mode</span>
       </Button>
+      )}
     </div>
   );
 }

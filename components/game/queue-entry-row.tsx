@@ -141,6 +141,7 @@ type QueueEntryRowProps = {
   hideSessionStats?: boolean;
   /** When set, superadmins can open this player's spectate view. */
   gameId?: string;
+  allowCheckInAsPlayer?: boolean;
   showLeaderboardRank?: boolean;
   leaderboardRankMap?: Map<string, number>;
 };
@@ -166,6 +167,7 @@ export function QueueEntryRow({
   compactName = false,
   hideSessionStats = false,
   gameId,
+  allowCheckInAsPlayer = true,
   showLeaderboardRank = false,
   leaderboardRankMap,
 }: QueueEntryRowProps) {
@@ -201,7 +203,7 @@ export function QueueEntryRow({
 
   const showReplace = !checkedOut && isNextUp && !hideReplacePanel;
   const checkInAsPlayer =
-    gameId && playerMongoId
+    allowCheckInAsPlayer && gameId && playerMongoId
       ? { gameId, playerId: playerMongoId, playerName: playerDisplayName }
       : undefined;
   const showActionsMenu =

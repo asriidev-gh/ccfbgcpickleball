@@ -2,8 +2,13 @@ import { Types } from "mongoose";
 
 import { parsePlayerDisplayName } from "@/lib/parse-player-display-name";
 import { createPreRegisteredPlayers } from "@/lib/create-game-players";
+import {
+  normalizePlayerDisplayNameKey,
+  playerRecordDisplayNameKey,
+} from "@/lib/session-player-display-names";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import type { GenderOption } from "@/lib/player-profile-shared";
+import { assertPlayerDisplayName } from "@/lib/player-profile-shared";
 import { Court } from "@/models/Court";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
@@ -101,6 +106,26 @@ async function isPlayerActiveOnCourt(gameId: string, playerObjectId: Types.Objec
   );
 }
 
+async function assertManualPlayerNameIsUnique(gameId: string, displayName: string) {
+  const key = normalizePlayerDisplayNameKey(displayName);
+  if (!key) return;
+
+  const entries = await QueueEntry.find({ gameId })
+    .populate("playerId", "firstName lastName")
+    .lean<
+      Array<{
+        playerId?: { firstName: string; lastName?: string } | null;
+      }>
+    >();
+
+  for (const entry of entries) {
+    const player = entry.playerId;
+    if (player && playerRecordDisplayNameKey(player) === key) {
+      throw new Error("This name is already in the game.");
+    }
+  }
+}
+
 export async function syncOwnerPreRegisteredPlayers(input: {
   gameId: string;
   ownerPlayers: OwnerPlayerUpdateInput[];
@@ -114,6 +139,10 @@ export async function syncOwnerPreRegisteredPlayers(input: {
 
   if (trimmed.length === 0) {
     throw new Error("At least one player name is required.");
+  }
+
+  for (const player of trimmed) {
+    assertPlayerDisplayName(player.displayName);
   }
 
   const existingUpdates = input.ownerPlayers.filter((player) => player.playerId);
@@ -180,6 +209,9 @@ export async function addManualPlayerToOwnerGame(
   if (!trimmed) {
     throw new Error("Player name is required.");
   }
+  assertPlayerDisplayName(trimmed);
+
+  await assertManualPlayerNameIsUnique(gameId, trimmed);
 
   const created = await createPreRegisteredPlayers({
     gameId,

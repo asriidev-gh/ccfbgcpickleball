@@ -1,7 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import type { GameLeaderboardRecapRow } from "@/lib/game-leaderboard-recap";
+import { isQuickGame } from "@/lib/local-game-id";
+import { buildLocalLeaderboardRecap } from "@/lib/local-leaderboard-recap";
 import type { SessionInsight } from "@/lib/session-insights";
+import { readQuickGamePayload } from "@/lib/quick-game-store";
 
 export type LeaderboardRecapPayload = {
   rows: GameLeaderboardRecapRow[];
@@ -13,6 +16,12 @@ export function leaderboardRecapQueryKey(gameId: string, isSpectatorView: boolea
 }
 
 export async function fetchLeaderboardRecap(gameId: string, isSpectatorView: boolean) {
+  if (isQuickGame(gameId)) {
+    const payload = readQuickGamePayload(gameId);
+    if (!payload) throw new Error("Session not found.");
+    return buildLocalLeaderboardRecap(payload);
+  }
+
   const from = isSpectatorView ? "?from=spectator" : "";
   const response = await fetch(`/api/games/${gameId}/leaderboard${from}`);
   const data = await response.json();

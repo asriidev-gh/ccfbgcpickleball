@@ -33,7 +33,12 @@ import {
   loadCourtsViewLeaseBannerCollapsed,
   saveCourtsViewLeaseBannerCollapsed,
 } from "@/lib/courts-view-lease-banner-pref";
+import {
+  listActiveLocalCourtsViewSessions,
+  mergeCourtsViewSessions,
+} from "@/lib/local-courts-view";
 import type { OwnerCourtsViewPayload } from "@/lib/owner-courts-view-payload";
+import { useLocalGameStore } from "@/store/local-game-store";
 import { cn } from "@/lib/utils";
 
 const OWNER_COURTS_VIEW_POLL_MS = 30_000;
@@ -74,6 +79,8 @@ export function OwnerCourtsView() {
     saveCourtsViewLeaseBannerCollapsed(collapsed);
   }, []);
 
+  const localSessionsRecord = useLocalGameStore((state) => state.sessions);
+
   const query = useQuery({
     queryKey: ["games", "courts-view"],
     queryFn: fetchOwnerCourtsView,
@@ -81,7 +88,15 @@ export function OwnerCourtsView() {
     refetchOnWindowFocus: true,
   });
 
-  const sessions = query.data?.sessions ?? [];
+  const localSessions = useMemo(
+    () => listActiveLocalCourtsViewSessions(localSessionsRecord),
+    [localSessionsRecord],
+  );
+
+  const sessions = useMemo(
+    () => mergeCourtsViewSessions(query.data?.sessions ?? [], localSessions),
+    [localSessions, query.data?.sessions],
+  );
 
   useEffect(() => {
     if (!hiddenSessionsReady || sessions.length === 0 || !focusGameId) return;
@@ -195,12 +210,12 @@ export function OwnerCourtsView() {
         </div>
       </div>
 
-      {query.isLoading ? (
+      {query.isLoading && localSessions.length === 0 ? (
         <div className="flex min-h-40 items-center justify-center text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
           Loading courts…
         </div>
-      ) : query.isError ? (
+      ) : query.isError && sessions.length === 0 ? (
         shouldSuppressUserNotification(query.error) ? (
           <div className="flex min-h-40 items-center justify-center text-muted-foreground">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />

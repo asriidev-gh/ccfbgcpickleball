@@ -28,7 +28,46 @@ import { toastOperationError } from "@/lib/toast-error";
 import { useParams, useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import { swalAlertBaseOptions, selfQueueCheckoutMessageHtml } from "@/lib/swal-theme";
-import { shouldUseRotationRequeue } from "@/lib/rotation-requeue-shared";
+
+import {
+  applyAllCourtsPauseOptimistic,
+  applyCancelCourtAssignmentOptimistic,
+  applyCancelRematchOptimistic,
+  applyCheckoutOptimistic,
+  applyCheckBackInOptimistic,
+  applyCourtPauseOptimistic,
+  applyCourtReplaceOptimistic,
+  applyEndGameOptimistic,
+  applyEndGameWithHistoryOptimistic,
+  applyEndOpenPlayOptimistic,
+  applyFillNextCourtOptimistic,
+  applyQueueReorderOptimistic,
+  applyQueueSwapOptimistic,
+  applyRemovePlayerOptimistic,
+  applyShuffleNextOptimistic,
+  applySwapCourtTeamsOptimistic,
+  type EndGameMutationInput,
+  type GamePayload,
+  type ReplaceCourtMutationInput,
+  type ReplaceQueueMutationInput,
+} from "@/lib/game-payload-mutations";
+import {
+  getQuickGameDashboardPath,
+  isAccountQuickGame,
+  isEphemeralQuickGame,
+  isQuickGame,
+} from "@/lib/local-game-id";
+import {
+  readOperatorGamePayload,
+  seedLocalGameOperatorCache,
+  writeOperatorGamePayload,
+} from "@/lib/operator-game-cache";
+import { useAccountQuickGameCheckpoint } from "@/hooks/use-account-quick-game-checkpoint";
+import {
+  ensureAccountQuickGameHydrated,
+  saveQuickGameSession,
+} from "@/lib/quick-game-persistence-client";
+import { readQuickGamePayload, useQuickGameSession } from "@/lib/quick-game-store";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
 import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
@@ -141,8 +180,6 @@ import { SPECTATOR_VIEW_UNAVAILABLE_MESSAGE } from "@/lib/spectator-availability
 export type GameDashboardMode = "operator" | "spectator";
 
 type DashboardMobileTab = "queue" | "courts" | "history";
-
-type GamePayload = OperatorFullPayload;
 
 const alertBaseOptions = swalAlertBaseOptions;
 
@@ -272,6 +309,7 @@ type QueueCheckedOutListProps = {
   checkBackInPendingId: string | null;
   onRemovePlayer?: (entry: QueueEntryView) => void;
   removePlayerPendingId?: string | null;
+  allowCheckInAsPlayer?: boolean;
 };
 
 function QueueCheckedOutList({
@@ -283,6 +321,7 @@ function QueueCheckedOutList({
   checkBackInPendingId,
   onRemovePlayer,
   removePlayerPendingId,
+  allowCheckInAsPlayer = true,
 }: QueueCheckedOutListProps) {
   const [showAllCheckedOut, setShowAllCheckedOut] = useState(false);
 
@@ -341,6 +380,7 @@ function QueueCheckedOutList({
                   }}
                   index={index}
                   gameId={gameId}
+                  allowCheckInAsPlayer={allowCheckInAsPlayer}
                   isNextUp={false}
                   canReplace={false}
                   onReplace={() => {}}
@@ -414,585 +454,23 @@ function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
   );
 }
 
-function readOperatorPayload(
-  queryClient: ReturnType<typeof useQueryClient>,
-  gameId: string,
-): GamePayload | undefined {
-  const shell = queryClient.getQueryData<OperatorShellPayload>(operatorShellQueryKey(gameId));
-  if (!shell) return undefined;
-  const queue = queryClient.getQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId));
-  const details = queryClient.getQueryData<OperatorDetailsPayload>(operatorDetailsQueryKey(gameId));
-  return mergeOperatorGamePayload(shell, queue, details);
-}
-
-function writeOperatorPayload(
-  queryClient: ReturnType<typeof useQueryClient>,
-  gameId: string,
-  next: GamePayload,
-) {
-  const shell = queryClient.getQueryData<OperatorShellPayload>(operatorShellQueryKey(gameId));
-  if (shell) {
-    queryClient.setQueryData<OperatorShellPayload>(operatorShellQueryKey(gameId), {
-      game: { ...shell.game, status: next.game.status },
-    });
-  }
-  const existingQueue = queryClient.getQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId));
-  queryClient.setQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId), {
-    status: next.game.status,
-    queue: next.queue,
-    checkedOut: next.checkedOut ?? [],
-    courts: next.courts,
-    firstTimerCount: next.firstTimerCount ?? existingQueue?.firstTimerCount ?? 0,
-    birthdayThisMonthCount:
-      next.birthdayThisMonthCount ?? existingQueue?.birthdayThisMonthCount ?? 0,
-  });
-  queryClient.setQueryData<OperatorDetailsPayload>(operatorDetailsQueryKey(gameId), {
-    leaderboard: next.leaderboard ?? [],
-    matches: next.matches ?? [],
-    recap: next.recap,
-    qr:
-      next.game.registerUrl && next.game.publicQrCodeDataUrl
-        ? {
-            registerUrl: next.game.registerUrl,
-            publicQrCodeDataUrl: next.game.publicQrCodeDataUrl,
-          }
-        : undefined,
-  });
-}
-
-/** Instant UI while the fill-court API request is in flight. */
-function applyFillNextCourtOptimistic(
-  payload: GamePayload,
-  courtNumber: number,
-): GamePayload | null {
-  if (payload.queue.length < 4) return null;
-
-  const emptyCourt = payload.courts.find(
-    (court) => court.courtNumber === courtNumber && court.status === "empty",
-  );
-  if (!emptyCourt) return null;
-
-  const nextFour = payload.queue.slice(0, 4);
-  const startedAt = new Date().toISOString();
-
-  return {
-    ...payload,
-    queue: payload.queue.slice(4),
-    courts: payload.courts.map((court) =>
-      court.courtNumber === emptyCourt.courtNumber
-        ? {
-            ...court,
-            status: "active",
-            startedAt,
-            pausedAt: null,
-            totalPausedMs: 0,
-            isRematch: false,
-            teamA: { playerIds: nextFour.slice(0, 2).map((entry) => entry.playerId) },
-            teamB: { playerIds: nextFour.slice(2, 4).map((entry) => entry.playerId) },
-          }
-        : court,
-    ),
-  };
-}
-
-type EndGameMutationInput = {
-  courtNumber: number;
-  winnerTeam: "A" | "B";
-  teamAScore: number;
-  teamBScore: number;
-  rematch: boolean;
-};
-
-function countActivePlayersForRotation(payload: GamePayload) {
-  const onCourt = payload.courts
-    .filter((court) => court.status === "active")
-    .reduce(
-      (sum, court) =>
-        sum + (court.teamA?.playerIds?.length ?? 0) + (court.teamB?.playerIds?.length ?? 0),
-      0,
-    );
-  return payload.queue.length + onCourt;
-}
-
-function shouldUseRotationRequeuePayload(payload: GamePayload) {
-  return shouldUseRotationRequeue(countActivePlayersForRotation(payload));
-}
-
-function buildRotationOptimisticRequeueEntries(
-  teamA: PlayerPhotoRef[],
-  teamB: PlayerPhotoRef[],
-  winnerTeam: "A" | "B",
-  baseTime: number,
-): QueueEntryView[] {
-  const buildEntry = (player: PlayerPhotoRef, team: "A" | "B", index: number): QueueEntryView => {
-    const isWinner = team === winnerTeam;
-    return {
-      _id: `optimistic-rotation-${baseTime}-${team}-${index}`,
-      queueType: "normal",
-      playerId: player,
-      registeredAt: new Date(baseTime + index).toISOString(),
-      lastMatchResult: isWinner ? "win" : "loss",
-    };
-  };
-
-  return [
-    buildEntry(teamA[0], "A", 0),
-    buildEntry(teamA[1], "A", 1),
-    buildEntry(teamB[0], "B", 2),
-    buildEntry(teamB[1], "B", 3),
-  ];
-}
-
-function buildOptimisticRequeueEntries(
-  teamA: PlayerPhotoRef[],
-  teamB: PlayerPhotoRef[],
-  winnerTeam: "A" | "B",
-  baseTime: number,
-): QueueEntryView[] {
-  const slots = [
-    { player: teamA[0], team: "A" as const },
-    { player: teamB[0], team: "B" as const },
-    { player: teamA[1], team: "A" as const },
-    { player: teamB[1], team: "B" as const },
-  ].filter((slot): slot is { player: PlayerPhotoRef; team: "A" | "B" } => Boolean(slot.player));
-
-  return slots.map((slot, index) => {
-    const isWinner = slot.team === winnerTeam;
-    return {
-      _id: `optimistic-requeue-${baseTime}-${index}`,
-      queueType: isWinner ? "winner" : "loser",
-      playerId: slot.player,
-      registeredAt: new Date(baseTime + index).toISOString(),
-      lastMatchResult: isWinner ? "win" : "loss",
-    };
-  });
-}
-
-/** Instant UI while the end-game API request is in flight. */
-function applyEndGameOptimistic(
-  payload: GamePayload,
-  input: EndGameMutationInput,
-): GamePayload | null {
-  const court = payload.courts.find((c) => c.courtNumber === input.courtNumber);
-  if (!court || court.status !== "active") return null;
-
-  if (input.rematch) {
-    return {
-      ...payload,
-      courts: payload.courts.map((c) =>
-        c.courtNumber === input.courtNumber
-          ? {
-              ...c,
-              startedAt: new Date().toISOString(),
-              pausedAt: null,
-              totalPausedMs: 0,
-              isRematch: true,
-            }
-          : c,
-      ),
-    };
-  }
-
-  const teamA = court.teamA?.playerIds ?? [];
-  const teamB = court.teamB?.playerIds ?? [];
-  if (teamA.length + teamB.length < 4) return null;
-
-  const baseTime = Date.now();
-
-  if (
-    shouldUseRotationRequeuePayload(payload) &&
-    payload.queue.length >= 2 &&
-    teamA.length === 2 &&
-    teamB.length === 2
-  ) {
-    const withoutLastTwo = payload.queue.slice(0, -2);
-    const lastTwo = payload.queue.slice(-2);
-    const rotationEntries = buildRotationOptimisticRequeueEntries(
-      teamA,
-      teamB,
-      input.winnerTeam,
-      baseTime,
-    );
-    const pairAEntries = rotationEntries.slice(0, 2);
-    const pairBEntries = rotationEntries.slice(2, 4);
-    const mergedQueue = [...withoutLastTwo, ...pairAEntries, ...lastTwo, ...pairBEntries].map(
-      (entry, index) => ({
-        ...entry,
-        registeredAt: new Date(baseTime + index).toISOString(),
-      }),
-    );
-
-    return {
-      ...payload,
-      queue: mergedQueue,
-      courts: payload.courts.map((c) =>
-        c.courtNumber === input.courtNumber
-          ? {
-              ...c,
-              status: "empty",
-              startedAt: null,
-              pausedAt: null,
-              totalPausedMs: 0,
-              isRematch: false,
-              teamA: { playerIds: [] },
-              teamB: { playerIds: [] },
-            }
-          : c,
-      ),
-    };
-  }
-
-  const requeueEntries = buildOptimisticRequeueEntries(
-    teamA,
-    teamB,
-    input.winnerTeam,
-    baseTime,
-  );
-
-  return {
-    ...payload,
-    queue: [...payload.queue, ...requeueEntries],
-    courts: payload.courts.map((c) =>
-      c.courtNumber === input.courtNumber
-        ? {
-            ...c,
-            status: "empty",
-            startedAt: null,
-            pausedAt: null,
-            totalPausedMs: 0,
-            isRematch: false,
-            teamA: { playerIds: [] },
-            teamB: { playerIds: [] },
-          }
-        : c,
-    ),
-  };
-}
-
-/** Instant UI while pause/unpause API request is in flight. */
-function applyCourtPauseOptimistic(
-  payload: GamePayload,
-  courtNumber: number,
-  paused: boolean,
-): GamePayload | null {
-  const court = payload.courts.find(
-    (item) => item.courtNumber === courtNumber && item.status === "active",
-  );
-  if (!court) return null;
-
-  const now = Date.now();
-  const nowIso = new Date(now).toISOString();
-
-  return {
-    ...payload,
-    courts: payload.courts.map((item) => {
-      if (item.courtNumber !== courtNumber) return item;
-
-      if (paused) {
-        return {
-          ...item,
-          pausedAt: nowIso,
-        };
-      }
-
-      const pauseStart = item.pausedAt ? new Date(item.pausedAt).getTime() : null;
-      const addedPause =
-        pauseStart != null && !Number.isNaN(pauseStart) ? Math.max(0, now - pauseStart) : 0;
-
-      return {
-        ...item,
-        pausedAt: null,
-        totalPausedMs: (item.totalPausedMs ?? 0) + addedPause,
-      };
-    }),
-  };
-}
-
-/** Instant UI while pause/unpause-all API request is in flight. */
-function applyAllCourtsPauseOptimistic(
-  payload: GamePayload,
-  paused: boolean,
-): GamePayload | null {
-  const hasActive = payload.courts.some((item) => item.status === "active");
-  if (!hasActive) return null;
-
-  const now = Date.now();
-  const nowIso = new Date(now).toISOString();
-
-  return {
-    ...payload,
-    courts: payload.courts.map((item) => {
-      if (item.status !== "active") return item;
-
-      if (paused) {
-        if (item.pausedAt) return item;
-        return {
-          ...item,
-          pausedAt: nowIso,
-        };
-      }
-
-      if (!item.pausedAt) return item;
-
-      const pauseStart = new Date(item.pausedAt).getTime();
-      const addedPause =
-        !Number.isNaN(pauseStart) ? Math.max(0, now - pauseStart) : 0;
-
-      return {
-        ...item,
-        pausedAt: null,
-        totalPausedMs: (item.totalPausedMs ?? 0) + addedPause,
-      };
-    }),
-  };
-}
-
-function isPlayerOnActiveCourt(courts: CourtView[], playerId: string): boolean {
-  return courts.some(
-    (court) =>
-      court.status === "active" &&
-      [...(court.teamA?.playerIds ?? []), ...(court.teamB?.playerIds ?? [])].some(
-        (player) => resolvePlayerId(player) === playerId,
-      ),
-  );
-}
-
-function leaderboardRowPlayerId(row: LeaderboardGamesPlayedRow): string | null {
-  const playerId = row.playerId;
-  if (playerId == null) return null;
-  if (typeof playerId === "object" && "_id" in playerId && playerId._id != null) {
-    return String(playerId._id);
-  }
-  return String(playerId);
-}
-
-/** Instant UI while checkout API request is in flight. */
-function applyCheckoutOptimistic(payload: GamePayload, queueEntryId: string): GamePayload | null {
-  const entry = payload.queue.find((item) => item._id === queueEntryId);
-  if (!entry) return null;
-
-  const checkedOutAt = new Date().toISOString();
-  return {
-    ...payload,
-    queue: payload.queue.filter((item) => item._id !== queueEntryId),
-    checkedOut: [{ ...entry, checkedOutAt }, ...(payload.checkedOut ?? [])],
-  };
-}
-
-/** Instant UI while remove-player API request is in flight. */
-function applyRemovePlayerOptimistic(payload: GamePayload, playerId: string): GamePayload | null {
-  if (isPlayerOnActiveCourt(payload.courts, playerId)) return null;
-
-  const withoutPlayer = (entries: QueueEntryView[]) =>
-    entries.filter((entry) => queueEntryPlayerId(entry) !== playerId);
-
-  const matchIncludesPlayer = (match: MatchHistoryView) =>
-    match.teamAPlayerIds.some((player) => player._id === playerId) ||
-    match.teamBPlayerIds.some((player) => player._id === playerId);
-
-  return {
-    ...payload,
-    queue: withoutPlayer(payload.queue),
-    checkedOut: withoutPlayer(payload.checkedOut ?? []),
-    courts: payload.courts.map((court) => ({
-      ...court,
-      teamA: {
-        playerIds: court.teamA.playerIds.filter(
-          (player) => resolvePlayerId(player) !== playerId,
-        ),
-      },
-      teamB: {
-        playerIds: court.teamB.playerIds.filter(
-          (player) => resolvePlayerId(player) !== playerId,
-        ),
-      },
-    })),
-    matches: payload.matches.filter((match) => !matchIncludesPlayer(match)),
-    leaderboard: payload.leaderboard?.filter(
-      (row) => leaderboardRowPlayerId(row) !== playerId,
-    ),
-  };
-}
-
-type ReplaceQueueMutationInput = {
-  sourceIndex: number;
-  targetIndex: number;
-};
-
-type ReplaceCourtMutationInput = {
-  courtNumber: number;
-  team: "A" | "B";
-  slotIndex: number;
-  targetIndex: number;
-};
-
-function swapQueueEntriesAt(
-  queue: QueueEntryView[],
-  sourceIndex: number,
-  targetIndex: number,
-): QueueEntryView[] {
-  const next = [...queue];
-  const sourceRegisteredAt = next[sourceIndex].registeredAt;
-  const targetRegisteredAt = next[targetIndex].registeredAt;
-  [next[sourceIndex], next[targetIndex]] = [next[targetIndex], next[sourceIndex]];
-  next[sourceIndex] = { ...next[sourceIndex], registeredAt: sourceRegisteredAt };
-  next[targetIndex] = { ...next[targetIndex], registeredAt: targetRegisteredAt };
-  return next;
-}
-
-/** Instant UI while drag-reordering the queue (mirrors persistQueueOrder on the server). */
-function applyQueueReorderOptimistic(
-  payload: GamePayload,
-  orderedEntryIds: string[],
-): GamePayload | null {
-  if (orderedEntryIds.length !== payload.queue.length) return null;
-
-  const byId = new Map(payload.queue.map((entry) => [entry._id, entry]));
-  const seen = new Set<string>();
-  const reordered: QueueEntryView[] = [];
-
-  for (const entryId of orderedEntryIds) {
-    if (seen.has(entryId)) return null;
-    seen.add(entryId);
-    const entry = byId.get(entryId);
-    if (!entry) return null;
-    reordered.push(entry);
-  }
-
-  const baseTime =
-    reordered.length > 0 ? new Date(reordered[0].registeredAt).getTime() : Date.now();
-
-  return {
-    ...payload,
-    queue: reordered.map((entry, index) => ({
-      ...entry,
-      registeredAt: new Date(baseTime + index * 1000).toISOString(),
-    })),
-  };
-}
-
-/** Instant UI while swapping a next-up player with the waiting line. */
-function applyQueueSwapOptimistic(
-  payload: GamePayload,
-  input: ReplaceQueueMutationInput,
-): GamePayload | null {
-  const { sourceIndex, targetIndex } = input;
-  if (sourceIndex < 0 || sourceIndex > 3) return null;
-  if (targetIndex < 4 || targetIndex >= payload.queue.length) return null;
-  if (sourceIndex === targetIndex) return null;
-
-  return {
-    ...payload,
-    queue: swapQueueEntriesAt(payload.queue, sourceIndex, targetIndex),
-  };
-}
-
-/** Instant UI while swapping an on-court player with someone in the queue. */
-function applyCourtReplaceOptimistic(
-  payload: GamePayload,
-  input: ReplaceCourtMutationInput,
-): GamePayload | null {
-  const { courtNumber, team, slotIndex, targetIndex } = input;
-  if (slotIndex < 0 || slotIndex > 1) return null;
-
-  const court = payload.courts.find(
-    (item) => item.courtNumber === courtNumber && item.status === "active",
-  );
-  if (!court) return null;
-  if (targetIndex < 0 || targetIndex >= payload.queue.length) return null;
-
-  const teamPlayers = team === "A" ? court.teamA.playerIds : court.teamB.playerIds;
-  if (slotIndex >= teamPlayers.length) return null;
-
-  const courtPlayer = teamPlayers[slotIndex];
-  const queuedEntry = payload.queue[targetIndex];
-  if (!courtPlayer || !queuedEntry) return null;
-
-  const requeuedEntry: QueueEntryView = {
-    _id: `optimistic-court-replace-${Date.now()}`,
-    queueType: "normal",
-    playerId: courtPlayer,
-    registeredAt: queuedEntry.registeredAt,
-    lastMatchResult: "none",
-  };
-
-  return {
-    ...payload,
-    queue: payload.queue.map((entry, index) =>
-      index === targetIndex ? requeuedEntry : entry,
-    ),
-    courts: payload.courts.map((item) => {
-      if (item.courtNumber !== courtNumber) return item;
-      if (team === "A") {
-        const playerIds = [...item.teamA.playerIds];
-        playerIds[slotIndex] = queuedEntry.playerId;
-        return { ...item, teamA: { playerIds } };
-      }
-      const playerIds = [...item.teamB.playerIds];
-      playerIds[slotIndex] = queuedEntry.playerId;
-      return { ...item, teamB: { playerIds } };
-    }),
-  };
-}
-
-/** Instant UI while cancelling a court assignment API request is in flight. */
-function applyCancelCourtAssignmentOptimistic(
-  payload: GamePayload,
-  courtNumber: number,
-): GamePayload | null {
-  const court = payload.courts.find(
-    (item) => item.courtNumber === courtNumber && item.status === "active",
-  );
-  if (!court) return null;
-
-  const teamA = court.teamA?.playerIds ?? [];
-  const teamB = court.teamB?.playerIds ?? [];
-  const courtPlayers = [teamA[0], teamA[1], teamB[0], teamB[1]].filter(Boolean);
-  if (courtPlayers.length < 4) return null;
-
-  const firstQueuedMs =
-    payload.queue.length > 0
-      ? new Date(payload.queue[0].registeredAt).getTime()
-      : Date.now();
-  const startMs = firstQueuedMs - courtPlayers.length * 1000;
-
-  const requeuedEntries: QueueEntryView[] = courtPlayers.map((player, index) => ({
-    _id: `optimistic-cancel-court-${startMs}-${index}`,
-    queueType: "normal",
-    playerId: player,
-    registeredAt: new Date(startMs + index * 1000).toISOString(),
-    lastMatchResult: "none",
-  }));
-
-  return {
-    ...payload,
-    queue: [...requeuedEntries, ...payload.queue],
-    courts: payload.courts.map((item) =>
-      item.courtNumber === courtNumber
-        ? {
-            ...item,
-            status: "empty",
-            startedAt: null,
-            pausedAt: null,
-            totalPausedMs: 0,
-            isRematch: false,
-            teamA: { playerIds: [] },
-            teamB: { playerIds: [] },
-          }
-        : item,
-    ),
-  };
-}
-
 type GameDashboardProps = {
   mode?: GameDashboardMode;
+  /** When set, validates quick-game routes (`/play` vs `/games`). */
+  quickGameSurface?: "account" | "ephemeral";
 };
 
-export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
+export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashboardProps) {
   const isSpectator = mode === "spectator";
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const gameId = params.id ?? "";
+  const isQuickGameSession = isQuickGame(gameId);
+  const isEphemeralQuickSession = isEphemeralQuickGame(gameId);
+  const isAccountQuickSession = isAccountQuickGame(gameId);
+  const quickSessionHook = useQuickGameSession(gameId);
+  const quickSession =
+    quickSessionHook ?? (isQuickGameSession ? readQuickGamePayload(gameId) : undefined);
   const queryClient = useQueryClient();
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
   const [pendingWinner, setPendingWinner] = useState<"A" | "B" | null>(null);
@@ -1055,6 +533,25 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   };
 
   useEffect(() => {
+    if (!gameId || !isQuickGameSession) return;
+    const expectedPath = getQuickGameDashboardPath(gameId);
+    if (isEphemeralQuickSession && quickGameSurface !== "ephemeral") {
+      router.replace(expectedPath);
+      return;
+    }
+    if (isAccountQuickSession && quickGameSurface === "ephemeral") {
+      router.replace(expectedPath);
+    }
+  }, [
+    gameId,
+    isAccountQuickSession,
+    isEphemeralQuickSession,
+    isQuickGameSession,
+    quickGameSurface,
+    router,
+  ]);
+
+  useEffect(() => {
     setShowWaitingList(loadShowWaitingList());
     setWaitingLineView(loadWaitingLineViewMode());
     setShowCheckedOutList(loadShowCheckedOutList());
@@ -1084,12 +581,51 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     checkAgain: checkOperatorDashboardLease,
     takeOver: takeOverOperatorDashboard,
     hasDashboardLease,
-  } = useOperatorDashboardLease(gameId, !isSpectator);
+  } = useOperatorDashboardLease(gameId, !isSpectator && !isQuickGameSession);
 
   const operatorCanLoadData =
+    !isQuickGameSession &&
     !isSpectator &&
     operatorLeaseState.status !== "blocked" &&
     operatorLeaseState.status !== "unauthorized";
+
+  useEffect(() => {
+    if (!isAccountQuickSession || !gameId || quickSession) return;
+
+    let cancelled = false;
+    void ensureAccountQuickGameHydrated(gameId)
+      .then(() => {
+        if (cancelled) return;
+        seedLocalGameOperatorCache(queryClient, gameId);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        toast.error("Quick game not found.");
+        router.replace("/my-games");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gameId, isAccountQuickSession, quickSession, queryClient, router]);
+
+  useEffect(() => {
+    if (!isEphemeralQuickSession || !gameId || quickSession) return;
+
+    const timer = window.setTimeout(() => {
+      if (!readQuickGamePayload(gameId)) {
+        toast.error("Session not found. Start a new quick play session.");
+        router.replace("/play");
+      }
+    }, 750);
+
+    return () => window.clearTimeout(timer);
+  }, [gameId, isEphemeralQuickSession, quickSession, router]);
+
+  useEffect(() => {
+    if (!isQuickGameSession || !gameId) return;
+    seedLocalGameOperatorCache(queryClient, gameId);
+  }, [gameId, isQuickGameSession, quickSession, queryClient]);
 
   const operatorShellQuery = useQuery({
     queryKey: operatorShellQueryKey(gameId),
@@ -1111,13 +647,18 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const operatorDetailsQuery = useQuery({
     queryKey: operatorDetailsQueryKey(gameId),
     queryFn: () => fetchOperatorDetails(gameId),
-    enabled: !!gameId && Boolean(operatorShellQuery.data) && operatorWantsMatchDetails,
+    enabled:
+      !!gameId &&
+      !isQuickGameSession &&
+      Boolean(operatorShellQuery.data) &&
+      operatorWantsMatchDetails,
     refetchOnWindowFocus: false,
   });
 
   useOperatorQueueRegistrationSync({
     gameId,
     enabled:
+      !isQuickGameSession &&
       !!gameId &&
       hasDashboardLease &&
       operatorQueueQuery.data?.status !== "ended" &&
@@ -1165,6 +706,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   });
 
   const data = useMemo((): GamePayload | undefined => {
+    if (isQuickGameSession) {
+      return quickSession;
+    }
     if (isSpectator) {
       if (!spectatorLiveQuery.data) return undefined;
       return mergeSpectatorGamePayload(
@@ -1180,7 +724,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     );
   }, [
     gameId,
+    isQuickGameSession,
     isSpectator,
+    quickSession,
     operatorDetailsQuery.data,
     operatorQueueQuery.data,
     operatorShellQuery.data,
@@ -1188,10 +734,18 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     spectatorLiveQuery.data,
   ]);
 
+  useAccountQuickGameCheckpoint(gameId, isAccountQuickSession ? data : undefined);
+
   const operatorQueueLoading =
-    !isSpectator && !operatorQueueQuery.data && operatorQueueQuery.isPending;
+    !isSpectator &&
+    !isQuickGameSession &&
+    !operatorQueueQuery.data &&
+    operatorQueueQuery.isPending;
   const operatorShellLoading =
-    !isSpectator && !operatorShellQuery.data && operatorShellQuery.isPending;
+    !isSpectator &&
+    !isQuickGameSession &&
+    !operatorShellQuery.data &&
+    operatorShellQuery.isPending;
   const isLoading = isSpectator ? spectatorLiveQuery.isLoading : false;
   const error = isSpectator ? spectatorLiveQuery.error : operatorShellQuery.error ?? operatorQueueQuery.error;
 
@@ -1213,6 +767,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const startMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
+      if (isQuickGameSession) return { ok: true };
+
       const maxAttempts = 3;
       let lastMessage = "Failed to fill court.";
 
@@ -1239,22 +795,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (courtNumber) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
       return { previous };
     },
     onSuccess: () => {
       toast.success("Next court filled from the queue.");
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error, _, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to fill court.");
     },
@@ -1270,6 +828,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const endMutation = useMutation({
     mutationFn: async (input: EndGameMutationInput) => {
+      if (isQuickGameSession) {
+        return {
+          message: input.rematch
+            ? `Court ${input.courtNumber} rematch started — same players, fresh clock.`
+            : "Game ended and players returned to the queue.",
+          rematch: input.rematch,
+        };
+      }
+
       const response = await fetch(`/api/games/${gameId}/end`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1281,13 +848,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
-      const optimistic = applyEndGameOptimistic(previous, variables);
+      const optimistic = isQuickGameSession
+        ? applyEndGameWithHistoryOptimistic(previous, variables)
+        : applyEndGameOptimistic(previous, variables);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
 
       const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       if (variables.rematch) {
@@ -1306,12 +875,14 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onSuccess: (data, variables) => {
       toast.success(data.message ?? "Court updated.");
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
       void announceCourtEnded(variables.courtNumber);
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       if (context?.previousRematchCourtNumbers) {
         setRematchCourtNumbers(context.previousRematchCourtNumbers);
@@ -1322,6 +893,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const shuffleNextMutation = useMutation({
     mutationFn: async () => {
+      if (isQuickGameSession) {
+        const previous = readOperatorGamePayload(queryClient, gameId);
+        if (!previous) throw new Error("Session not found.");
+        const optimistic = applyShuffleNextOptimistic(previous);
+        if (!optimistic) throw new Error("Not enough queued players.");
+        writeOperatorGamePayload(queryClient, gameId, optimistic);
+        return { message: "Next four players shuffled into new teams." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/shuffle-next`, { method: "POST" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
@@ -1329,7 +909,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error) => toastOperationError(error, "Failed to shuffle teams."),
   });
@@ -1354,6 +936,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const swapCourtMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
+      if (isQuickGameSession) {
+        const previous = readOperatorGamePayload(queryClient, gameId);
+        if (!previous) throw new Error("Session not found.");
+        const optimistic = applySwapCourtTeamsOptimistic(previous, courtNumber);
+        if (!optimistic) throw new Error("Active court not found.");
+        writeOperatorGamePayload(queryClient, gameId, optimistic);
+        return { message: "Court teams shuffled." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/swap-court`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1365,13 +956,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error) => toastOperationError(error, "Failed to swap court players."),
   });
 
   const pauseCourtMutation = useMutation({
     mutationFn: async ({ courtNumber, paused }: { courtNumber: number; paused: boolean }) => {
+      if (isQuickGameSession) {
+        return { message: paused ? "Court timer paused." : "Court timer resumed." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/pause-court`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1383,22 +980,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async ({ courtNumber, paused }) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyCourtPauseOptimistic(previous, courtNumber, paused);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
       return { previous };
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error, _input, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to update court timer.");
     },
@@ -1406,6 +1005,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const pauseAllCourtsMutation = useMutation({
     mutationFn: async (paused: boolean) => {
+      if (isQuickGameSession) {
+        return { message: paused ? "All courts paused." : "All courts resumed." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/pause-all-courts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1417,22 +1020,24 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (paused) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyAllCourtsPauseOptimistic(previous, paused);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
       return { previous };
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error, _input, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to pause courts.");
     },
@@ -1440,6 +1045,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const cancelCourtMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
+      if (isQuickGameSession) {
+        return { message: "Court assignment cancelled — players returned to the queue." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/cancel-court`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1451,13 +1060,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (courtNumber) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
 
       const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       setRematchCourtNumbers((prev) => {
@@ -1471,11 +1080,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error, _courtNumber, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       if (context?.previousRematchCourtNumbers) {
         setRematchCourtNumbers(context.previousRematchCourtNumbers);
@@ -1486,6 +1097,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const cancelRematchMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
+      if (isQuickGameSession) {
+        return { message: "Rematch cancelled — players returned to the queue." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/cancel-rematch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1495,6 +1110,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: async (courtNumber) => {
+      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyCancelRematchOptimistic(previous, courtNumber);
+      if (!optimistic) return { previous };
+
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      return { previous };
+    },
     onSuccess: (data, courtNumber) => {
       setRematchCourtNumbers((prev) => {
         const next = new Set(prev);
@@ -1503,7 +1129,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       });
       toast.success(data.message);
       setCancelRematchTarget(null);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error) => toastOperationError(error, "Failed to cancel rematch."),
   });
@@ -1524,6 +1152,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const endOpenPlayMutation = useMutation({
     mutationFn: async () => {
+      if (isQuickGameSession) {
+        const previous = readOperatorGamePayload(queryClient, gameId);
+        if (!previous) throw new Error("Session not found.");
+        const ended = applyEndOpenPlayOptimistic(previous);
+        writeOperatorGamePayload(queryClient, gameId, ended);
+        if (isAccountQuickSession) {
+          await saveQuickGameSession(gameId, ended, "end", "ended");
+        }
+        return { message: "Open play ended." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/end-open-play`, { method: "POST" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
@@ -1531,14 +1170,20 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onSuccess: async (payload) => {
       toast.success(payload.message);
-      await queryClient.invalidateQueries({ queryKey: ["games"] });
-      router.replace("/");
+      if (!isQuickGameSession) {
+        await queryClient.invalidateQueries({ queryKey: ["games"] });
+      } else if (isAccountQuickSession) {
+        await queryClient.invalidateQueries({ queryKey: ["saved-quick-games"] });
+      }
+      router.replace(isEphemeralQuickSession ? "/play" : "/");
     },
     onError: (error) => toastOperationError(error, "Failed to end open play."),
   });
 
   const reorderQueueMutation = useMutation({
     mutationFn: async (orderedEntryIds: string[]) => {
+      if (isQuickGameSession) return { message: "Queue order updated." };
+
       const response = await fetch(`/api/games/${gameId}/reorder-queue`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1550,18 +1195,18 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (orderedEntryIds) => {
       await queryClient.cancelQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyQueueReorderOptimistic(previous, orderedEntryIds);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
       return { previous };
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to reorder queue.");
     },
@@ -1569,6 +1214,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const replaceMutation = useMutation({
     mutationFn: async (input: ReplaceQueueMutationInput) => {
+      if (isQuickGameSession) return { message: "Queue player replaced." };
+
       const response = await fetch(`/api/games/${gameId}/swap-next`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1580,23 +1227,25 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyQueueSwapOptimistic(previous, variables);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
       setReplaceDialog(null);
       return { previous };
     },
     onSuccess: (payload) => {
       toast.success(payload.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to replace player.");
     },
@@ -1604,6 +1253,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const replaceCourtMutation = useMutation({
     mutationFn: async (input: ReplaceCourtMutationInput) => {
+      if (isQuickGameSession) return { message: "Court player replaced." };
+
       const response = await fetch(`/api/games/${gameId}/replace-court-player`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1615,23 +1266,25 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyCourtReplaceOptimistic(previous, variables);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
       setReplaceDialog(null);
       return { previous };
     },
     onSuccess: (payload) => {
       toast.success(payload.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to replace player.");
     },
@@ -1665,6 +1318,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       selfPlayerIds?: string[];
       playerName?: string;
     }) => {
+      if (isQuickGameSession) return { message: "Player checked out." };
+
       const response = await fetch(`/api/games/${gameId}/remove-from-queue`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1676,13 +1331,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyCheckoutOptimistic(previous, variables.queueEntryId);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
       return { previous };
     },
     onSuccess: (payload, variables) => {
@@ -1690,8 +1345,10 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         removeActiveQueueHighlightPlayerId(gameId, variables.checkedOutPlayerId);
       }
       toast.success(payload.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      if (!isSpectator && gameId && variables.playerName) {
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
+      if (!isSpectator && !isQuickGameSession && gameId && variables.playerName) {
         dispatchSpectatorCheckoutNotification(gameId, {
           id: variables.queueEntryId,
           kind: "checkout",
@@ -1702,7 +1359,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to remove player from queue.");
     },
@@ -1710,6 +1367,8 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const removePlayerFromGameMutation = useMutation({
     mutationFn: async (input: { playerId: string }) => {
+      if (isQuickGameSession) return { message: "Player removed from session." };
+
       const response = await fetch(`/api/games/${gameId}/remove-player`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1721,13 +1380,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = readOperatorPayload(queryClient, gameId);
+      const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyRemovePlayerOptimistic(previous, variables.playerId);
       if (!optimistic) return { previous };
 
-      writeOperatorPayload(queryClient, gameId, optimistic);
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
       return { previous };
     },
     onSuccess: (payload, variables) => {
@@ -1735,11 +1394,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         removeActiveQueueHighlightPlayerId(gameId, variables.playerId);
       }
       toast.success(payload.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
-        writeOperatorPayload(queryClient, gameId, context.previous);
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to remove player.");
     },
@@ -1747,6 +1408,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const checkBackInMutation = useMutation({
     mutationFn: async (queueEntryId: string) => {
+      if (isQuickGameSession) {
+        const previous = readOperatorGamePayload(queryClient, gameId);
+        if (!previous) throw new Error("Session not found.");
+        const optimistic = applyCheckBackInOptimistic(previous, queueEntryId);
+        if (!optimistic) throw new Error("Player not found on checkout list.");
+        writeOperatorGamePayload(queryClient, gameId, optimistic);
+        return { message: "Player checked back in." };
+      }
+
       const response = await fetch(`/api/games/${gameId}/check-back-in`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1758,7 +1428,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     },
     onSuccess: (payload) => {
       toast.success(payload.message);
-      queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (!isQuickGameSession) {
+        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      }
     },
   });
 
@@ -2027,7 +1699,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     return <SpectatorLoadingScreen />;
   }
 
-  if (!isSpectator && operatorLeaseState.status === "unauthorized") {
+  if (!isSpectator && !isQuickGameSession && operatorLeaseState.status === "unauthorized") {
     return (
       <main className="game-dashboard--operator flex min-h-screen items-center justify-center p-6">
         <p className="text-sm text-muted-foreground">Redirecting to sign in…</p>
@@ -2035,7 +1707,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
     );
   }
 
-  if (!isSpectator && operatorLeaseState.status === "blocked") {
+  if (!isSpectator && !isQuickGameSession && operatorLeaseState.status === "blocked") {
     return (
       <OperatorDashboardLeaseGate
         gameId={gameId}
@@ -2066,7 +1738,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       </div>
     );
   }
-  if (!data) return <div className="p-8">No game data.</div>;
+  if (!data) {
+    if (isQuickGameSession && !isSpectator) {
+      return (
+        <main className="game-dashboard--operator flex min-h-screen items-center justify-center p-6">
+          <p className="text-sm text-muted-foreground">Loading session…</p>
+        </main>
+      );
+    }
+
+    return <div className="p-8">No game data.</div>;
+  }
 
   const { game, courts, matches, recap } = data;
 
@@ -2096,6 +1778,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
 
   const spectatorMatchHistoryEmptyMessage = "No matches recorded for this session yet.";
 
+  const quickGameHomeHref = isEphemeralQuickSession ? "/play" : "/";
   const leaderboardHref = `/leaderboard/${game.gameId}`;
 
   const isCourtRematch = (court: CourtView) =>
@@ -2115,14 +1798,15 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
   const hideControls =
     readOnly ||
     isPastGame ||
-    operatorLeasePending ||
-    !hasDashboardLease ||
+    (!isQuickGameSession && operatorLeasePending) ||
+    (!isQuickGameSession && !hasDashboardLease) ||
     operatorQueueLoading;
   const canReorderQueue = !hideControls && queueWithStats.length >= 2;
   const queueEntryIds = queueWithStats.map((entry) => entry._id);
   const canCheckoutFromQueue = !isPastGame;
   const showOperatorMobileNav = !showSpectatorEndedRecap && !isSpectator;
-  const showQrRegistration = !readOnly && !isPastGame && game.allowQrRegistration !== false;
+  const showQrRegistration =
+    !isQuickGameSession && !readOnly && !isPastGame && game.allowQrRegistration !== false;
   const showManualAddPlayer =
     !readOnly &&
     !isPastGame &&
@@ -2172,6 +1856,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         entry={entry}
         index={index}
         gameId={!hideControls ? gameId : undefined}
+        allowCheckInAsPlayer={!isQuickGameSession}
         isNextUp={isNextUp}
         inWaitingLine={!isNextUp}
         canReplace={!hideControls && isNextUp && waitingLineEntries.length > 0}
@@ -2529,6 +2214,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
               <QueueCheckedOutList
                 gameId={gameId}
                 entries={checkedOutWithStats}
+                allowCheckInAsPlayer={!isQuickGameSession}
                 expanded={showCheckedOutList}
                 onToggle={() => {
                   const next = !showCheckedOutList;
@@ -2929,6 +2615,17 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 <h1 className="page-title">
                   {operatorShellLoading ? "Loading session…" : game.title}
                 </h1>
+                {isEphemeralQuickSession ? (
+                  <p className="caption mt-1 text-muted-foreground">
+                    Public quick play — this session lives only in this browser. Nothing is saved to
+                    our servers.
+                  </p>
+                ) : isAccountQuickSession ? (
+                  <p className="caption mt-1 text-muted-foreground">
+                    Quick game — plays in this browser and syncs to your account when you end open
+                    play.
+                  </p>
+                ) : null}
                 {operatorLeasePending ? (
                   <p className="caption mt-1 flex items-center gap-2 text-muted-foreground">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -2974,12 +2671,19 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
             </div>
             {!showSpectatorEndedRecap && !isSpectator ? (
             <div className="game-toolbar mt-4 hidden flex-wrap items-center gap-2 lg:flex">
-              <GameCheckoutNotificationBell gameId={gameId} />
-              <Link href="/">
-                <Button size="lg" variant="outline">
-                  <House className="mr-2 h-4 w-4" /> Home
-                </Button>
-              </Link>
+              {isQuickGameSession ? (
+                <Link href={quickGameHomeHref}>
+                  <Button size="lg" variant="outline">
+                    <House className="mr-2 h-4 w-4" /> Home
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/">
+                  <Button size="lg" variant="outline">
+                    <House className="mr-2 h-4 w-4" /> Home
+                  </Button>
+                </Link>
+              )}
               <Link
                 href={leaderboardHref}
                 onMouseEnter={() => prefetchLeaderboardRecap(queryClient, gameId, false)}
@@ -3001,7 +2705,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                 </Button>
               ) : null}
               <GameSessionActionsMenu
-                showDatabaseCheckIn={!readOnly && !isPastGame}
+                showDatabaseCheckIn={!readOnly && !isPastGame && !isQuickGameSession}
                 onDatabaseCheckIn={() => setDatabaseCheckInOpen(true)}
                 showAddPlayer={showManualAddPlayer}
                 onAddPlayer={() => setAddPlayerOpen(true)}
@@ -3019,6 +2723,9 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
                   <RotateCcw className="mr-2 h-4 w-4" />
                   {resetMutation.isPending ? "Resetting..." : "Reset"}
                 </Button>
+              ) : null}
+              {!isQuickGameSession ? (
+                <GameCheckoutNotificationBell gameId={gameId} iconOnly />
               ) : null}
             </div>
             ) : null}
@@ -3227,7 +2934,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
         </>
       ) : null}
 
-      {!readOnly && !isPastGame ? (
+      {!readOnly && !isPastGame && !isQuickGameSession ? (
         <DatabaseCheckInDialog
           gameId={gameId}
           open={databaseCheckInOpen}
@@ -3238,6 +2945,7 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       {showManualAddPlayer ? (
         <AddManualPlayerDialog
           gameId={gameId}
+          localMode={isQuickGameSession}
           open={addPlayerOpen}
           onOpenChange={setAddPlayerOpen}
           onPlayerAdded={() => {
@@ -3476,10 +3184,13 @@ export function GameDashboard({ mode = "operator" }: GameDashboardProps) {
       {showOperatorMobileNav ? (
         <GameDashboardMobileNav
           gameId={gameId}
+          isQuickGameSession={isQuickGameSession}
+          homeHref={quickGameHomeHref}
+          homeLabel="Home"
           showQr={showQrRegistration}
           qrLoading={qrDialogLoading}
           onQrClick={openQrRegistrationDialog}
-          showDatabaseCheckIn={!readOnly && !isPastGame}
+          showDatabaseCheckIn={!readOnly && !isPastGame && !isQuickGameSession}
           onDatabaseCheckInClick={() => setDatabaseCheckInOpen(true)}
           showEndOpenPlay={!readOnly && !isPastGame}
           endOpenPlayPending={endOpenPlayMutation.isPending}

@@ -12,6 +12,9 @@ type GameExportButtonProps = {
   gameId: string;
   gameTitle: string;
   iconOnly?: boolean;
+  /** Defaults to `/api/games/{id}/export`. */
+  exportPath?: string;
+  successMessage?: string;
 } & Partial<Pick<ComponentProps<typeof Button>, "variant" | "size" | "className">>;
 
 function parseFilenameFromDisposition(header: string | null) {
@@ -24,16 +27,19 @@ export function GameExportButton({
   gameId,
   gameTitle,
   iconOnly = false,
+  exportPath,
+  successMessage = "Registration export downloaded.",
   variant = "outline",
   size,
   className,
 }: GameExportButtonProps) {
   const [loading, setLoading] = useState(false);
+  const resolvedExportPath = exportPath ?? `/api/games/${gameId}/export`;
 
   const handleExport = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/games/${gameId}/export`);
+      const response = await fetch(resolvedExportPath);
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { message?: string } | null;
         throw new Error(payload?.message ?? "Export failed.");
@@ -51,7 +57,7 @@ export function GameExportButton({
       anchor.click();
       URL.revokeObjectURL(url);
 
-      toast.success("Registration export downloaded.");
+      toast.success(successMessage);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export failed.");
     } finally {

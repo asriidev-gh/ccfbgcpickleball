@@ -4,7 +4,12 @@ export function getGameIdFromGamesPath(pathname: string) {
 }
 
 export function isGameDashboardPath(pathname: string) {
-  return pathname.startsWith("/games/");
+  return pathname.startsWith("/games/") || /^\/play\/[^/]+$/.test(pathname);
+}
+
+export function getQuickPlayGameIdFromPath(pathname: string) {
+  const match = pathname.match(/^\/play\/([^/]+)/);
+  return match?.[1] ?? null;
 }
 
 export function getBrandShellClasses(pathname: string) {
@@ -15,7 +20,7 @@ export function getBrandShellClasses(pathname: string) {
     };
   }
 
-  if (pathname === "/" || pathname === "/my-games" || pathname.startsWith("/my-games/") || pathname === "/my-club" || pathname === "/marketplace") {
+  if (pathname === "/" || pathname === "/my-games" || pathname.startsWith("/my-games/") || pathname === "/my-club" || pathname === "/marketplace" || pathname === "/play" || pathname.startsWith("/play/")) {
     return {
       pad: "px-6 lg:px-10",
       container: "max-w-7xl",
@@ -43,6 +48,7 @@ export function shouldHideAppBrandBar(pathname: string) {
 export function isPublicAppPath(pathname: string, fromParam: string | null) {
   if (isSpectatorPath(pathname, fromParam)) return true;
   if (pathname.startsWith("/register")) return true;
+  if (pathname === "/play" || pathname.startsWith("/play/")) return true;
   return false;
 }
 
@@ -76,6 +82,7 @@ export function shouldShowOwnerDashboardNavLinks(pathname: string) {
   if (OWNER_DASHBOARD_NAV_HIDDEN_PATHS.has(pathname)) return false;
   if (pathname.startsWith("/my-games/")) return false;
   if (pathname.startsWith("/games/")) return false;
+  if (pathname === "/play" || pathname.startsWith("/play/")) return false;
   if (pathname.startsWith("/leaderboard/")) return false;
   return true;
 }

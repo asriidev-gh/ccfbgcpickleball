@@ -6,6 +6,7 @@ import {
 } from "@/lib/player-avatar-url";
 import { parsePlayerDisplayName } from "@/lib/parse-player-display-name";
 import type { GenderOption } from "@/lib/player-profile-shared";
+import { assertPlayerDisplayName } from "@/lib/player-profile-shared";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 
@@ -35,7 +36,11 @@ function normalizePreRegisteredPlayers(names: PreRegisteredPlayerInput[]) {
             gender: entry.gender,
           },
     )
-    .filter((entry) => entry.displayName.length > 0);
+    .filter((entry) => entry.displayName.length > 0)
+    .map((entry) => {
+      assertPlayerDisplayName(entry.displayName);
+      return entry;
+    });
 }
 
 /** Creates queue entries for names the game owner entered at setup (Dice Bear avatars). */
@@ -81,11 +86,13 @@ export async function createPreRegisteredPlayers({
     baseMs = (lastQueued?.registeredAt ? new Date(lastQueued.registeredAt).getTime() : Date.now()) + 1000;
   }
 
-  await QueueEntry.create(
+  const entryStatus = checkInAllPlayers ? ("queued" as const) : ("checked_out" as const);
+
+  await QueueEntry.insertMany(
     players.map((player, index) => ({
       gameId,
       playerId: player._id,
-      status: checkInAllPlayers ? "queued" : "checked_out",
+      status: entryStatus,
       registeredAt: new Date(baseMs + index * 1000),
     })),
   );

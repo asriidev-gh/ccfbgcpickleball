@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 type GameCheckoutNotificationBellProps = {
   gameId: string;
   variant?: "toolbar" | "mobileNav";
+  iconOnly?: boolean;
 };
 
 function NotificationKindIcon({
@@ -48,6 +49,7 @@ function NotificationKindIcon({
 export function GameCheckoutNotificationBell({
   gameId,
   variant = "toolbar",
+  iconOnly = false,
 }: GameCheckoutNotificationBellProps) {
   const { unreadNotifications, hasUnread, markAsRead, markAllAsRead } =
     useSpectatorCheckoutNotifications(gameId);
@@ -95,8 +97,11 @@ export function GameCheckoutNotificationBell({
       <Button
         type="button"
         variant="outline"
-        size="lg"
-        className="game-checkout-notification-bell relative shrink-0"
+        size={iconOnly ? "icon-lg" : "lg"}
+        className={cn(
+          "game-checkout-notification-bell relative shrink-0",
+          iconOnly && "size-11",
+        )}
         aria-label={ariaLabel}
       />
     );
@@ -110,7 +115,14 @@ export function GameCheckoutNotificationBell({
               <Bell className="h-5 w-5 shrink-0" aria-hidden />
               {unreadBadge}
             </span>
-            <span className="max-w-full truncate text-center">Alerts</span>
+            {iconOnly ? null : (
+              <span className="max-w-full truncate text-center">Alerts</span>
+            )}
+          </>
+        ) : iconOnly ? (
+          <>
+            <Bell className="h-4 w-4" aria-hidden />
+            {unreadBadge}
           </>
         ) : (
           <>

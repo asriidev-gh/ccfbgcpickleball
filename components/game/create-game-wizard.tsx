@@ -14,6 +14,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
 import { GoogleMapEmbedDialog } from "@/components/google-map-embed-dialog";
 import { NumberStepper } from "@/components/ui/number-stepper";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   getDefaultGameVenueForUserType,
@@ -27,9 +34,26 @@ import {
   type OpenPlayMeridiem,
 } from "@/lib/open-play-time-range";
 import { defaultOpenPlayTitle, OPEN_PLAY_TYPES } from "@/lib/open-play-types";
+import { createAccountQuickGameId } from "@/lib/local-game-id";
+import { createLocalLiveQueueSession } from "@/lib/local-game-session";
+import type { GenderOption } from "@/lib/player-profile-shared";
+import {
+  findFirstPlayerNameTooLongIndex,
+  findFirstPlayerNameWithInvalidCharactersIndex,
+  MAX_PLAYER_DISPLAY_NAME_LENGTH,
+  playerDisplayNameInvalidCharacterMessage,
+  playerDisplayNameTooLongMessage,
+  sanitizePlayerDisplayNameInput,
+} from "@/lib/player-profile-shared";
+import { saveQuickGameSession } from "@/lib/quick-game-persistence-client";
+import { initializeQuickGameSession } from "@/lib/quick-game-store";
+import { WIZARD_PLAYER_FIELD_CLASS, wizardGenderLabel } from "@/lib/wizard-player-fields";
 import { useUiStore } from "@/store/ui-store";
+import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 
 const types = OPEN_PLAY_TYPES;
+const MIN_PRE_REGISTERED_PLAYERS = 4;
 
 type RegistrationMode = "self" | "owner";
 type Meridiem = OpenPlayMeridiem;
@@ -74,6 +98,52 @@ function defaultGameTitle(openPlayType: string) {
   return defaultOpenPlayTitle(openPlayType);
 }
 
+type WizardPlayerEntry = {
+  name: string;
+  gender: "male" | "female" | "";
+};
+
+const EMPTY_WIZARD_PLAYER: WizardPlayerEntry = { name: "", gender: "male" };
+
+const WIZARD_PLAYER_GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+] as const satisfies ReadonlyArray<{ value: GenderOption; label: string }>;
+
+function normalizePlayerNameKey(name: string) {
+  return name.trim().toLowerCase();
+}
+
+/** Index of the last field whose trimmed name duplicates an earlier entry. */
+function findLastDuplicatePlayerNameIndex(entries: WizardPlayerEntry[]) {
+  const seen = new Set<string>();
+  let lastDuplicateIndex: number | null = null;
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const key = normalizePlayerNameKey(entries[index]?.name ?? "");
+    if (!key) continue;
+
+    if (seen.has(key)) {
+      lastDuplicateIndex = index;
+    } else {
+      seen.add(key);
+    }
+  }
+
+  return lastDuplicateIndex;
+}
+
+function findFirstMissingGenderIndex(entries: WizardPlayerEntry[]) {
+  for (let index = 0; index < entries.length; index += 1) {
+    const name = entries[index]?.name.trim() ?? "";
+    const gender = entries[index]?.gender ?? "";
+    if (name && gender !== "male" && gender !== "female") {
+      return index;
+    }
+  }
+  return null;
+}
+
 function getTotalSteps(mode: RegistrationMode | "") {
   if (mode === "owner") return 4;
   if (mode === "self") return 3;
@@ -96,15 +166,17 @@ function getStepKind(step: number, mode: RegistrationMode | "") {
 
 export function CreateGameWizard() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { createGameWizardOpen, setCreateGameWizardOpen } = useUiStore();
   const { data: gamesData } = useGamesList();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode | "">("self");
-  const [playerNames, setPlayerNames] = useState<string[]>([""]);
+  const [playerEntries, setPlayerEntries] = useState<WizardPlayerEntry[]>([EMPTY_WIZARD_PLAYER]);
   const [allowQrRegistration, setAllowQrRegistration] = useState(false);
   const [allowManualPlayerAdd, setAllowManualPlayerAdd] = useState(false);
   const [defaultCheckInAllPlayers, setDefaultCheckInAllPlayers] = useState(true);
+  const [liveQueue, setLiveQueue] = useState(true);
   const [form, setForm] = useState<CreateGameForm>(createInitialForm);
   const [timeRangeError, setTimeRangeError] = useState("");
   const [venueMapDialogOpen, setVenueMapDialogOpen] = useState(false);
@@ -112,19 +184,49 @@ export function CreateGameWizard() {
   const totalSteps = getTotalSteps(registrationMode);
   const stepKind = getStepKind(step, registrationMode);
 
-  const trimmedPlayerNames = useMemo(
-    () => playerNames.map((name) => name.trim()).filter(Boolean),
-    [playerNames],
+  const filledPlayers = useMemo(
+    () =>
+      playerEntries
+        .map((entry) => ({
+          displayName: entry.name.trim(),
+          gender: entry.gender,
+        }))
+        .filter(
+          (entry): entry is { displayName: string; gender: "male" | "female" | "" } =>
+            entry.displayName.length > 0,
+        ),
+    [playerEntries],
   );
+  const duplicatePlayerNameIndex = useMemo(
+    () => findLastDuplicatePlayerNameIndex(playerEntries),
+    [playerEntries],
+  );
+  const missingGenderIndex = useMemo(
+    () => findFirstMissingGenderIndex(playerEntries),
+    [playerEntries],
+  );
+  const tooLongPlayerNameIndex = useMemo(
+    () => findFirstPlayerNameTooLongIndex(playerEntries),
+    [playerEntries],
+  );
+  const invalidPlayerNameIndex = useMemo(
+    () => findFirstPlayerNameWithInvalidCharactersIndex(playerEntries),
+    [playerEntries],
+  );
+  const hasDuplicatePlayerNames = duplicatePlayerNameIndex !== null;
+  const hasMissingPlayerGender = missingGenderIndex !== null;
+  const hasPlayerNameTooLong = tooLongPlayerNameIndex !== null;
+  const hasInvalidPlayerName = invalidPlayerNameIndex !== null;
 
   useEffect(() => {
     if (!createGameWizardOpen) return;
     setStep(1);
     setRegistrationMode("self");
-    setPlayerNames([""]);
+    setPlayerEntries([EMPTY_WIZARD_PLAYER]);
     setAllowQrRegistration(false);
     setAllowManualPlayerAdd(false);
     setDefaultCheckInAllPlayers(true);
+    setLiveQueue(true);
     setForm(createInitialForm(gamesData?.userType));
     setTimeRangeError("");
     setVenueMapDialogOpen(false);
@@ -169,7 +271,16 @@ export function CreateGameWizard() {
       return getOpenPlayTimeValidation()?.ok ?? false;
     }
     if (stepKind === "registrationMode") return registrationMode !== "";
-    if (stepKind === "playerNames") return trimmedPlayerNames.length > 0;
+    if (stepKind === "playerNames") {
+      return (
+        filledPlayers.length >= MIN_PRE_REGISTERED_PLAYERS &&
+        !hasDuplicatePlayerNames &&
+        !hasMissingPlayerGender &&
+        !hasPlayerNameTooLong &&
+        !hasInvalidPlayerName &&
+        filledPlayers.every((player) => player.gender === "male" || player.gender === "female")
+      );
+    }
     return true;
   };
 
@@ -192,7 +303,19 @@ export function CreateGameWizard() {
       } else if (stepKind === "registrationMode") {
         toast.error("Choose how players will be registered.");
       } else if (stepKind === "playerNames") {
-        toast.error("Enter at least one player name.");
+        if (hasPlayerNameTooLong) {
+          toast.error(playerDisplayNameTooLongMessage());
+        } else if (hasInvalidPlayerName) {
+          toast.error(playerDisplayNameInvalidCharacterMessage());
+        } else if (hasDuplicatePlayerNames) {
+          toast.error("Each player name must be unique.");
+        } else if (hasMissingPlayerGender) {
+          toast.error("Select a gender for each player.");
+        } else if (filledPlayers.length < MIN_PRE_REGISTERED_PLAYERS) {
+          toast.error(`Enter at least ${MIN_PRE_REGISTERED_PLAYERS} players.`);
+        } else {
+          toast.error("Enter at least one player name.");
+        }
       }
       return;
     }
@@ -225,22 +348,66 @@ export function CreateGameWizard() {
         ...formRest
       } = form;
 
+      const title = form.title.trim() || defaultGameTitle(form.openPlayType);
+      const openPlayTimeRange = formatOpenPlayTimeRange(
+        openPlayFromHour,
+        openPlayFromMeridiem as Meridiem,
+        openPlayToHour,
+        openPlayToMeridiem as Meridiem,
+      );
+
+      if (registrationMode === "owner" && !liveQueue) {
+        const gameId = createAccountQuickGameId();
+        const players = filledPlayers.filter(
+          (player): player is { displayName: string; gender: "male" | "female" } =>
+            player.gender === "male" || player.gender === "female",
+        );
+        const session = createLocalLiveQueueSession({
+          gameId,
+          title,
+          openPlayType: form.openPlayType,
+          openPlayDate: form.openPlayDate,
+          openPlayTimeRange,
+          venueName: form.venueName,
+          venueAddress: form.venueAddress,
+          venueGoogleMapEmbedUrl: form.venueGoogleMapEmbedUrl,
+          courtCount: form.courtCount,
+          expectedPlayers: players.length,
+          allowQrRegistration: false,
+          allowManualPlayerAdd,
+          players,
+          checkInAllPlayers: defaultCheckInAllPlayers,
+        });
+        initializeQuickGameSession(gameId, session);
+        try {
+          await saveQuickGameSession(gameId, session, "create", "active");
+          void queryClient.invalidateQueries({ queryKey: ["saved-quick-games"] });
+        } catch {
+          toast.message("Session created in this browser. Cloud save failed — you can keep playing.");
+        }
+        toast.success(
+          `Session created.${players.length > 0 ? ` ${players.length} players added to the queue.` : ""}`,
+        );
+        setCreateGameWizardOpen(false);
+        router.push(`/games/${gameId}`);
+        return;
+      }
+
       const body: Record<string, unknown> = {
         ...formRest,
-        openPlayTimeRange: formatOpenPlayTimeRange(
-          openPlayFromHour,
-          openPlayFromMeridiem as Meridiem,
-          openPlayToHour,
-          openPlayToMeridiem as Meridiem,
-        ),
-        title: form.title.trim() || defaultGameTitle(form.openPlayType),
+        openPlayTimeRange,
+        title,
         registrationMode: registrationMode || undefined,
+        liveQueue: registrationMode === "owner" ? liveQueue : true,
       };
 
       if (registrationMode === "owner") {
-        body.preRegisteredPlayerNames = trimmedPlayerNames;
-        body.expectedPlayers = trimmedPlayerNames.length;
-        body.allowQrRegistration = allowQrRegistration;
+        body.preRegisteredPlayers = filledPlayers.filter(
+          (player): player is { displayName: string; gender: "male" | "female" } =>
+            player.gender === "male" || player.gender === "female",
+        );
+        body.expectedPlayers = filledPlayers.length;
+        body.allowQrRegistration = liveQueue ? allowQrRegistration : false;
         body.allowManualPlayerAdd = allowManualPlayerAdd;
         body.defaultCheckInAllPlayers = defaultCheckInAllPlayers;
         body.strictPlayerCount = !allowQrRegistration;
@@ -554,30 +721,126 @@ export function CreateGameWizard() {
 
           {stepKind === "playerNames" ? (
             <div className="w-full space-y-4">
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <Checkbox
+                  id="liveQueue"
+                  checked={liveQueue}
+                  onCheckedChange={(checked) => {
+                    const enabled = checked === true;
+                    setLiveQueue(enabled);
+                    if (!enabled) setAllowQrRegistration(false);
+                  }}
+                />
+                <span className="space-y-1 leading-snug">
+                  <span className="block text-sm font-medium">Live queue</span>
+                  <span className="block text-xs text-muted-foreground">
+                    When enabled, players and queue changes are saved to the database. When off,
+                    gameplay runs in this browser and syncs to your account (not the main players
+                    collection) when you create, leave, or end the session.
+                  </span>
+                </span>
+              </label>
               <div className="space-y-1">
                 <Label className="text-base">Enter player names</Label>
                 <p className="text-sm text-muted-foreground">
-                  One name per field (e.g. &quot;Maria Santos&quot;). Each player gets an auto-generated
-                  avatar when the session is created.
-                  {allowQrRegistration
-                    ? " Additional players may register via QR after your list is added."
-                    : " Only these players will be in the queue (no extra QR sign-ups)."}
+                  One row per player with name and gender (minimum {MIN_PRE_REGISTERED_PLAYERS}{" "}
+                  players). Each player gets an auto-generated avatar when the session is created.
+                  {liveQueue
+                    ? allowQrRegistration
+                      ? " Additional players may register via QR after your list is added."
+                      : " Only these players will be in the queue (no extra QR sign-ups)."
+                    : " Additional players can be added manually from the dashboard if enabled below."}
                 </p>
               </div>
-              <ul className="space-y-3">
-                {playerNames.map((name, index) => (
-                  <li key={index} className="flex items-center gap-2">
+              <div
+                className={cn(
+                  "grid items-center gap-2 px-0.5 text-xs font-medium text-muted-foreground",
+                  playerEntries.length > 1
+                    ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem]"
+                    : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
+                )}
+              >
+                <span>Name</span>
+                <span>Gender</span>
+                {playerEntries.length > 1 ? <span className="sr-only">Remove</span> : null}
+              </div>
+              <ul className="m-0 list-none space-y-3 p-0">
+                {playerEntries.map((entry, index) => {
+                  const isDuplicateField = duplicatePlayerNameIndex === index;
+                  const isMissingGenderField = missingGenderIndex === index;
+                  const isNameTooLongField = tooLongPlayerNameIndex === index;
+                  const isInvalidNameField = invalidPlayerNameIndex === index;
+                  const showRemoveColumn = playerEntries.length > 1;
+
+                  return (
+                  <li key={index} className="space-y-1">
+                    <div
+                      className={cn(
+                        "grid items-center gap-2",
+                        showRemoveColumn
+                          ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem]"
+                          : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
+                      )}
+                    >
+                    <div className="min-w-0">
                     <Input
-                      className="h-11 flex-1 text-base"
+                      className={cn(
+                        "h-11 min-h-11 w-full text-base",
+                        WIZARD_PLAYER_FIELD_CLASS,
+                        (isDuplicateField || isNameTooLongField || isInvalidNameField) &&
+                          "border-destructive focus-visible:ring-destructive/30",
+                      )}
                       placeholder={`Player ${index + 1} name`}
-                      value={name}
+                      value={entry.name}
+                      maxLength={MAX_PLAYER_DISPLAY_NAME_LENGTH}
+                      aria-invalid={isDuplicateField || isNameTooLongField || isInvalidNameField}
                       onChange={(event) => {
-                        const next = [...playerNames];
-                        next[index] = event.target.value;
-                        setPlayerNames(next);
+                        const next = [...playerEntries];
+                        next[index] = {
+                          ...next[index],
+                          name: sanitizePlayerDisplayNameInput(event.target.value),
+                        };
+                        setPlayerEntries(next);
                       }}
                     />
-                    {playerNames.length > 1 ? (
+                    </div>
+                    <div className="min-w-0">
+                    <Select
+                      value={entry.gender || null}
+                      onValueChange={(value) => {
+                        if (value !== "male" && value !== "female") return;
+                        const next = [...playerEntries];
+                        next[index] = { ...next[index], gender: value };
+                        setPlayerEntries(next);
+                      }}
+                    >
+                      <SelectTrigger
+                        className={cn(
+                          "h-11 min-h-11 w-full max-w-none px-2.5 py-1 text-base data-[size=default]:h-11",
+                          WIZARD_PLAYER_FIELD_CLASS,
+                          isMissingGenderField &&
+                            "border-destructive focus-visible:ring-destructive/30",
+                        )}
+                        aria-invalid={isMissingGenderField}
+                      >
+                        {entry.gender === "male" || entry.gender === "female" ? (
+                          <span className="flex flex-1 truncate text-left">
+                            {wizardGenderLabel(entry.gender)}
+                          </span>
+                        ) : (
+                          <SelectValue placeholder="Gender" />
+                        )}
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WIZARD_PLAYER_GENDER_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    </div>
+                    {showRemoveColumn ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -585,20 +848,31 @@ export function CreateGameWizard() {
                         className="size-11 shrink-0 text-muted-foreground hover:text-destructive"
                         aria-label={`Remove player ${index + 1}`}
                         onClick={() =>
-                          setPlayerNames((prev) => prev.filter((_, rowIndex) => rowIndex !== index))
+                          setPlayerEntries((prev) => prev.filter((_, rowIndex) => rowIndex !== index))
                         }
                       >
                         <Trash2 className="h-4 w-4" aria-hidden />
                       </Button>
                     ) : null}
+                    </div>
+                    {isDuplicateField ? (
+                      <p className="text-sm text-destructive" role="alert">
+                        This name is already in the list.
+                      </p>
+                    ) : isMissingGenderField ? (
+                      <p className="text-sm text-destructive" role="alert">
+                        Select a gender for this player.
+                      </p>
+                    ) : null}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
               <Button
                 type="button"
                 variant="outline"
-                className="w-full"
-                onClick={() => setPlayerNames((prev) => [...prev, ""])}
+                className="mt-4 w-full"
+                onClick={() => setPlayerEntries((prev) => [...prev, EMPTY_WIZARD_PLAYER])}
               >
                 <Plus className="mr-2 h-4 w-4" aria-hidden />
                 Add more player
@@ -617,22 +891,24 @@ export function CreateGameWizard() {
                   </span>
                 </span>
               </label>
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
-                <Checkbox
-                  id="allowQrRegistration"
-                  checked={allowQrRegistration}
-                  onCheckedChange={(checked) => setAllowQrRegistration(checked === true)}
-                />
-                <span className="space-y-1 leading-snug">
-                  <span className="block text-sm font-medium">
-                    Allow new users to join via QR code
+              {liveQueue ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                  <Checkbox
+                    id="allowQrRegistration"
+                    checked={allowQrRegistration}
+                    onCheckedChange={(checked) => setAllowQrRegistration(checked === true)}
+                  />
+                  <span className="space-y-1 leading-snug">
+                    <span className="block text-sm font-medium">
+                      Allow new users to join via QR code
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      When enabled, others can scan the registration QR and join the queue after your
+                      list is added. When off, the QR opens the spectator view instead.
+                    </span>
                   </span>
-                  <span className="block text-xs text-muted-foreground">
-                    When enabled, others can scan the registration QR and join the queue after your
-                    list is added. When off, the QR opens the spectator view instead.
-                  </span>
-                </span>
-              </label>
+                </label>
+              ) : null}
               <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <Checkbox
                   id="allowManualPlayerAdd"
@@ -646,6 +922,7 @@ export function CreateGameWizard() {
                   <span className="block text-xs text-muted-foreground">
                     When enabled, you can add player names from the game dashboard and they will join
                     the queue automatically.
+                    {!liveQueue ? " In browser-only mode, new players are kept in session state only." : ""}
                   </span>
                 </span>
               </label>

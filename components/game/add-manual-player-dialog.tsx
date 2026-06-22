@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { refetchOperatorQueueData } from "@/lib/fetch-operator-game";
-import type { GenderOption } from "@/lib/player-profile-shared";
+import { addLocalManualPlayer } from "@/lib/local-game-session";
+import {
+  readOperatorGamePayload,
+  writeOperatorGamePayload,
+} from "@/lib/operator-game-cache";
+import {
+  isValidPlayerDisplayName,
+  MAX_PLAYER_DISPLAY_NAME_LENGTH,
+  playerDisplayNameInvalidCharacterMessage,
+  playerDisplayNameTooLongMessage,
+  sanitizePlayerDisplayNameInput,
+  type GenderOption,
+} from "@/lib/player-profile-shared";
+import {
+  collectSessionPlayerDisplayNameKeys,
+  isDuplicateSessionPlayerName,
+  normalizePlayerDisplayNameKey,
+} from "@/lib/session-player-display-names";
+import { useQuickGameSession } from "@/lib/quick-game-store";
+import { cn } from "@/lib/utils";
 
 const MANUAL_ADD_GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -29,6 +48,8 @@ type AddManualPlayerDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPlayerAdded?: () => void | Promise<void>;
+  /** When true, append to browser-only session state instead of the API. */
+  localMode?: boolean;
 };
 
 type AddManualPlayerPayload = {
@@ -41,10 +62,27 @@ export function AddManualPlayerDialog({
   open,
   onOpenChange,
   onPlayerAdded,
+  localMode = false,
 }: AddManualPlayerDialogProps) {
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState("");
   const [gender, setGender] = useState<GenderOption | "">("");
+
+  const localPayload = useQuickGameSession(
+    localMode && open ? gameId : "",
+  );
+
+  const existingNameKeys = useMemo(() => {
+    if (!open) return new Set<string>();
+    const payload = localMode ? localPayload : readOperatorGamePayload(queryClient, gameId);
+    if (!payload) return new Set<string>();
+    return collectSessionPlayerDisplayNameKeys(payload);
+  }, [gameId, localMode, localPayload, open, queryClient]);
+
+  const trimmedDisplayName = displayName.trim();
+  const isDuplicateName =
+    trimmedDisplayName.length > 0 &&
+    existingNameKeys.has(normalizePlayerDisplayNameKey(trimmedDisplayName));
 
   useEffect(() => {
     if (!open) {
@@ -55,6 +93,21 @@ export function AddManualPlayerDialog({
 
   const addPlayerMutation = useMutation({
     mutationFn: async (payload: AddManualPlayerPayload) => {
+      if (localMode) {
+        const current = readOperatorGamePayload(queryClient, gameId);
+        if (!current) throw new Error("Session not found.");
+        const next = addLocalManualPlayer(current, payload.displayName, payload.gender);
+        if (!next) {
+          throw new Error(
+            isDuplicateSessionPlayerName(current, payload.displayName)
+              ? "This name is already in the game."
+              : "Enter a player name.",
+          );
+        }
+        writeOperatorGamePayload(queryClient, gameId, next);
+        return `${payload.displayName.trim()} added to the queue.`;
+      }
+
       const response = await fetch(`/api/games/${gameId}/add-player`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,7 +118,9 @@ export function AddManualPlayerDialog({
       return data.message ?? "Player added to the queue.";
     },
     onSuccess: async (message) => {
-      await refetchOperatorQueueData(queryClient, gameId);
+      if (!localMode) {
+        await refetchOperatorQueueData(queryClient, gameId);
+      }
       await onPlayerAdded?.();
       toast.success(message);
       setDisplayName("");
@@ -77,11 +132,31 @@ export function AddManualPlayerDialog({
     },
   });
 
+  const canSubmit =
+    trimmedDisplayName.length > 0 &&
+    trimmedDisplayName.length <= MAX_PLAYER_DISPLAY_NAME_LENGTH &&
+    isValidPlayerDisplayName(trimmedDisplayName) &&
+    Boolean(gender) &&
+    !isDuplicateName &&
+    !addPlayerMutation.isPending;
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const trimmed = displayName.trim();
     if (!trimmed) {
       toast.error("Enter a player name.");
+      return;
+    }
+    if (trimmed.length > MAX_PLAYER_DISPLAY_NAME_LENGTH) {
+      toast.error(playerDisplayNameTooLongMessage());
+      return;
+    }
+    if (!isValidPlayerDisplayName(trimmed)) {
+      toast.error(playerDisplayNameInvalidCharacterMessage());
+      return;
+    }
+    if (isDuplicateName) {
+      toast.error("This name is already in the game.");
       return;
     }
     if (!gender) {
@@ -98,6 +173,7 @@ export function AddManualPlayerDialog({
           <DialogTitle>Add player manually</DialogTitle>
           <DialogDescription>
             Enter a name and gender. The player will be added to the end of the queue.
+            {localMode ? " This session is browser-only — the player is not saved to the database." : ""}
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={handleSubmit}>
@@ -106,11 +182,21 @@ export function AddManualPlayerDialog({
             <Input
               id="manual-player-name"
               value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
+              maxLength={MAX_PLAYER_DISPLAY_NAME_LENGTH}
+              onChange={(event) => setDisplayName(sanitizePlayerDisplayNameInput(event.target.value))}
               placeholder="e.g. Juan Dela Cruz"
               autoFocus
               disabled={addPlayerMutation.isPending}
+              aria-invalid={isDuplicateName}
+              className={cn(
+                isDuplicateName && "border-destructive focus-visible:ring-destructive/30",
+              )}
             />
+            {isDuplicateName ? (
+              <p className="text-sm text-destructive" role="alert">
+                This name is already in the game.
+              </p>
+            ) : null}
           </div>
           <fieldset className="space-y-3">
             <legend className="text-sm font-medium leading-none">Gender</legend>
@@ -144,7 +230,7 @@ export function AddManualPlayerDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={addPlayerMutation.isPending}>
+            <Button type="submit" disabled={!canSubmit}>
               {addPlayerMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
