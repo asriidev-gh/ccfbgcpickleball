@@ -1,5 +1,6 @@
 import { DEMO_OPEN_PLAY_TITLE } from "@/lib/demo-open-play";
 import { connectToDatabase } from "@/lib/db";
+import { isUserEmailVerified } from "@/lib/user-email-verification";
 import { isOwnerPreRegisteredPlayer } from "@/lib/owner-pre-registered-players";
 import { formatPlayerTableName } from "@/lib/utils";
 import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
@@ -13,7 +14,10 @@ import type {
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
+import { QuickGameSession } from "@/models/QuickGameSession";
 import { User } from "@/models/User";
+import type { OperatorFullPayload } from "@/lib/operator-payload";
+import { quickGamePayloadToListItem } from "@/lib/quick-game-persistence-server";
 
 export type { PlayerListItem, UserInsights, UserListFilter, UserListItem, UserOpenPlays };
 export { USER_FILTERS } from "@/lib/insights-shared";
@@ -43,6 +47,17 @@ async function getOpenPlayCounts(
         ...titleMatch,
       },
     },
+    { $group: { _id: "$ownerId", count: { $sum: 1 } } },
+  ])) as Array<{ _id: { toString(): string }; count: number }>;
+  return new Map(agg.map((row) => [row._id.toString(), row.count]));
+}
+
+async function getQuickGameCounts(
+  ownerIds: Array<{ toString(): string }>,
+): Promise<Map<string, number>> {
+  if (ownerIds.length === 0) return new Map();
+  const agg = (await QuickGameSession.aggregate([
+    { $match: { ownerId: { $in: ownerIds } } },
     { $group: { _id: "$ownerId", count: { $sum: 1 } } },
   ])) as Array<{ _id: { toString(): string }; count: number }>;
   return new Map(agg.map((row) => [row._id.toString(), row.count]));
@@ -100,7 +115,7 @@ export async function getUsersList(
     .sort({ createdAt: -1 })
     .limit(limit)
     .select(
-      "name email userType registrationFeature googleId createdAt registeredDevice lastLoginAt lastLoginDevice isBlocked",
+      "name email userType registrationFeature googleId emailVerified createdAt registeredDevice lastLoginAt lastLoginDevice isBlocked",
     )
     .lean();
 
@@ -116,6 +131,7 @@ async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
     userType?: string;
     registrationFeature?: string;
     googleId?: string | null;
+    emailVerified?: boolean;
     createdAt?: Date;
     registeredDevice?: string | null;
     lastLoginAt?: Date | null;
@@ -124,9 +140,10 @@ async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
   }>;
 
   const ownerIds = rows.map((doc) => doc._id);
-  const [counts, demoCounts] = await Promise.all([
+  const [counts, demoCounts, quickCounts] = await Promise.all([
     getOpenPlayCounts(ownerIds, false),
     getOpenPlayCounts(ownerIds, true),
+    getQuickGameCounts(ownerIds),
   ]);
 
   return rows.map((doc) => ({
@@ -139,11 +156,16 @@ async function mapUserDocs(docs: unknown): Promise<UserListItem[]> {
     hasGoogle: Boolean(doc.googleId),
     openPlayCount: counts.get(doc._id.toString()) ?? 0,
     demoOpenPlayCount: demoCounts.get(doc._id.toString()) ?? 0,
+    quickGameCount: quickCounts.get(doc._id.toString()) ?? 0,
     createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
     registeredDevice: doc.registeredDevice?.trim() || null,
     lastLoginAt: doc.lastLoginAt ? new Date(doc.lastLoginAt).toISOString() : null,
     lastLoginDevice: doc.lastLoginDevice?.trim() || null,
     isBlocked: Boolean(doc.isBlocked),
+    emailVerified: isUserEmailVerified({
+      emailVerified: doc.emailVerified,
+      googleId: doc.googleId,
+    }),
   }));
 }
 
@@ -162,11 +184,52 @@ export async function getUsersByMonth(monthKey: string, limit = 500): Promise<Us
     .sort({ createdAt: -1 })
     .limit(limit)
     .select(
-      "name email userType registrationFeature googleId createdAt registeredDevice lastLoginAt lastLoginDevice isBlocked",
+      "name email userType registrationFeature googleId emailVerified createdAt registeredDevice lastLoginAt lastLoginDevice isBlocked",
     )
     .lean();
 
   return mapUserDocs(docs);
+}
+
+/** Lists saved account quick games (live queue off) for a user. */
+export async function getUserQuickGameOpenPlays(userId: string): Promise<UserOpenPlays | null> {
+  await connectToDatabase();
+
+  const user = await User.findById(userId).select("name").lean<{ name?: string } | null>();
+  if (!user) return null;
+
+  const docs = await QuickGameSession.find({ ownerId: userId })
+    .sort({ createdAt: -1 })
+    .select("gameId status payload createdAt updatedAt")
+    .lean();
+
+  return {
+    user: { id: userId, name: user.name ?? "Unknown" },
+    count: docs.length,
+    games: docs.map((doc) => {
+      const payload = doc.payload as OperatorFullPayload;
+      const listItem = quickGamePayloadToListItem(
+        doc.gameId,
+        payload,
+        doc.status as "active" | "ended",
+        doc.updatedAt ?? doc.createdAt,
+      );
+      const playerCount = listItem.expectedPlayers;
+
+      return {
+        gameId: listItem.gameId,
+        title: listItem.title,
+        status: listItem.status,
+        openPlayType: listItem.openPlayType,
+        courtCount: listItem.courtCount,
+        playerCount,
+        expectedPlayers: playerCount,
+        strictPlayerCount: false,
+        organizerRegisteredAllPlayers: true,
+        createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
+      };
+    }),
+  };
 }
 
 async function buildUserOpenPlaysList(

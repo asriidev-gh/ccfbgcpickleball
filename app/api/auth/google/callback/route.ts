@@ -102,6 +102,7 @@ export async function GET(request: Request) {
         registeredDevice: device,
         lastLoginAt: now,
         lastLoginDevice: device,
+        emailVerified: true,
       });
     } else {
       if (!user.googleId) {
@@ -109,6 +110,9 @@ export async function GET(request: Request) {
         user.googleId = profile.sub;
         if (!user.image && profile.picture) user.image = profile.picture;
       }
+      user.emailVerified = true;
+      user.emailVerificationTokenHash = undefined;
+      user.emailVerificationExpiresAt = undefined;
       user.lastLoginAt = now;
       user.lastLoginDevice = device;
       await user.save();

@@ -43,11 +43,13 @@ export type UserListItem = {
   hasGoogle: boolean;
   openPlayCount: number;
   demoOpenPlayCount: number;
+  quickGameCount: number;
   createdAt: string | null;
   registeredDevice: string | null;
   lastLoginAt: string | null;
   lastLoginDevice: string | null;
   isBlocked: boolean;
+  emailVerified: boolean;
 };
 
 export type UserOpenPlay = {

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ClientErrorReporter } from "@/components/client-error-reporter";
+import { CompleteEphemeralQuickGameTransfer } from "@/components/play/complete-ephemeral-quick-game-transfer";
 import { ThemeManager } from "@/components/theme/theme-manager";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,6 +15,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ClientErrorReporter>
+        <CompleteEphemeralQuickGameTransfer />
         <ThemeManager />
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster richColors position="top-right" />

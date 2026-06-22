@@ -3,12 +3,17 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, LayoutGrid, Loader2, Users } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Swal from "sweetalert2";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useActiveEphemeralSessions } from "@/hooks/use-active-ephemeral-sessions";
+import {
+  beginEphemeralQuickGameSaveToAccount,
+  promptSaveEphemeralQuickGame,
+} from "@/lib/ephemeral-quick-game-transfer";
 import { applyEndOpenPlayOptimistic } from "@/lib/game-payload-mutations";
 import { getQuickGameDashboardPath } from "@/lib/local-game-id";
 import { writeOperatorGamePayload } from "@/lib/operator-game-cache";
@@ -18,6 +23,7 @@ import { cn } from "@/lib/utils";
 
 export function EphemeralSessionsPanel({ className }: { className?: string }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { activeSessions } = useActiveEphemeralSessions();
   const [endingGameId, setEndingGameId] = useState<string | null>(null);
 
@@ -42,6 +48,18 @@ export function EphemeralSessionsPanel({ className }: { className?: string }) {
   });
 
   const handleEndSession = async (gameId: string, title: string) => {
+    const saveChoice = await promptSaveEphemeralQuickGame();
+    if (saveChoice === "dismiss") return;
+    if (saveChoice === "save") {
+      await beginEphemeralQuickGameSaveToAccount({
+        gameId,
+        queryClient,
+        router,
+        endAfterSave: true,
+      });
+      return;
+    }
+
     const result = await Swal.fire({
       ...swalAlertBaseOptions,
       title: "End session?",

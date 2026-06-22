@@ -5,6 +5,7 @@ import { getAuthCookieName, getAuthUserFromCookie, verifyAuthToken } from "@/lib
 import { runWithDatabase } from "@/lib/db";
 import { isSuperAdmin } from "@/lib/superadmin";
 import { BLOCKED_LOGIN_MESSAGE, isUserBlocked } from "@/lib/user-block";
+import { isUserEmailVerified } from "@/lib/user-email-verification";
 import { User } from "@/models/User";
 
 function clearAuthCookie(response: NextResponse) {
@@ -24,13 +25,14 @@ export async function GET() {
       const user = await getAuthUserFromCookie();
       if (user) {
         const doc = await User.findById(user.userId)
-          .select("registrationFeature")
+          .select("registrationFeature emailVerified googleId")
           .lean();
         return NextResponse.json({
           user: {
             ...user,
             isSuperAdmin: isSuperAdmin(user.email),
             registrationFeature: doc?.registrationFeature ?? "default",
+            emailVerified: doc ? isUserEmailVerified(doc) : false,
           },
         });
       }

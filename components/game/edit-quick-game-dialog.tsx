@@ -8,9 +8,12 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { GoogleMapEmbedDialog } from "@/components/google-map-embed-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
+import { OpenPlayTypePicker } from "@/components/game/open-play-type-picker";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import {
   Select,
@@ -91,6 +94,10 @@ export function EditQuickGameDialog({
   const [openPlayFromMeridiem, setOpenPlayFromMeridiem] = useState<Meridiem | "">("PM");
   const [openPlayToHour, setOpenPlayToHour] = useState("10");
   const [openPlayToMeridiem, setOpenPlayToMeridiem] = useState<Meridiem | "">("PM");
+  const [venueName, setVenueName] = useState("");
+  const [venueAddress, setVenueAddress] = useState("");
+  const [venueGoogleMapEmbedUrl, setVenueGoogleMapEmbedUrl] = useState("");
+  const [venueMapDialogOpen, setVenueMapDialogOpen] = useState(false);
   const [courtCount, setCourtCount] = useState(2);
   const [allowManualPlayerAdd, setAllowManualPlayerAdd] = useState(false);
   const [checkInAllPlayers, setCheckInAllPlayers] = useState(true);
@@ -143,6 +150,9 @@ export function EditQuickGameDialog({
         setOpenPlayFromMeridiem(schedule.openPlayFromMeridiem);
         setOpenPlayToHour(schedule.openPlayToHour);
         setOpenPlayToMeridiem(schedule.openPlayToMeridiem);
+        setVenueName(loaded.game.venueName ?? "");
+        setVenueAddress(loaded.game.venueAddress ?? "");
+        setVenueGoogleMapEmbedUrl(loaded.game.venueGoogleMapEmbedUrl ?? "");
         setCourtCount(loaded.game.courtCount);
         setAllowManualPlayerAdd(loaded.game.allowManualPlayerAdd === true);
         setCheckInAllPlayers((loaded.checkedOut?.length ?? 0) === 0);
@@ -251,6 +261,10 @@ export function EditQuickGameDialog({
       gender: player.gender as "male" | "female",
     }));
 
+    const trimmedVenueName = venueName.trim();
+    const trimmedVenueAddress = venueAddress.trim();
+    const trimmedVenueMapEmbedUrl = venueGoogleMapEmbedUrl.trim();
+
     try {
       setLoading(true);
 
@@ -260,9 +274,9 @@ export function EditQuickGameDialog({
             openPlayType,
             openPlayDate,
             openPlayTimeRange,
-            venueName: "",
-            venueAddress: "",
-            venueGoogleMapEmbedUrl: "",
+            venueName: trimmedVenueName,
+            venueAddress: trimmedVenueAddress,
+            venueGoogleMapEmbedUrl: trimmedVenueMapEmbedUrl,
             courtCount,
             allowQrRegistration: false,
             allowManualPlayerAdd,
@@ -274,6 +288,9 @@ export function EditQuickGameDialog({
             openPlayType,
             openPlayDate,
             openPlayTimeRange,
+            venueName: trimmedVenueName,
+            venueAddress: trimmedVenueAddress,
+            venueGoogleMapEmbedUrl: trimmedVenueMapEmbedUrl,
             courtCount: payload.game.courtCount,
             allowManualPlayerAdd,
           });
@@ -298,6 +315,7 @@ export function EditQuickGameDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92dvh,52rem)] w-[calc(100%-1.5rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-xl md:max-w-2xl">
         <DialogHeader className="border-b px-4 py-5">
@@ -329,23 +347,88 @@ export function EditQuickGameDialog({
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Open play type</Label>
-                <Select
-                  value={openPlayType}
-                  onValueChange={(value) => setOpenPlayType(value as (typeof types)[number])}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {types.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <OpenPlayTypePicker
+                label="Open play type"
+                value={openPlayType}
+                onChange={setOpenPlayType}
+                className="space-y-2"
+              />
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-base font-medium text-foreground">Venue</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Where players will meet for this open play.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quick-edit-venue-name">Venue name</Label>
+                  <Input
+                    id="quick-edit-venue-name"
+                    placeholder="e.g. Dragonsmash Taguig Branch"
+                    maxLength={120}
+                    value={venueName}
+                    onChange={(event) => setVenueName(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quick-edit-venue-address">Address</Label>
+                  <Textarea
+                    id="quick-edit-venue-address"
+                    className="min-h-[5.5rem] resize-y"
+                    placeholder="Street, city, or directions to the courts"
+                    maxLength={240}
+                    rows={3}
+                    value={venueAddress}
+                    onChange={(event) => setVenueAddress(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label>Google Map</Label>
+                  {venueGoogleMapEmbedUrl ? (
+                    <div className="space-y-3">
+                      <div className="aspect-video overflow-hidden rounded-xl border border-border/70 bg-muted/20">
+                        <iframe
+                          src={venueGoogleMapEmbedUrl}
+                          title="Venue location map"
+                          className="h-full w-full border-0"
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          allowFullScreen
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setVenueMapDialogOpen(true)}
+                        >
+                          Change map
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                          onClick={() => setVenueGoogleMapEmbedUrl("")}
+                        >
+                          <Trash2 className="mr-1.5 h-4 w-4" aria-hidden />
+                          Remove map
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full border-dashed sm:w-auto"
+                      onClick={() => setVenueMapDialogOpen(true)}
+                    >
+                      Add Google Map
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -508,5 +591,17 @@ export function EditQuickGameDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    <GoogleMapEmbedDialog
+      open={venueMapDialogOpen}
+      onOpenChange={setVenueMapDialogOpen}
+      initialValue={venueGoogleMapEmbedUrl}
+      textareaId="quick-edit-venue-google-map-embed"
+      onSave={(embedUrl) => {
+        setVenueGoogleMapEmbedUrl(embedUrl);
+        setVenueMapDialogOpen(false);
+      }}
+    />
+    </>
   );
 }

@@ -8,6 +8,7 @@ import { buildGameRegistrationQr } from "@/lib/game-qr";
 import { PickleGame } from "@/models/PickleGame";
 import { Court } from "@/models/Court";
 import { getAuthUserFromCookie } from "@/lib/auth";
+import { requireVerifiedEmailForUserId } from "@/lib/user-email-verification";
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +16,12 @@ export async function POST(request: Request) {
     return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+
+    const verified = await requireVerifiedEmailForUserId(authUser.userId);
+    if (!verified.ok) {
+      return NextResponse.json({ message: verified.message }, { status: verified.status });
+    }
+
     const body = await request.json();
     const payload = createGameSchema.parse(body);
 

@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
+import { OpenPlayTypePicker } from "@/components/game/open-play-type-picker";
 import { EphemeralSessionsPanel } from "@/components/play/ephemeral-sessions-panel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -94,6 +95,7 @@ function findFirstMissingGenderIndex(entries: WizardPlayerEntry[]) {
 type QuickPlayForm = {
   title: string;
   openPlayType: (typeof types)[number];
+  venueName: string;
   openPlayDate: string;
   openPlayFromHour: string;
   openPlayFromMeridiem: Meridiem | "";
@@ -106,6 +108,7 @@ function createInitialForm(): QuickPlayForm {
   return {
     title: "",
     openPlayType: "Beginner",
+    venueName: "",
     openPlayDate: "",
     openPlayFromHour: "7",
     openPlayFromMeridiem: "PM",
@@ -279,7 +282,7 @@ export function QuickPlaySetup() {
         openPlayType: form.openPlayType,
         openPlayDate,
         openPlayTimeRange,
-        venueName: "",
+        venueName: form.venueName.trim(),
         venueAddress: "",
         venueGoogleMapEmbedUrl: "",
         courtCount: form.courtCount,
@@ -481,22 +484,10 @@ export function QuickPlaySetup() {
 
       {step === 2 ? (
         <div className="space-y-6">
-          <div className="space-y-4">
-            <Label className="text-base">Players level</Label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {types.map((type) => (
-                <Button
-                  key={type}
-                  variant={form.openPlayType === type ? "default" : "outline"}
-                  size="sm"
-                  className="min-h-12 w-full px-2 py-2.5 text-center text-sm leading-snug"
-                  onClick={() => setForm((prev) => ({ ...prev, openPlayType: type }))}
-                >
-                  {type}
-                </Button>
-              ))}
-            </div>
-          </div>
+          <OpenPlayTypePicker
+            value={form.openPlayType}
+            onChange={(openPlayType) => setForm((prev) => ({ ...prev, openPlayType }))}
+          />
           <Separator />
           <div className="space-y-3">
             <Label htmlFor="quick-play-title" className="text-base">
@@ -525,6 +516,21 @@ export function QuickPlaySetup() {
           </div>
           <Separator />
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="quick-play-venue" className="text-base">
+                Venue
+              </Label>
+              <Input
+                id="quick-play-venue"
+                className="h-11 text-base"
+                placeholder="e.g. Dragonsmash Taguig Branch"
+                maxLength={120}
+                value={form.venueName}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, venueName: event.target.value }))
+                }
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="quick-play-date" className="text-base">
                 Open play date
@@ -583,6 +589,11 @@ export function QuickPlaySetup() {
             <li>
               <span className="font-medium text-foreground">Courts:</span> {form.courtCount}
             </li>
+            {form.venueName.trim() ? (
+              <li>
+                <span className="font-medium text-foreground">Venue:</span> {form.venueName.trim()}
+              </li>
+            ) : null}
           </ul>
           <p className="text-xs text-muted-foreground">
             This session stays in this browser only. Sign in from My Games if you want sessions saved

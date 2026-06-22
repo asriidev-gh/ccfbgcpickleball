@@ -7,6 +7,8 @@ import { USER_TYPE_DEFAULT } from "@/lib/registration-variant";
 import { getRegistrationDevice } from "@/lib/user-auth-audit";
 import { User } from "@/models/User";
 import { getAuthCookieName, signAuthToken } from "@/lib/auth";
+import { sendAccountWelcomeVerificationEmail } from "@/lib/account-welcome-email";
+import { issueEmailVerificationForUser } from "@/lib/user-email-verification";
 
 export async function POST(request: Request) {
   try {
@@ -39,10 +41,23 @@ export async function POST(request: Request) {
       registeredDevice: device,
       lastLoginAt: now,
       lastLoginDevice: device,
+      emailVerified: false,
     });
+
+    const { token: verificationToken } = await issueEmailVerificationForUser(user._id.toString());
+    void sendAccountWelcomeVerificationEmail({
+      to: email,
+      name,
+      verificationToken,
+    }).catch(() => {
+      // Registration still succeeds if email delivery fails.
+    });
+
     const token = signAuthToken({ userId: user._id.toString(), email: user.email, name: user.name });
 
-    const response = NextResponse.json({ user: { id: user._id, email: user.email, name: user.name } });
+    const response = NextResponse.json({
+      user: { id: user._id, email: user.email, name: user.name, emailVerified: false },
+    });
     response.cookies.set(getAuthCookieName(), token, {
       httpOnly: true,
       sameSite: "lax",

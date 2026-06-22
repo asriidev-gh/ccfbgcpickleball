@@ -12,6 +12,7 @@ import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { cn } from "@/lib/utils";
 
 import { HomeSessionInsightsCharts } from "./home-session-insights-charts";
+import { EmailVerificationBanner } from "./email-verification-banner";
 
 import type { HomeGameSummary } from "./home-game-summary";
 import { HomeSessionSummaryCard } from "./home-session-summary-card";
@@ -105,7 +106,7 @@ export function HomeDashboard({
       if (!response.ok) return null;
       const payload = await response.json();
       return payload as {
-        user: { name: string; isSuperAdmin?: boolean } | null;
+        user: { name: string; isSuperAdmin?: boolean; emailVerified?: boolean } | null;
       };
     },
     staleTime: 60_000,
@@ -141,6 +142,8 @@ export function HomeDashboard({
         <LayoutDashboard className="h-6 w-6 text-primary" aria-hidden />
         <h1 className="text-lg font-semibold text-foreground sm:text-xl">Dashboard</h1>
       </div>
+
+      <EmailVerificationBanner />
 
       <div
         className={cn(

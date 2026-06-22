@@ -9,6 +9,7 @@ import {
 } from "@/lib/demo-open-play";
 import { getAuthUserFromCookie } from "@/lib/auth";
 import { isSuperAdmin } from "@/lib/superadmin";
+import { requireVerifiedEmailForUserId } from "@/lib/user-email-verification";
 import { createTestGame } from "@/lib/test-game";
 import { generateDemoOpenPlaySchema } from "@/lib/validations";
 import { PickleGame } from "@/models/PickleGame";
@@ -22,6 +23,11 @@ export async function POST(request: Request) {
     return await runWithDatabase(async () => {
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+
+    const verified = await requireVerifiedEmailForUserId(authUser.userId);
+    if (!verified.ok) {
+      return NextResponse.json({ message: verified.message }, { status: verified.status });
+    }
 
     const owner = await User.findById(authUser.userId).select("createdAt").lean();
     if (

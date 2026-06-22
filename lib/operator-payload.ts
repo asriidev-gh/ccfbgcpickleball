@@ -14,6 +14,9 @@ export type OperatorGameSummary = {
   status: "draft" | "active" | "ended";
   openPlayDate?: string | null;
   openPlayTimeRange?: string | null;
+  venueName?: string | null;
+  venueAddress?: string | null;
+  venueGoogleMapEmbedUrl?: string | null;
   allowQrRegistration?: boolean;
   registrationMode?: "self" | "owner";
   allowManualPlayerAdd?: boolean;

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
+import { OpenPlayTypePicker } from "@/components/game/open-play-type-picker";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import { operatorShellQueryKey } from "@/lib/fetch-operator-game";
 import type { OperatorShellPayload } from "@/lib/operator-payload";
@@ -337,23 +338,12 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
                 />
               </div>
 
-              <div className="space-y-3">
-                <Label className="text-base">Open play type</Label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {types.map((type) => (
-                    <Button
-                      key={type}
-                      type="button"
-                      size="sm"
-                      variant={form.openPlayType === type ? "default" : "outline"}
-                      className="min-h-11 px-2 py-2 text-center text-sm leading-snug"
-                      onClick={() => setForm((prev) => ({ ...prev, openPlayType: type }))}
-                    >
-                      {type}
-                    </Button>
-                  ))}
-                </div>
-              </div>
+              <OpenPlayTypePicker
+                label="Open play type"
+                value={form.openPlayType}
+                onChange={(openPlayType) => setForm((prev) => ({ ...prev, openPlayType }))}
+                className="space-y-3"
+              />
 
               <div className="space-y-4">
                 <div className="space-y-2">

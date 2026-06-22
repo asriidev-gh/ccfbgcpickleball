@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { LoginVideoIntro } from "@/components/login/login-video-intro";
@@ -14,6 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  completePendingEphemeralQuickGameTransfer,
+  readPendingEphemeralQuickGameTransfer,
+} from "@/lib/ephemeral-quick-game-transfer";
+import { getQuickGameDashboardPath } from "@/lib/local-game-id";
 import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
@@ -26,15 +32,18 @@ export default function LoginPage() {
 
 function LoginForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
-  const [introDone, setIntroDone] = useState(false);
+  const skipIntro = searchParams.get("saveQuickPlay") === "1";
+  const [introPlayed, setIntroPlayed] = useState(false);
+  const introDone = skipIntro || introPlayed;
 
   const handleIntroComplete = useCallback(() => {
-    setIntroDone(true);
+    setIntroPlayed(true);
   }, []);
 
   useEffect(() => {
@@ -44,6 +53,13 @@ function LoginForm() {
       router.replace("/login");
     }
   }, [searchParams, router]);
+
+  useEffect(() => {
+    const requestedMode = searchParams.get("mode");
+    if (requestedMode === "register" || searchParams.get("saveQuickPlay") === "1") {
+      setMode("register");
+    }
+  }, [searchParams]);
 
   const submit = async () => {
     try {
@@ -55,7 +71,21 @@ function LoginForm() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
-      toast.success(mode === "login" ? "Welcome back!" : "Account created.");
+
+      void queryClient.invalidateQueries({ queryKey: ["auth-me"] });
+
+      if (readPendingEphemeralQuickGameTransfer()) {
+        const newGameId = await completePendingEphemeralQuickGameTransfer(queryClient);
+        if (newGameId) {
+          toast.success("Your public session has been saved in your account.");
+          router.push(getQuickGameDashboardPath(newGameId));
+          router.refresh();
+          return;
+        }
+      }
+
+      toast.success(mode === "login" ? "Welcome back!" : "Account created. Check your email to verify your account.");
+
       const returnTo = searchParams.get("returnTo");
       const destination =
         returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
@@ -89,7 +119,7 @@ function LoginForm() {
       </header>
 
       <main className="login-page relative isolate z-10 flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden p-6">
-        {!introDone ? <LoginVideoIntro onComplete={handleIntroComplete} /> : null}
+        {!introDone && !skipIntro ? <LoginVideoIntro onComplete={handleIntroComplete} /> : null}
 
       <div
         className={cn(
@@ -105,6 +135,11 @@ function LoginForm() {
             <CardTitle className="section-title">
               {mode === "login" ? "Login" : "Create Account"}
             </CardTitle>
+            {searchParams.get("saveQuickPlay") === "1" ? (
+              <p className="text-sm text-muted-foreground">
+                Sign up to save your open play session to your account.
+              </p>
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-4">
             {mode === "register" ? (

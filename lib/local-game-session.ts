@@ -122,6 +122,9 @@ export function createLocalLiveQueueSession(
       status: "active",
       openPlayDate: input.openPlayDate,
       openPlayTimeRange: input.openPlayTimeRange,
+      venueName: input.venueName,
+      venueAddress: input.venueAddress,
+      venueGoogleMapEmbedUrl: input.venueGoogleMapEmbedUrl,
       allowQrRegistration: input.allowQrRegistration,
       registrationMode: "owner",
       allowManualPlayerAdd: input.allowManualPlayerAdd,
@@ -223,6 +226,9 @@ export function patchQuickGameMetadata(
     openPlayType: string;
     openPlayDate: string;
     openPlayTimeRange: string;
+    venueName: string;
+    venueAddress: string;
+    venueGoogleMapEmbedUrl: string;
     courtCount: number;
     allowManualPlayerAdd: boolean;
   },
@@ -235,6 +241,9 @@ export function patchQuickGameMetadata(
       openPlayType: fields.openPlayType,
       openPlayDate: fields.openPlayDate,
       openPlayTimeRange: fields.openPlayTimeRange,
+      venueName: fields.venueName,
+      venueAddress: fields.venueAddress,
+      venueGoogleMapEmbedUrl: fields.venueGoogleMapEmbedUrl,
       courtCount: fields.courtCount,
       allowManualPlayerAdd: fields.allowManualPlayerAdd,
     },

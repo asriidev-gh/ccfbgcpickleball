@@ -4,6 +4,7 @@ import { authorizeAuthPayload, readAuthTokenPayload } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import { handleApiError } from "@/lib/handle-api-error";
 import { formatZodError } from "@/lib/format-zod-error";
+import { requireVerifiedEmailForUserId } from "@/lib/user-email-verification";
 import {
   deleteOwnerQuickGameSession,
   loadOwnerQuickGameSession,
@@ -65,6 +66,13 @@ export async function PUT(
 
       const body = await request.json();
       const payload = saveQuickGameSessionSchema.parse({ ...body, gameId });
+
+      if (payload.saveReason === "create") {
+        const verified = await requireVerifiedEmailForUserId(authUser.userId);
+        if (!verified.ok) {
+          return NextResponse.json({ message: verified.message }, { status: verified.status });
+        }
+      }
 
       await upsertQuickGameSession(
         authUser.userId,

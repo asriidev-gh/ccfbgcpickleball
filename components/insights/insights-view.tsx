@@ -21,6 +21,7 @@ import {
   UserPlus,
   Users,
   X,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -267,7 +268,7 @@ function formatDate(value: string | null) {
 type UserOpenPlaysSelection = {
   id: string;
   name: string;
-  variant: "real" | "demo";
+  variant: "real" | "demo" | "quick";
 };
 
 function UserOpenPlaysDialog({
@@ -278,13 +279,16 @@ function UserOpenPlaysDialog({
   onClose: () => void;
 }) {
   const isDemo = user?.variant === "demo";
+  const isQuick = user?.variant === "quick";
   const { data, isLoading, isError } = useQuery({
     queryKey: ["user-open-plays", user?.id, user?.variant],
     enabled: Boolean(user),
     queryFn: async () => {
-      const url = isDemo
-        ? `/api/insights/users/${user!.id}?demo=1`
-        : `/api/insights/users/${user!.id}`;
+      const url = isQuick
+        ? `/api/insights/users/${user!.id}?quick=1`
+        : isDemo
+          ? `/api/insights/users/${user!.id}?demo=1`
+          : `/api/insights/users/${user!.id}`;
       const response = await fetch(url);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message);
@@ -297,12 +301,19 @@ function UserOpenPlaysDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {user?.name ?? "User"} · {isDemo ? "Demo open plays" : "Open plays created"}
+            {user?.name ?? "User"} ·{" "}
+            {isQuick
+              ? "Quick games (live queue off)"
+              : isDemo
+                ? "Demo open plays"
+                : "Open plays created"}
           </DialogTitle>
           <DialogDescription>
-            {isDemo
-              ? 'Test and demo open plays (titles like "Test Open Play" or "Demo Open Play").'
-              : "Open plays this user created (demo open plays excluded)."}
+            {isQuick
+              ? "Saved account quick games with live queue off."
+              : isDemo
+                ? 'Test and demo open plays (titles like "Test Open Play" or "Demo Open Play").'
+                : "Open plays this user created (demo open plays excluded)."}
           </DialogDescription>
         </DialogHeader>
 
@@ -316,9 +327,11 @@ function UserOpenPlaysDialog({
             <p className="py-6 text-destructive">Failed to load open plays.</p>
           ) : !data || data.games.length === 0 ? (
             <p className="py-6 text-muted-foreground">
-              {isDemo
-                ? "This user hasn&apos;t created any demo open plays yet."
-                : "This user hasn&apos;t created any open plays yet."}
+              {isQuick
+                ? "This user hasn&apos;t created any quick games yet."
+                : isDemo
+                  ? "This user hasn&apos;t created any demo open plays yet."
+                  : "This user hasn&apos;t created any open plays yet."}
             </p>
           ) : (
             <ul className="flex flex-col gap-3">
@@ -504,6 +517,28 @@ function UserListPanel({ selection, onSelectFilter }: {
     },
   });
 
+  const emailVerifiedMutation = useMutation({
+    mutationFn: async ({ id, emailVerified }: { id: string; emailVerified: boolean }) => {
+      const response = await fetch(`/api/insights/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailVerified }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message);
+      return payload as { message: string };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+      queryClient.invalidateQueries({ queryKey: ["insights-users"] });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update verification status.",
+      );
+    },
+  });
+
   const handleBlockToggle = async (user: UserListItem) => {
     const blocking = !user.isBlocked;
     const result = await Swal.fire({
@@ -648,6 +683,7 @@ function UserListPanel({ selection, onSelectFilter }: {
                 <TableHead>Email</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Registration</TableHead>
+                <TableHead>Verified</TableHead>
                 <TableHead>Sign-in</TableHead>
                 <TableHead>Registered on</TableHead>
                 <TableHead>Last login</TableHead>
@@ -655,7 +691,7 @@ function UserListPanel({ selection, onSelectFilter }: {
                 <TableHead className="text-right">
                   <span className="block">Open Plays</span>
                   <span className="block text-[10px] font-normal normal-case text-muted-foreground">
-                    real · demo
+                    real · demo · quick
                   </span>
                 </TableHead>
                 <TableHead>Joined</TableHead>
@@ -749,6 +785,51 @@ function UserListPanel({ selection, onSelectFilter }: {
                       </SelectContent>
                     </Select>
                   </TableCell>
+                  <TableCell>
+                    <Select
+                      value={user.emailVerified ? "yes" : "no"}
+                      disabled={
+                        user.hasGoogle ||
+                        (emailVerifiedMutation.isPending &&
+                          emailVerifiedMutation.variables?.id === user.id)
+                      }
+                      onValueChange={(value) => {
+                        const nextVerified = value === "yes";
+                        if (nextVerified === user.emailVerified) return;
+                        emailVerifiedMutation.mutate({
+                          id: user.id,
+                          emailVerified: nextVerified,
+                        });
+                      }}
+                    >
+                      <SelectTrigger
+                        className={cn(
+                          "h-6 w-fit cursor-pointer gap-1 rounded-full border-0 px-2.5 text-xs font-semibold shadow-none focus-visible:ring-2 focus-visible:ring-ring",
+                          user.emailVerified
+                            ? "bg-emerald-600 text-white hover:bg-emerald-600/90"
+                            : "bg-amber-500/15 text-amber-800 hover:bg-amber-500/25 dark:text-amber-200",
+                          user.hasGoogle && "cursor-not-allowed opacity-80",
+                        )}
+                        aria-label={`Change verified status for ${user.name}`}
+                        title={
+                          user.hasGoogle
+                            ? "Google-linked accounts are verified via Google"
+                            : undefined
+                        }
+                      >
+                        {emailVerifiedMutation.isPending &&
+                        emailVerifiedMutation.variables?.id === user.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                        ) : (
+                          <SelectValue />
+                        )}
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover text-popover-foreground">
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {user.hasGoogle ? "Google" : "Password"}
                   </TableCell>
@@ -801,6 +882,31 @@ function UserListPanel({ selection, onSelectFilter }: {
                         </Button>
                       ) : (
                         <span className="min-w-[1.25rem] text-muted-foreground" title="Demo open plays">
+                          0
+                        </span>
+                      )}
+                      <span className="text-muted-foreground/60" aria-hidden>
+                        ·
+                      </span>
+                      {user.quickGameCount > 0 ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 gap-1.5 px-2 font-medium text-sky-600 hover:text-sky-600"
+                          title="Quick games (live queue off)"
+                          onClick={() =>
+                            setSelectedUser({ id: user.id, name: user.name, variant: "quick" })
+                          }
+                        >
+                          <Zap className="h-3.5 w-3.5" aria-hidden />
+                          {user.quickGameCount}
+                        </Button>
+                      ) : (
+                        <span
+                          className="min-w-[1.25rem] text-muted-foreground"
+                          title="Quick games (live queue off)"
+                        >
                           0
                         </span>
                       )}

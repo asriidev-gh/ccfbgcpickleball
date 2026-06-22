@@ -63,11 +63,16 @@ import {
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
 import { useAccountQuickGameCheckpoint } from "@/hooks/use-account-quick-game-checkpoint";
+import { useQuickGameSessionAfterMount } from "@/hooks/use-quick-game-session-after-mount";
 import {
   ensureAccountQuickGameHydrated,
   saveQuickGameSession,
 } from "@/lib/quick-game-persistence-client";
-import { readQuickGamePayload, useQuickGameSession } from "@/lib/quick-game-store";
+import { readQuickGamePayload } from "@/lib/quick-game-store";
+import {
+  beginEphemeralQuickGameSaveToAccount,
+  promptSaveEphemeralQuickGame,
+} from "@/lib/ephemeral-quick-game-transfer";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
 import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
@@ -468,9 +473,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const isQuickGameSession = isQuickGame(gameId);
   const isEphemeralQuickSession = isEphemeralQuickGame(gameId);
   const isAccountQuickSession = isAccountQuickGame(gameId);
-  const quickSessionHook = useQuickGameSession(gameId);
-  const quickSession =
-    quickSessionHook ?? (isQuickGameSession ? readQuickGamePayload(gameId) : undefined);
+  const quickSession = useQuickGameSessionAfterMount(isQuickGameSession ? gameId : "");
   const queryClient = useQueryClient();
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
   const [pendingWinner, setPendingWinner] = useState<"A" | "B" | null>(null);
@@ -1819,6 +1822,20 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       : null);
 
   const handleEndOpenPlay = async () => {
+    if (isEphemeralQuickSession) {
+      const saveChoice = await promptSaveEphemeralQuickGame();
+      if (saveChoice === "dismiss") return;
+      if (saveChoice === "save") {
+        await beginEphemeralQuickGameSaveToAccount({
+          gameId,
+          queryClient,
+          router,
+          endAfterSave: true,
+        });
+        return;
+      }
+    }
+
     const result = await Swal.fire({
       ...alertBaseOptions,
       title: "End Open Play?",

@@ -30,6 +30,10 @@ import { toast } from "sonner";
 
 import { CreateDemoOpenPlayDialog } from "@/components/game/create-demo-open-play-dialog";
 import { CreateGameWizard } from "@/components/game/create-game-wizard";
+import {
+  EmailVerificationBanner,
+  useEmailVerified,
+} from "@/components/home/email-verification-banner";
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
 import { DemoVideoDialog } from "@/components/demo-video-dialog";
 import { EditGameDialog, type EditGameDialogGame } from "@/components/game/edit-game-dialog";
@@ -305,6 +309,8 @@ function GameListIconToolbar({
   includeQr?: boolean;
   className?: string;
 }) {
+  const canEdit = game.status !== "ended";
+
   return (
     <div
       className={cn(
@@ -336,18 +342,20 @@ function GameListIconToolbar({
             iconOnly
             className={gameListToolbarIconClass}
           />
-          <SimpleTooltip label="Edit Open Session">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-8 shrink-0 rounded-full"
-              aria-label={`Edit ${game.title}`}
-              onClick={() => onEdit(game)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-          </SimpleTooltip>
+          {canEdit ? (
+            <SimpleTooltip label="Edit Open Session">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 shrink-0 rounded-full"
+                aria-label={`Edit ${game.title}`}
+                onClick={() => onEdit(game)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </SimpleTooltip>
+          ) : null}
         </>
       ) : (
         <>
@@ -363,18 +371,20 @@ function GameListIconToolbar({
             iconOnly
             className={gameListToolbarIconClass}
           />
-          <SimpleTooltip label="Edit Open Session">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-8 shrink-0 rounded-full"
-              aria-label={`Edit ${game.title}`}
-              onClick={() => onEdit(game)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-          </SimpleTooltip>
+          {canEdit ? (
+            <SimpleTooltip label="Edit Open Session">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 shrink-0 rounded-full"
+                aria-label={`Edit ${game.title}`}
+                onClick={() => onEdit(game)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </SimpleTooltip>
+          ) : null}
         </>
       )}
       <Button
@@ -544,10 +554,12 @@ function GameListActionsMenu({
                   )}
                   Download player list
                 </DropdownMenuItem>
-                <DropdownMenuItem className="game-list-actions-menu__item" onClick={() => onEdit(game)}>
-                  <Pencil aria-hidden />
-                  Edit open session
-                </DropdownMenuItem>
+                {!isEnded ? (
+                  <DropdownMenuItem className="game-list-actions-menu__item" onClick={() => onEdit(game)}>
+                    <Pencil aria-hidden />
+                    Edit open session
+                  </DropdownMenuItem>
+                ) : null}
               </>
             ) : (
               <>
@@ -583,7 +595,7 @@ function GameListActionsMenu({
                 Watch demo
               </DropdownMenuItem>
             ) : null}
-            {!game.isLocalGame ? (
+            {!game.isLocalGame && !isEnded ? (
               <DropdownMenuItem className="game-list-actions-menu__item" onClick={() => onEdit(game)}>
                 <Pencil aria-hidden />
                 Edit open session
@@ -927,6 +939,8 @@ export function MyGamesView() {
   };
 
   const { data, refetch, isLoading } = useGamesList();
+  const { emailVerified, isLoading: emailVerifiedLoading } = useEmailVerified();
+  const canCreateGames = !emailVerifiedLoading && emailVerified;
   const { data: savedQuickGames = [] } = useSavedQuickGames();
 
   const localSessionsRecord = useLocalGameStore((state) => state.sessions);
@@ -1082,6 +1096,22 @@ export function MyGamesView() {
     deleteGameMutation.mutate(game.gameId);
   };
 
+  const openCreateGameWizard = () => {
+    if (!canCreateGames) {
+      toast.error("Verify your email before creating a game.");
+      return;
+    }
+    setCreateGameWizardOpen(true);
+  };
+
+  const openDemoDialog = () => {
+    if (!canCreateGames) {
+      toast.error("Verify your email before creating a game.");
+      return;
+    }
+    setDemoDialogOpen(true);
+  };
+
   const games = data?.games ?? [];
   const activeGames = games.filter((game) => game.status !== "ended");
   const pastGames = games.filter((game) => game.status === "ended");
@@ -1098,6 +1128,7 @@ export function MyGamesView() {
     <>
       <Card className="glass-panel">
         <CardHeader className="gap-4">
+          <EmailVerificationBanner className="mb-1" />
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <GameListViewToggle
               value={listViewForTab}
@@ -1109,9 +1140,9 @@ export function MyGamesView() {
               {showDemoCreateOption ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  disabled={generateTestGameMutation.isPending}
+                  disabled={generateTestGameMutation.isPending || !canCreateGames}
                   render={
-                    <Button size="lg" className="min-w-28">
+                    <Button size="lg" className="min-w-28" disabled={!canCreateGames}>
                       {generateTestGameMutation.isPending ? (
                         <Loader2 className="h-5 w-5 animate-spin" />
                       ) : (
@@ -1125,18 +1156,23 @@ export function MyGamesView() {
                   }
                 />
                 <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem onClick={() => setCreateGameWizardOpen(true)}>
+                  <DropdownMenuItem onClick={openCreateGameWizard}>
                     <Plus />
                     Real game
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setDemoDialogOpen(true)}>
+                  <DropdownMenuItem onClick={openDemoDialog}>
                     <FlaskConical />
                     Demo game
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button size="lg" className="min-w-28" onClick={() => setCreateGameWizardOpen(true)}>
+              <Button
+                size="lg"
+                className="min-w-28"
+                disabled={!canCreateGames}
+                onClick={openCreateGameWizard}
+              >
                 <Plus className="h-5 w-5" />
                 Create
               </Button>

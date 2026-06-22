@@ -18,8 +18,9 @@ import {
 } from "@/lib/courts-view-court-theme";
 import { operatorPayloadToCourtsViewSession } from "@/lib/local-courts-view";
 import { getQuickGameDashboardPath, isEphemeralQuickGame } from "@/lib/local-game-id";
+import { useQuickGameSessionAfterMount } from "@/hooks/use-quick-game-session-after-mount";
 import { seedLocalGameOperatorCache } from "@/lib/operator-game-cache";
-import { readQuickGamePayload, useQuickGameSession } from "@/lib/quick-game-store";
+import { readQuickGamePayload } from "@/lib/quick-game-store";
 import { cn } from "@/lib/utils";
 
 export function EphemeralCourtsView() {
@@ -27,7 +28,7 @@ export function EphemeralCourtsView() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const gameId = params.id ?? "";
-  const quickSession = useQuickGameSession(gameId);
+  const quickSession = useQuickGameSessionAfterMount(gameId);
   const [courtTheme, setCourtTheme] = useState<CourtsViewCourtTheme>("classic");
 
   useEffect(() => {

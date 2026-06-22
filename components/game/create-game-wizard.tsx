@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
+import { OpenPlayTypePicker } from "@/components/game/open-play-type-picker";
 import { GoogleMapEmbedDialog } from "@/components/google-map-embed-dialog";
+import { useEmailVerified } from "@/components/home/email-verification-banner";
 import { NumberStepper } from "@/components/ui/number-stepper";
 import {
   Select,
@@ -169,6 +171,7 @@ export function CreateGameWizard() {
   const queryClient = useQueryClient();
   const { createGameWizardOpen, setCreateGameWizardOpen } = useUiStore();
   const { data: gamesData } = useGamesList();
+  const { emailVerified, isLoading: emailVerifiedLoading } = useEmailVerified();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode | "">("self");
@@ -330,6 +333,11 @@ export function CreateGameWizard() {
   };
 
   const submit = async () => {
+    if (!emailVerifiedLoading && !emailVerified) {
+      toast.error("Verify your email before creating a game.");
+      return;
+    }
+
     const timeValidation = getOpenPlayTimeValidation();
     if (!timeValidation?.ok) {
       const message = timeValidation?.message ?? "Select from and to times.";
@@ -481,27 +489,11 @@ export function CreateGameWizard() {
 
           {stepKind === "sessionBasics" ? (
             <div className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <h3 className="text-base font-medium text-foreground">Players level</h3>
-                  <p className="text-sm text-muted-foreground">
-                    What skill level is this session for?
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {types.map((type) => (
-                    <Button
-                      key={type}
-                      variant={form.openPlayType === type ? "default" : "outline"}
-                      size="sm"
-                      className="min-h-12 w-full px-2 py-2.5 text-center text-sm leading-snug"
-                      onClick={() => setForm((prev) => ({ ...prev, openPlayType: type }))}
-                    >
-                      {type}
-                    </Button>
-                  ))}
-                </div>
-              </div>
+              <OpenPlayTypePicker
+                value={form.openPlayType}
+                onChange={(openPlayType) => setForm((prev) => ({ ...prev, openPlayType }))}
+                description="What skill level is this session for?"
+              />
               <Separator />
               <div className="space-y-3">
                 <Label htmlFor="title" className="text-base">
