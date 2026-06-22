@@ -9,6 +9,7 @@ type LocalGameStore = {
   getSession: (gameId: string) => OperatorFullPayload | undefined;
   setSession: (gameId: string, payload: OperatorFullPayload) => void;
   removeSession: (gameId: string) => void;
+  clearAllSessions: () => void;
 };
 
 export const useLocalGameStore = create<LocalGameStore>()(
@@ -33,6 +34,7 @@ export const useLocalGameStore = create<LocalGameStore>()(
           return { sessions: next };
         });
       },
+      clearAllSessions: () => set({ sessions: {} }),
     }),
     {
       name: "ccf-local-live-queue-games",

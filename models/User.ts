@@ -21,6 +21,7 @@ const userSchema = new Schema(
     /** Custom header on player QR downloads (max 20 chars). Empty uses default branding. */
     playerQrTitle: { type: String, trim: true, maxlength: 20, default: "" },
     clubName: { type: String, trim: true, maxlength: 80, default: "" },
+    clubSlug: { type: String, trim: true, lowercase: true, maxlength: 40, unique: true, sparse: true },
     clubTagline: { type: String, trim: true, maxlength: 120, default: "" },
     clubAdditionalInfo: { type: String, trim: true, maxlength: 300, default: "" },
     clubMissionVision: { type: String, trim: true, maxlength: 2000, default: "" },

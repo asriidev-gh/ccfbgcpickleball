@@ -59,6 +59,11 @@ export function clearEphemeralQuickGameSessions() {
   }
 }
 
+export function clearAllQuickGameSessions() {
+  useLocalGameStore.getState().clearAllSessions();
+  useEphemeralQuickGameStore.getState().clearAllSessions();
+}
+
 export function updateQuickGamePayload(
   gameId: string,
   updater: (current: OperatorFullPayload) => OperatorFullPayload | null,

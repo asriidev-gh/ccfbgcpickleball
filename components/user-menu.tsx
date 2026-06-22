@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { ThemeMenuItems } from "@/components/theme-menu";
 import { Button } from "@/components/ui/button";
+import { performClientLogout } from "@/lib/client-logout";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +50,7 @@ export function UserMenu() {
   });
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await performClientLogout();
     toast.success("Logged out.");
     router.push("/login");
     router.refresh();

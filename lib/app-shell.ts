@@ -20,7 +20,7 @@ export function getBrandShellClasses(pathname: string) {
     };
   }
 
-  if (pathname === "/" || pathname === "/my-games" || pathname.startsWith("/my-games/") || pathname === "/my-club" || pathname === "/marketplace" || pathname === "/play" || pathname.startsWith("/play/")) {
+  if (pathname === "/" || pathname === "/my-games" || pathname.startsWith("/my-games/") || pathname === "/my-club" || pathname === "/marketplace" || pathname === "/play" || pathname.startsWith("/play/") || pathname === "/quick-game") {
     return {
       pad: "px-6 lg:px-10",
       container: "max-w-7xl",
@@ -41,13 +41,14 @@ export function isSpectatorPath(pathname: string, fromParam: string | null) {
 
 /** Auth screens use a minimal shell with no top brand bar. */
 export function shouldHideAppBrandBar(pathname: string) {
-  return pathname.startsWith("/login");
+  return pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/signin");
 }
 
 /** Public pages: theme picker only (no account / logout). */
 export function isPublicAppPath(pathname: string, fromParam: string | null) {
   if (isSpectatorPath(pathname, fromParam)) return true;
   if (pathname.startsWith("/register")) return true;
+  if (pathname.startsWith("/signup") || pathname.startsWith("/signin")) return true;
   if (pathname === "/play" || pathname.startsWith("/play/")) return true;
   return false;
 }

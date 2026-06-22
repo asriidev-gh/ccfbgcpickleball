@@ -179,5 +179,5 @@ export async function beginEphemeralQuickGameSaveToAccount({
     payload,
     endAfterSave,
   });
-  router.push("/login?mode=register&saveQuickPlay=1");
+  router.push("/signup?saveQuickPlay=1");
 }

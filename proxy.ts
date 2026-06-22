@@ -29,7 +29,10 @@ export function proxy(request: NextRequest) {
     !isSpectatorGameRoute &&
     !isSpectatorLeaderboard &&
     !isQuickGameLeaderboard;
-  const isAuthRoute = pathname.startsWith("/login");
+  const isAuthRoute =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/signin");
   const hasAuth = Boolean(request.cookies.get(AUTH_COOKIE)?.value);
 
   if (isProtectedRoute && !hasAuth) {
@@ -57,5 +60,8 @@ export const config = {
     "/my-club",
     "/marketplace",
     "/login",
+    "/signup",
+    "/signin",
+    "/quick-game",
   ],
 };

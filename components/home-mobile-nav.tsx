@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { MobileBottomNavButton, MobileBottomNavShell } from "@/components/mobile-bottom-nav";
+import { performClientLogout } from "@/lib/client-logout";
 
 type HomeMobileNavProps = {
   onCreateGame?: () => void;
@@ -20,7 +21,7 @@ export function HomeMobileNav({ onCreateGame }: HomeMobileNavProps) {
   const isMarketplace = pathname === "/marketplace";
 
   const logout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await performClientLogout();
     toast.success("Logged out.");
     router.push("/login");
     router.refresh();

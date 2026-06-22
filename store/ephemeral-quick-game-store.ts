@@ -9,6 +9,7 @@ type EphemeralQuickGameStore = {
   getSession: (gameId: string) => OperatorFullPayload | undefined;
   setSession: (gameId: string, payload: OperatorFullPayload) => void;
   removeSession: (gameId: string) => void;
+  clearAllSessions: () => void;
 };
 
 export const useEphemeralQuickGameStore = create<EphemeralQuickGameStore>()(
@@ -33,6 +34,7 @@ export const useEphemeralQuickGameStore = create<EphemeralQuickGameStore>()(
           return { sessions: next };
         });
       },
+      clearAllSessions: () => set({ sessions: {} }),
     }),
     {
       name: "ccf-ephemeral-quick-games",
