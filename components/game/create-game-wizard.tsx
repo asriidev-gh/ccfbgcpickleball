@@ -75,21 +75,21 @@ function defaultGameTitle(openPlayType: string) {
 }
 
 function getTotalSteps(mode: RegistrationMode | "") {
-  return mode === "owner" || mode === "self" ? 5 : 2;
+  if (mode === "owner") return 4;
+  if (mode === "self") return 3;
+  return 1;
 }
 
 function getStepKind(step: number, mode: RegistrationMode | "") {
-  if (step === 1) return "openPlayType";
-  if (step === 2) return "registrationMode";
+  if (step === 1) return "registrationMode";
   if (mode === "owner") {
-    if (step === 3) return "playerNames";
-    if (step === 4) return "courtCount";
-    if (step === 5) return "title";
+    if (step === 2) return "playerNames";
+    if (step === 3) return "sessionBasics";
+    if (step === 4) return "openPlayType";
   }
   if (mode === "self") {
-    if (step === 3) return "courtCount";
-    if (step === 4) return "expectedPlayers";
-    if (step === 5) return "title";
+    if (step === 2) return "sessionBasics";
+    if (step === 3) return "openPlayType";
   }
   return "unknown";
 }
@@ -104,6 +104,7 @@ export function CreateGameWizard() {
   const [playerNames, setPlayerNames] = useState<string[]>([""]);
   const [allowQrRegistration, setAllowQrRegistration] = useState(false);
   const [allowManualPlayerAdd, setAllowManualPlayerAdd] = useState(false);
+  const [defaultCheckInAllPlayers, setDefaultCheckInAllPlayers] = useState(true);
   const [form, setForm] = useState<CreateGameForm>(createInitialForm);
   const [timeRangeError, setTimeRangeError] = useState("");
   const [venueMapDialogOpen, setVenueMapDialogOpen] = useState(false);
@@ -123,6 +124,7 @@ export function CreateGameWizard() {
     setPlayerNames([""]);
     setAllowQrRegistration(false);
     setAllowManualPlayerAdd(false);
+    setDefaultCheckInAllPlayers(true);
     setForm(createInitialForm(gamesData?.userType));
     setTimeRangeError("");
     setVenueMapDialogOpen(false);
@@ -240,6 +242,7 @@ export function CreateGameWizard() {
         body.expectedPlayers = trimmedPlayerNames.length;
         body.allowQrRegistration = allowQrRegistration;
         body.allowManualPlayerAdd = allowManualPlayerAdd;
+        body.defaultCheckInAllPlayers = defaultCheckInAllPlayers;
         body.strictPlayerCount = !allowQrRegistration;
       }
 
@@ -277,9 +280,41 @@ export function CreateGameWizard() {
         </DialogHeader>
 
         <div className="min-h-[280px] flex-1 overflow-y-auto px-4 py-6">
-          {stepKind === "openPlayType" ? (
-            <div className="w-full space-y-8">
-              <section className="space-y-4">
+          {stepKind === "registrationMode" ? (
+            <div className="space-y-4">
+              <Label className="text-base">Player registration type?</Label>
+              <div className="grid grid-cols-1 gap-3">
+                <Button
+                  type="button"
+                  variant={registrationMode === "self" ? "default" : "outline"}
+                  className="h-auto min-h-14 w-full flex-col items-start justify-center gap-1 px-4 py-3 text-left whitespace-normal"
+                  onClick={() => setRegistrationMode("self")}
+                >
+                  <span className="text-sm font-semibold leading-snug">Players will register</span>
+                  <span className="text-[11px] font-normal leading-snug opacity-80">
+                    Share the QR link so each player signs up on their own.
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={registrationMode === "owner" ? "default" : "outline"}
+                  className="h-auto min-h-14 w-full flex-col items-start justify-center gap-1 px-4 py-3 text-left whitespace-normal"
+                  onClick={() => setRegistrationMode("owner")}
+                >
+                  <span className="text-sm font-semibold leading-snug">I&apos;ll register all players</span>
+                  <span className="text-[11px] font-normal leading-snug opacity-80">
+                    Enter player names now.
+                    <br />
+                    Avatars are assigned automatically.
+                  </span>
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {stepKind === "sessionBasics" ? (
+            <div className="space-y-6">
+              <div className="space-y-4">
                 <div className="space-y-1">
                   <h3 className="text-base font-medium text-foreground">Players level</h3>
                   <p className="text-sm text-muted-foreground">
@@ -299,10 +334,78 @@ export function CreateGameWizard() {
                     </Button>
                   ))}
                 </div>
-              </section>
-
+              </div>
               <Separator />
+              <div className="space-y-3">
+                <Label htmlFor="title" className="text-base">
+                  Game title
+                </Label>
+                <Input
+                  id="title"
+                  className="h-11 text-base"
+                  placeholder={defaultGameTitle(form.openPlayType)}
+                  value={form.title}
+                  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                />
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                <Label htmlFor="courtCount" className="text-base">
+                  How many courts?
+                </Label>
+                <NumberStepper
+                  id="courtCount"
+                  min={1}
+                  max={20}
+                  value={form.courtCount}
+                  onChange={(courtCount) => setForm((prev) => ({ ...prev, courtCount }))}
+                />
+              </div>
+              {registrationMode === "self" ? (
+                <>
+                  <Separator />
+                  <div className="space-y-4">
+                    <div className="space-y-3">
+                      <Label htmlFor="expectedPlayers" className="text-base">
+                        How many players do you expect?
+                      </Label>
+                      <NumberStepper
+                        id="expectedPlayers"
+                        min={4}
+                        max={300}
+                        value={form.expectedPlayers}
+                        onChange={(expectedPlayers) =>
+                          setForm((prev) => ({ ...prev, expectedPlayers }))
+                        }
+                      />
+                    </div>
+                    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                      <Checkbox
+                        id="strictPlayerCount"
+                        checked={form.strictPlayerCount}
+                        onCheckedChange={(checked) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            strictPlayerCount: checked === true,
+                          }))
+                        }
+                      />
+                      <span className="space-y-1 leading-snug">
+                        <span className="block text-base font-medium">Strict Player Count</span>
+                        <span className="block text-sm text-muted-foreground">
+                          When enabled, registration stops at {form.expectedPlayers} players. When
+                          disabled, more players can still register.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
 
+          {stepKind === "openPlayType" ? (
+            <div className="w-full space-y-8">
               <section className="space-y-4">
                 <div className="space-y-1">
                   <h3 className="text-base font-medium text-foreground">Schedule</h3>
@@ -449,38 +552,6 @@ export function CreateGameWizard() {
             </div>
           ) : null}
 
-          {stepKind === "registrationMode" ? (
-            <div className="space-y-4">
-              <Label className="text-base">Player registration type?</Label>
-              <div className="grid grid-cols-1 gap-3">
-                <Button
-                  type="button"
-                  variant={registrationMode === "self" ? "default" : "outline"}
-                  className="h-auto min-h-14 w-full flex-col items-start justify-center gap-1 px-4 py-3 text-left whitespace-normal"
-                  onClick={() => setRegistrationMode("self")}
-                >
-                  <span className="text-sm font-semibold leading-snug">Players will register</span>
-                  <span className="text-[11px] font-normal leading-snug opacity-80">
-                    Share the QR link so each player signs up on their own.
-                  </span>
-                </Button>
-                <Button
-                  type="button"
-                  variant={registrationMode === "owner" ? "default" : "outline"}
-                  className="h-auto min-h-14 w-full flex-col items-start justify-center gap-1 px-4 py-3 text-left whitespace-normal"
-                  onClick={() => setRegistrationMode("owner")}
-                >
-                  <span className="text-sm font-semibold leading-snug">I&apos;ll register all players</span>
-                  <span className="text-[11px] font-normal leading-snug opacity-80">
-                    Enter player names now.
-                    <br />
-                    Avatars are assigned automatically.
-                  </span>
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
           {stepKind === "playerNames" ? (
             <div className="w-full space-y-4">
               <div className="space-y-1">
@@ -534,6 +605,20 @@ export function CreateGameWizard() {
               </Button>
               <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
                 <Checkbox
+                  id="defaultCheckInAllPlayers"
+                  checked={defaultCheckInAllPlayers}
+                  onCheckedChange={(checked) => setDefaultCheckInAllPlayers(checked === true)}
+                />
+                <span className="space-y-1 leading-snug">
+                  <span className="block text-sm font-medium">Default check in all players</span>
+                  <span className="block text-xs text-muted-foreground">
+                    When checked, every player you enter starts in the active queue. When unchecked,
+                    they start on the checkout list and can be checked in later.
+                  </span>
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                <Checkbox
                   id="allowQrRegistration"
                   checked={allowQrRegistration}
                   onCheckedChange={(checked) => setAllowQrRegistration(checked === true)}
@@ -564,74 +649,6 @@ export function CreateGameWizard() {
                   </span>
                 </span>
               </label>
-            </div>
-          ) : null}
-
-          {stepKind === "courtCount" ? (
-            <div className="w-full space-y-3">
-              <Label htmlFor="courtCount" className="text-base">
-                How many courts?
-              </Label>
-              <NumberStepper
-                id="courtCount"
-                min={1}
-                max={20}
-                value={form.courtCount}
-                onChange={(courtCount) => setForm((prev) => ({ ...prev, courtCount }))}
-              />
-            </div>
-          ) : null}
-
-          {stepKind === "expectedPlayers" && registrationMode === "self" ? (
-            <div className="w-full space-y-4">
-              <div className="space-y-3">
-                <Label htmlFor="expectedPlayers" className="text-base">
-                  How many players do you expect?
-                </Label>
-                <NumberStepper
-                  id="expectedPlayers"
-                  min={4}
-                  max={300}
-                  value={form.expectedPlayers}
-                  onChange={(expectedPlayers) =>
-                    setForm((prev) => ({ ...prev, expectedPlayers }))
-                  }
-                />
-              </div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
-                <Checkbox
-                  id="strictPlayerCount"
-                  checked={form.strictPlayerCount}
-                  onCheckedChange={(checked) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      strictPlayerCount: checked === true,
-                    }))
-                  }
-                />
-                <span className="space-y-1 leading-snug">
-                  <span className="block text-base font-medium">Strict Player Count</span>
-                  <span className="block text-sm text-muted-foreground">
-                    When enabled, registration stops at {form.expectedPlayers} players. When
-                    disabled, more players can still register.
-                  </span>
-                </span>
-              </label>
-            </div>
-          ) : null}
-
-          {stepKind === "title" ? (
-            <div className="w-full space-y-3">
-              <Label htmlFor="title" className="text-base">
-                Game title
-              </Label>
-              <Input
-                id="title"
-                className="h-11 text-base"
-                placeholder={defaultGameTitle(form.openPlayType)}
-                value={form.title}
-                onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-              />
             </div>
           ) : null}
         </div>

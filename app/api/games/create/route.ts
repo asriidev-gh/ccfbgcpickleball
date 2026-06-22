@@ -67,6 +67,7 @@ export async function POST(request: Request) {
       preRegisteredCount = await createPreRegisteredPlayers({
         gameId,
         names: preRegisteredNames,
+        checkInAllPlayers: payload.defaultCheckInAllPlayers !== false,
       });
     }
 

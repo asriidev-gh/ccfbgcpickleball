@@ -21,6 +21,8 @@ type CreatePreRegisteredPlayersOptions = {
   names: PreRegisteredPlayerInput[];
   /** When true, new entries are timestamped after the current queued tail. */
   appendToEnd?: boolean;
+  /** When false, players start on the checkout list instead of the active queue. */
+  checkInAllPlayers?: boolean;
 };
 
 function normalizePreRegisteredPlayers(names: PreRegisteredPlayerInput[]) {
@@ -41,6 +43,7 @@ export async function createPreRegisteredPlayers({
   gameId,
   names,
   appendToEnd = false,
+  checkInAllPlayers = true,
 }: CreatePreRegisteredPlayersOptions) {
   const trimmed = normalizePreRegisteredPlayers(names);
   if (trimmed.length === 0) return 0;
@@ -82,6 +85,7 @@ export async function createPreRegisteredPlayers({
     players.map((player, index) => ({
       gameId,
       playerId: player._id,
+      status: checkInAllPlayers ? "queued" : "checked_out",
       registeredAt: new Date(baseMs + index * 1000),
     })),
   );

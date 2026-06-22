@@ -110,6 +110,7 @@ export const createGameSchema = z
     preRegisteredPlayerNames: z.array(z.string().trim().min(1, "Player name is required.")).optional(),
     allowQrRegistration: z.boolean().optional(),
     allowManualPlayerAdd: z.boolean().optional(),
+    defaultCheckInAllPlayers: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     const timeRangeValidation = validateOpenPlayTimeRangeString(data.openPlayTimeRange);
