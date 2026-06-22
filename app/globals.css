@@ -5603,6 +5603,60 @@
     box-shadow: var(--smarthome-shadow);
   }
 
+  [data-theme="smarthome"] .wizard-primary-fields [data-slot="input"]:not(:disabled):not([aria-invalid="true"]),
+  [data-theme="smarthome"] .wizard-primary-fields [data-slot="select-trigger"]:not(:disabled):not([aria-invalid="true"]) {
+    border-color: rgb(168 129 67 / 45%);
+    background-color: var(--smarthome-surface);
+  }
+
+  [data-theme="smarthome"] .wizard-primary-fields [data-slot="input"]:hover:not(:disabled),
+  [data-theme="smarthome"] .wizard-primary-fields [data-slot="select-trigger"]:hover:not(:disabled) {
+    border-color: rgb(168 129 67 / 70%);
+  }
+
+  [data-theme="smarthome"] .wizard-primary-fields [data-slot="input"]:focus-visible,
+  [data-theme="smarthome"] .wizard-primary-fields [data-slot="select-trigger"]:focus-visible {
+    border-color: var(--smarthome-gold);
+    --tw-ring-color: rgb(168 129 67 / 30%);
+  }
+
+  [data-theme="smarthome"] .quick-play-setup .number-stepper .group\/button,
+  [data-theme="smarthome"] .login-page .wizard-primary-fields .group\/button.border-primary\/45 {
+    border-color: rgb(168 129 67 / 45%);
+    background-color: var(--smarthome-surface);
+    color: var(--smarthome-text);
+  }
+
+  [data-theme="smarthome"] .quick-play-setup .number-stepper .group\/button:hover:not(:disabled),
+  [data-theme="smarthome"] .login-page .wizard-primary-fields .group\/button.border-primary\/45:hover:not(:disabled) {
+    border-color: rgb(168 129 67 / 70%);
+    background-color: rgb(168 129 67 / 5%);
+    color: var(--smarthome-gold-deep);
+  }
+
+  [data-theme="smarthome"] .wizard-primary-fields .border-primary\/45 {
+    border-color: rgb(168 129 67 / 45%);
+  }
+
+  [data-theme="smarthome"] .wizard-primary-fields .border-primary\/45:hover {
+    border-color: rgb(168 129 67 / 70%);
+  }
+
+  [data-theme="smarthome"] .login-page .glass-panel {
+    @apply border bg-white/95 backdrop-blur-md;
+    border-color: rgb(168 129 67 / 25%);
+    background-color: rgb(255 255 255 / 0.95) !important;
+    box-shadow: var(--smarthome-shadow-lg);
+  }
+
+  [data-theme="smarthome"] .login-page .glass-panel [data-slot="card-title"] {
+    color: var(--smarthome-text);
+  }
+
+  [data-theme="smarthome"] .login-page .glass-panel .text-muted-foreground {
+    color: var(--smarthome-text-muted);
+  }
+
   [data-theme="smarthome"] .game-list-view-toggle {
     @apply rounded-full border bg-white p-1;
     border-color: var(--smarthome-border-muted);

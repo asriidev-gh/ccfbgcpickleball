@@ -1,13 +1,15 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, LogOut } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
+import { EphemeralLeaderboardSaveBanner } from "@/components/play/ephemeral-leaderboard-save-banner";
 import { ScrollToTopButton } from "@/components/scroll-to-top-button";
 import { Button } from "@/components/ui/button";
+import { useQuickGameSessionAfterMount } from "@/hooks/use-quick-game-session-after-mount";
 import { useOperatorDashboardLeaseCheck } from "@/hooks/use-operator-dashboard-lease";
 import {
   fetchLeaderboardRecap,
@@ -19,34 +21,61 @@ import {
   isQuickGame,
 } from "@/lib/local-game-id";
 import { buildLocalLeaderboardRecap } from "@/lib/local-leaderboard-recap";
-import { useQuickGameSession } from "@/lib/quick-game-store";
 
 type LeaderboardPageClientProps = {
   gameId: string;
   isSpectatorView: boolean;
 };
 
+const QUICK_GAME_LOOKUP_TIMEOUT_MS = 750;
+
 export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPageClientProps) {
   const queryClient = useQueryClient();
   const isQuickGameSession = isQuickGame(gameId);
-  const quickPayload = useQuickGameSession(gameId);
+  const { payload: quickPayload, mounted: quickSessionMounted } = useQuickGameSessionAfterMount(
+    isQuickGameSession ? gameId : "",
+  );
+  const [quickLookupTimedOut, setQuickLookupTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!isQuickGameSession || !quickSessionMounted) return;
+    setQuickLookupTimedOut(false);
+    if (quickPayload) return;
+
+    const timer = window.setTimeout(() => {
+      setQuickLookupTimedOut(true);
+    }, QUICK_GAME_LOOKUP_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [gameId, isQuickGameSession, quickPayload, quickSessionMounted]);
 
   const { hasDashboardLease, leaseCheckState } = useOperatorDashboardLeaseCheck(
     gameId,
     !isSpectatorView && !isQuickGameSession,
   );
 
+  const isEndedEphemeralPublic =
+    quickSessionMounted &&
+    isEphemeralQuickGame(gameId) &&
+    quickPayload?.game.status === "ended" &&
+    !isSpectatorView;
+
   const backHref = isSpectatorView
     ? `/games/${gameId}/spectate`
-    : isQuickGameSession || hasDashboardLease
-      ? getQuickGameDashboardPath(gameId)
-      : "/my-games";
+    : isEndedEphemeralPublic
+      ? "/play"
+      : isQuickGameSession || hasDashboardLease
+        ? getQuickGameDashboardPath(gameId)
+        : "/my-games";
 
-  const backLabel =
-    isSpectatorView || isQuickGameSession || hasDashboardLease
+  const backLabel = isEndedEphemeralPublic
+    ? "Exit"
+    : isSpectatorView || isQuickGameSession || hasDashboardLease
       ? "Back to Game"
       : "Back to Dashboard";
-  const showBackButton = isSpectatorView || isQuickGameSession || leaseCheckState !== "loading";
+  const showBackButton =
+    (isSpectatorView || leaseCheckState !== "loading") &&
+    (!isQuickGameSession || quickSessionMounted);
 
   const localRecap = useMemo(
     () => (quickPayload ? buildLocalLeaderboardRecap(quickPayload) : null),
@@ -69,11 +98,17 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
   const insights = isQuickGameSession
     ? (localRecap?.insights ?? [])
     : (recapQuery.data?.insights ?? []);
-  const loading = !isQuickGameSession && recapQuery.isPending && !recapQuery.data;
+  const quickGameLoading =
+    isQuickGameSession && quickSessionMounted && !quickPayload && !quickLookupTimedOut;
+  const loading = quickGameLoading || (!isQuickGameSession && recapQuery.isPending && !recapQuery.data);
   const error = isQuickGameSession
-    ? quickPayload
+    ? !quickSessionMounted
       ? null
-      : new Error("Session not found.")
+      : quickPayload
+        ? null
+        : quickLookupTimedOut
+          ? new Error("Session not found.")
+          : null
     : recapQuery.isError && !recapQuery.data
       ? recapQuery.error
       : null;
@@ -97,12 +132,19 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
           {showBackButton ? (
             <Link href={backHref}>
               <Button variant="outline">
-                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+                {isEndedEphemeralPublic ? (
+                  <LogOut className="mr-2 h-4 w-4" aria-hidden />
+                ) : (
+                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+                )}
                 {backLabel}
               </Button>
             </Link>
           ) : null}
         </div>
+        {isEndedEphemeralPublic && quickPayload ? (
+          <EphemeralLeaderboardSaveBanner gameId={gameId} payload={quickPayload} />
+        ) : null}
         {error ? (
           <p className="text-destructive">
             Failed to load leaderboard:{" "}

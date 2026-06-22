@@ -13,6 +13,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
 import { OpenPlayTypePicker } from "@/components/game/open-play-type-picker";
+import {
+  QuickPlayFormatStep,
+  QuickPlayPlayersStep,
+  QuickPlayPreviewStep,
+  QuickPlayWizardHeader,
+} from "@/components/play/quick-play-wizard-steps";
 import { GoogleMapEmbedDialog } from "@/components/google-map-embed-dialog";
 import { useEmailVerified } from "@/components/home/email-verification-banner";
 import { NumberStepper } from "@/components/ui/number-stepper";
@@ -35,7 +41,19 @@ import {
   validateOpenPlayTimeOrder,
   type OpenPlayMeridiem,
 } from "@/lib/open-play-time-range";
-import { defaultOpenPlayTitle, OPEN_PLAY_TYPES } from "@/lib/open-play-types";
+import { defaultOpenPlayTitle, isFixedOpenPlayType, OPEN_PLAY_TYPES } from "@/lib/open-play-types";
+import {
+  createQuickPlayWizardPlayerEntry,
+  DEFAULT_PLAYER_OPEN_PLAY_LEVEL,
+  MAX_QUICK_PLAY_PLAYERS,
+  MIN_EXPECTED_PLAYERS,
+  QUICK_PLAY_TOTAL_STEPS,
+  resolvePlayerOpenPlayLevel,
+  syncQuickPlayWizardPlayerEntryCount,
+  type QuickPlayGameMode,
+  type QuickPlayMatchingType,
+  type QuickPlayWizardPlayerEntry,
+} from "@/lib/quick-play-wizard-shared";
 import { createAccountQuickGameId } from "@/lib/local-game-id";
 import { createLocalLiveQueueSession } from "@/lib/local-game-session";
 import type { GenderOption } from "@/lib/player-profile-shared";
@@ -50,6 +68,7 @@ import {
 import { saveQuickGameSession } from "@/lib/quick-game-persistence-client";
 import { initializeQuickGameSession } from "@/lib/quick-game-store";
 import { WIZARD_PLAYER_FIELD_CLASS, wizardGenderLabel } from "@/lib/wizard-player-fields";
+import { WIZARD_PRIMARY_FIELDS_SCOPE } from "@/lib/wizard-field-styles";
 import { useUiStore } from "@/store/ui-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -74,6 +93,8 @@ type CreateGameForm = {
   courtCount: number;
   expectedPlayers: number;
   strictPlayerCount: boolean;
+  gameMode: QuickPlayGameMode;
+  matchingType: QuickPlayMatchingType;
 };
 
 function createInitialForm(userType?: string | null): CreateGameForm {
@@ -93,6 +114,8 @@ function createInitialForm(userType?: string | null): CreateGameForm {
     courtCount: 2,
     expectedPlayers: 24,
     strictPlayerCount: false,
+    gameMode: "doubles",
+    matchingType: "auto-balanced",
   };
 }
 
@@ -100,12 +123,9 @@ function defaultGameTitle(openPlayType: string) {
   return defaultOpenPlayTitle(openPlayType);
 }
 
-type WizardPlayerEntry = {
-  name: string;
-  gender: "male" | "female" | "";
-};
+type WizardPlayerEntry = QuickPlayWizardPlayerEntry;
 
-const EMPTY_WIZARD_PLAYER: WizardPlayerEntry = { name: "", gender: "male" };
+const EMPTY_WIZARD_PLAYER: WizardPlayerEntry = createQuickPlayWizardPlayerEntry(1);
 
 const WIZARD_PLAYER_GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -146,7 +166,15 @@ function findFirstMissingGenderIndex(entries: WizardPlayerEntry[]) {
   return null;
 }
 
-function getTotalSteps(mode: RegistrationMode | "") {
+function getQuickGameStepKind(step: number) {
+  if (step === 1) return "quickFormat";
+  if (step === 2) return "quickPlayers";
+  if (step === 3) return "quickPreview";
+  return "unknown";
+}
+
+function getTotalSteps(mode: RegistrationMode | "", isQuickGame: boolean) {
+  if (isQuickGame) return QUICK_PLAY_TOTAL_STEPS;
   if (mode === "owner") return 4;
   if (mode === "self") return 3;
   return 1;
@@ -184,8 +212,13 @@ export function CreateGameWizard() {
   const [timeRangeError, setTimeRangeError] = useState("");
   const [venueMapDialogOpen, setVenueMapDialogOpen] = useState(false);
 
-  const totalSteps = getTotalSteps(registrationMode);
-  const stepKind = getStepKind(step, registrationMode);
+  const isQuickGamePreset = createGameWizardPreset?.liveQueue === false;
+  const totalSteps = getTotalSteps(registrationMode, isQuickGamePreset);
+  const stepKind = isQuickGamePreset ? getQuickGameStepKind(step) : getStepKind(step, registrationMode);
+  const isAnyLevelOpenPlay = form.openPlayType === "Any Level Open Play";
+  const sessionLockedPlayerLevel = isFixedOpenPlayType(form.openPlayType) ? form.openPlayType : null;
+  const sessionTitle = form.title.trim() || defaultGameTitle(form.openPlayType);
+  const canAddMorePlayers = playerEntries.length < MAX_QUICK_PLAY_PLAYERS;
 
   const filledPlayers = useMemo(
     () =>
@@ -193,12 +226,17 @@ export function CreateGameWizard() {
         .map((entry) => ({
           displayName: entry.name.trim(),
           gender: entry.gender,
+          openPlayLevel:
+            sessionLockedPlayerLevel ?? resolvePlayerOpenPlayLevel(entry.openPlayLevel),
         }))
         .filter(
-          (entry): entry is { displayName: string; gender: "male" | "female" | "" } =>
-            entry.displayName.length > 0,
+          (entry): entry is {
+            displayName: string;
+            gender: "male" | "female" | "";
+            openPlayLevel: typeof entry.openPlayLevel;
+          } => entry.displayName.length > 0,
         ),
-    [playerEntries],
+    [playerEntries, sessionLockedPlayerLevel],
   );
   const duplicatePlayerNameIndex = useMemo(
     () => findLastDuplicatePlayerNameIndex(playerEntries),
@@ -220,19 +258,21 @@ export function CreateGameWizard() {
   const hasMissingPlayerGender = missingGenderIndex !== null;
   const hasPlayerNameTooLong = tooLongPlayerNameIndex !== null;
   const hasInvalidPlayerName = invalidPlayerNameIndex !== null;
-  const isQuickGamePreset = createGameWizardPreset?.liveQueue === false;
 
   useEffect(() => {
     if (!createGameWizardOpen) return;
     const preset = createGameWizardPreset ?? { liveQueue: true };
     setStep(1);
     setRegistrationMode(preset.liveQueue === false ? "owner" : (preset.registrationMode ?? "self"));
-    setPlayerEntries([EMPTY_WIZARD_PLAYER]);
+    setPlayerEntries([createQuickPlayWizardPlayerEntry(1)]);
     setAllowQrRegistration(false);
     setAllowManualPlayerAdd(false);
     setDefaultCheckInAllPlayers(true);
     setLiveQueue(preset.liveQueue);
-    setForm(createInitialForm(gamesData?.userType));
+    setForm({
+      ...createInitialForm(gamesData?.userType),
+      ...(preset.liveQueue === false ? { expectedPlayers: MIN_EXPECTED_PLAYERS } : {}),
+    });
     setTimeRangeError("");
     setVenueMapDialogOpen(false);
     setLoading(false);
@@ -270,6 +310,24 @@ export function CreateGameWizard() {
   };
 
   const canGoNext = () => {
+    if (stepKind === "quickFormat") {
+      return (
+        form.courtCount >= 1 &&
+        form.expectedPlayers >= MIN_EXPECTED_PLAYERS &&
+        form.expectedPlayers <= MAX_QUICK_PLAY_PLAYERS
+      );
+    }
+    if (stepKind === "quickPlayers") {
+      return (
+        filledPlayers.length > 0 &&
+        filledPlayers.length <= MAX_QUICK_PLAY_PLAYERS &&
+        !hasDuplicatePlayerNames &&
+        !hasMissingPlayerGender &&
+        !hasPlayerNameTooLong &&
+        !hasInvalidPlayerName &&
+        filledPlayers.every((player) => player.gender === "male" || player.gender === "female")
+      );
+    }
     if (stepKind === "openPlayType") {
       if (!form.venueName.trim() || !form.venueAddress.trim()) return false;
       if (!isOpenPlayTimeComplete(form)) return false;
@@ -291,7 +349,21 @@ export function CreateGameWizard() {
 
   const goNext = () => {
     if (!canGoNext()) {
-      if (stepKind === "openPlayType") {
+      if (stepKind === "quickFormat") {
+        if (form.expectedPlayers < MIN_EXPECTED_PLAYERS) {
+          toast.error(`Expected players must be at least ${MIN_EXPECTED_PLAYERS}.`);
+        } else if (form.expectedPlayers > MAX_QUICK_PLAY_PLAYERS) {
+          toast.error(`You can add up to ${MAX_QUICK_PLAY_PLAYERS} players.`);
+        }
+      } else if (stepKind === "quickPlayers") {
+        if (hasPlayerNameTooLong) toast.error(playerDisplayNameTooLongMessage());
+        else if (hasInvalidPlayerName) toast.error(playerDisplayNameInvalidCharacterMessage());
+        else if (hasDuplicatePlayerNames) toast.error("Each player name must be unique.");
+        else if (hasMissingPlayerGender) toast.error("Select a gender for each player.");
+        else if (filledPlayers.length > MAX_QUICK_PLAY_PLAYERS) {
+          toast.error(`You can add up to ${MAX_QUICK_PLAY_PLAYERS} players.`);
+        } else toast.error("Enter at least one player name.");
+      } else if (stepKind === "openPlayType") {
         if (!form.venueName.trim() || !form.venueAddress.trim()) {
           toast.error("Enter a venue name and address.");
         } else if (!isOpenPlayTimeComplete(form)) {
@@ -323,6 +395,12 @@ export function CreateGameWizard() {
         }
       }
       return;
+    }
+    if (stepKind === "quickFormat") {
+      const openPlayLevel = sessionLockedPlayerLevel ?? DEFAULT_PLAYER_OPEN_PLAY_LEVEL;
+      setPlayerEntries((prev) =>
+        syncQuickPlayWizardPlayerEntryCount(prev, form.expectedPlayers, openPlayLevel),
+      );
     }
     if (stepKind === "openPlayType") {
       setTimeRangeError("");
@@ -369,8 +447,11 @@ export function CreateGameWizard() {
       if (registrationMode === "owner" && !liveQueue) {
         const gameId = createAccountQuickGameId();
         const players = filledPlayers.filter(
-          (player): player is { displayName: string; gender: "male" | "female" } =>
-            player.gender === "male" || player.gender === "female",
+          (player): player is {
+            displayName: string;
+            gender: "male" | "female";
+            openPlayLevel: typeof player.openPlayLevel;
+          } => player.gender === "male" || player.gender === "female",
         );
         const session = createLocalLiveQueueSession({
           gameId,
@@ -387,6 +468,8 @@ export function CreateGameWizard() {
           allowManualPlayerAdd,
           players,
           checkInAllPlayers: defaultCheckInAllPlayers,
+          gameMode: form.gameMode,
+          matchingType: form.matchingType,
         });
         initializeQuickGameSession(gameId, session);
         try {
@@ -412,10 +495,9 @@ export function CreateGameWizard() {
       };
 
       if (registrationMode === "owner") {
-        body.preRegisteredPlayers = filledPlayers.filter(
-          (player): player is { displayName: string; gender: "male" | "female" } =>
-            player.gender === "male" || player.gender === "female",
-        );
+        body.preRegisteredPlayers = filledPlayers
+          .filter((player) => player.gender === "male" || player.gender === "female")
+          .map(({ displayName, gender }) => ({ displayName, gender }));
         body.expectedPlayers = filledPlayers.length;
         body.allowQrRegistration = liveQueue ? allowQrRegistration : false;
         body.allowManualPlayerAdd = allowManualPlayerAdd;
@@ -447,17 +529,103 @@ export function CreateGameWizard() {
 
   return (
     <>
-      <Dialog open={createGameWizardOpen} onOpenChange={setCreateGameWizardOpen}>
+      <Dialog open={createGameWizardOpen} onOpenChange={(open) => setCreateGameWizardOpen(open)}>
       <DialogContent className="flex max-h-[min(92dvh,52rem)] w-[calc(100%-1.5rem)] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:max-w-xl md:max-w-2xl lg:max-w-3xl">
-        <DialogHeader className="border-b px-4 py-5">
-          <DialogTitle className="text-xl">Create Open Play Session</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Step {step} of {totalSteps}
-          </p>
-        </DialogHeader>
+        {isQuickGamePreset ? (
+          <div className="border-b px-4 py-4">
+            <p className="text-sm font-medium text-muted-foreground">Quick Game</p>
+          </div>
+        ) : (
+          <DialogHeader className="border-b px-4 py-5">
+            <DialogTitle className="text-xl">Create Open Play Session</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Step {step} of {totalSteps}
+            </p>
+          </DialogHeader>
+        )}
 
-        <div className="min-h-[280px] flex-1 overflow-y-auto px-4 py-6">
-          {stepKind === "registrationMode" ? (
+        <div
+          className={cn(
+            "min-h-[280px] flex-1 overflow-y-auto px-4 py-6",
+            isQuickGamePreset && WIZARD_PRIMARY_FIELDS_SCOPE,
+          )}
+        >
+          {isQuickGamePreset ? (
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <QuickPlayWizardHeader
+                  step={step}
+                  title="Create a quick game"
+                  subtitle="Live queuing off — saved to your account."
+                />
+                <p className="text-sm text-muted-foreground">
+                  Set up courts, players, and format. Gameplay syncs to your account when you
+                  create, leave, or end the session.
+                </p>
+              </div>
+              {stepKind === "quickFormat" ? (
+                <QuickPlayFormatStep
+                  idPrefix="create-quick"
+                  form={form}
+                  onFormChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+                  onOpenPlayTypeChange={(openPlayType) => {
+                    setForm((prev) => ({ ...prev, openPlayType }));
+                    if (isFixedOpenPlayType(openPlayType)) {
+                      setPlayerEntries((prev) =>
+                        prev.map((entry) => ({ ...entry, openPlayLevel: openPlayType })),
+                      );
+                      return;
+                    }
+                    if (openPlayType === "Any Level Open Play") {
+                      setPlayerEntries((prev) =>
+                        prev.map((entry) => ({
+                          ...entry,
+                          openPlayLevel: resolvePlayerOpenPlayLevel(entry.openPlayLevel),
+                        })),
+                      );
+                    }
+                  }}
+                />
+              ) : null}
+              {stepKind === "quickPlayers" ? (
+                <QuickPlayPlayersStep
+                  idPrefix="create-quick"
+                  openPlayType={form.openPlayType}
+                  sessionLockedPlayerLevel={sessionLockedPlayerLevel}
+                  playerEntries={playerEntries}
+                  setPlayerEntries={setPlayerEntries}
+                  duplicatePlayerNameIndex={duplicatePlayerNameIndex}
+                  missingGenderIndex={missingGenderIndex}
+                  tooLongPlayerNameIndex={tooLongPlayerNameIndex}
+                  invalidPlayerNameIndex={invalidPlayerNameIndex}
+                  defaultCheckInAllPlayers={defaultCheckInAllPlayers}
+                  setDefaultCheckInAllPlayers={setDefaultCheckInAllPlayers}
+                  allowManualPlayerAdd={allowManualPlayerAdd}
+                  setAllowManualPlayerAdd={setAllowManualPlayerAdd}
+                  canAddMorePlayers={canAddMorePlayers}
+                />
+              ) : null}
+              {stepKind === "quickPreview" ? (
+                <QuickPlayPreviewStep
+                  sessionTitle={sessionTitle}
+                  form={form}
+                  filledPlayers={filledPlayers.filter(
+                    (player): player is {
+                      displayName: string;
+                      gender: "male" | "female";
+                      openPlayLevel: typeof player.openPlayLevel;
+                    } => player.gender === "male" || player.gender === "female",
+                  )}
+                  defaultCheckInAllPlayers={defaultCheckInAllPlayers}
+                  allowManualPlayerAdd={allowManualPlayerAdd}
+                  onEditStep={setStep}
+                  footerNote="This quick game saves to your account with live queuing off. Manage it from My Games."
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          {!isQuickGamePreset && stepKind === "registrationMode" ? (
             <div className="space-y-4">
               <Label className="text-base">Player registration type?</Label>
               <div className="grid grid-cols-1 gap-3">
@@ -490,7 +658,7 @@ export function CreateGameWizard() {
             </div>
           ) : null}
 
-          {stepKind === "sessionBasics" ? (
+          {!isQuickGamePreset && stepKind === "sessionBasics" ? (
             <div className="space-y-6">
               <OpenPlayTypePicker
                 value={form.openPlayType}
@@ -566,7 +734,7 @@ export function CreateGameWizard() {
             </div>
           ) : null}
 
-          {stepKind === "openPlayType" ? (
+          {!isQuickGamePreset && stepKind === "openPlayType" ? (
             <div className="w-full space-y-8">
               <section className="space-y-4">
                 <div className="space-y-1">
@@ -714,7 +882,7 @@ export function CreateGameWizard() {
             </div>
           ) : null}
 
-          {stepKind === "playerNames" ? (
+          {!isQuickGamePreset && stepKind === "playerNames" ? (
             <div className="w-full space-y-4">
               <label
                 className={cn(
@@ -942,7 +1110,13 @@ export function CreateGameWizard() {
             </Button>
           ) : (
             <Button size="lg" onClick={submit} disabled={loading}>
-              {loading ? "Creating..." : "Create Game"}
+              {loading
+                ? isQuickGamePreset
+                  ? "Creating…"
+                  : "Creating..."
+                : isQuickGamePreset
+                  ? "Create quick game"
+                  : "Create Game"}
             </Button>
           )}
         </div>

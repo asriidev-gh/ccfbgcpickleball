@@ -3,6 +3,10 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { OPEN_PLAY_TYPES, type OpenPlayType } from "@/lib/open-play-types";
+import {
+  WIZARD_OPTION_SELECTED,
+  WIZARD_OPTION_UNSELECTED,
+} from "@/lib/wizard-field-styles";
 import { cn } from "@/lib/utils";
 
 type OpenPlayTypePickerProps = {
@@ -38,9 +42,7 @@ export function OpenPlayTypePicker({
               size="sm"
               className={cn(
                 "h-auto min-h-12 w-full justify-center whitespace-normal border px-3 py-2.5 text-center text-sm leading-snug",
-                selected
-                  ? "border-primary bg-primary text-primary-foreground shadow-none hover:bg-primary/90"
-                  : "border-primary/45 bg-background text-foreground hover:border-primary/70 hover:bg-primary/5",
+                selected ? WIZARD_OPTION_SELECTED : WIZARD_OPTION_UNSELECTED,
               )}
               onClick={() => onChange(type)}
             >

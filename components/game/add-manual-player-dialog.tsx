@@ -16,8 +16,20 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { refetchOperatorQueueData } from "@/lib/fetch-operator-game";
 import { addLocalManualPlayer } from "@/lib/local-game-session";
+import {
+  isFixedOpenPlayType,
+  type OpenPlayType,
+  type PlayerOpenPlayLevel,
+} from "@/lib/open-play-types";
 import {
   readOperatorGamePayload,
   writeOperatorGamePayload,
@@ -31,11 +43,16 @@ import {
   type GenderOption,
 } from "@/lib/player-profile-shared";
 import {
+  DEFAULT_PLAYER_OPEN_PLAY_LEVEL,
+  WIZARD_PLAYER_LEVEL_OPTIONS,
+} from "@/lib/quick-play-wizard-shared";
+import { useQuickGameSession } from "@/lib/quick-game-store";
+import {
   collectSessionPlayerDisplayNameKeys,
   isDuplicateSessionPlayerName,
   normalizePlayerDisplayNameKey,
 } from "@/lib/session-player-display-names";
-import { useQuickGameSession } from "@/lib/quick-game-store";
+import { WIZARD_PRIMARY_FIELD_BORDER } from "@/lib/wizard-field-styles";
 import { cn } from "@/lib/utils";
 
 const MANUAL_ADD_GENDER_OPTIONS = [
@@ -50,11 +67,13 @@ type AddManualPlayerDialogProps = {
   onPlayerAdded?: () => void | Promise<void>;
   /** When true, append to browser-only session state instead of the API. */
   localMode?: boolean;
+  sessionOpenPlayType?: OpenPlayType | string;
 };
 
 type AddManualPlayerPayload = {
   displayName: string;
   gender: GenderOption;
+  openPlayLevel: PlayerOpenPlayLevel;
 };
 
 export function AddManualPlayerDialog({
@@ -63,14 +82,27 @@ export function AddManualPlayerDialog({
   onOpenChange,
   onPlayerAdded,
   localMode = false,
+  sessionOpenPlayType,
 }: AddManualPlayerDialogProps) {
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState("");
   const [gender, setGender] = useState<GenderOption | "">("");
-
-  const localPayload = useQuickGameSession(
-    localMode && open ? gameId : "",
+  const [openPlayLevel, setOpenPlayLevel] = useState<PlayerOpenPlayLevel>(
+    DEFAULT_PLAYER_OPEN_PLAY_LEVEL,
   );
+
+  const localPayload = useQuickGameSession(localMode && open ? gameId : "");
+
+  const resolvedSessionOpenPlayType = useMemo(() => {
+    if (sessionOpenPlayType) return sessionOpenPlayType;
+    const payload = localMode ? localPayload : readOperatorGamePayload(queryClient, gameId);
+    return payload?.game.openPlayType ?? "Beginner";
+  }, [gameId, localMode, localPayload, queryClient, sessionOpenPlayType]);
+
+  const sessionLockedPlayerLevel = isFixedOpenPlayType(resolvedSessionOpenPlayType)
+    ? resolvedSessionOpenPlayType
+    : null;
+  const playerLevel = sessionLockedPlayerLevel ?? openPlayLevel;
 
   const existingNameKeys = useMemo(() => {
     if (!open) return new Set<string>();
@@ -88,15 +120,25 @@ export function AddManualPlayerDialog({
     if (!open) {
       setDisplayName("");
       setGender("");
+      setOpenPlayLevel(DEFAULT_PLAYER_OPEN_PLAY_LEVEL);
+      return;
     }
-  }, [open]);
+    if (sessionLockedPlayerLevel) {
+      setOpenPlayLevel(sessionLockedPlayerLevel);
+    }
+  }, [open, sessionLockedPlayerLevel]);
 
   const addPlayerMutation = useMutation({
     mutationFn: async (payload: AddManualPlayerPayload) => {
       if (localMode) {
         const current = readOperatorGamePayload(queryClient, gameId);
         if (!current) throw new Error("Session not found.");
-        const next = addLocalManualPlayer(current, payload.displayName, payload.gender);
+        const next = addLocalManualPlayer(
+          current,
+          payload.displayName,
+          payload.gender,
+          payload.openPlayLevel,
+        );
         if (!next) {
           throw new Error(
             isDuplicateSessionPlayerName(current, payload.displayName)
@@ -125,6 +167,7 @@ export function AddManualPlayerDialog({
       toast.success(message);
       setDisplayName("");
       setGender("");
+      setOpenPlayLevel(DEFAULT_PLAYER_OPEN_PLAY_LEVEL);
       onOpenChange(false);
     },
     onError: (error) => {
@@ -137,6 +180,7 @@ export function AddManualPlayerDialog({
     trimmedDisplayName.length <= MAX_PLAYER_DISPLAY_NAME_LENGTH &&
     isValidPlayerDisplayName(trimmedDisplayName) &&
     Boolean(gender) &&
+    Boolean(playerLevel) &&
     !isDuplicateName &&
     !addPlayerMutation.isPending;
 
@@ -163,7 +207,11 @@ export function AddManualPlayerDialog({
       toast.error("Select a gender.");
       return;
     }
-    addPlayerMutation.mutate({ displayName: trimmed, gender });
+    if (!playerLevel) {
+      toast.error("Select a player level.");
+      return;
+    }
+    addPlayerMutation.mutate({ displayName: trimmed, gender, openPlayLevel: playerLevel });
   };
 
   return (
@@ -172,7 +220,7 @@ export function AddManualPlayerDialog({
         <DialogHeader>
           <DialogTitle>Add player manually</DialogTitle>
           <DialogDescription>
-            Enter a name and gender. The player will be added to the end of the queue.
+            Enter a name, gender, and player level. The player will be added to the end of the queue.
             {localMode ? " This session is browser-only — the player is not saved to the database." : ""}
           </DialogDescription>
         </DialogHeader>
@@ -189,6 +237,7 @@ export function AddManualPlayerDialog({
               disabled={addPlayerMutation.isPending}
               aria-invalid={isDuplicateName}
               className={cn(
+                WIZARD_PRIMARY_FIELD_BORDER,
                 isDuplicateName && "border-destructive focus-visible:ring-destructive/30",
               )}
             />
@@ -221,6 +270,41 @@ export function AddManualPlayerDialog({
               ))}
             </RadioGroup>
           </fieldset>
+          <div className="space-y-2">
+            <Label htmlFor="manual-player-level">Player level</Label>
+            {sessionLockedPlayerLevel ? (
+              <p className="text-sm text-muted-foreground">
+                Matches this session ({sessionLockedPlayerLevel}).
+              </p>
+            ) : null}
+            <Select
+              value={playerLevel}
+              disabled={Boolean(sessionLockedPlayerLevel) || addPlayerMutation.isPending}
+              onValueChange={(value) => {
+                if (WIZARD_PLAYER_LEVEL_OPTIONS.some((option) => option.value === value)) {
+                  setOpenPlayLevel(value as PlayerOpenPlayLevel);
+                }
+              }}
+            >
+              <SelectTrigger
+                id="manual-player-level"
+                className={cn(
+                  "h-11 w-full text-base",
+                  WIZARD_PRIMARY_FIELD_BORDER,
+                  sessionLockedPlayerLevel && "cursor-not-allowed opacity-80",
+                )}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {WIZARD_PLAYER_LEVEL_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex justify-end gap-2">
             <Button
               type="button"

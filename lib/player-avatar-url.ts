@@ -19,6 +19,7 @@ export type PlayerAvatarSeed = {
   personalQrCode?: string;
   _id?: string;
   gender?: string;
+  openPlayLevel?: string;
 };
 
 function hashCode(value: string) {

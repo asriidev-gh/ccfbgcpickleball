@@ -7,6 +7,8 @@ import {
   playerRecordDisplayNameKey,
 } from "@/lib/session-player-display-names";
 import { formatPlayerDisplayName } from "@/lib/utils";
+import type { PlayerOpenPlayLevel } from "@/lib/open-play-types";
+import { isFixedOpenPlayType } from "@/lib/open-play-types";
 import type { GenderOption } from "@/lib/player-profile-shared";
 import { assertPlayerDisplayName } from "@/lib/player-profile-shared";
 import { Court } from "@/models/Court";
@@ -203,7 +205,7 @@ export async function syncOwnerPreRegisteredPlayers(input: {
 
 export async function addManualPlayerToOwnerGame(
   gameId: string,
-  input: { displayName: string; gender: GenderOption },
+  input: { displayName: string; gender: GenderOption; openPlayLevel?: PlayerOpenPlayLevel },
 ) {
   const trimmed = input.displayName.trim();
   if (!trimmed) {
@@ -213,9 +215,20 @@ export async function addManualPlayerToOwnerGame(
 
   await assertManualPlayerNameIsUnique(gameId, trimmed);
 
+  const game = await PickleGame.findOne({ gameId });
+  const resolvedOpenPlayLevel =
+    input.openPlayLevel ??
+    (game && isFixedOpenPlayType(game.openPlayType) ? game.openPlayType : undefined);
+
   const created = await createPreRegisteredPlayers({
     gameId,
-    names: [{ displayName: trimmed, gender: input.gender }],
+    names: [
+      {
+        displayName: trimmed,
+        gender: input.gender,
+        ...(resolvedOpenPlayLevel ? { openPlayLevel: resolvedOpenPlayLevel } : {}),
+      },
+    ],
     appendToEnd: true,
   });
   if (created === 0) {
@@ -223,7 +236,6 @@ export async function addManualPlayerToOwnerGame(
   }
 
   const registeredCount = await QueueEntry.distinct("playerId", { gameId });
-  const game = await PickleGame.findOne({ gameId });
   if (game && registeredCount.length > game.expectedPlayers) {
     game.expectedPlayers = registeredCount.length;
     await game.save();

@@ -36,8 +36,9 @@ export function EphemeralSessionsPanel({ className }: { className?: string }) {
       writeOperatorGamePayload(queryClient, gameId, ended);
       return gameId;
     },
-    onSuccess: () => {
+    onSuccess: (gameId) => {
       toast.success("Open play ended.");
+      router.push(`/leaderboard/${gameId}`);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to end session.");
@@ -47,7 +48,7 @@ export function EphemeralSessionsPanel({ className }: { className?: string }) {
     },
   });
 
-  const handleEndSession = async (gameId: string, title: string) => {
+  const handleEndSession = async (gameId: string) => {
     const saveChoice = await promptSaveEphemeralQuickGame();
     if (saveChoice === "dismiss") return;
     if (saveChoice === "save") {
@@ -62,11 +63,11 @@ export function EphemeralSessionsPanel({ className }: { className?: string }) {
 
     const result = await Swal.fire({
       ...swalAlertBaseOptions,
-      title: "End session?",
-      text: `"${title}" will be marked as ended in this browser.`,
+      title: "End Open Play?",
+      text: "This will mark this game as ended.",
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Yes, end session",
+      confirmButtonText: "Yes, end it",
       cancelButtonText: "Cancel",
     });
     if (!result.isConfirmed) return;
@@ -140,7 +141,7 @@ export function EphemeralSessionsPanel({ className }: { className?: string }) {
                 variant="outline"
                 className="border-destructive/40 text-destructive hover:bg-destructive/10"
                 disabled={isEnding}
-                onClick={() => void handleEndSession(game.gameId, game.title)}
+                onClick={() => void handleEndSession(game.gameId)}
               >
                 {isEnding ? (
                   <>

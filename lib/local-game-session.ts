@@ -8,6 +8,11 @@ import {
   getGeneratedAvatarUrl,
 } from "@/lib/player-avatar-url";
 import { parsePlayerDisplayName } from "@/lib/parse-player-display-name";
+import {
+  isFixedOpenPlayType,
+  isPlayerOpenPlayLevel,
+  type PlayerOpenPlayLevel,
+} from "@/lib/open-play-types";
 import type { GenderOption } from "@/lib/player-profile-shared";
 import type { OperatorFullPayload } from "@/lib/operator-payload";
 import {
@@ -18,6 +23,7 @@ import { isDuplicateSessionPlayerName } from "@/lib/session-player-display-names
 export type LocalPreRegisteredPlayer = {
   displayName: string;
   gender: GenderOption;
+  openPlayLevel?: PlayerOpenPlayLevel;
 };
 
 export type CreateLocalLiveQueueSessionInput = {
@@ -35,12 +41,15 @@ export type CreateLocalLiveQueueSessionInput = {
   allowManualPlayerAdd: boolean;
   players: LocalPreRegisteredPlayer[];
   checkInAllPlayers: boolean;
+  gameMode?: "doubles" | "singles";
+  matchingType?: "auto-balanced" | "winner-loser-groups";
 };
 
 function buildLocalPlayer(
   displayName: string,
   uniqueKey: string,
   gender: GenderOption,
+  openPlayLevel?: PlayerOpenPlayLevel,
 ): PlayerPhotoRef {
   const { firstName, lastName } = parsePlayerDisplayName(displayName.trim());
   const personalQrCode = `P-local-${uniqueKey}`;
@@ -54,6 +63,7 @@ function buildLocalPlayer(
     photoPublicId: GENERATED_AVATAR_PUBLIC_ID,
     personalQrCode,
     gender,
+    ...(openPlayLevel ? { openPlayLevel } : {}),
   };
 }
 
@@ -94,12 +104,18 @@ export function createLocalLiveQueueSession(
     .map((player) => ({
       displayName: player.displayName.trim(),
       gender: player.gender,
+      openPlayLevel: player.openPlayLevel,
     }))
     .filter((player) => player.displayName.length > 0);
   const baseMs = Date.now();
 
   const players = trimmedPlayers.map((player, index) =>
-    buildLocalPlayer(player.displayName, `${runId}-${index + 1}`, player.gender),
+    buildLocalPlayer(
+      player.displayName,
+      `${runId}-${index + 1}`,
+      player.gender,
+      player.openPlayLevel,
+    ),
   );
   const queueEntries = players.map((player, index) =>
     buildQueueEntry(
@@ -129,6 +145,8 @@ export function createLocalLiveQueueSession(
       registrationMode: "owner",
       allowManualPlayerAdd: input.allowManualPlayerAdd,
       liveQueue: false,
+      gameMode: input.gameMode ?? "doubles",
+      matchingType: input.matchingType ?? "auto-balanced",
       ...(quickGamePersistence ? { quickGamePersistence } : {}),
     },
     queue,
@@ -145,13 +163,17 @@ export function addLocalManualPlayer(
   payload: OperatorFullPayload,
   displayName: string,
   gender: GenderOption,
+  openPlayLevel?: PlayerOpenPlayLevel,
 ): OperatorFullPayload | null {
   const trimmed = displayName.trim();
   if (!trimmed) return null;
   if (isDuplicateSessionPlayerName(payload, trimmed)) return null;
 
   const uniqueKey = nanoid(10);
-  const player = buildLocalPlayer(trimmed, uniqueKey, gender);
+  const resolvedLevel =
+    openPlayLevel ??
+    (isFixedOpenPlayType(payload.game.openPlayType) ? payload.game.openPlayType : undefined);
+  const player = buildLocalPlayer(trimmed, uniqueKey, gender, resolvedLevel);
   const lastMs =
     payload.queue.length > 0
       ? new Date(payload.queue[payload.queue.length - 1].registeredAt).getTime() + 1000
@@ -182,6 +204,9 @@ export function extractQuickGamePlayerRoster(
     rows.set(key, {
       displayName,
       gender: (player.gender as GenderOption | undefined) ?? "prefer_not_to_say",
+      ...(player.openPlayLevel && isPlayerOpenPlayLevel(player.openPlayLevel)
+        ? { openPlayLevel: player.openPlayLevel }
+        : {}),
     });
   };
 

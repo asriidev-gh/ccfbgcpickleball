@@ -144,3 +144,11 @@ export function buildLocalLeaderboardRecap(payload: OperatorFullPayload): Leader
 
   return { rows, insights };
 }
+
+export function countSessionRosterPlayers(payload: OperatorFullPayload) {
+  return collectSessionPlayers(payload).size;
+}
+
+export function countSessionMatches(payload: OperatorFullPayload) {
+  return payload.matches?.length ?? 0;
+}

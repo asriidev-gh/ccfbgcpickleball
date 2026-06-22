@@ -24,6 +24,8 @@ export type OperatorGameSummary = {
   liveQueue?: boolean;
   /** Browser quick game: account sessions may sync to QuickGameSession; ephemeral never saves. */
   quickGamePersistence?: "account" | "ephemeral";
+  gameMode?: "doubles" | "singles";
+  matchingType?: "auto-balanced" | "winner-loser-groups";
   registerUrl?: string;
   publicQrCodeDataUrl?: string;
 };

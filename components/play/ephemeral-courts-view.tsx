@@ -28,7 +28,7 @@ export function EphemeralCourtsView() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const gameId = params.id ?? "";
-  const quickSession = useQuickGameSessionAfterMount(gameId);
+  const { payload: quickSession } = useQuickGameSessionAfterMount(gameId);
   const [courtTheme, setCourtTheme] = useState<CourtsViewCourtTheme>("classic");
 
   useEffect(() => {

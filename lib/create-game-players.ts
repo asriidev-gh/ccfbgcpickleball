@@ -5,6 +5,8 @@ import {
   getGeneratedAvatarUrl,
 } from "@/lib/player-avatar-url";
 import { parsePlayerDisplayName } from "@/lib/parse-player-display-name";
+import type { PlayerOpenPlayLevel } from "@/lib/open-play-types";
+import { openPlayLevelToPickleballLevel } from "@/lib/open-play-types";
 import type { GenderOption } from "@/lib/player-profile-shared";
 import { assertPlayerDisplayName } from "@/lib/player-profile-shared";
 import { Player } from "@/models/Player";
@@ -15,6 +17,7 @@ type PreRegisteredPlayerInput =
   | {
       displayName: string;
       gender?: GenderOption;
+      openPlayLevel?: PlayerOpenPlayLevel;
     };
 
 type CreatePreRegisteredPlayersOptions = {
@@ -34,6 +37,7 @@ function normalizePreRegisteredPlayers(names: PreRegisteredPlayerInput[]) {
         : {
             displayName: entry.displayName.trim(),
             gender: entry.gender,
+            openPlayLevel: entry.openPlayLevel,
           },
     )
     .filter((entry) => entry.displayName.length > 0)
@@ -63,6 +67,9 @@ export async function createPreRegisteredPlayers({
         // Omit empty lastName so Mongoose applies schema default (single-name entries).
         ...(lastName.trim() ? { lastName: lastName.trim() } : {}),
         ...(entry.gender ? { gender: entry.gender } : {}),
+        ...(entry.openPlayLevel
+          ? { pickleballLevel: openPlayLevelToPickleballLevel(entry.openPlayLevel) }
+          : {}),
         mobileNumber: `090000${String(index + 1).padStart(5, "0")}`,
         email: `owner-${gameId}-${runId}-${index + 1}@paddleflow.local`,
         personalQrCode,

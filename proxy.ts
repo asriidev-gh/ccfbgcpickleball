@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+import { isQuickGame } from "@/lib/local-game-id";
+
 const AUTH_COOKIE = "ccf_auth";
+
+function leaderboardGameId(pathname: string) {
+  return pathname.match(/^\/leaderboard\/([^/]+)/)?.[1] ?? null;
+}
 
 export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
   const isSpectatorGameRoute = /^\/games\/[^/]+\/spectate(?:\/.*)?$/.test(pathname);
   const isSpectatorLeaderboard =
     pathname.startsWith("/leaderboard/") && searchParams.get("from") === "spectator";
+  const isQuickGameLeaderboard = isQuickGame(leaderboardGameId(pathname));
   const isProtectedRoute =
     (pathname === "/" ||
       pathname.startsWith("/games") ||
@@ -20,7 +27,8 @@ export function proxy(request: NextRequest) {
       pathname.startsWith("/my-club") ||
       pathname.startsWith("/marketplace")) &&
     !isSpectatorGameRoute &&
-    !isSpectatorLeaderboard;
+    !isSpectatorLeaderboard &&
+    !isQuickGameLeaderboard;
   const isAuthRoute = pathname.startsWith("/login");
   const hasAuth = Boolean(request.cookies.get(AUTH_COOKIE)?.value);
 

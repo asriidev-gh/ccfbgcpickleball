@@ -1,28 +1,19 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
-import { OpenPlayTypePicker } from "@/components/game/open-play-type-picker";
+import {
+  QuickPlayFormatStep,
+  QuickPlayPlayersStep,
+  QuickPlayPreviewStep,
+  QuickPlayWizardHeader,
+} from "@/components/play/quick-play-wizard-steps";
 import { EphemeralSessionsPanel } from "@/components/play/ephemeral-sessions-panel";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { NumberStepper } from "@/components/ui/number-stepper";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { useActiveEphemeralSessions } from "@/hooks/use-active-ephemeral-sessions";
 import { createEphemeralQuickGameId, getQuickGameDashboardPath } from "@/lib/local-game-id";
 import { createLocalLiveQueueSession } from "@/lib/local-game-session";
@@ -30,92 +21,56 @@ import { seedLocalGameOperatorCache } from "@/lib/operator-game-cache";
 import {
   formatOpenPlayTimeRange,
   getTodayOpenPlayDateInputValue,
-  isOpenPlayTimeComplete,
-  validateOpenPlayTimeOrder,
   type OpenPlayMeridiem,
 } from "@/lib/open-play-time-range";
-import { defaultOpenPlayTitle, OPEN_PLAY_TYPES } from "@/lib/open-play-types";
-import type { GenderOption } from "@/lib/player-profile-shared";
+import {
+  defaultOpenPlayTitle,
+  isFixedOpenPlayType,
+  type PlayerOpenPlayLevel,
+} from "@/lib/open-play-types";
 import {
   findFirstPlayerNameTooLongIndex,
   findFirstPlayerNameWithInvalidCharactersIndex,
-  MAX_PLAYER_DISPLAY_NAME_LENGTH,
   playerDisplayNameInvalidCharacterMessage,
   playerDisplayNameTooLongMessage,
-  sanitizePlayerDisplayNameInput,
 } from "@/lib/player-profile-shared";
-import { initializeQuickGameSession, writeQuickGamePayload, clearEphemeralQuickGameSessions } from "@/lib/quick-game-store";
-import { WIZARD_PLAYER_FIELD_CLASS, wizardGenderLabel } from "@/lib/wizard-player-fields";
+import {
+  clearEphemeralQuickGameSessions,
+  initializeQuickGameSession,
+  writeQuickGamePayload,
+} from "@/lib/quick-game-store";
+import {
+  DEFAULT_PLAYER_OPEN_PLAY_LEVEL,
+  MAX_QUICK_PLAY_PLAYERS,
+  MIN_EXPECTED_PLAYERS,
+  QUICK_PLAY_TOTAL_STEPS,
+  createQuickPlayWizardPlayerEntry,
+  findFirstMissingQuickPlayPlayerGenderIndex,
+  findLastDuplicateQuickPlayPlayerNameIndex,
+  resolvePlayerOpenPlayLevel,
+  syncQuickPlayWizardPlayerEntryCount,
+  type QuickPlayWizardFormFields,
+  type QuickPlayWizardPlayerEntry,
+} from "@/lib/quick-play-wizard-shared";
+import { WIZARD_OUTLINE_BUTTON_BORDER, WIZARD_PRIMARY_FIELDS_SCOPE } from "@/lib/wizard-field-styles";
 import { cn } from "@/lib/utils";
 
-const types = OPEN_PLAY_TYPES;
-const TOTAL_STEPS = 3;
+const BROWSER_ONLY_PREVIEW_NOTE =
+  "This session stays in this browser only. Sign in from My Games if you want sessions saved to your account.";
 
-type Meridiem = OpenPlayMeridiem;
-
-type WizardPlayerEntry = {
-  name: string;
-  gender: "male" | "female" | "";
-};
-
-const EMPTY_WIZARD_PLAYER: WizardPlayerEntry = { name: "", gender: "male" };
-
-const WIZARD_PLAYER_GENDER_OPTIONS = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-] as const satisfies ReadonlyArray<{ value: GenderOption; label: string }>;
-
-function normalizePlayerNameKey(name: string) {
-  return name.trim().toLowerCase();
-}
-
-function findLastDuplicatePlayerNameIndex(entries: WizardPlayerEntry[]) {
-  const seen = new Set<string>();
-  let lastDuplicateIndex: number | null = null;
-
-  for (let index = 0; index < entries.length; index += 1) {
-    const key = normalizePlayerNameKey(entries[index]?.name ?? "");
-    if (!key) continue;
-    if (seen.has(key)) lastDuplicateIndex = index;
-    else seen.add(key);
-  }
-
-  return lastDuplicateIndex;
-}
-
-function findFirstMissingGenderIndex(entries: WizardPlayerEntry[]) {
-  for (let index = 0; index < entries.length; index += 1) {
-    const name = entries[index]?.name.trim() ?? "";
-    const gender = entries[index]?.gender ?? "";
-    if (name && gender !== "male" && gender !== "female") return index;
-  }
-  return null;
-}
-
-type QuickPlayForm = {
-  title: string;
-  openPlayType: (typeof types)[number];
-  venueName: string;
-  openPlayDate: string;
-  openPlayFromHour: string;
-  openPlayFromMeridiem: Meridiem | "";
-  openPlayToHour: string;
-  openPlayToMeridiem: Meridiem | "";
-  courtCount: number;
-};
-
-function createInitialForm(): QuickPlayForm {
+function createInitialForm(): QuickPlayWizardFormFields {
   return {
     title: "",
     openPlayType: "Beginner",
-    venueName: "",
-    openPlayDate: "",
-    openPlayFromHour: "7",
-    openPlayFromMeridiem: "PM",
-    openPlayToHour: "10",
-    openPlayToMeridiem: "PM",
     courtCount: 2,
+    expectedPlayers: MIN_EXPECTED_PLAYERS,
+    gameMode: "doubles",
+    matchingType: "auto-balanced",
   };
+}
+
+function getDefaultOpenPlayTimeRange() {
+  return formatOpenPlayTimeRange("7", "PM" as OpenPlayMeridiem, "10", "PM" as OpenPlayMeridiem);
 }
 
 export function QuickPlaySetup() {
@@ -125,39 +80,53 @@ export function QuickPlaySetup() {
   const { hasActiveSession } = useActiveEphemeralSessions();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [playerEntries, setPlayerEntries] = useState<WizardPlayerEntry[]>([EMPTY_WIZARD_PLAYER]);
+  const [playerEntries, setPlayerEntries] = useState<QuickPlayWizardPlayerEntry[]>(() => [
+    createQuickPlayWizardPlayerEntry(1),
+  ]);
   const [defaultCheckInAllPlayers, setDefaultCheckInAllPlayers] = useState(true);
   const [allowManualPlayerAdd, setAllowManualPlayerAdd] = useState(false);
-  const [form, setForm] = useState<QuickPlayForm>(createInitialForm);
-  const [timeRangeError, setTimeRangeError] = useState("");
+  const [form, setForm] = useState<QuickPlayWizardFormFields>(createInitialForm);
 
   useEffect(() => {
     if (pathname !== "/play") return;
     setStep(1);
     setLoading(false);
-    setPlayerEntries([EMPTY_WIZARD_PLAYER]);
+    setPlayerEntries([createQuickPlayWizardPlayerEntry(1, DEFAULT_PLAYER_OPEN_PLAY_LEVEL)]);
     setDefaultCheckInAllPlayers(true);
     setAllowManualPlayerAdd(false);
-    setForm({
-      ...createInitialForm(),
-      openPlayDate: getTodayOpenPlayDateInputValue(),
-    });
-    setTimeRangeError("");
+    setForm(createInitialForm());
   }, [pathname]);
+
+  const sessionLockedPlayerLevel = isFixedOpenPlayType(form.openPlayType) ? form.openPlayType : null;
 
   const filledPlayers = useMemo(
     () =>
       playerEntries
-        .map((entry) => ({ displayName: entry.name.trim(), gender: entry.gender }))
+        .map((entry) => ({
+          displayName: entry.name.trim(),
+          gender: entry.gender,
+          openPlayLevel: sessionLockedPlayerLevel ?? resolvePlayerOpenPlayLevel(entry.openPlayLevel),
+        }))
         .filter((entry) => entry.displayName.length > 0),
-    [playerEntries],
+    [playerEntries, sessionLockedPlayerLevel],
+  );
+  const playersForSubmit = useMemo(
+    () =>
+      filledPlayers.filter(
+        (player): player is {
+          displayName: string;
+          gender: "male" | "female";
+          openPlayLevel: PlayerOpenPlayLevel;
+        } => player.gender === "male" || player.gender === "female",
+      ),
+    [filledPlayers],
   );
   const duplicatePlayerNameIndex = useMemo(
-    () => findLastDuplicatePlayerNameIndex(playerEntries),
+    () => findLastDuplicateQuickPlayPlayerNameIndex(playerEntries),
     [playerEntries],
   );
   const missingGenderIndex = useMemo(
-    () => findFirstMissingGenderIndex(playerEntries),
+    () => findFirstMissingQuickPlayPlayerGenderIndex(playerEntries),
     [playerEntries],
   );
   const tooLongPlayerNameIndex = useMemo(
@@ -172,57 +141,61 @@ export function QuickPlaySetup() {
   const hasMissingPlayerGender = missingGenderIndex !== null;
   const hasPlayerNameTooLong = tooLongPlayerNameIndex !== null;
   const hasInvalidPlayerName = invalidPlayerNameIndex !== null;
-
-  const getOpenPlayTimeValidation = () => {
-    if (!isOpenPlayTimeComplete(form)) return null;
-    return validateOpenPlayTimeOrder(
-      form.openPlayFromHour,
-      form.openPlayFromMeridiem as Meridiem,
-      form.openPlayToHour,
-      form.openPlayToMeridiem as Meridiem,
-    );
-  };
+  const canAddMorePlayers = playerEntries.length < MAX_QUICK_PLAY_PLAYERS;
+  const sessionTitle = form.title.trim() || defaultOpenPlayTitle(form.openPlayType);
 
   const canGoNext = () => {
     if (step === 1) {
       if (hasActiveSession) return false;
       return (
+        form.courtCount >= 1 &&
+        form.expectedPlayers >= MIN_EXPECTED_PLAYERS &&
+        form.expectedPlayers <= MAX_QUICK_PLAY_PLAYERS
+      );
+    }
+    if (step === 2) {
+      return (
         filledPlayers.length > 0 &&
+        filledPlayers.length <= MAX_QUICK_PLAY_PLAYERS &&
         !hasDuplicatePlayerNames &&
         !hasMissingPlayerGender &&
         !hasPlayerNameTooLong &&
         !hasInvalidPlayerName &&
-        filledPlayers.every((player) => player.gender === "male" || player.gender === "female")
+        playersForSubmit.length === filledPlayers.length
       );
-    }
-    if (step === 2) {
-      const validation = getOpenPlayTimeValidation();
-      return Boolean(validation?.ok);
     }
     return true;
   };
 
   const goNext = () => {
     if (!canGoNext()) {
-      if (step === 1) {
-        if (hasActiveSession) {
-          toast.error("End your active session before starting a new one.");
-        } else if (hasPlayerNameTooLong) toast.error(playerDisplayNameTooLongMessage());
+      if (step === 1 && hasActiveSession) {
+        toast.error("End your active session before starting a new one.");
+      } else if (step === 1) {
+        if (form.expectedPlayers < MIN_EXPECTED_PLAYERS) {
+          toast.error(`Expected players must be at least ${MIN_EXPECTED_PLAYERS}.`);
+        } else if (form.expectedPlayers > MAX_QUICK_PLAY_PLAYERS) {
+          toast.error(`You can add up to ${MAX_QUICK_PLAY_PLAYERS} players.`);
+        }
+      } else if (step === 2) {
+        if (hasPlayerNameTooLong) toast.error(playerDisplayNameTooLongMessage());
         else if (hasInvalidPlayerName) toast.error(playerDisplayNameInvalidCharacterMessage());
         else if (hasDuplicatePlayerNames) toast.error("Each player name must be unique.");
         else if (hasMissingPlayerGender) toast.error("Select a gender for each player.");
-        else toast.error("Enter at least one player name.");
-      } else if (step === 2) {
-        const validation = getOpenPlayTimeValidation();
-        const message =
-          validation && !validation.ok ? validation.message : "Select from and to times.";
-        setTimeRangeError(validation && !validation.ok ? validation.message : "");
-        toast.error(message);
+        else if (filledPlayers.length > MAX_QUICK_PLAY_PLAYERS) {
+          toast.error(`You can add up to ${MAX_QUICK_PLAY_PLAYERS} players.`);
+        } else toast.error("Enter at least one player name.");
       }
       return;
     }
-    if (step === 2) setTimeRangeError("");
-    setStep((prev) => Math.min(TOTAL_STEPS, prev + 1));
+
+    if (step === 1) {
+      const openPlayLevel = sessionLockedPlayerLevel ?? DEFAULT_PLAYER_OPEN_PLAY_LEVEL;
+      setPlayerEntries((prev) =>
+        syncQuickPlayWizardPlayerEntryCount(prev, form.expectedPlayers, openPlayLevel),
+      );
+    }
+    setStep((prev) => Math.min(QUICK_PLAY_TOTAL_STEPS, prev + 1));
   };
 
   const submit = async () => {
@@ -232,29 +205,8 @@ export function QuickPlaySetup() {
       return;
     }
 
-    if (filledPlayers.length < 1) {
+    if (playersForSubmit.length < 1) {
       toast.error("Enter at least one player name.");
-      setStep(1);
-      return;
-    }
-
-    if (!isOpenPlayTimeComplete(form)) {
-      const message = "Select from and to times.";
-      setTimeRangeError(message);
-      toast.error(message);
-      setStep(2);
-      return;
-    }
-
-    const timeValidation = validateOpenPlayTimeOrder(
-      form.openPlayFromHour,
-      form.openPlayFromMeridiem as Meridiem,
-      form.openPlayToHour,
-      form.openPlayToMeridiem as Meridiem,
-    );
-    if (!timeValidation.ok) {
-      setTimeRangeError(timeValidation.message);
-      toast.error(timeValidation.message);
       setStep(2);
       return;
     }
@@ -263,41 +215,30 @@ export function QuickPlaySetup() {
       setLoading(true);
       clearEphemeralQuickGameSessions();
       const gameId = createEphemeralQuickGameId();
-      const title = form.title.trim() || defaultOpenPlayTitle(form.openPlayType);
-      const openPlayDate = form.openPlayDate.trim() || getTodayOpenPlayDateInputValue();
-      const openPlayTimeRange = formatOpenPlayTimeRange(
-        form.openPlayFromHour,
-        form.openPlayFromMeridiem as Meridiem,
-        form.openPlayToHour,
-        form.openPlayToMeridiem as Meridiem,
-      );
-      const players = filledPlayers.filter(
-        (player): player is { displayName: string; gender: "male" | "female" } =>
-          player.gender === "male" || player.gender === "female",
-      );
-
       const session = createLocalLiveQueueSession({
         gameId,
-        title,
+        title: sessionTitle,
         openPlayType: form.openPlayType,
-        openPlayDate,
-        openPlayTimeRange,
-        venueName: form.venueName.trim(),
+        openPlayDate: getTodayOpenPlayDateInputValue(),
+        openPlayTimeRange: getDefaultOpenPlayTimeRange(),
+        venueName: "",
         venueAddress: "",
         venueGoogleMapEmbedUrl: "",
         courtCount: form.courtCount,
-        expectedPlayers: players.length,
+        expectedPlayers: playersForSubmit.length,
         allowQrRegistration: false,
         allowManualPlayerAdd,
-        players,
+        players: playersForSubmit,
         checkInAllPlayers: defaultCheckInAllPlayers,
+        gameMode: form.gameMode,
+        matchingType: form.matchingType,
       });
 
       initializeQuickGameSession(gameId, session);
       writeQuickGamePayload(gameId, session);
       seedLocalGameOperatorCache(queryClient, gameId);
       toast.success(
-        `Session started.${players.length > 0 ? ` ${players.length} players added.` : ""}`,
+        `Session started.${playersForSubmit.length > 0 ? ` ${playersForSubmit.length} players added.` : ""}`,
       );
       router.push(getQuickGameDashboardPath(gameId));
     } catch (error) {
@@ -308,14 +249,16 @@ export function QuickPlaySetup() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div
+      className={cn(
+        "quick-play-setup mx-auto flex w-full max-w-2xl flex-col gap-6",
+        WIZARD_PRIMARY_FIELDS_SCOPE,
+      )}
+    >
       {step === 1 ? <EphemeralSessionsPanel /> : null}
 
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-muted-foreground">
-          Step {step} of {TOTAL_STEPS}
-        </p>
-        <h1 className="page-title">Quick Play</h1>
+      <div className="space-y-3">
+        <QuickPlayWizardHeader step={step} />
         <p className="text-sm text-muted-foreground">
           Run open play in your browser — no account required. Nothing is saved to our servers; data
           disappears when you close this browser tab.
@@ -323,289 +266,70 @@ export function QuickPlaySetup() {
       </div>
 
       {step === 1 ? (
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <Label className="text-base">Enter player names</Label>
-            <p className="text-sm text-muted-foreground">
-              One row per player with name and gender.
-            </p>
-          </div>
-          <div
-            className={cn(
-              "grid items-center gap-2 text-xs font-medium text-muted-foreground",
-              playerEntries.length > 1
-                ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem]"
-                : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
-            )}
-          >
-            <span>Name</span>
-            <span>Gender</span>
-            {playerEntries.length > 1 ? <span className="sr-only">Remove</span> : null}
-          </div>
-          <ul className="m-0 list-none space-y-3 p-0">
-            {playerEntries.map((entry, index) => {
-              const isDuplicateField = duplicatePlayerNameIndex === index;
-              const isMissingGenderField = missingGenderIndex === index;
-              const isNameTooLongField = tooLongPlayerNameIndex === index;
-              const isInvalidNameField = invalidPlayerNameIndex === index;
-              const showRemoveColumn = playerEntries.length > 1;
-
-              return (
-                <li key={index} className="space-y-1">
-                  <div
-                    className={cn(
-                      "grid items-center gap-2",
-                      showRemoveColumn
-                        ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.75rem]"
-                        : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
-                    )}
-                  >
-                    <div className="min-w-0">
-                      <Input
-                        className={cn(
-                          "h-11 min-h-11 w-full text-base",
-                          WIZARD_PLAYER_FIELD_CLASS,
-                          (isDuplicateField || isNameTooLongField || isInvalidNameField) &&
-                            "border-destructive focus-visible:ring-destructive/30",
-                        )}
-                        placeholder={`Player ${index + 1} name`}
-                        value={entry.name}
-                        maxLength={MAX_PLAYER_DISPLAY_NAME_LENGTH}
-                        aria-invalid={isDuplicateField || isNameTooLongField || isInvalidNameField}
-                        onChange={(event) => {
-                          const next = [...playerEntries];
-                          next[index] = {
-                            ...next[index],
-                            name: sanitizePlayerDisplayNameInput(event.target.value),
-                          };
-                          setPlayerEntries(next);
-                        }}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <Select
-                        value={entry.gender || null}
-                        onValueChange={(value) => {
-                          if (value !== "male" && value !== "female") return;
-                          const next = [...playerEntries];
-                          next[index] = { ...next[index], gender: value };
-                          setPlayerEntries(next);
-                        }}
-                      >
-                        <SelectTrigger
-                          className={cn(
-                            "h-11 min-h-11 w-full max-w-none px-2.5 py-1 text-base data-[size=default]:h-11",
-                            WIZARD_PLAYER_FIELD_CLASS,
-                            isMissingGenderField &&
-                              "border-destructive focus-visible:ring-destructive/30",
-                          )}
-                          aria-invalid={isMissingGenderField}
-                        >
-                          {entry.gender === "male" || entry.gender === "female" ? (
-                            <span className="flex flex-1 truncate text-left">
-                              {wizardGenderLabel(entry.gender)}
-                            </span>
-                          ) : (
-                            <SelectValue placeholder="Gender" />
-                          )}
-                        </SelectTrigger>
-                        <SelectContent>
-                          {WIZARD_PLAYER_GENDER_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {showRemoveColumn ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-11 shrink-0 text-muted-foreground hover:text-destructive"
-                        aria-label={`Remove player ${index + 1}`}
-                        onClick={() =>
-                          setPlayerEntries((prev) => prev.filter((_, rowIndex) => rowIndex !== index))
-                        }
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      </Button>
-                    ) : null}
-                  </div>
-                  {isDuplicateField ? (
-                    <p className="text-sm text-destructive" role="alert">
-                      This name is already in the list.
-                    </p>
-                  ) : isMissingGenderField ? (
-                    <p className="text-sm text-destructive" role="alert">
-                      Select a gender for this player.
-                    </p>
-                  ) : null}
-                </li>
+        <QuickPlayFormatStep
+          idPrefix="quick-play"
+          form={form}
+          onFormChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+          onOpenPlayTypeChange={(openPlayType) => {
+            setForm((prev) => ({ ...prev, openPlayType }));
+            if (isFixedOpenPlayType(openPlayType)) {
+              setPlayerEntries((prev) =>
+                prev.map((entry) => ({ ...entry, openPlayLevel: openPlayType })),
               );
-            })}
-          </ul>
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-4 w-full"
-            onClick={() => setPlayerEntries((prev) => [...prev, EMPTY_WIZARD_PLAYER])}
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden />
-            Add more player
-          </Button>
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <Checkbox
-              checked={defaultCheckInAllPlayers}
-              onCheckedChange={(checked) => setDefaultCheckInAllPlayers(checked === true)}
-            />
-            <span className="space-y-1 leading-snug">
-              <span className="block text-sm font-medium">Default check in all players</span>
-              <span className="block text-xs text-muted-foreground">
-                When checked, every player starts in the active queue.
-              </span>
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
-            <Checkbox
-              checked={allowManualPlayerAdd}
-              onCheckedChange={(checked) => setAllowManualPlayerAdd(checked === true)}
-            />
-            <span className="space-y-1 leading-snug">
-              <span className="block text-sm font-medium">Allow manual player add</span>
-              <span className="block text-xs text-muted-foreground">
-                Add more players from the game dashboard later.
-              </span>
-            </span>
-          </label>
-        </div>
+              return;
+            }
+            if (openPlayType === "Any Level Open Play") {
+              setPlayerEntries((prev) =>
+                prev.map((entry) => ({
+                  ...entry,
+                  openPlayLevel: resolvePlayerOpenPlayLevel(entry.openPlayLevel),
+                })),
+              );
+            }
+          }}
+        />
       ) : null}
 
       {step === 2 ? (
-        <div className="space-y-6">
-          <OpenPlayTypePicker
-            value={form.openPlayType}
-            onChange={(openPlayType) => setForm((prev) => ({ ...prev, openPlayType }))}
-          />
-          <Separator />
-          <div className="space-y-3">
-            <Label htmlFor="quick-play-title" className="text-base">
-              Session title
-            </Label>
-            <Input
-              id="quick-play-title"
-              className="h-11 text-base"
-              placeholder={defaultOpenPlayTitle(form.openPlayType)}
-              value={form.title}
-              onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-            />
-          </div>
-          <Separator />
-          <div className="space-y-3">
-            <Label htmlFor="quick-play-courts" className="text-base">
-              How many courts?
-            </Label>
-            <NumberStepper
-              id="quick-play-courts"
-              min={1}
-              max={20}
-              value={form.courtCount}
-              onChange={(courtCount) => setForm((prev) => ({ ...prev, courtCount }))}
-            />
-          </div>
-          <Separator />
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="quick-play-venue" className="text-base">
-                Venue
-              </Label>
-              <Input
-                id="quick-play-venue"
-                className="h-11 text-base"
-                placeholder="e.g. Dragonsmash Taguig Branch"
-                maxLength={120}
-                value={form.venueName}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, venueName: event.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quick-play-date" className="text-base">
-                Open play date
-              </Label>
-              <Input
-                id="quick-play-date"
-                type="date"
-                className="h-11 text-base"
-                value={form.openPlayDate}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, openPlayDate: event.target.value }))
-                }
-              />
-            </div>
-            <OpenPlayTimeField
-              idPrefix="quickPlayFrom"
-              label="From time"
-              hour={form.openPlayFromHour}
-              meridiem={form.openPlayFromMeridiem}
-              onHourChange={(openPlayFromHour) =>
-                setForm((prev) => ({ ...prev, openPlayFromHour }))
-              }
-              onMeridiemChange={(openPlayFromMeridiem) =>
-                setForm((prev) => ({ ...prev, openPlayFromMeridiem }))
-              }
-            />
-            <OpenPlayTimeField
-              idPrefix="quickPlayTo"
-              label="To time"
-              hour={form.openPlayToHour}
-              meridiem={form.openPlayToMeridiem}
-              onHourChange={(openPlayToHour) => setForm((prev) => ({ ...prev, openPlayToHour }))}
-              onMeridiemChange={(openPlayToMeridiem) =>
-                setForm((prev) => ({ ...prev, openPlayToMeridiem }))
-              }
-            />
-            {timeRangeError ? (
-              <p className="text-sm text-destructive" role="alert">
-                {timeRangeError}
-              </p>
-            ) : null}
-          </div>
-        </div>
+        <QuickPlayPlayersStep
+          idPrefix="quick-play"
+          openPlayType={form.openPlayType}
+          sessionLockedPlayerLevel={sessionLockedPlayerLevel}
+          playerEntries={playerEntries}
+          setPlayerEntries={setPlayerEntries}
+          duplicatePlayerNameIndex={duplicatePlayerNameIndex}
+          missingGenderIndex={missingGenderIndex}
+          tooLongPlayerNameIndex={tooLongPlayerNameIndex}
+          invalidPlayerNameIndex={invalidPlayerNameIndex}
+          defaultCheckInAllPlayers={defaultCheckInAllPlayers}
+          setDefaultCheckInAllPlayers={setDefaultCheckInAllPlayers}
+          allowManualPlayerAdd={allowManualPlayerAdd}
+          setAllowManualPlayerAdd={setAllowManualPlayerAdd}
+          canAddMorePlayers={canAddMorePlayers}
+        />
       ) : null}
 
       {step === 3 ? (
-        <div className="space-y-4 rounded-xl border border-border/70 bg-muted/20 p-4">
-          <h2 className="text-base font-semibold">Ready to start</h2>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li>
-              <span className="font-medium text-foreground">Players:</span> {filledPlayers.length}
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Level:</span> {form.openPlayType}
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Courts:</span> {form.courtCount}
-            </li>
-            {form.venueName.trim() ? (
-              <li>
-                <span className="font-medium text-foreground">Venue:</span> {form.venueName.trim()}
-              </li>
-            ) : null}
-          </ul>
-          <p className="text-xs text-muted-foreground">
-            This session stays in this browser only. Sign in from My Games if you want sessions saved
-            to your account.
-          </p>
-        </div>
+        <QuickPlayPreviewStep
+          sessionTitle={sessionTitle}
+          form={form}
+          filledPlayers={playersForSubmit}
+          defaultCheckInAllPlayers={defaultCheckInAllPlayers}
+          allowManualPlayerAdd={allowManualPlayerAdd}
+          onEditStep={setStep}
+          footerNote={BROWSER_ONLY_PREVIEW_NOTE}
+        />
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <div className="flex gap-2">
           {step > 1 ? (
-            <Button type="button" variant="outline" onClick={() => setStep((prev) => prev - 1)}>
+            <Button
+              type="button"
+              variant="outline"
+              className={WIZARD_OUTLINE_BUTTON_BORDER}
+              onClick={() => setStep((prev) => prev - 1)}
+            >
               Back
             </Button>
           ) : (
@@ -615,16 +339,12 @@ export function QuickPlaySetup() {
           )}
         </div>
         <div className="flex gap-2">
-          {step < TOTAL_STEPS ? (
+          {step < QUICK_PLAY_TOTAL_STEPS ? (
             <Button type="button" disabled={step === 1 && hasActiveSession} onClick={goNext}>
               Next
             </Button>
           ) : (
-            <Button
-              type="button"
-              disabled={loading || hasActiveSession}
-              onClick={() => void submit()}
-            >
+            <Button type="button" disabled={loading || hasActiveSession} onClick={() => void submit()}>
               {loading ? "Starting…" : "Start session"}
             </Button>
           )}

@@ -474,7 +474,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const isQuickGameSession = isQuickGame(gameId);
   const isEphemeralQuickSession = isEphemeralQuickGame(gameId);
   const isAccountQuickSession = isAccountQuickGame(gameId);
-  const quickSession = useQuickGameSessionAfterMount(isQuickGameSession ? gameId : "");
+  const { payload: quickSession } = useQuickGameSessionAfterMount(isQuickGameSession ? gameId : "");
   const queryClient = useQueryClient();
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
   const [pendingWinner, setPendingWinner] = useState<"A" | "B" | null>(null);
@@ -1179,7 +1179,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       } else if (isAccountQuickSession) {
         await queryClient.invalidateQueries({ queryKey: ["saved-quick-games"] });
       }
-      router.replace(isEphemeralQuickSession ? "/play" : "/");
+      router.replace(`/leaderboard/${gameId}`);
     },
     onError: (error) => toastOperationError(error, "Failed to end open play."),
   });
@@ -2967,6 +2967,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         <AddManualPlayerDialog
           gameId={gameId}
           localMode={isQuickGameSession}
+          sessionOpenPlayType={game.openPlayType}
           open={addPlayerOpen}
           onOpenChange={setAddPlayerOpen}
           onPlayerAdded={() => {

@@ -20,6 +20,11 @@ import {
   readPendingEphemeralQuickGameTransfer,
 } from "@/lib/ephemeral-quick-game-transfer";
 import { getQuickGameDashboardPath } from "@/lib/local-game-id";
+import {
+  WIZARD_OUTLINE_BUTTON_BORDER,
+  WIZARD_PRIMARY_FIELD_BORDER,
+  WIZARD_PRIMARY_FIELDS_SCOPE,
+} from "@/lib/wizard-field-styles";
 import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
@@ -141,17 +146,22 @@ function LoginForm() {
               </p>
             ) : null}
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className={cn("space-y-4", WIZARD_PRIMARY_FIELDS_SCOPE)}>
             {mode === "register" ? (
               <div className="space-y-2">
                 <Label>Name</Label>
-                <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                <Input
+                  className={cn("h-11 text-base", WIZARD_PRIMARY_FIELD_BORDER)}
+                  value={form.name}
+                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                />
               </div>
             ) : null}
             <div className="space-y-2">
               <Label>Email</Label>
               <Input
                 type="email"
+                className={cn("h-11 text-base", WIZARD_PRIMARY_FIELD_BORDER)}
                 value={form.email}
                 onChange={(event) => setForm({ ...form, email: event.target.value })}
               />
@@ -163,7 +173,7 @@ function LoginForm() {
                   type={showPassword ? "text" : "password"}
                   value={form.password}
                   onChange={(event) => setForm({ ...form, password: event.target.value })}
-                  className="pr-9"
+                  className={cn("h-11 pr-9 text-base", WIZARD_PRIMARY_FIELD_BORDER)}
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
                 />
                 <button
@@ -194,7 +204,7 @@ function LoginForm() {
             <Button
               type="button"
               variant="outline"
-              className="w-full"
+              className={cn("w-full", WIZARD_OUTLINE_BUTTON_BORDER)}
               disabled={loading || !introDone}
               onClick={() => {
                 window.location.href = "/api/auth/google";

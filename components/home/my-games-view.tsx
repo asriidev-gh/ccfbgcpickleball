@@ -60,6 +60,7 @@ import {
 } from "@/components/game/registration-capacity-prompt";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
@@ -916,6 +917,7 @@ export function MyGamesView() {
   const [listView, setListView] = useState<GameListViewMode>("list");
   const [viewReady, setViewReady] = useState(false);
   const [gamesTab, setGamesTab] = useState<"active" | "past" | "quick">("active");
+  const [showEndedQuickGames, setShowEndedQuickGames] = useState(false);
   const [demoDialogOpen, setDemoDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -1121,6 +1123,11 @@ export function MyGamesView() {
   const activeGames = games.filter((game) => game.status !== "ended");
   const pastGames = games.filter((game) => game.status === "ended");
   const activeQuickGames = quickGames.filter((game) => game.status !== "ended");
+  const displayedQuickGames = showEndedQuickGames ? quickGames : activeQuickGames;
+  const quickGamesEmptyMessage =
+    !showEndedQuickGames && quickGames.length > 0 && activeQuickGames.length === 0
+      ? "No active quick games. Turn on Show Ended to see completed sessions."
+      : "No quick games yet. Create one with live queuing off in the game wizard.";
   const showCourtsView = activeGames.length + activeQuickGames.length >= 2;
 
   useEffect(() => {
@@ -1216,6 +1223,15 @@ export function MyGamesView() {
                 </TabsTrigger>
                 ) : null}
               </TabsList>
+              {gamesTab === "quick" ? (
+                <label className="flex w-fit cursor-pointer items-center gap-2.5">
+                  <Checkbox
+                    checked={showEndedQuickGames}
+                    onCheckedChange={(checked) => setShowEndedQuickGames(checked === true)}
+                  />
+                  <span className="text-sm text-muted-foreground">Show Ended</span>
+                </label>
+              ) : null}
               <TabsContent value="active">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -1260,10 +1276,10 @@ export function MyGamesView() {
               <TabsContent value="quick">
                 <GameList
                   key={`quick-${listViewForTab}`}
-                  games={quickGames}
+                  games={displayedQuickGames}
                   variant="quick"
                   view={listViewForTab}
-                  emptyMessage="No quick games yet. Create one with live queuing off in the game wizard."
+                  emptyMessage={quickGamesEmptyMessage}
                   onEdit={handleEditGame}
                   onDelete={handleDeleteGame}
                   deletingGameId={deletingGameId}

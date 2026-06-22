@@ -172,6 +172,7 @@ export const addManualGamePlayerSchema = z.object({
   gender: z.enum(["male", "female"], {
     message: "Select a gender.",
   }),
+  openPlayLevel: z.enum(["Beginner", "Intermediate", "Advanced"]).optional(),
 });
 
 export const generateDemoOpenPlaySchema = z
