@@ -1,15 +1,60 @@
 "use client";
 
-import { AlertTriangle, LayoutGrid, Users } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, LayoutGrid, Loader2, Users } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
+import Swal from "sweetalert2";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { useActiveEphemeralSessions } from "@/hooks/use-active-ephemeral-sessions";
+import { applyEndOpenPlayOptimistic } from "@/lib/game-payload-mutations";
 import { getQuickGameDashboardPath } from "@/lib/local-game-id";
+import { writeOperatorGamePayload } from "@/lib/operator-game-cache";
+import { readQuickGamePayload, writeQuickGamePayload } from "@/lib/quick-game-store";
+import { swalAlertBaseOptions } from "@/lib/swal-theme";
 import { cn } from "@/lib/utils";
 
 export function EphemeralSessionsPanel({ className }: { className?: string }) {
+  const queryClient = useQueryClient();
   const { activeSessions } = useActiveEphemeralSessions();
+  const [endingGameId, setEndingGameId] = useState<string | null>(null);
+
+  const endSessionMutation = useMutation({
+    mutationFn: async (gameId: string) => {
+      const previous = readQuickGamePayload(gameId);
+      if (!previous) throw new Error("Session not found.");
+      const ended = applyEndOpenPlayOptimistic(previous);
+      writeQuickGamePayload(gameId, ended);
+      writeOperatorGamePayload(queryClient, gameId, ended);
+      return gameId;
+    },
+    onSuccess: () => {
+      toast.success("Open play ended.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to end session.");
+    },
+    onSettled: () => {
+      setEndingGameId(null);
+    },
+  });
+
+  const handleEndSession = async (gameId: string, title: string) => {
+    const result = await Swal.fire({
+      ...swalAlertBaseOptions,
+      title: "End session?",
+      text: `"${title}" will be marked as ended in this browser.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, end session",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+    setEndingGameId(gameId);
+    endSessionMutation.mutate(gameId);
+  };
 
   if (activeSessions.length === 0) return null;
 
@@ -29,13 +74,15 @@ export function EphemeralSessionsPanel({ className }: { className?: string }) {
         <div className="min-w-0 space-y-1">
           <h2 className="text-sm font-semibold text-foreground">Active session in this browser</h2>
           <p className="text-xs text-foreground/80">
-            End this session before starting a new one. Resume it to continue or end it from the
-            dashboard.
+            End this session before starting a new one. Resume to continue or end it here.
           </p>
         </div>
       </div>
       <ul className="space-y-3">
-        {activeSessions.map((game) => (
+        {activeSessions.map((game) => {
+          const isEnding = endingGameId === game.gameId && endSessionMutation.isPending;
+
+          return (
           <li
             key={game.gameId}
             className="flex flex-col gap-3 rounded-lg border border-amber-500/30 bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -59,17 +106,37 @@ export function EphemeralSessionsPanel({ className }: { className?: string }) {
                 </p>
               ) : null}
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0 border-amber-600/50 bg-background text-foreground hover:bg-amber-500/10 dark:border-amber-400/40"
-              nativeButton={false}
-              render={<Link href={getQuickGameDashboardPath(game.gameId)} />}
-            >
-              Resume
-            </Button>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-600/50 bg-background text-foreground hover:bg-amber-500/10 dark:border-amber-400/40"
+                nativeButton={false}
+                render={<Link href={getQuickGameDashboardPath(game.gameId)} />}
+              >
+                Resume
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                disabled={isEnding}
+                onClick={() => void handleEndSession(game.gameId, game.title)}
+              >
+                {isEnding ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                    Ending…
+                  </>
+                ) : (
+                  "End session"
+                )}
+              </Button>
+            </div>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );
