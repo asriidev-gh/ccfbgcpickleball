@@ -34,6 +34,7 @@ import {
   EmailVerificationBanner,
   useEmailVerified,
 } from "@/components/home/email-verification-banner";
+import { LiveQueueOffBadge } from "@/components/home/live-queue-off-badge";
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
 import { DemoVideoDialog } from "@/components/demo-video-dialog";
 import { EditGameDialog, type EditGameDialogGame } from "@/components/game/edit-game-dialog";
@@ -71,7 +72,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import { prefetchOperatorDashboard } from "@/lib/fetch-operator-game";
 import { getClientSpectatorShareUrl } from "@/lib/app-url";
 import { useGamesList } from "@/hooks/use-games-list";
-import { useUiStore } from "@/store/ui-store";
+import { useUiStore, type CreateGameWizardPreset } from "@/store/ui-store";
 import {
   isDemoOpenPlayTitle,
   type DemoOpenPlayPlayerCount,
@@ -178,9 +179,11 @@ function DemoOnlyBadge() {
 
 function GameTitle({
   title,
+  isLocalGame,
   className,
 }: {
   title: string;
+  isLocalGame?: boolean;
   className?: string;
 }) {
   const isDemo = isDemoOpenPlayTitle(title);
@@ -194,6 +197,7 @@ function GameTitle({
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="min-w-0 leading-snug">{title}</span>
         {isDemo ? <DemoOnlyBadge /> : null}
+        {isLocalGame ? <LiveQueueOffBadge /> : null}
       </div>
     </div>
   );
@@ -218,6 +222,7 @@ function GameListInfoGrouped({
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-lg font-semibold leading-snug md:text-xl">{game.title}</span>
           {isDemoOpenPlayTitle(game.title) ? <DemoOnlyBadge /> : null}
+          {game.isLocalGame ? <LiveQueueOffBadge /> : null}
           {variant === "past" || game.status === "ended" ? (
             <Badge variant="outline" className="shrink-0">
               Ended
@@ -807,7 +812,7 @@ function GameList({
                 <div className="game-list-card-details min-w-0 space-y-2">
                   <div className="flex flex-wrap items-start gap-2">
                     <CardTitle className="min-w-0 flex-1 text-lg font-semibold md:text-xl">
-                      <GameTitle title={game.title} />
+                      <GameTitle title={game.title} isLocalGame={game.isLocalGame} />
                     </CardTitle>
                     {variant === "past" || game.status === "ended" ? (
                       <Badge variant="outline" className="shrink-0">
@@ -1096,12 +1101,12 @@ export function MyGamesView() {
     deleteGameMutation.mutate(game.gameId);
   };
 
-  const openCreateGameWizard = () => {
+  const openCreateGameWizard = (preset?: CreateGameWizardPreset) => {
     if (!canCreateGames) {
       toast.error("Verify your email before creating a game.");
       return;
     }
-    setCreateGameWizardOpen(true);
+    setCreateGameWizardOpen(true, preset);
   };
 
   const openDemoDialog = () => {
@@ -1137,7 +1142,6 @@ export function MyGamesView() {
             />
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               {showCourtsView ? <SwitchToCourtViewButton /> : null}
-              {showDemoCreateOption ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   disabled={generateTestGameMutation.isPending || !canCreateGames}
@@ -1155,28 +1159,32 @@ export function MyGamesView() {
                     </Button>
                   }
                 />
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem onClick={openCreateGameWizard}>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem
+                    onClick={() => openCreateGameWizard({ liveQueue: true, registrationMode: "self" })}
+                  >
                     <Plus />
-                    Real game
+                    Live Queuing Game
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={openDemoDialog}>
-                    <FlaskConical />
-                    Demo game
+                  <DropdownMenuItem
+                    onClick={() =>
+                      openCreateGameWizard({ liveQueue: false, registrationMode: "owner" })
+                    }
+                  >
+                    <Gauge />
+                    <span className="flex min-w-0 flex-wrap items-center gap-2">
+                      Quick Game
+                      <LiveQueueOffBadge className="px-1.5 text-[0.5625rem] font-medium normal-case" />
+                    </span>
                   </DropdownMenuItem>
+                  {showDemoCreateOption ? (
+                    <DropdownMenuItem onClick={openDemoDialog}>
+                      <FlaskConical />
+                      Demo game
+                    </DropdownMenuItem>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : (
-              <Button
-                size="lg"
-                className="min-w-28"
-                disabled={!canCreateGames}
-                onClick={openCreateGameWizard}
-              >
-                <Plus className="h-5 w-5" />
-                Create
-              </Button>
-            )}
             </div>
           </div>
         </CardHeader>
@@ -1201,7 +1209,7 @@ export function MyGamesView() {
                 </TabsTrigger>
                 {showQuickGamesTab ? (
                 <TabsTrigger value="quick">
-                  Quick Games (live queue off)
+                  Quick Games (live queuing off)
                   <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-xs">
                     {quickGames.length}
                   </Badge>
@@ -1255,7 +1263,7 @@ export function MyGamesView() {
                   games={quickGames}
                   variant="quick"
                   view={listViewForTab}
-                  emptyMessage="No quick games yet. Create one with live queue off in the game wizard."
+                  emptyMessage="No quick games yet. Create one with live queuing off in the game wizard."
                   onEdit={handleEditGame}
                   onDelete={handleDeleteGame}
                   deletingGameId={deletingGameId}

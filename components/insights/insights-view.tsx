@@ -303,14 +303,14 @@ function UserOpenPlaysDialog({
           <DialogTitle>
             {user?.name ?? "User"} ·{" "}
             {isQuick
-              ? "Quick games (live queue off)"
+              ? "Quick games (live queuing off)"
               : isDemo
                 ? "Demo open plays"
                 : "Open plays created"}
           </DialogTitle>
           <DialogDescription>
             {isQuick
-              ? "Saved account quick games with live queue off."
+              ? "Saved account quick games with live queuing off."
               : isDemo
                 ? 'Test and demo open plays (titles like "Test Open Play" or "Demo Open Play").'
                 : "Open plays this user created (demo open plays excluded)."}
@@ -894,7 +894,7 @@ function UserListPanel({ selection, onSelectFilter }: {
                           variant="ghost"
                           size="sm"
                           className="h-8 gap-1.5 px-2 font-medium text-sky-600 hover:text-sky-600"
-                          title="Quick games (live queue off)"
+                          title="Quick games (live queuing off)"
                           onClick={() =>
                             setSelectedUser({ id: user.id, name: user.name, variant: "quick" })
                           }
@@ -905,7 +905,7 @@ function UserListPanel({ selection, onSelectFilter }: {
                       ) : (
                         <span
                           className="min-w-[1.25rem] text-muted-foreground"
-                          title="Quick games (live queue off)"
+                          title="Quick games (live queuing off)"
                         >
                           0
                         </span>

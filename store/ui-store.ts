@@ -1,11 +1,22 @@
 import { create } from "zustand";
 
+export type CreateGameWizardPreset = {
+  liveQueue: boolean;
+  registrationMode?: "self" | "owner";
+};
+
 type UiStore = {
   createGameWizardOpen: boolean;
-  setCreateGameWizardOpen: (open: boolean) => void;
+  createGameWizardPreset: CreateGameWizardPreset | null;
+  setCreateGameWizardOpen: (open: boolean, preset?: CreateGameWizardPreset | null) => void;
 };
 
 export const useUiStore = create<UiStore>((set) => ({
   createGameWizardOpen: false,
-  setCreateGameWizardOpen: (open) => set({ createGameWizardOpen: open }),
+  createGameWizardPreset: null,
+  setCreateGameWizardOpen: (open, preset) =>
+    set({
+      createGameWizardOpen: open,
+      createGameWizardPreset: open ? (preset ?? { liveQueue: true }) : null,
+    }),
 }));

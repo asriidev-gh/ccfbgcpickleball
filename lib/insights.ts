@@ -191,7 +191,7 @@ export async function getUsersByMonth(monthKey: string, limit = 500): Promise<Us
   return mapUserDocs(docs);
 }
 
-/** Lists saved account quick games (live queue off) for a user. */
+/** Lists saved account quick games (live queuing off) for a user. */
 export async function getUserQuickGameOpenPlays(userId: string): Promise<UserOpenPlays | null> {
   await connectToDatabase();
 

@@ -94,6 +94,7 @@ import {
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
+import { LiveQueueOffBadge } from "@/components/home/live-queue-off-badge";
 import {
   ReplacePlayerDialog,
   type ReplacePlayerConfirmInput,
@@ -2629,9 +2630,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             ) : null}
             <div className="game-dashboard-header-top">
               <div className="game-dashboard-header-main min-w-0">
-                <h1 className="page-title">
-                  {operatorShellLoading ? "Loading session…" : game.title}
-                </h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="page-title">
+                    {operatorShellLoading ? "Loading session…" : game.title}
+                  </h1>
+                  {!operatorShellLoading && isAccountQuickSession ? <LiveQueueOffBadge /> : null}
+                </div>
                 {isEphemeralQuickSession ? (
                   <p className="caption mt-1 text-muted-foreground">
                     Public quick play — this session lives only in this browser. Nothing is saved to

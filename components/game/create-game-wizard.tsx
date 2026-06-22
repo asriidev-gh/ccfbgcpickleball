@@ -169,7 +169,7 @@ function getStepKind(step: number, mode: RegistrationMode | "") {
 export function CreateGameWizard() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { createGameWizardOpen, setCreateGameWizardOpen } = useUiStore();
+  const { createGameWizardOpen, createGameWizardPreset, setCreateGameWizardOpen } = useUiStore();
   const { data: gamesData } = useGamesList();
   const { emailVerified, isLoading: emailVerifiedLoading } = useEmailVerified();
   const [step, setStep] = useState(1);
@@ -220,21 +220,23 @@ export function CreateGameWizard() {
   const hasMissingPlayerGender = missingGenderIndex !== null;
   const hasPlayerNameTooLong = tooLongPlayerNameIndex !== null;
   const hasInvalidPlayerName = invalidPlayerNameIndex !== null;
+  const isQuickGamePreset = createGameWizardPreset?.liveQueue === false;
 
   useEffect(() => {
     if (!createGameWizardOpen) return;
+    const preset = createGameWizardPreset ?? { liveQueue: true };
     setStep(1);
-    setRegistrationMode("self");
+    setRegistrationMode(preset.liveQueue === false ? "owner" : (preset.registrationMode ?? "self"));
     setPlayerEntries([EMPTY_WIZARD_PLAYER]);
     setAllowQrRegistration(false);
     setAllowManualPlayerAdd(false);
     setDefaultCheckInAllPlayers(true);
-    setLiveQueue(true);
+    setLiveQueue(preset.liveQueue);
     setForm(createInitialForm(gamesData?.userType));
     setTimeRangeError("");
     setVenueMapDialogOpen(false);
     setLoading(false);
-  }, [createGameWizardOpen, gamesData?.userType]);
+  }, [createGameWizardOpen, createGameWizardPreset, gamesData?.userType]);
 
   useEffect(() => {
     if (stepKind !== "openPlayType" || !isOpenPlayTimeComplete(form)) {
@@ -463,6 +465,7 @@ export function CreateGameWizard() {
                   type="button"
                   variant={registrationMode === "self" ? "default" : "outline"}
                   className="h-auto min-h-14 w-full flex-col items-start justify-center gap-1 px-4 py-3 text-left whitespace-normal"
+                  disabled={isQuickGamePreset}
                   onClick={() => setRegistrationMode("self")}
                 >
                   <span className="text-sm font-semibold leading-snug">Players will register</span>
@@ -713,11 +716,18 @@ export function CreateGameWizard() {
 
           {stepKind === "playerNames" ? (
             <div className="w-full space-y-4">
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+              <label
+                className={cn(
+                  "flex items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3",
+                  isQuickGamePreset ? "cursor-not-allowed opacity-80" : "cursor-pointer",
+                )}
+              >
                 <Checkbox
                   id="liveQueue"
                   checked={liveQueue}
+                  disabled={isQuickGamePreset}
                   onCheckedChange={(checked) => {
+                    if (isQuickGamePreset) return;
                     const enabled = checked === true;
                     setLiveQueue(enabled);
                     if (!enabled) setAllowQrRegistration(false);

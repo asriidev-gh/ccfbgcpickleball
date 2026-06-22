@@ -22,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { HomeGameSummary } from "./home-game-summary";
+import { LiveQueueOffBadge } from "./live-queue-off-badge";
 
 function DemoOnlyBadge() {
   return (
@@ -112,6 +113,7 @@ export function HomeSessionSummaryCard({
                     {game.title}
                   </h3>
                   {isDemo ? <DemoOnlyBadge /> : null}
+                  {game.isLocalGame ? <LiveQueueOffBadge /> : null}
                 </div>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Gauge className="h-3.5 w-3.5 shrink-0" aria-hidden />
