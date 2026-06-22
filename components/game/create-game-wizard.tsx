@@ -41,7 +41,7 @@ import {
   validateOpenPlayTimeOrder,
   type OpenPlayMeridiem,
 } from "@/lib/open-play-time-range";
-import { defaultOpenPlayTitle, isFixedOpenPlayType, OPEN_PLAY_TYPES } from "@/lib/open-play-types";
+import { defaultOpenPlayTitle, isFixedOpenPlayType, isMixedOpenPlayType } from "@/lib/open-play-types";
 import {
   createQuickPlayWizardPlayerEntry,
   DEFAULT_PLAYER_OPEN_PLAY_LEVEL,
@@ -73,7 +73,6 @@ import { useUiStore } from "@/store/ui-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
-const types = OPEN_PLAY_TYPES;
 const MIN_PRE_REGISTERED_PLAYERS = 4;
 
 type RegistrationMode = "self" | "owner";
@@ -81,7 +80,7 @@ type Meridiem = OpenPlayMeridiem;
 
 type CreateGameForm = {
   title: string;
-  openPlayType: (typeof types)[number];
+  openPlayType: string;
   openPlayDate: string;
   openPlayFromHour: string;
   openPlayFromMeridiem: Meridiem | "";
@@ -102,7 +101,7 @@ function createInitialForm(userType?: string | null): CreateGameForm {
 
   return {
     title: "",
-    openPlayType: "Beginner" as (typeof types)[number],
+    openPlayType: "Beginner",
     openPlayDate: getTodayOpenPlayDateInputValue(),
     openPlayFromHour: "7",
     openPlayFromMeridiem: "PM",
@@ -211,6 +210,7 @@ export function CreateGameWizard() {
   const [form, setForm] = useState<CreateGameForm>(createInitialForm);
   const [timeRangeError, setTimeRangeError] = useState("");
   const [venueMapDialogOpen, setVenueMapDialogOpen] = useState(false);
+  const [wizardInstanceId, setWizardInstanceId] = useState(0);
 
   const isQuickGamePreset = createGameWizardPreset?.liveQueue === false;
   const totalSteps = getTotalSteps(registrationMode, isQuickGamePreset);
@@ -262,6 +262,7 @@ export function CreateGameWizard() {
   useEffect(() => {
     if (!createGameWizardOpen) return;
     const preset = createGameWizardPreset ?? { liveQueue: true };
+    setWizardInstanceId((id) => id + 1);
     setStep(1);
     setRegistrationMode(preset.liveQueue === false ? "owner" : (preset.registrationMode ?? "self"));
     setPlayerEntries([createQuickPlayWizardPlayerEntry(1)]);
@@ -565,6 +566,7 @@ export function CreateGameWizard() {
               </div>
               {stepKind === "quickFormat" ? (
                 <QuickPlayFormatStep
+                  key={`create-quick-format-${wizardInstanceId}`}
                   idPrefix="create-quick"
                   form={form}
                   onFormChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
@@ -576,7 +578,7 @@ export function CreateGameWizard() {
                       );
                       return;
                     }
-                    if (openPlayType === "Any Level Open Play") {
+                    if (openPlayType === "Any Level Open Play" || isMixedOpenPlayType(openPlayType)) {
                       setPlayerEntries((prev) =>
                         prev.map((entry) => ({
                           ...entry,
@@ -661,6 +663,7 @@ export function CreateGameWizard() {
           {!isQuickGamePreset && stepKind === "sessionBasics" ? (
             <div className="space-y-6">
               <OpenPlayTypePicker
+                key={`create-session-${wizardInstanceId}`}
                 value={form.openPlayType}
                 onChange={(openPlayType) => setForm((prev) => ({ ...prev, openPlayType }))}
                 description="What skill level is this session for?"

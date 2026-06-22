@@ -66,7 +66,7 @@ export type QuickPlayWizardPlayerEntry = {
 
 export type QuickPlayWizardFormFields = {
   title: string;
-  openPlayType: OpenPlayType;
+  openPlayType: string;
   courtCount: number;
   expectedPlayers: number;
   gameMode: QuickPlayGameMode;

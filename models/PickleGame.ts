@@ -1,7 +1,5 @@
 import mongoose, { Schema } from "mongoose";
 
-import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
-
 const pickleGameSchema = new Schema(
   {
     title: { type: String, required: true },
@@ -9,7 +7,6 @@ const pickleGameSchema = new Schema(
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     openPlayType: {
       type: String,
-      enum: [...OPEN_PLAY_TYPES],
       required: true,
     },
     openPlayDate: { type: Date },

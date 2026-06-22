@@ -23,13 +23,11 @@ import {
   validateOpenPlayTimeOrder,
   type OpenPlayMeridiem,
 } from "@/lib/open-play-time-range";
-import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
+import { defaultOpenPlayTitle, resolveStoredOpenPlayType } from "@/lib/open-play-types";
 import {
   MAX_PLAYER_DISPLAY_NAME_LENGTH,
   sanitizePlayerDisplayNameInput,
 } from "@/lib/player-profile-shared";
-
-const types = OPEN_PLAY_TYPES;
 
 export type EditGameDialogGame = {
   gameId: string;
@@ -50,7 +48,7 @@ type Meridiem = OpenPlayMeridiem;
 
 type EditFormState = {
   title: string;
-  openPlayType: (typeof types)[number];
+  openPlayType: string;
   openPlayDate: string;
   openPlayFromHour: string;
   openPlayFromMeridiem: Meridiem | "";
@@ -152,8 +150,7 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
 
         setForm({
           title: data.game.title,
-          openPlayType:
-            types.find((type) => type === data.game.openPlayType) ?? "Beginner",
+          openPlayType: resolveStoredOpenPlayType(data.game.openPlayType),
           ...schedule,
           courtCount: data.game.courtCount,
           expectedPlayers: data.game.expectedPlayers,
@@ -179,8 +176,7 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
           setForm({
             ...INITIAL_FORM,
             title: game.title,
-            openPlayType:
-              types.find((type) => type === game.openPlayType) ?? "Beginner",
+            openPlayType: resolveStoredOpenPlayType(game.openPlayType),
             courtCount: game.courtCount,
             expectedPlayers: game.expectedPlayers,
             strictPlayerCount: game.strictPlayerCount === true,
@@ -331,6 +327,7 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
                 <Input
                   id="edit-game-title"
                   className="h-11 text-base"
+                  placeholder={defaultOpenPlayTitle(form.openPlayType)}
                   value={form.title}
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, title: event.target.value }))
@@ -339,6 +336,7 @@ export function EditGameDialog({ game, open, onOpenChange, onSaved }: EditGameDi
               </div>
 
               <OpenPlayTypePicker
+                key={game?.gameId ?? "edit-game"}
                 label="Open play type"
                 value={form.openPlayType}
                 onChange={(openPlayType) => setForm((prev) => ({ ...prev, openPlayType }))}

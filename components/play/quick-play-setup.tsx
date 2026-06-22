@@ -26,6 +26,7 @@ import {
 import {
   defaultOpenPlayTitle,
   isFixedOpenPlayType,
+  isMixedOpenPlayType,
   type PlayerOpenPlayLevel,
 } from "@/lib/open-play-types";
 import {
@@ -278,7 +279,7 @@ export function QuickPlaySetup() {
               );
               return;
             }
-            if (openPlayType === "Any Level Open Play") {
+            if (openPlayType === "Any Level Open Play" || isMixedOpenPlayType(openPlayType)) {
               setPlayerEntries((prev) =>
                 prev.map((entry) => ({
                   ...entry,

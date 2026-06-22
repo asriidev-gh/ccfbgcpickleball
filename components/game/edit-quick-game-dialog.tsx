@@ -37,7 +37,7 @@ import {
   validateOpenPlayTimeOrder,
   type OpenPlayMeridiem,
 } from "@/lib/open-play-time-range";
-import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
+import { defaultOpenPlayTitle, resolveStoredOpenPlayType } from "@/lib/open-play-types";
 import {
   GENDER_OPTIONS,
   findFirstPlayerNameTooLongIndex,
@@ -56,8 +56,6 @@ import { writeQuickGamePayload } from "@/lib/quick-game-store";
 import { seedLocalGameOperatorCache } from "@/lib/operator-game-cache";
 
 const MIN_PRE_REGISTERED_PLAYERS = 4;
-
-const types = OPEN_PLAY_TYPES;
 
 type WizardPlayerEntry = {
   name: string;
@@ -88,7 +86,7 @@ export function EditQuickGameDialog({
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [payload, setPayload] = useState<OperatorFullPayload | null>(null);
   const [sessionTitle, setSessionTitle] = useState("");
-  const [openPlayType, setOpenPlayType] = useState<(typeof types)[number]>("Beginner");
+  const [openPlayType, setOpenPlayType] = useState("Beginner");
   const [openPlayDate, setOpenPlayDate] = useState(getTodayOpenPlayDateInputValue());
   const [openPlayFromHour, setOpenPlayFromHour] = useState("7");
   const [openPlayFromMeridiem, setOpenPlayFromMeridiem] = useState<Meridiem | "">("PM");
@@ -144,7 +142,7 @@ export function EditQuickGameDialog({
         );
 
         setSessionTitle(loaded.game.title);
-        setOpenPlayType(types.find((type) => type === loaded.game.openPlayType) ?? "Beginner");
+        setOpenPlayType(resolveStoredOpenPlayType(loaded.game.openPlayType));
         setOpenPlayDate(schedule.openPlayDate);
         setOpenPlayFromHour(schedule.openPlayFromHour);
         setOpenPlayFromMeridiem(schedule.openPlayFromMeridiem);
@@ -342,12 +340,14 @@ export function EditQuickGameDialog({
                 <Label htmlFor="quick-edit-title">Session title</Label>
                 <Input
                   id="quick-edit-title"
+                  placeholder={defaultOpenPlayTitle(openPlayType)}
                   value={sessionTitle}
                   onChange={(event) => setSessionTitle(event.target.value)}
                 />
               </div>
 
               <OpenPlayTypePicker
+                key={gameId ?? "edit-quick-game"}
                 label="Open play type"
                 value={openPlayType}
                 onChange={setOpenPlayType}

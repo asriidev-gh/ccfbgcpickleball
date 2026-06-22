@@ -77,9 +77,11 @@ import {
   MAX_MATCH_SCORE,
 } from "@/lib/match-score-validation";
 import { validateOpenPlayTimeRangeString } from "@/lib/open-play-time-range";
-import { OPEN_PLAY_TYPES, PLAYER_OPEN_PLAY_LEVELS } from "@/lib/open-play-types";
+import { PLAYER_OPEN_PLAY_LEVELS, isValidOpenPlayTypeValue } from "@/lib/open-play-types";
 
-const openPlayTypeSchema = z.enum(OPEN_PLAY_TYPES);
+const openPlayTypeSchema = z
+  .string()
+  .refine(isValidOpenPlayTypeValue, { message: "Select a valid open play type." });
 
 const openPlayDateSchema = z
   .string()

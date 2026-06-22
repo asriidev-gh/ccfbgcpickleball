@@ -34,8 +34,10 @@ import {
 } from "@/lib/quick-play-wizard-shared";
 import {
   defaultOpenPlayTitle,
+  getSessionPlayerOpenPlayLevels,
+  isAnyLevelOpenPlayType,
   isFixedOpenPlayType,
-  type OpenPlayType,
+  isMixedOpenPlayType,
   type PlayerOpenPlayLevel,
 } from "@/lib/open-play-types";
 import {
@@ -163,7 +165,7 @@ export function QuickPlayFormatStep({
   idPrefix: string;
   form: QuickPlayWizardFormFields;
   onFormChange: (patch: Partial<QuickPlayWizardFormFields>) => void;
-  onOpenPlayTypeChange: (openPlayType: OpenPlayType) => void;
+  onOpenPlayTypeChange: (openPlayType: string) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -182,6 +184,7 @@ export function QuickPlayFormatStep({
 
       <div className={cn("rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
         <OpenPlayTypePicker
+          key={`${idPrefix}-open-play-type`}
           value={form.openPlayType}
           onChange={(openPlayType) => {
             onFormChange({ openPlayType });
@@ -276,7 +279,7 @@ export function QuickPlayPlayersStep({
   canAddMorePlayers,
 }: {
   idPrefix: string;
-  openPlayType: OpenPlayType;
+  openPlayType: string;
   sessionLockedPlayerLevel: PlayerOpenPlayLevel | null;
   playerEntries: QuickPlayWizardPlayerEntry[];
   setPlayerEntries: Dispatch<SetStateAction<QuickPlayWizardPlayerEntry[]>>;
@@ -292,7 +295,13 @@ export function QuickPlayPlayersStep({
 }) {
   const fixedOpenPlayLevel = isFixedOpenPlayType(openPlayType) ? openPlayType : null;
   const lockedLevel = sessionLockedPlayerLevel ?? fixedOpenPlayLevel;
-  const isAnyLevelOpenPlay = openPlayType === "Any Level Open Play";
+  const isAnyLevelOpenPlay = isAnyLevelOpenPlayType(openPlayType);
+  const isMixedLevelOpenPlay = isMixedOpenPlayType(openPlayType);
+  const sessionLevelOptions = getSessionPlayerOpenPlayLevels(openPlayType);
+  const playerLevelOptions =
+    sessionLevelOptions === null
+      ? WIZARD_PLAYER_LEVEL_OPTIONS
+      : WIZARD_PLAYER_LEVEL_OPTIONS.filter((option) => sessionLevelOptions.includes(option.value));
 
   return (
     <div className="space-y-4">
@@ -301,7 +310,9 @@ export function QuickPlayPlayersStep({
         <p className="text-sm text-muted-foreground">
           {isAnyLevelOpenPlay
             ? "One row per player with name, gender, and player level."
-            : `One row per player with name and gender. Player level is ${openPlayType} for everyone.`}
+            : isMixedLevelOpenPlay
+              ? `One row per player with name, gender, and level (${openPlayType.replace(/^Mix of /, "").replace(/ Open Play$/, "")}).`
+              : `One row per player with name and gender. Player level is ${openPlayType} for everyone.`}
         </p>
       </div>
 
@@ -420,7 +431,7 @@ export function QuickPlayPlayersStep({
                       <span className="flex flex-1 truncate text-left">{playerLevel}</span>
                     </SelectTrigger>
                     <SelectContent>
-                      {WIZARD_PLAYER_LEVEL_OPTIONS.map((option) => (
+                      {playerLevelOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>

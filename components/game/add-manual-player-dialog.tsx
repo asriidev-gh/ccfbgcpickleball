@@ -26,6 +26,7 @@ import {
 import { refetchOperatorQueueData } from "@/lib/fetch-operator-game";
 import { addLocalManualPlayer } from "@/lib/local-game-session";
 import {
+  getSessionPlayerOpenPlayLevels,
   isFixedOpenPlayType,
   type OpenPlayType,
   type PlayerOpenPlayLevel,
@@ -102,6 +103,11 @@ export function AddManualPlayerDialog({
   const sessionLockedPlayerLevel = isFixedOpenPlayType(resolvedSessionOpenPlayType)
     ? resolvedSessionOpenPlayType
     : null;
+  const sessionLevelOptions = getSessionPlayerOpenPlayLevels(resolvedSessionOpenPlayType);
+  const playerLevelOptions =
+    sessionLevelOptions === null
+      ? WIZARD_PLAYER_LEVEL_OPTIONS
+      : WIZARD_PLAYER_LEVEL_OPTIONS.filter((option) => sessionLevelOptions.includes(option.value));
   const playerLevel = sessionLockedPlayerLevel ?? openPlayLevel;
 
   const existingNameKeys = useMemo(() => {
@@ -125,8 +131,12 @@ export function AddManualPlayerDialog({
     }
     if (sessionLockedPlayerLevel) {
       setOpenPlayLevel(sessionLockedPlayerLevel);
+      return;
     }
-  }, [open, sessionLockedPlayerLevel]);
+    if (sessionLevelOptions?.[0]) {
+      setOpenPlayLevel(sessionLevelOptions[0]);
+    }
+  }, [open, sessionLockedPlayerLevel, sessionLevelOptions]);
 
   const addPlayerMutation = useMutation({
     mutationFn: async (payload: AddManualPlayerPayload) => {
@@ -297,7 +307,7 @@ export function AddManualPlayerDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {WIZARD_PLAYER_LEVEL_OPTIONS.map((option) => (
+                {playerLevelOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
