@@ -90,6 +90,7 @@ import {
 } from "@/lib/quick-game-persistence-client";
 import { removeQuickGameSession } from "@/lib/quick-game-store";
 import { useSavedQuickGames, savedQuickGamesQueryKey } from "@/hooks/use-saved-quick-games";
+import { useQuickGameFeatureEnabled } from "@/hooks/use-system-features";
 import { useLocalGameStore } from "@/store/local-game-store";
 import { cn } from "@/lib/utils";
 
@@ -919,6 +920,7 @@ export function MyGamesView() {
   const [gamesTab, setGamesTab] = useState<"active" | "past" | "quick">("active");
   const [showEndedQuickGames, setShowEndedQuickGames] = useState(false);
   const [demoDialogOpen, setDemoDialogOpen] = useState(false);
+  const { enabled: quickGameFeatureEnabled } = useQuickGameFeatureEnabled();
 
   useEffect(() => {
     const mq = window.matchMedia(GAME_LIST_DESKTOP_MEDIA);
@@ -1173,17 +1175,19 @@ export function MyGamesView() {
                     <Plus />
                     Live Queuing Game
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() =>
-                      openCreateGameWizard({ liveQueue: false, registrationMode: "owner" })
-                    }
-                  >
-                    <Gauge />
-                    <span className="flex min-w-0 flex-wrap items-center gap-2">
-                      Quick Game
-                      <LiveQueueOffBadge className="px-1.5 text-[0.5625rem] font-medium normal-case" />
-                    </span>
-                  </DropdownMenuItem>
+                  {quickGameFeatureEnabled ? (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        openCreateGameWizard({ liveQueue: false, registrationMode: "owner" })
+                      }
+                    >
+                      <Gauge />
+                      <span className="flex min-w-0 flex-wrap items-center gap-2">
+                        Quick Game
+                        <LiveQueueOffBadge className="px-1.5 text-[0.5625rem] font-medium normal-case" />
+                      </span>
+                    </DropdownMenuItem>
+                  ) : null}
                   {showDemoCreateOption ? (
                     <DropdownMenuItem onClick={openDemoDialog}>
                       <FlaskConical />
