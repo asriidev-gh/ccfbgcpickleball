@@ -44,7 +44,7 @@ export async function loadSpectateLive(gameId: string): Promise<SpectateLivePayl
   const ownerId = game.ownerId?.toString();
   const [owner, queueState, firstTimerIdentityKeys, birthdaysThisMonth] = await Promise.all([
     ownerId
-      ? User.findById(ownerId).select("name clubName clubLogoUrl").lean()
+      ? User.findById(ownerId).select("name clubName clubLogoUrl clubTagline").lean()
       : Promise.resolve(null),
     loadQueueCourtsAndCheckedOut(gameId),
     ownerId ? loadFirstTimerIdentityKeysForGame(ownerId, gameId) : Promise.resolve(new Set<string>()),

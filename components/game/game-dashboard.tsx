@@ -82,6 +82,7 @@ import { PlayerAvatar, resolvePlayerId, type PlayerPhotoRef } from "@/components
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
 import { SpectateBirthdaysThisMonthBadge } from "@/components/player/spectate-birthdays-this-month";
 import { SpectateFirstTimersBadge } from "@/components/player/spectate-first-timers";
+import { SpectatorPlayerCardDialog } from "@/components/game/spectator-player-card-dialog";
 import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
 import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
 import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
@@ -91,7 +92,7 @@ import {
   MatchHistoryList,
   type MatchHistoryView,
 } from "@/components/game/match-history-list";
-import { formatOpenPlayDate } from "@/lib/open-play-time-range";
+import { formatOpenPlayDate, formatOpenPlayScheduleLabel } from "@/lib/open-play-time-range";
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
 import { LiveQueueOffBadge } from "@/components/home/live-queue-off-badge";
@@ -119,6 +120,7 @@ import {
 } from "@/components/game/queue-waiting-line-panel";
 import {
   attachSessionStatsToQueueEntry,
+  buildPlayerLeaderboardRankMap,
   buildPlayerSessionStatsMap,
   type LeaderboardGamesPlayedRow,
 } from "@/lib/games-played-map";
@@ -316,6 +318,9 @@ type QueueCheckedOutListProps = {
   onRemovePlayer?: (entry: QueueEntryView) => void;
   removePlayerPendingId?: string | null;
   allowCheckInAsPlayer?: boolean;
+  onViewPlayerInfo?: (entry: QueueEntryView) => void;
+  showLeaderboardRank?: boolean;
+  leaderboardRankMap?: Map<string, number>;
 };
 
 function QueueCheckedOutList({
@@ -328,6 +333,9 @@ function QueueCheckedOutList({
   onRemovePlayer,
   removePlayerPendingId,
   allowCheckInAsPlayer = true,
+  onViewPlayerInfo,
+  showLeaderboardRank = false,
+  leaderboardRankMap,
 }: QueueCheckedOutListProps) {
   const [showAllCheckedOut, setShowAllCheckedOut] = useState(false);
 
@@ -402,6 +410,11 @@ function QueueCheckedOutList({
                     removePlayerPendingId != null &&
                     queueEntryPlayerId(entry) === removePlayerPendingId
                   }
+                  onViewPlayerInfo={
+                    onViewPlayerInfo ? () => onViewPlayerInfo(entry) : undefined
+                  }
+                  showLeaderboardRank={showLeaderboardRank}
+                  leaderboardRankMap={leaderboardRankMap}
                 />
               ))}
             </div>
@@ -490,6 +503,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const [uiPrefsHydrated, setUiPrefsHydrated] = useState(false);
   const [isLgViewport, setIsLgViewport] = useState<boolean | null>(null);
   const [compactQueue, setCompactQueue] = useState(false);
+  const [spectatorPlayerCardEntry, setSpectatorPlayerCardEntry] = useState<QueueEntryView | null>(
+    null,
+  );
+  const [spectatorPlayerCardOpen, setSpectatorPlayerCardOpen] = useState(false);
   const queuePanelRef = useRef<HTMLDivElement>(null);
   const fillCourtFlowRef = useRef<FillCourtFlowHandle>(null);
   const courtsPanelRef = useRef<HTMLDivElement>(null);
@@ -696,7 +713,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     isSpectator &&
     (spectatorGameStatus === "ended" ||
       showMatchHistory ||
-      mobileDashboardTab === "history");
+      mobileDashboardTab === "history" ||
+      spectatorGameStatus === "active");
 
   const spectatorDetailsQuery = useQuery({
     queryKey: spectatorDetailsQueryKey(gameId),
@@ -1529,6 +1547,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     () => buildPlayerSessionStatsMap(data?.leaderboard),
     [data?.leaderboard],
   );
+  const spectatorLeaderboardRankMap = useMemo(
+    () => buildPlayerLeaderboardRankMap(data?.leaderboard),
+    [data?.leaderboard],
+  );
   const queueWithStats = useMemo(
     () =>
       (data?.queue ?? []).map((entry) =>
@@ -1790,6 +1812,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
   const openPlayDateLabel = formatOpenPlayDate(game.openPlayDate);
   const openPlayTimeLabel = game.openPlayTimeRange?.trim() || null;
+  const openPlayScheduleLabel = formatOpenPlayScheduleLabel(
+    game.openPlayDate,
+    game.openPlayTimeRange,
+  );
   const isPastGame = game.status === "ended";
   const birthdayThisMonthCount = isSpectator
     ? (spectatorLiveQuery.data?.birthdayThisMonthCount ?? 0)
@@ -1862,6 +1888,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     if (result.isConfirmed) resetMutation.mutate();
   };
 
+  const openSpectatorPlayerCard = (entry: QueueEntryView) => {
+    setSpectatorPlayerCardEntry(entry);
+    setSpectatorPlayerCardOpen(true);
+  };
+
   const renderQueueEntryRow = (
     entry: QueueEntryView,
     index: number,
@@ -1923,6 +1954,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             />
           ) : undefined
         }
+        showLeaderboardRank={isSpectator}
+        leaderboardRankMap={spectatorLeaderboardRankMap}
+        onViewPlayerInfo={isSpectator ? () => openSpectatorPlayerCard(entry) : undefined}
       />
     );
   };
@@ -3220,6 +3254,20 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           showReset={!readOnly && canResetGame}
           resetPending={resetMutation.isPending}
           onReset={handleResetGame}
+        />
+      ) : null}
+
+      {isSpectator ? (
+        <SpectatorPlayerCardDialog
+          entry={spectatorPlayerCardEntry}
+          open={spectatorPlayerCardOpen}
+          onOpenChange={setSpectatorPlayerCardOpen}
+          gameTitle={game.title}
+          clubName={spectatorLiveQuery.data?.clubBranding?.clubName ?? null}
+          clubLogoUrl={spectatorLiveQuery.data?.clubBranding?.clubLogoUrl ?? null}
+          clubTagline={spectatorLiveQuery.data?.clubBranding?.clubTagline ?? null}
+          openPlaySchedule={openPlayScheduleLabel}
+          leaderboardRankMap={spectatorLeaderboardRankMap}
         />
       ) : null}
     </main>

@@ -20,6 +20,7 @@ export type PlayerAvatarSeed = {
   _id?: string;
   gender?: string;
   openPlayLevel?: string;
+  pickleballLevel?: string | null;
 };
 
 function hashCode(value: string) {

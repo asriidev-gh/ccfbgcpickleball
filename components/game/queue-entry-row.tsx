@@ -144,6 +144,8 @@ type QueueEntryRowProps = {
   allowCheckInAsPlayer?: boolean;
   showLeaderboardRank?: boolean;
   leaderboardRankMap?: Map<string, number>;
+  /** Spectator queue: open player info card. */
+  onViewPlayerInfo?: () => void;
 };
 
 export function QueueEntryRow({
@@ -170,6 +172,7 @@ export function QueueEntryRow({
   allowCheckInAsPlayer = true,
   showLeaderboardRank = false,
   leaderboardRankMap,
+  onViewPlayerInfo,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const playerMongoId = resolvePlayerId(entry.playerId);
@@ -238,6 +241,7 @@ export function QueueEntryRow({
             <div className={cn("min-w-0", isNextUp ? "text-sm font-medium xl:text-base" : "body-lg")}>
               <PlayerNameWithPhoto
                 player={entry.playerId}
+                onPlayerClick={onViewPlayerInfo}
                 className={cn(
                   isNextUp && "gap-2 xl:gap-3",
                   checkedOut && "opacity-80",

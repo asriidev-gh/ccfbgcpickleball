@@ -163,6 +163,25 @@ export function formatOpenPlayDate(value: string | Date | null | undefined): str
   });
 }
 
+/** e.g. "7PM - 10PM" → "7PM-10PM" */
+export function formatOpenPlayTimeRangeCompact(timeRange: string): string {
+  return timeRange.trim().replace(/\s*-\s*/g, "-");
+}
+
+/** e.g. "Tue, Jun 23, 2026 7PM-10PM" */
+export function formatOpenPlayScheduleLabel(
+  openPlayDate: string | Date | null | undefined,
+  openPlayTimeRange: string | null | undefined,
+): string | null {
+  const dateLabel = formatOpenPlayDate(openPlayDate);
+  const timeLabel = openPlayTimeRange?.trim()
+    ? formatOpenPlayTimeRangeCompact(openPlayTimeRange)
+    : null;
+
+  if (dateLabel && timeLabel) return `${dateLabel} ${timeLabel}`;
+  return dateLabel ?? timeLabel;
+}
+
 export function validateOpenPlayTimeRangeString(
   value: string,
 ): { ok: true } | { ok: false; message: string } {

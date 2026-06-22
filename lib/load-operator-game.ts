@@ -29,7 +29,7 @@ export async function loadOperatorShell(
 ): Promise<OperatorShellPayload | null> {
   const [game, owner] = await Promise.all([
     PickleGame.findOne({ gameId, ownerId }).select(OPERATOR_LIVE_GAME_FIELDS),
-    User.findById(ownerId).select("name clubName clubLogoUrl").lean(),
+    User.findById(ownerId).select("name clubName clubLogoUrl clubTagline").lean(),
   ]);
   if (!game) return null;
 

@@ -33,6 +33,7 @@ type PlayerAvatarProps = {
   player: PlayerPhotoRef;
   size?: "sm" | "default" | "lg";
   className?: string;
+  onClick?: () => void;
 };
 
 const PLAYER_AVATAR_SIZE_CLASS = "size-12 sm:size-14";
@@ -153,10 +154,18 @@ export function PlayerPhotoTrigger({
   );
 }
 
-export function PlayerAvatar({ player, size = "lg", className }: PlayerAvatarProps) {
+export function PlayerAvatar({ player, size = "lg", className, onClick }: PlayerAvatarProps) {
   const [open, setOpen] = useState(false);
   const photoUrl = useMemo(() => resolvePlayerPhotoUrl(player), [player]);
   const displayName = getDisplayName(player);
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+      return;
+    }
+    setOpen(true);
+  };
 
   return (
     <>
@@ -167,12 +176,14 @@ export function PlayerAvatar({ player, size = "lg", className }: PlayerAvatarPro
           "cursor-pointer transition-opacity hover:opacity-90",
           "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         )}
-        aria-label={`View full photo of ${displayName}`}
-        onClick={() => setOpen(true)}
+        aria-label={onClick ? `View info for ${displayName}` : `View full photo of ${displayName}`}
+        onClick={handleClick}
       >
         <PlayerAvatarImage player={player} photoUrl={photoUrl} size={size} className={className} />
       </button>
-      <PlayerPhotoDialog player={player} open={open} onOpenChange={setOpen} />
+      {onClick ? null : (
+        <PlayerPhotoDialog player={player} open={open} onOpenChange={setOpen} />
+      )}
     </>
   );
 }
@@ -182,6 +193,8 @@ type PlayerNameWithPhotoProps = {
   children: ReactNode;
   className?: string;
   nameClassName?: string;
+  /** When set, clicking the name opens this handler instead of profile/photo. */
+  onPlayerClick?: () => void;
 };
 
 export function PlayerNameWithPhoto({
@@ -189,13 +202,29 @@ export function PlayerNameWithPhoto({
   children,
   className,
   nameClassName,
+  onPlayerClick,
 }: PlayerNameWithPhotoProps) {
   return (
     <div className={cn("player-identity flex min-w-0 items-center gap-3", className)}>
-      <PlayerAvatar player={player} />
-      <PlayerProfileTrigger player={player} className={cn("flex-1 truncate", nameClassName)}>
-        <span className="min-w-0 truncate">{children}</span>
-      </PlayerProfileTrigger>
+      <PlayerAvatar player={player} onClick={onPlayerClick} />
+      {onPlayerClick ? (
+        <button
+          type="button"
+          className={cn(
+            "min-w-0 max-w-full flex-1 cursor-pointer truncate rounded text-left outline-none",
+            "transition-opacity hover:opacity-90",
+            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            nameClassName,
+          )}
+          onClick={onPlayerClick}
+        >
+          <span className="min-w-0 truncate">{children}</span>
+        </button>
+      ) : (
+        <PlayerProfileTrigger player={player} className={cn("flex-1 truncate", nameClassName)}>
+          <span className="min-w-0 truncate">{children}</span>
+        </PlayerProfileTrigger>
+      )}
     </div>
   );
 }
