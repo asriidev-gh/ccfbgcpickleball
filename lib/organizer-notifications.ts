@@ -6,7 +6,7 @@ const NOTIFICATION_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 export type OrganizerNotificationRecord = {
   id: string;
-  kind: "checkin_attempt" | "player_registered" | "player_checkout";
+  kind: "checkin_attempt" | "player_registered" | "player_checkout" | "player_card_shared";
   playerName: string;
   occurredAt: string;
 };
@@ -76,6 +76,24 @@ export async function recordPlayerRegisteredNotification(input: {
   });
 }
 
+export async function recordPlayerCardSharedNotification(input: {
+  gameId: string;
+  playerId: string;
+  playerName: string;
+  queueEntryId: string;
+}) {
+  await connectToDatabase();
+
+  return OrganizerNotification.create({
+    gameId: input.gameId,
+    kind: "player_card_shared",
+    playerId: input.playerId,
+    playerName: input.playerName.trim(),
+    referenceId: input.queueEntryId,
+    occurredAt: new Date(),
+  });
+}
+
 export async function listRecentOrganizerNotifications(
   gameId: string,
 ): Promise<OrganizerNotificationRecord[]> {
@@ -94,9 +112,11 @@ export async function listRecentOrganizerNotifications(
     id:
       row.kind === "player_checkout" && row.referenceId
         ? String(row.referenceId)
-        : row.kind === "player_registered"
-          ? `player-registered:${String(row._id)}`
-          : `checkin-attempt:${String(row._id)}`,
+        : row.kind === "player_card_shared"
+          ? `player-card-shared:${String(row._id)}`
+          : row.kind === "player_registered"
+            ? `player-registered:${String(row._id)}`
+            : `checkin-attempt:${String(row._id)}`,
     kind: row.kind as OrganizerNotificationRecord["kind"],
     playerName: row.playerName,
     occurredAt: row.occurredAt.toISOString(),

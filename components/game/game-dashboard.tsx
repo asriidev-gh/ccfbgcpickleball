@@ -321,6 +321,7 @@ type QueueCheckedOutListProps = {
   onViewPlayerInfo?: (entry: QueueEntryView) => void;
   showLeaderboardRank?: boolean;
   leaderboardRankMap?: Map<string, number>;
+  showCardSharedStatus?: boolean;
 };
 
 function QueueCheckedOutList({
@@ -336,6 +337,7 @@ function QueueCheckedOutList({
   onViewPlayerInfo,
   showLeaderboardRank = false,
   leaderboardRankMap,
+  showCardSharedStatus = false,
 }: QueueCheckedOutListProps) {
   const [showAllCheckedOut, setShowAllCheckedOut] = useState(false);
 
@@ -415,6 +417,7 @@ function QueueCheckedOutList({
                   }
                   showLeaderboardRank={showLeaderboardRank}
                   leaderboardRankMap={leaderboardRankMap}
+                  showCardSharedStatus={showCardSharedStatus}
                 />
               ))}
             </div>
@@ -1957,6 +1960,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         showLeaderboardRank={isSpectator}
         leaderboardRankMap={spectatorLeaderboardRankMap}
         onViewPlayerInfo={isSpectator ? () => openSpectatorPlayerCard(entry) : undefined}
+        showCardSharedStatus={!isSpectator && !hideControls}
       />
     );
   };
@@ -2285,6 +2289,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                     ? (removePlayerFromGameMutation.variables?.playerId ?? null)
                     : null
                 }
+                showCardSharedStatus={!isSpectator}
               />
             ) : null}
           </>
@@ -3259,6 +3264,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
       {isSpectator ? (
         <SpectatorPlayerCardDialog
+          gameId={gameId}
           entry={spectatorPlayerCardEntry}
           open={spectatorPlayerCardOpen}
           onOpenChange={setSpectatorPlayerCardOpen}

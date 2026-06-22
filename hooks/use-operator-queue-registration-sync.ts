@@ -32,7 +32,10 @@ export function useOperatorQueueRegistrationSync(input: {
     if (!input.enabled || !notificationsQuery.data?.notifications) return;
 
     const queueRefreshEvents = notificationsQuery.data.notifications.filter(
-      (item) => item.kind === "player_registered" || item.kind === "player_checkout",
+      (item) =>
+        item.kind === "player_registered" ||
+        item.kind === "player_checkout" ||
+        item.kind === "player_card_shared",
     );
 
     if (!initializedRef.current) {

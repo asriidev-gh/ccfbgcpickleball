@@ -1,6 +1,6 @@
 export type OrganizerNotificationItem = {
   id: string;
-  kind: "checkin_attempt" | "player_registered" | "player_checkout";
+  kind: "checkin_attempt" | "player_registered" | "player_checkout" | "player_card_shared";
   playerName: string;
   occurredAt: string;
 };

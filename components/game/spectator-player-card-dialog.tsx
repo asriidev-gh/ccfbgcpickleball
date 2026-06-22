@@ -29,10 +29,12 @@ import {
   type SpectatorPlayerCardPlayer,
 } from "@/lib/spectator-player-card-shared";
 import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
+import { trackSpectatorPlayerCardShare } from "@/lib/fetch-spectate-player-card-share";
 import { getShareCardSiteLabel } from "@/lib/share-card-site-label";
 import { formatPlayerDisplayName } from "@/lib/utils";
 
 type SpectatorPlayerCardDialogProps = {
+  gameId: string;
   entry: QueueEntryView | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -54,6 +56,7 @@ function slugifyFilename(value: string) {
 }
 
 export function SpectatorPlayerCardDialog({
+  gameId,
   entry,
   open,
   onOpenChange,
@@ -96,6 +99,11 @@ export function SpectatorPlayerCardDialog({
       toast.success(
         result === "shared" ? "Player card shared." : "Player card downloaded.",
       );
+      if (entry._id && gameId) {
+        void trackSpectatorPlayerCardShare(gameId, entry._id).catch(() => {
+          // Share already succeeded; tracking is best-effort for organizers.
+        });
+      }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       toast.error(

@@ -1,4 +1,4 @@
-import { Trophy } from "lucide-react";
+import { Trophy, Share2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
@@ -30,6 +30,8 @@ export type QueueEntryView = {
   losses?: number;
   /** First ended-session record with this club owner before this open play. */
   isFirstTimer?: boolean;
+  /** Set when a spectator shared this player's stats card. */
+  cardSharedAt?: string;
 };
 
 function NextOnCourtLabel() {
@@ -45,6 +47,22 @@ function formatLastMatchResult(result: QueueEntryView["lastMatchResult"]) {
   if (result === "win") return "Win";
   if (result === "loss") return "Loss";
   return "None";
+}
+
+function SharedStatusBadge({ className }: { className?: string }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "whitespace-nowrap border-sky-500/40 bg-sky-500/10 text-sky-800 dark:text-sky-200",
+        className,
+      )}
+      aria-label="Player card shared by spectator"
+    >
+      <Share2 className="mr-1 size-3 shrink-0" aria-hidden />
+      Shared
+    </Badge>
+  );
 }
 
 function UndefeatedBadge({ className }: { className?: string }) {
@@ -146,6 +164,8 @@ type QueueEntryRowProps = {
   leaderboardRankMap?: Map<string, number>;
   /** Spectator queue: open player info card. */
   onViewPlayerInfo?: () => void;
+  /** Organizer queue: show when a spectator shared this player's card. */
+  showCardSharedStatus?: boolean;
 };
 
 export function QueueEntryRow({
@@ -173,6 +193,7 @@ export function QueueEntryRow({
   showLeaderboardRank = false,
   leaderboardRankMap,
   onViewPlayerInfo,
+  showCardSharedStatus = false,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const playerMongoId = resolvePlayerId(entry.playerId);
@@ -194,6 +215,7 @@ export function QueueEntryRow({
     ? formatSessionRecordWithRankLabel(sessionStats, leaderboardRank)
     : formatSessionRecordLabel(sessionStats);
   const showUndefeated = isSessionUndefeated(sessionStats);
+  const showSharedStatus = showCardSharedStatus && Boolean(entry.cardSharedAt);
   const rowClass = checkedOut
     ? "queue-checked-out"
     : isNextUp
@@ -268,20 +290,27 @@ export function QueueEntryRow({
                 showLeaderboardRank={showLeaderboardRank}
                 className="xl:hidden"
               />
+              {showSharedStatus ? <SharedStatusBadge className="xl:hidden" /> : null}
               <div className="hidden items-center gap-1.5 xl:flex">
+                {showSharedStatus ? <SharedStatusBadge /> : null}
                 {showUndefeated ? <UndefeatedBadge /> : null}
                 <Badge className="badge-next-up" aria-label="Next on court">
                   <NextOnCourtLabel />
                 </Badge>
               </div>
             </>
-          ) : hideSessionStats ? null : (
-            <QueueSessionStatsBadges
-              wins={sessionStats.wins}
-              losses={sessionStats.losses}
-              rank={leaderboardRank}
-              showLeaderboardRank={showLeaderboardRank}
-            />
+          ) : hideSessionStats ? (
+            showSharedStatus ? <SharedStatusBadge /> : null
+          ) : (
+            <div className="flex flex-wrap items-center justify-end gap-1">
+              {showSharedStatus ? <SharedStatusBadge /> : null}
+              <QueueSessionStatsBadges
+                wins={sessionStats.wins}
+                losses={sessionStats.losses}
+                rank={leaderboardRank}
+                showLeaderboardRank={showLeaderboardRank}
+              />
+            </div>
           )}
         </div>
       </div>

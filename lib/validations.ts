@@ -1241,3 +1241,7 @@ export const spectatePlayerAnnouncementsReadSchema = z.object({
   playerId: z.string().min(1, "Player session is required."),
   announcementIds: z.array(z.string().min(1)).default([]),
 });
+
+export const spectatePlayerCardShareSchema = z.object({
+  queueEntryId: z.string().min(1, "Queue entry is required."),
+});

@@ -61,14 +61,26 @@ export function annotateQueueEntriesFirstTimer<T extends { playerId?: unknown }>
 type QueueEntryDoc = {
   toObject?: () => Record<string, unknown>;
   playerId?: unknown;
+  cardSharedAt?: Date | string | null;
 };
+
+function serializeCardSharedAt(value: Date | string | null | undefined) {
+  if (!value) return undefined;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString();
+}
 
 export function serializeQueueEntriesForPayload<T extends QueueEntryDoc>(
   entries: T[],
   firstTimerIdentityKeys: Set<string>,
 ) {
   return entries.map((entry) => {
-    const plain = (entry.toObject?.() ?? entry) as T;
-    return annotateQueueEntryFirstTimer(plain, firstTimerIdentityKeys);
+    const plain = (entry.toObject?.() ?? entry) as T & QueueEntryDoc;
+    const annotated = annotateQueueEntryFirstTimer(plain, firstTimerIdentityKeys);
+    return {
+      ...annotated,
+      cardSharedAt: serializeCardSharedAt(plain.cardSharedAt),
+    };
   });
 }

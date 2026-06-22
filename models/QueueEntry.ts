@@ -21,6 +21,8 @@ const queueEntrySchema = new Schema(
     registeredAt: { type: Date, required: true, default: () => new Date() },
     winStreak: { type: Number, default: 0 },
     lastMatchResult: { type: String, enum: ["win", "loss", "none"], default: "none" },
+    /** Set when a spectator shares this player's stats card. */
+    cardSharedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
