@@ -77,7 +77,7 @@ import {
   MAX_MATCH_SCORE,
 } from "@/lib/match-score-validation";
 import { validateOpenPlayTimeRangeString } from "@/lib/open-play-time-range";
-import { OPEN_PLAY_TYPES } from "@/lib/open-play-types";
+import { OPEN_PLAY_TYPES, PLAYER_OPEN_PLAY_LEVELS } from "@/lib/open-play-types";
 
 const openPlayTypeSchema = z.enum(OPEN_PLAY_TYPES);
 
@@ -172,7 +172,7 @@ export const addManualGamePlayerSchema = z.object({
   gender: z.enum(["male", "female"], {
     message: "Select a gender.",
   }),
-  openPlayLevel: z.enum(["Beginner", "Intermediate", "Advanced"]).optional(),
+  openPlayLevel: z.enum(PLAYER_OPEN_PLAY_LEVELS).optional(),
 });
 
 export const generateDemoOpenPlaySchema = z
@@ -397,6 +397,7 @@ const profileGenderSchema = z.enum(["male", "female", "prefer_not_to_say", ""]);
 const profilePickleballLevelSchema = z.enum([
   "beginner",
   "low_intermediate",
+  "intermediate",
   "high_intermediate",
   "advanced",
   "pro",

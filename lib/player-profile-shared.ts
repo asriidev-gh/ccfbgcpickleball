@@ -3,6 +3,7 @@ import { CCF_ATTENDED_NOT_YET } from "@/lib/ccf-registration";
 export const PICKLEBALL_LEVELS = [
   { value: "beginner", label: "Beginner" },
   { value: "low_intermediate", label: "Low intermediate" },
+  { value: "intermediate", label: "Intermediate" },
   { value: "high_intermediate", label: "High intermediate" },
   { value: "advanced", label: "Advanced" },
   { value: "pro", label: "Pro" },

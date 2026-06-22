@@ -39,7 +39,7 @@ const playerSchema = new Schema(
     biography: { type: String, trim: true, maxlength: 500, default: "" },
     pickleballLevel: {
       type: String,
-      enum: ["beginner", "low_intermediate", "high_intermediate", "advanced", "pro", ""],
+      enum: ["beginner", "low_intermediate", "intermediate", "high_intermediate", "advanced", "pro", ""],
       default: "",
     },
   },
