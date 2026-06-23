@@ -9,6 +9,17 @@ import type { LeaderboardGamesPlayedRow } from "@/lib/games-played-map";
 import type { OperatorFullPayload } from "@/lib/operator-payload";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
 import { shouldUseRotationRequeue } from "@/lib/rotation-requeue-shared";
+import {
+  appendDoublesRequeueEntries,
+  buildDoublesWinnerLoserRequeueEntries,
+  canPickDoublesCourtFoursome,
+  DOUBLES_PLAYERS_PER_COURT,
+  isDoublesWinnerLoserRotation,
+  pickDoublesCourtFoursome,
+  rebuildDoublesQueueOrder,
+  removeQueueEntriesById,
+  resolveDoublesRotationQueue,
+} from "@/lib/doubles/doubles-queue-fill";
 
 export type GamePayload = OperatorFullPayload;
 
@@ -192,19 +203,21 @@ export function applyFillNextCourtOptimistic(
   payload: GamePayload,
   courtNumber: number,
 ): GamePayload | null {
-  if (payload.queue.length < 4) return null;
+  const queue = resolveDoublesRotationQueue(payload.queue, payload.game.matchingType);
+  const nextFour = queue.slice(0, DOUBLES_PLAYERS_PER_COURT);
+  if (nextFour.length < DOUBLES_PLAYERS_PER_COURT) return null;
 
   const emptyCourt = payload.courts.find(
     (court) => court.courtNumber === courtNumber && court.status === "empty",
   );
   if (!emptyCourt) return null;
 
-  const nextFour = payload.queue.slice(0, 4);
+  const pickedIds = new Set(nextFour.map((entry) => entry._id));
   const startedAt = new Date().toISOString();
 
   return {
     ...payload,
-    queue: payload.queue.slice(4),
+    queue: removeQueueEntriesById(queue, pickedIds),
     courts: payload.courts.map((court) =>
       court.courtNumber === emptyCourt.courtNumber
         ? {
@@ -251,6 +264,35 @@ export function applyEndGameOptimistic(
   if (teamA.length + teamB.length < 4) return null;
 
   const baseTime = Date.now();
+
+  if (isDoublesWinnerLoserRotation(payload.game.matchingType)) {
+    const requeueEntries = buildDoublesWinnerLoserRequeueEntries(
+      teamA,
+      teamB,
+      input.winnerTeam,
+      baseTime,
+    );
+    const nextQueue = appendDoublesRequeueEntries(payload.queue, requeueEntries);
+
+    return {
+      ...payload,
+      queue: nextQueue,
+      courts: payload.courts.map((c) =>
+        c.courtNumber === input.courtNumber
+          ? {
+              ...c,
+              status: "empty",
+              startedAt: null,
+              pausedAt: null,
+              totalPausedMs: 0,
+              isRematch: false,
+              teamA: { playerIds: [] },
+              teamB: { playerIds: [] },
+            }
+          : c,
+      ),
+    };
+  }
 
   if (
     shouldUseRotationRequeuePayload(payload) &&
@@ -676,9 +718,13 @@ export function applyCancelCourtAssignmentOptimistic(
     lastMatchResult: "none",
   }));
 
+  const nextQueue = isDoublesWinnerLoserRotation(payload.game.matchingType)
+    ? rebuildDoublesQueueOrder([...requeuedEntries, ...payload.queue])
+    : [...requeuedEntries, ...payload.queue];
+
   return {
     ...payload,
-    queue: [...requeuedEntries, ...payload.queue],
+    queue: nextQueue,
     courts: payload.courts.map((item) =>
       item.courtNumber === courtNumber
         ? {
@@ -744,19 +790,35 @@ export function applyCancelRematchOptimistic(
 }
 
 export function applyShuffleNextOptimistic(payload: GamePayload): GamePayload | null {
-  if (payload.queue.length < 4) return null;
+  const ordered = resolveDoublesRotationQueue(payload.queue, payload.game.matchingType);
+  const nextUp = ordered.slice(0, DOUBLES_PLAYERS_PER_COURT);
+  if (nextUp.length < DOUBLES_PLAYERS_PER_COURT) return null;
 
-  const nextUp = payload.queue.slice(0, 4);
-  const rest = payload.queue.slice(4);
+  const pickedIds = new Set(nextUp.map((entry) => entry._id));
+  const insertAt = ordered.findIndex((entry) => pickedIds.has(entry._id));
+  const without = ordered.filter((entry) => !pickedIds.has(entry._id));
   const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp);
 
   const baseTime = new Date(nextUp[0].registeredAt).getTime();
-  const reordered = [...firstHalf, ...secondHalf, ...rest].map((entry, index) => ({
+  const shuffled = [...firstHalf, ...secondHalf].map((entry, index) => ({
     ...entry,
     registeredAt: new Date(baseTime + index * 1000).toISOString(),
   }));
 
-  return { ...payload, queue: reordered };
+  return {
+    ...payload,
+    queue: [...without.slice(0, insertAt), ...shuffled, ...without.slice(insertAt)],
+  };
+}
+
+export function canFillDoublesCourt(
+  payload: GamePayload,
+  court: CourtView,
+): boolean {
+  return (
+    court.status === "empty" &&
+    canPickDoublesCourtFoursome(payload.queue, payload.game.matchingType)
+  );
 }
 
 export function applySwapCourtTeamsOptimistic(

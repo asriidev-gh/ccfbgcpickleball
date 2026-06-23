@@ -32,6 +32,11 @@ import {
 } from "@/lib/games-played-map";
 import { operatorPayloadToCourtsViewSession } from "@/lib/local-courts-view";
 import { getQuickGameDashboardPath, isQuickGame } from "@/lib/local-game-id";
+import {
+  DOUBLES_PLAYERS_PER_COURT,
+  isDoublesWinnerLoserRotation,
+  pickDoublesCourtFoursome,
+} from "@/lib/doubles/doubles-queue-fill";
 import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
 import { useQuickGameSession } from "@/lib/quick-game-store";
@@ -107,7 +112,24 @@ export function OwnerSessionCourtsSection({
     [session.queue, playerSessionStats],
   );
 
-  const waitingLineEntries = useMemo(() => queueWithStats.slice(4), [queueWithStats]);
+  const matchingType = localPayload?.game.matchingType ?? session.matchingType;
+  const usesWinnerLoserRotation = isDoublesWinnerLoserRotation(matchingType);
+
+  const nextCourtFoursome = useMemo(() => {
+    const foursome = pickDoublesCourtFoursome(session.queue, matchingType) ?? [];
+    const byId = new Map(queueWithStats.map((entry) => [entry._id, entry]));
+    return foursome
+      .map((entry) => byId.get(entry._id))
+      .filter((entry): entry is (typeof queueWithStats)[number] => entry != null);
+  }, [matchingType, queueWithStats, session.queue]);
+
+  const waitingLineEntries = useMemo(() => {
+    if (usesWinnerLoserRotation) {
+      const nextIds = new Set(nextCourtFoursome.map((entry) => entry._id));
+      return queueWithStats.filter((entry) => !nextIds.has(entry._id));
+    }
+    return queueWithStats.slice(DOUBLES_PLAYERS_PER_COURT);
+  }, [nextCourtFoursome, queueWithStats, usesWinnerLoserRotation]);
 
   const emptyCourtNumbers = useMemo(
     () =>
@@ -118,9 +140,11 @@ export function OwnerSessionCourtsSection({
     [session.courts],
   );
 
-  const canFillNextCourt = queueWithStats.length >= 4 && emptyCourtNumbers.length > 0;
-  const fillCourtTeamA = queueWithStats.slice(0, 2);
-  const fillCourtTeamB = queueWithStats.slice(2, 4);
+  const canFillNextCourt =
+    pickDoublesCourtFoursome(session.queue, matchingType) != null &&
+    emptyCourtNumbers.length > 0;
+  const fillCourtTeamA = nextCourtFoursome.slice(0, 2);
+  const fillCourtTeamB = nextCourtFoursome.slice(2, 4);
 
   const courtActions = useOperatorCourtActions({
     gameId: session.gameId,
@@ -143,8 +167,9 @@ export function OwnerSessionCourtsSection({
     () => ({
       queuedCount: queueWithStats.length,
       waitingLineCount: waitingLineEntries.length,
+      canFillFromQueue: pickDoublesCourtFoursome(session.queue, matchingType) != null,
     }),
-    [queueWithStats.length, waitingLineEntries.length],
+    [matchingType, queueWithStats.length, session.queue, waitingLineEntries.length],
   );
 
   const getCourtCardProps = useCallback(

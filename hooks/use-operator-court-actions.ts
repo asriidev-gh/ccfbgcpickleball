@@ -480,7 +480,7 @@ export function useOperatorCourtActions({
   const getCourtCardProps = useCallback(
     (
       court: CourtView,
-      queueCounts: { queuedCount: number; waitingLineCount: number },
+      queueCounts: { queuedCount: number; waitingLineCount: number; canFillFromQueue?: boolean },
       onFillCourt: (courtNumber: number) => void,
     ) => {
       if (!enabled) {
@@ -557,7 +557,7 @@ export function useOperatorCourtActions({
           court.status === "empty" &&
           !clearingCourtNumbers.has(court.courtNumber) &&
           emptyCourtNumbers.includes(court.courtNumber) &&
-          queueCounts.queuedCount >= 4,
+          (queueCounts.canFillFromQueue ?? queueCounts.queuedCount >= 4),
         fillCourtPending: startMutation.isPending && startMutation.variables === court.courtNumber,
       };
     },

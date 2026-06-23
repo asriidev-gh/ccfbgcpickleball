@@ -278,6 +278,7 @@ export function EditQuickGameDialog({
             courtCount,
             allowQrRegistration: false,
             allowManualPlayerAdd,
+            allowManualCourtAdd: payload.game.allowManualCourtAdd === true,
             players,
             checkInAllPlayers,
           })
@@ -291,6 +292,7 @@ export function EditQuickGameDialog({
             venueGoogleMapEmbedUrl: trimmedVenueMapEmbedUrl,
             courtCount: payload.game.courtCount,
             allowManualPlayerAdd,
+            allowManualCourtAdd: payload.game.allowManualCourtAdd === true,
           });
 
       writeQuickGamePayload(gameId, nextPayload);

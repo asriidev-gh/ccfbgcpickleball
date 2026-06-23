@@ -87,6 +87,7 @@ export function QuickPlaySetup() {
   ]);
   const [defaultCheckInAllPlayers, setDefaultCheckInAllPlayers] = useState(true);
   const [allowManualPlayerAdd, setAllowManualPlayerAdd] = useState(false);
+  const [allowManualCourtAdd, setAllowManualCourtAdd] = useState(false);
   const [form, setForm] = useState<QuickPlayWizardFormFields>(createInitialForm);
 
   useEffect(() => {
@@ -96,6 +97,7 @@ export function QuickPlaySetup() {
     setPlayerEntries([createQuickPlayWizardPlayerEntry(1, DEFAULT_PLAYER_OPEN_PLAY_LEVEL)]);
     setDefaultCheckInAllPlayers(true);
     setAllowManualPlayerAdd(false);
+    setAllowManualCourtAdd(false);
     setForm(createInitialForm());
   }, [pathname]);
 
@@ -234,6 +236,7 @@ export function QuickPlaySetup() {
         expectedPlayers: playersForSubmit.length,
         allowQrRegistration: false,
         allowManualPlayerAdd,
+        allowManualCourtAdd,
         players: playersForSubmit,
         checkInAllPlayers: defaultCheckInAllPlayers,
         gameMode: form.gameMode,
@@ -322,6 +325,8 @@ export function QuickPlaySetup() {
           setDefaultCheckInAllPlayers={setDefaultCheckInAllPlayers}
           allowManualPlayerAdd={allowManualPlayerAdd}
           setAllowManualPlayerAdd={setAllowManualPlayerAdd}
+          allowManualCourtAdd={allowManualCourtAdd}
+          setAllowManualCourtAdd={setAllowManualCourtAdd}
           canAddMorePlayers={canAddMorePlayers}
         />
       ) : null}
@@ -333,6 +338,7 @@ export function QuickPlaySetup() {
           filledPlayers={playersForSubmit}
           defaultCheckInAllPlayers={defaultCheckInAllPlayers}
           allowManualPlayerAdd={allowManualPlayerAdd}
+          allowManualCourtAdd={allowManualCourtAdd}
           onEditStep={setStep}
           footerNote={BROWSER_ONLY_PREVIEW_NOTE}
         />

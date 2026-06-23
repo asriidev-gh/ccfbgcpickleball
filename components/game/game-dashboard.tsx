@@ -42,6 +42,7 @@ import {
   applyEndOpenPlayOptimistic,
   applyFillNextCourtOptimistic,
   applyQueueReorderOptimistic,
+  applyQueueSwapByIndexOptimistic,
   applyQueueSwapOptimistic,
   applyRemovePlayerOptimistic,
   applyShuffleNextOptimistic,
@@ -69,6 +70,15 @@ import {
   saveQuickGameSession,
 } from "@/lib/quick-game-persistence-client";
 import { readQuickGamePayload } from "@/lib/quick-game-store";
+import { addLocalCourt } from "@/lib/local-game-session";
+import { MAX_QUICK_PLAY_COURTS } from "@/lib/quick-play-wizard-shared";
+import {
+  DOUBLES_PLAYERS_PER_COURT,
+  isDoublesWinnerLoserRotation,
+  pickDoublesCourtFoursome,
+  resolveDoublesRotationQueue,
+  segmentDoublesQueueDisplay,
+} from "@/lib/doubles/doubles-queue-fill";
 import {
   beginEphemeralQuickGameSaveToAccount,
   promptSaveEphemeralQuickGame,
@@ -88,6 +98,7 @@ import { SpectatorPlayerEndorseButton, SpectatorPlayerEndorsementsCountButton } 
 import { SpectatePlayerEndorseDialog } from "@/components/player/spectate-player-endorse-dialog";
 import { SpectatePlayerEndorsementsListDialog } from "@/components/player/spectate-player-endorsements-list-dialog";
 import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
+import { AddCourtButton } from "@/components/game/add-court-button";
 import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
 import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
@@ -1251,6 +1262,30 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     },
   });
 
+  const addCourtMutation = useMutation({
+    mutationFn: async () => {
+      if (!isQuickGameSession) throw new Error("Court add is only available in quick play sessions.");
+      return { message: "Court added." };
+    },
+    onMutate: async () => {
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+      const optimistic = addLocalCourt(previous, MAX_QUICK_PLAY_COURTS);
+      if (!optimistic) return { previous };
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      return { previous };
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message);
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
+      toastOperationError(error, "Failed to add court.");
+    },
+  });
+
   const replaceMutation = useMutation({
     mutationFn: async (input: ReplaceQueueMutationInput) => {
       if (isQuickGameSession) return { message: "Queue player replaced." };
@@ -1269,7 +1304,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
-      const optimistic = applyQueueSwapOptimistic(previous, variables);
+      const optimistic = usesWinnerLoserRotation
+        ? applyQueueSwapByIndexOptimistic(
+            previous,
+            variables.sourceIndex,
+            variables.targetIndex,
+          )
+        : applyQueueSwapOptimistic(previous, variables);
       if (!optimistic) return { previous };
 
       writeOperatorGamePayload(queryClient, gameId, optimistic);
@@ -1586,7 +1627,61 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       ]),
     [data?.leaderboard, queueWithStats, checkedOutWithStats],
   );
-  const waitingLineEntries = useMemo(() => queueWithStats.slice(4), [queueWithStats]);
+  const matchingType = data?.game?.matchingType;
+  const usesWinnerLoserRotation = isDoublesWinnerLoserRotation(matchingType);
+  const rotationQueue = useMemo(
+    () =>
+      usesWinnerLoserRotation && data?.queue
+        ? resolveDoublesRotationQueue(data.queue, matchingType)
+        : (data?.queue ?? []),
+    [data?.queue, matchingType, usesWinnerLoserRotation],
+  );
+  const nextCourtFoursome = useMemo(() => {
+    if (!data?.queue) return null;
+    const foursome = pickDoublesCourtFoursome(data.queue, matchingType);
+    if (!foursome) return null;
+    const byId = new Map(queueWithStats.map((entry) => [entry._id, entry]));
+    return foursome
+      .map((entry) => byId.get(entry._id))
+      .filter((entry): entry is (typeof queueWithStats)[number] => entry != null);
+  }, [data?.queue, matchingType, queueWithStats]);
+  const nextCourtFoursomeIds = useMemo(
+    () => new Set(nextCourtFoursome?.map((entry) => entry._id) ?? []),
+    [nextCourtFoursome],
+  );
+  const rotationQueueSegments = useMemo(() => {
+    if (!usesWinnerLoserRotation) return null;
+    const orderedWithStats = rotationQueue
+      .map((entry) => queueWithStats.find((row) => row._id === entry._id))
+      .filter((entry): entry is (typeof queueWithStats)[number] => entry != null);
+    return segmentDoublesQueueDisplay(orderedWithStats, nextCourtFoursomeIds);
+  }, [nextCourtFoursomeIds, queueWithStats, rotationQueue, usesWinnerLoserRotation]);
+  const queueDisplayEntries = useMemo(() => {
+    if (!usesWinnerLoserRotation || !rotationQueueSegments) {
+      return queueWithStats;
+    }
+    return [
+      ...(nextCourtFoursome ?? []),
+      ...rotationQueueSegments.normalWaiting,
+      ...rotationQueueSegments.winners,
+      ...rotationQueueSegments.losers,
+    ];
+  }, [nextCourtFoursome, queueWithStats, rotationQueueSegments, usesWinnerLoserRotation]);
+  const queueDisplayEntryIds = useMemo(
+    () => queueDisplayEntries.map((entry) => entry._id),
+    [queueDisplayEntries],
+  );
+  const queueIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    rotationQueue.forEach((entry, index) => map.set(entry._id, index));
+    return map;
+  }, [rotationQueue]);
+  const waitingLineEntries = useMemo(() => {
+    if (usesWinnerLoserRotation) {
+      return queueWithStats.filter((entry) => !nextCourtFoursomeIds.has(entry._id));
+    }
+    return queueWithStats.slice(DOUBLES_PLAYERS_PER_COURT);
+  }, [queueWithStats, usesWinnerLoserRotation, nextCourtFoursomeIds]);
 
   /** Re-read on every queue update so highlight never drops after refetch or reorder. */
   const selfHighlightPlayerId = useMemo(
@@ -1884,7 +1979,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     (!isQuickGameSession && operatorLeasePending) ||
     (!isQuickGameSession && !hasDashboardLease) ||
     operatorQueueLoading;
-  const canReorderQueue = !hideControls && queueWithStats.length >= 2;
+  const canReorderQueue = !hideControls && queueDisplayEntries.length >= 2;
   const queueEntryIds = queueWithStats.map((entry) => entry._id);
   const canCheckoutFromQueue = !isPastGame;
   const showOperatorMobileNav = !showSpectatorEndedRecap && !isSpectator;
@@ -1895,6 +1990,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     !isPastGame &&
     game.registrationMode === "owner" &&
     game.allowManualPlayerAdd === true;
+  const showManualCourtAdd =
+    !readOnly &&
+    !isPastGame &&
+    isQuickGameSession &&
+    (game.registrationMode === "owner" || game.registrationMode == null) &&
+    game.allowManualCourtAdd === true;
+  const canAddMoreCourts = courts.length < MAX_QUICK_PLAY_COURTS;
   const resolvedQrDialogData =
     qrDialogData ??
     (game.registerUrl && game.publicQrCodeDataUrl
@@ -2012,7 +2114,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     drag?: QueueDragHandleProps,
     options?: { compactName?: boolean; hideSessionStats?: boolean },
   ) => {
-    const isNextUp = index < 4;
+    const isNextUp = nextCourtFoursomeIds.has(entry._id);
+    const queueIndex = queueIndexById.get(entry._id) ?? index;
     return (
       <QueueEntryRow
         entry={entry}
@@ -2028,14 +2131,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             : () =>
                 setReplaceDialog({
                   kind: "queue",
-                  sourceIndex: index,
+                  sourceIndex: usesWinnerLoserRotation ? queueIndex : index,
                   sourceEntry: entry,
                 })
         }
         replacePending={
           !hideControls &&
           replaceMutation.isPending &&
-          replaceMutation.variables?.sourceIndex === index
+          replaceMutation.variables?.sourceIndex ===
+            (usesWinnerLoserRotation ? queueIndex : index)
         }
         hideReplacePanel={hideControls}
         onRemove={canRemoveEntry(entry) ? () => confirmRemoveFromQueue(entry) : undefined}
@@ -2095,7 +2199,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   };
 
   const sortableQueueEntryIds =
-    waitingLineView === "list" ? queueEntryIds : queueEntryIds.slice(0, 4);
+    waitingLineView === "list"
+      ? usesWinnerLoserRotation
+        ? queueDisplayEntryIds
+        : queueEntryIds
+      : usesWinnerLoserRotation
+        ? queueDisplayEntryIds
+        : queueEntryIds.slice(0, DOUBLES_PLAYERS_PER_COURT);
   const canSelfCheckoutEntry = (entry: QueueEntryView) =>
     selfPlayerIds.includes(queueEntryPlayerId(entry));
   const canRemoveEntry = (entry: QueueEntryView) => {
@@ -2126,9 +2236,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const nextEmptyCourt = fillableEmptyCourts[0] ?? null;
   const emptyCourtNumbers = fillableEmptyCourts.map((court) => court.courtNumber);
   const courtsClearingInProgress = clearingCourtNumbers.size > 0;
-  const canFillNextCourt = queueWithStats.length >= 4 && nextEmptyCourt != null;
-  const fillCourtTeamA = queueWithStats.slice(0, 2);
-  const fillCourtTeamB = queueWithStats.slice(2, 4);
+  const canFillNextCourt =
+    pickDoublesCourtFoursome(data.queue, game.matchingType) != null && nextEmptyCourt != null;
+  const fillCourtTeamA = (nextCourtFoursome ?? queueWithStats.slice(0, 2)).slice(0, 2);
+  const fillCourtTeamB = (nextCourtFoursome ?? queueWithStats.slice(0, 4)).slice(2, 4);
   const fillingCourtNumber =
     startMutation.isPending && startMutation.variables != null ? startMutation.variables : null;
   const endCourt =
@@ -2291,24 +2402,68 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                           <span className="hidden xl:inline">Next on court</span>
                         </p>
                         <p className="caption hidden xl:block">
-                          Top {Math.min(4, queueWithStats.length)}{" "}
-                          {Math.min(4, queueWithStats.length) === 1 ? "player" : "players"} — ready to
-                          play
+                          {usesWinnerLoserRotation
+                            ? "Next four in queue order — complete bracket foursomes move to the end of the main line"
+                            : `Top ${Math.min(DOUBLES_PLAYERS_PER_COURT, queueWithStats.length)} ${
+                                Math.min(DOUBLES_PLAYERS_PER_COURT, queueWithStats.length) === 1
+                                  ? "player"
+                                  : "players"
+                              } — ready to play`}
                           {canReorderQueue ? " · drag to reorder" : ""}
                         </p>
                       </div>
                     </div>
                     <Badge className="badge-next-up-count shrink-0">
-                      {Math.min(4, queueWithStats.length)} / 4
+                      {nextCourtFoursome?.length ?? 0} / {DOUBLES_PLAYERS_PER_COURT}
                     </Badge>
                   </div>
                   <div className="queue-next-up-slots">
-                    {queueWithStats.slice(0, 4).map((entry, index) =>
-                      renderQueuedEntry(entry, index, { compactName: compactQueue }),
+                    {(nextCourtFoursome ?? queueWithStats.slice(0, DOUBLES_PLAYERS_PER_COURT)).map(
+                      (entry, index) =>
+                        renderQueuedEntry(entry, index, { compactName: compactQueue }),
                     )}
                   </div>
                 </QueueDndZone>
-                {queueWithStats.length > 4 ? (
+                {usesWinnerLoserRotation && rotationQueueSegments ? (
+                  <QueueDndZone zone="waiting" className="queue-waiting-group">
+                    {rotationQueueSegments.normalWaiting.length > 0 ? (
+                      <div className="space-y-2 border-t border-border/60 pt-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Waiting in line
+                        </p>
+                        {rotationQueueSegments.normalWaiting.map((entry, offset) =>
+                          renderQueuedEntry(entry, offset + DOUBLES_PLAYERS_PER_COURT, {
+                            compactName: compactQueue,
+                          }),
+                        )}
+                      </div>
+                    ) : null}
+                    {rotationQueueSegments.winners.length > 0 ? (
+                      <div className="space-y-2 border-t border-border/60 pt-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Winners
+                        </p>
+                        {rotationQueueSegments.winners.map((entry, offset) =>
+                          renderQueuedEntry(entry, offset + DOUBLES_PLAYERS_PER_COURT, {
+                            compactName: compactQueue,
+                          }),
+                        )}
+                      </div>
+                    ) : null}
+                    {rotationQueueSegments.losers.length > 0 ? (
+                      <div className="space-y-2 border-t border-border/60 pt-3">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Losers
+                        </p>
+                        {rotationQueueSegments.losers.map((entry, offset) =>
+                          renderQueuedEntry(entry, offset + DOUBLES_PLAYERS_PER_COURT, {
+                            compactName: compactQueue,
+                          }),
+                        )}
+                      </div>
+                    ) : null}
+                  </QueueDndZone>
+                ) : queueWithStats.length > DOUBLES_PLAYERS_PER_COURT ? (
                   <QueueDndZone zone="waiting" className="queue-waiting-group">
                     <div className="queue-waiting-header">
                       <Button
@@ -2332,7 +2487,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                         ) : (
                           <>
                             <ChevronDown className="mr-1.5 h-4 w-4" />
-                            Show waiting list ({queueWithStats.length - 4})
+                            Show waiting list ({queueWithStats.length - DOUBLES_PLAYERS_PER_COURT})
                           </>
                         )}
                       </Button>
@@ -2360,7 +2515,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                       {waitingLineView === "list" ? (
                         <div className="space-y-2">
                           {waitingLineEntries.map((entry, offset) =>
-                            renderQueuedEntry(entry, offset + 4, {
+                            renderQueuedEntry(entry, offset + DOUBLES_PLAYERS_PER_COURT, {
                               compactName: compactQueue,
                             }),
                           )}
@@ -2632,7 +2787,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               !hideControls &&
               court.status === "empty" &&
               !clearingCourtNumbers.has(court.courtNumber) &&
-              queueWithStats.length >= 4
+              pickDoublesCourtFoursome(data.queue, game.matchingType) != null
             }
             fillCourtPending={
               startMutation.isPending && startMutation.variables === court.courtNumber
@@ -2640,6 +2795,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           />
         ))
         )}
+        {showManualCourtAdd ? (
+          <AddCourtButton
+            onClick={() => addCourtMutation.mutate()}
+            pending={addCourtMutation.isPending}
+            disabled={!canAddMoreCourts}
+          />
+        ) : null}
       </CardContent>
     </Card>
     );
@@ -3008,6 +3170,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         )}
       </section>
 
+      {!isPastGame && !hideControls && usesWinnerLoserRotation && emptyCourts.length > 0 && !canFillNextCourt && queueWithStats.length > 0 ? (
+        <p className="text-center text-sm text-muted-foreground">
+          Need four players in the queue. The next court always takes the first four waiting in line.
+        </p>
+      ) : null}
+
       {!readOnly ? (
         <>
           {!hideControls ? (
@@ -3038,6 +3206,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             state={replaceDialog}
             waitingEntries={waitingLineEntries}
             courtReplaceEntries={queueWithStats}
+            nextUpCount={usesWinnerLoserRotation ? DOUBLES_PLAYERS_PER_COURT : undefined}
+            resolveTargetIndex={
+              usesWinnerLoserRotation
+                ? (entry) => queueIndexById.get(entry._id) ?? -1
+                : undefined
+            }
             onConfirm={handleReplaceConfirm}
           />
           <Dialog

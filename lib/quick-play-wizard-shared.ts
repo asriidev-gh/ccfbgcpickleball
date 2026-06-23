@@ -51,9 +51,9 @@ export const QUICK_PLAY_MATCHING_TYPE_OPTIONS: Array<{
   },
   {
     value: "winner-loser-groups",
-    label: "Winner/Loser Groups",
-    description: "Winners and losers rejoin the queue in separate groups.",
-    disabled: true,
+    label: "Winner / Loser rotation",
+    description:
+      "Play through the main queue in order. The next four on deck can include bracket players when the main line runs short. Complete bracket foursomes (not already on deck) move to the end of the main line.",
   },
 ];
 
@@ -95,6 +95,7 @@ export type QuickPlayWizardFormFields = {
 export const DEFAULT_PLAYER_OPEN_PLAY_LEVEL: PlayerOpenPlayLevel = "Beginner";
 export const MIN_EXPECTED_PLAYERS = 4;
 export const MAX_QUICK_PLAY_PLAYERS = 40;
+export const MAX_QUICK_PLAY_COURTS = 20;
 
 export function getMinExpectedPlayersForGameMode(gameMode: QuickPlayGameMode) {
   return gameMode === "singles" ? 2 : MIN_EXPECTED_PLAYERS;

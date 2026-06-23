@@ -1,13 +1,15 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, CalendarDays, Clock, Loader2, LogOut, Trophy, Zap } from "lucide-react";
+import { ChevronDown, ChevronUp, CalendarDays, Clock, Loader2, LogOut, Trophy, UserPlus, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import Swal from "sweetalert2";
 
+import { AddCourtButton } from "@/components/game/add-court-button";
+import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
 import { CourtEndGameDialog } from "@/components/game/court-end-game-dialog";
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
 import { GamePlayerProfileProvider } from "@/components/game/game-player-profile-context";
@@ -58,6 +60,7 @@ import {
   buildPlayerSessionStatsMap,
   buildSessionLeaderboardRankMap,
 } from "@/lib/games-played-map";
+import { addLocalCourt } from "@/lib/local-game-session";
 import { isEphemeralQuickGame } from "@/lib/local-game-id";
 import { buildLocalLeaderboardRecap } from "@/lib/local-leaderboard-recap";
 import { prefetchLeaderboardRecap } from "@/lib/fetch-leaderboard";
@@ -68,6 +71,7 @@ import {
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
 import { useQuickGameSession, readQuickGamePayload } from "@/lib/quick-game-store";
+import { MAX_QUICK_PLAY_COURTS } from "@/lib/quick-play-wizard-shared";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
 import { SINGLES_MIN_QUEUE_TO_FILL } from "@/lib/singles/singles-constants";
 import {
@@ -119,6 +123,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   const [teamBScore, setTeamBScore] = useState("");
   const [showMatchHistory, setShowMatchHistory] = useState(false);
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
 
   useEffect(() => {
     setShowMatchHistory(loadMatchHistoryVisible());
@@ -395,6 +400,25 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
     },
   });
 
+  const addCourtMutation = useMutation({
+    mutationFn: async () => ({ message: "Court added." }),
+    onMutate: async () => {
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (!previous) return { previous: undefined };
+      const optimistic = addLocalCourt(previous, MAX_QUICK_PLAY_COURTS);
+      if (!optimistic) return { previous };
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      return { previous };
+    },
+    onSuccess: (result) => {
+      toast.success(result.message);
+    },
+    onError: (error, _, context) => {
+      if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
+      toastOperationError(error, "Failed to add court.");
+    },
+  });
+
   const cancelCourtMutation = useMutation({
     mutationFn: async (courtNumber: number) => courtNumber,
     onMutate: async (courtNumber) => {
@@ -525,6 +549,18 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       </main>
     );
   }
+
+  const showManualAddPlayer =
+    !isPastGame &&
+    game.allowManualPlayerAdd === true &&
+    (game.registrationMode === "owner" || game.registrationMode == null);
+
+  const showManualCourtAdd =
+    !isPastGame &&
+    game.allowManualCourtAdd === true &&
+    (game.registrationMode === "owner" || game.registrationMode == null);
+
+  const canAddMoreCourts = courts.length < MAX_QUICK_PLAY_COURTS;
 
   const renderQueueEntryRow = (
     entry: (typeof queueWithStats)[number],
@@ -733,6 +769,13 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
             />
           );
         })}
+        {showManualCourtAdd ? (
+          <AddCourtButton
+            onClick={() => addCourtMutation.mutate()}
+            pending={addCourtMutation.isPending}
+            disabled={!canAddMoreCourts}
+          />
+        ) : null}
         </div>
       </CardContent>
     </Card>
@@ -797,6 +840,18 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
             <CardContent className="game-dashboard-header-content relative">
               {!isPastGame ? (
                 <div className="game-dashboard-header-actions">
+                  {showManualAddPlayer ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="game-dashboard-add-player-btn h-8 gap-1 px-2 text-xs font-semibold shadow-sm lg:hidden"
+                      onClick={() => setAddPlayerOpen(true)}
+                    >
+                      <UserPlus className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      Add player
+                    </Button>
+                  ) : null}
                   <SwitchToCourtViewButton
                     gameId={gameId}
                     variant="operator"
@@ -843,9 +898,22 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
                 </div>
               </div>
               {!isPastGame ? (
-                <div className="game-toolbar mt-4 hidden flex-wrap items-center gap-2 lg:flex">
+                <div className="game-toolbar mt-4 flex flex-wrap items-center gap-2">
+                  {showManualAddPlayer ? (
+                    <Button
+                      type="button"
+                      size="lg"
+                      variant="outline"
+                      className="hidden lg:inline-flex"
+                      onClick={() => setAddPlayerOpen(true)}
+                    >
+                      <UserPlus className="mr-2 h-4 w-4" aria-hidden />
+                      Add player
+                    </Button>
+                  ) : null}
                   <Link
                     href={leaderboardHref}
+                    className="hidden lg:contents"
                     onMouseEnter={() => prefetchLeaderboardRecap(queryClient, gameId, false)}
                     onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, false)}
                   >
@@ -855,11 +923,12 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
                     </Button>
                   </Link>
                   <GameSessionActionsMenu
+                    className="!hidden lg:!inline-flex"
                     showEndOpenPlay
                     endOpenPlayPending={endOpenPlayMutation.isPending}
                     onEndOpenPlay={() => void handleEndOpenPlay()}
                   />
-                  <Link href={quickGameExitHref}>
+                  <Link href={quickGameExitHref} className="hidden lg:contents">
                     <Button size="lg" variant="outline">
                       <LogOut className="mr-2 h-4 w-4" aria-hidden />
                       Exit
@@ -986,6 +1055,17 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
           resolveTargetIndex={(entry) => queueIndexById.get(entry._id) ?? -1}
           onConfirm={handleReplaceConfirm}
         />
+
+        {showManualAddPlayer ? (
+          <AddManualPlayerDialog
+            gameId={gameId}
+            localMode
+            sessionOpenPlayType={game.openPlayType}
+            open={addPlayerOpen}
+            onOpenChange={setAddPlayerOpen}
+            onPlayerAdded={() => setMobileTab("queue")}
+          />
+        ) : null}
       </main>
     </GamePlayerProfileProvider>
   );

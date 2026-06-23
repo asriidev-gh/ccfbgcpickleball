@@ -87,7 +87,10 @@ export function QuickPlayWizardHeader({
             <p className="text-xs font-medium text-muted-foreground">
               Step {step} of {QUICK_PLAY_TOTAL_STEPS} · {heading}
             </p>
-            <h1 id="quick-play-wizard-title" className="text-lg font-semibold leading-snug text-foreground sm:text-xl">
+            <h1
+              id="quick-play-wizard-title"
+              className="text-[1.6875rem] font-semibold leading-snug text-foreground sm:text-[1.875rem]"
+            >
               {title}
             </h1>
             {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
@@ -298,6 +301,8 @@ export function QuickPlayPlayersStep({
   setDefaultCheckInAllPlayers,
   allowManualPlayerAdd,
   setAllowManualPlayerAdd,
+  allowManualCourtAdd,
+  setAllowManualCourtAdd,
   canAddMorePlayers,
 }: {
   idPrefix: string;
@@ -313,6 +318,8 @@ export function QuickPlayPlayersStep({
   setDefaultCheckInAllPlayers: (checked: boolean) => void;
   allowManualPlayerAdd: boolean;
   setAllowManualPlayerAdd: (checked: boolean) => void;
+  allowManualCourtAdd: boolean;
+  setAllowManualCourtAdd: (checked: boolean) => void;
   canAddMorePlayers: boolean;
 }) {
   const fixedOpenPlayLevel = isFixedOpenPlayType(openPlayType) ? openPlayType : null;
@@ -559,6 +566,24 @@ export function QuickPlayPlayersStep({
           </span>
         </span>
       </label>
+
+      <label
+        className={cn(
+          "flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition-colors",
+          WIZARD_PANEL_BORDER,
+        )}
+      >
+        <Checkbox
+          checked={allowManualCourtAdd}
+          onCheckedChange={(checked) => setAllowManualCourtAdd(checked === true)}
+        />
+        <span className="space-y-1 leading-snug">
+          <span className="block text-sm font-medium">Allow manual add court</span>
+          <span className="block text-xs text-muted-foreground">
+            Add more courts from the game dashboard later.
+          </span>
+        </span>
+      </label>
     </div>
   );
 }
@@ -631,6 +656,7 @@ export function QuickPlayPreviewStep({
   filledPlayers,
   defaultCheckInAllPlayers,
   allowManualPlayerAdd,
+  allowManualCourtAdd,
   onEditStep,
   footerNote,
 }: {
@@ -643,6 +669,7 @@ export function QuickPlayPreviewStep({
   }>;
   defaultCheckInAllPlayers: boolean;
   allowManualPlayerAdd: boolean;
+  allowManualCourtAdd: boolean;
   onEditStep: (step: number) => void;
   footerNote: string;
 }) {
@@ -717,6 +744,10 @@ export function QuickPlayPreviewStep({
             label="Manual player add"
             value={allowManualPlayerAdd ? "Allowed from dashboard" : "Not allowed"}
           />
+          <QuickPlayPreviewDetailRow
+            label="Manual court add"
+            value={allowManualCourtAdd ? "Allowed from dashboard" : "Not allowed"}
+          />
         </QuickPlayPreviewSection>
       </div>
 
@@ -754,6 +785,12 @@ export function QuickPlayPreviewStep({
             <span className="inline-flex items-center gap-1">
               <UserPlus className="size-3.5 text-primary" aria-hidden />
               More players can be added later
+            </span>
+          ) : null}
+          {allowManualCourtAdd ? (
+            <span className="inline-flex items-center gap-1">
+              <LayoutGrid className="size-3.5 text-primary" aria-hidden />
+              More courts can be added later
             </span>
           ) : null}
         </div>

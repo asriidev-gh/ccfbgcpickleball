@@ -41,6 +41,7 @@ export type CreateLocalLiveQueueSessionInput = {
   expectedPlayers: number;
   allowQrRegistration: boolean;
   allowManualPlayerAdd: boolean;
+  allowManualCourtAdd: boolean;
   players: LocalPreRegisteredPlayer[];
   checkInAllPlayers: boolean;
   gameMode?: "doubles" | "singles";
@@ -146,6 +147,7 @@ export function createLocalLiveQueueSession(
       allowQrRegistration: input.allowQrRegistration,
       registrationMode: "owner",
       allowManualPlayerAdd: input.allowManualPlayerAdd,
+      allowManualCourtAdd: input.allowManualCourtAdd,
       liveQueue: false,
       gameMode: input.gameMode ?? "doubles",
       matchingType: input.matchingType ?? "auto-balanced",
@@ -158,6 +160,36 @@ export function createLocalLiveQueueSession(
     matches: [],
     firstTimerCount: 0,
     birthdayThisMonthCount: 0,
+  };
+}
+
+export function buildEmptyLocalCourt(courtNumber: number): CourtView {
+  return {
+    _id: `local-court-${courtNumber}-${nanoid(8)}`,
+    courtNumber,
+    status: "empty",
+    startedAt: null,
+    pausedAt: null,
+    totalPausedMs: 0,
+    isRematch: false,
+    teamA: { playerIds: [] },
+    teamB: { playerIds: [] },
+  };
+}
+
+export function addLocalCourt(payload: OperatorFullPayload, maxCourts: number): OperatorFullPayload | null {
+  if (payload.courts.length >= maxCourts) return null;
+
+  const courtNumber = payload.courts.length + 1;
+  const newCourt = buildEmptyLocalCourt(courtNumber);
+
+  return {
+    ...payload,
+    game: {
+      ...payload.game,
+      courtCount: courtNumber,
+    },
+    courts: [...payload.courts, newCourt],
   };
 }
 
@@ -258,6 +290,7 @@ export function patchQuickGameMetadata(
     venueGoogleMapEmbedUrl: string;
     courtCount: number;
     allowManualPlayerAdd: boolean;
+    allowManualCourtAdd: boolean;
   },
 ): OperatorFullPayload {
   return {
@@ -273,6 +306,7 @@ export function patchQuickGameMetadata(
       venueGoogleMapEmbedUrl: fields.venueGoogleMapEmbedUrl,
       courtCount: fields.courtCount,
       allowManualPlayerAdd: fields.allowManualPlayerAdd,
+      allowManualCourtAdd: fields.allowManualCourtAdd,
     },
   };
 }

@@ -467,6 +467,7 @@ export function CreateGameWizard() {
           expectedPlayers: players.length,
           allowQrRegistration: false,
           allowManualPlayerAdd,
+          allowManualCourtAdd: false,
           players,
           checkInAllPlayers: defaultCheckInAllPlayers,
           gameMode: form.gameMode,
@@ -604,6 +605,8 @@ export function CreateGameWizard() {
                   setDefaultCheckInAllPlayers={setDefaultCheckInAllPlayers}
                   allowManualPlayerAdd={allowManualPlayerAdd}
                   setAllowManualPlayerAdd={setAllowManualPlayerAdd}
+                  allowManualCourtAdd={false}
+                  setAllowManualCourtAdd={() => {}}
                   canAddMorePlayers={canAddMorePlayers}
                 />
               ) : null}
@@ -620,6 +623,7 @@ export function CreateGameWizard() {
                   )}
                   defaultCheckInAllPlayers={defaultCheckInAllPlayers}
                   allowManualPlayerAdd={allowManualPlayerAdd}
+                  allowManualCourtAdd={false}
                   onEditStep={setStep}
                   footerNote="This quick game saves to your account with live queuing off. Manage it from My Games."
                 />
