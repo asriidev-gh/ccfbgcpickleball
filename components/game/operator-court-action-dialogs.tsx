@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CourtEndGameDialog } from "@/components/game/court-end-game-dialog";
+import type { PlayerPhotoRef } from "@/components/game/player-avatar";
 import type { CourtView } from "@/components/game/court-card";
 
 type OperatorCourtActionDialogsProps = {
@@ -39,6 +40,7 @@ type OperatorCourtActionDialogsProps = {
     rematch: boolean;
   }) => void;
   endGameScoreError: string | null;
+  playerLookup?: Map<string, PlayerPhotoRef>;
 };
 
 export function OperatorCourtActionDialogs({
@@ -62,6 +64,7 @@ export function OperatorCourtActionDialogs({
   onCloseEndDialog,
   onSubmitEndGame,
   endGameScoreError,
+  playerLookup,
 }: OperatorCourtActionDialogsProps) {
   const endCourt =
     endTargetCourt != null ? courts.find((court) => court.courtNumber === endTargetCourt) : undefined;
@@ -152,6 +155,7 @@ export function OperatorCourtActionDialogs({
       <CourtEndGameDialog
         open={endTargetCourt !== null}
         endCourt={endCourt}
+        playerLookup={playerLookup}
         pendingWinner={pendingWinner}
         onPendingWinnerChange={onPendingWinnerChange}
         endGameRematch={endGameRematch}

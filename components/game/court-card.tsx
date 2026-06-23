@@ -9,6 +9,7 @@ import {
   PlayerProfileTrigger,
   type PlayerPhotoRef,
 } from "@/components/game/player-avatar";
+import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import {
   formatSessionRecordLabel,
   formatSessionRecordWithRankLabel,
@@ -100,10 +101,13 @@ function TeamPlayers({
             <div className="court-player-info min-w-0 flex-1">
               <div className="court-player-main flex min-w-0 items-center gap-1.5">
                 <div className="body-lg min-w-0 flex-1">
-                  <PlayerProfileTrigger player={player} className="court-player-name min-w-0 truncate">
-                    <span className="court-player-name--first">{firstName || courtName}</span>
-                    <span className="court-player-name--full">{courtName}</span>
-                  </PlayerProfileTrigger>
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                    <PlayerProfileTrigger player={player} className="court-player-name min-w-0 truncate">
+                      <span className="court-player-name--first">{firstName || courtName}</span>
+                      <span className="court-player-name--full">{courtName}</span>
+                    </PlayerProfileTrigger>
+                    <PlayerGenderPill gender={player.gender} />
+                  </span>
                 </div>
                 {onReplacePlayer ? (
                   <Button
@@ -158,6 +162,7 @@ type CourtCardProps = {
   cancelRematchPending?: boolean;
   onSwapTeams?: () => void | Promise<void>;
   swapPending?: boolean;
+  mixedDoubles?: boolean;
   onTogglePause?: () => void;
   pausePending?: boolean;
   hideEndGame?: boolean;
@@ -193,6 +198,7 @@ export function CourtCard({
   cancelRematchPending = false,
   onSwapTeams,
   swapPending = false,
+  mixedDoubles = false,
   onTogglePause,
   pausePending = false,
   hideEndGame = false,
@@ -267,6 +273,7 @@ export function CourtCard({
                 replacePendingKey={replacePendingKey}
                 onSwapTeams={onSwapTeams}
                 swapPending={swapPending}
+                mixedDoubles={mixedDoubles}
                 hideEndGame={hideEndGame}
               />
             ) : (

@@ -1296,6 +1296,20 @@
     @apply inline-flex shrink-0 items-center rounded-full border border-sky-500/35 bg-sky-500/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200 sm:text-[10px];
   }
 
+  .player-gender-pill {
+    @apply inline-flex shrink-0 items-center rounded-full border px-1.5 py-px text-[9px] font-semibold leading-none sm:text-[10px];
+    background-color: color-mix(in oklch, var(--card) 50%, transparent);
+    color: var(--card-foreground);
+  }
+
+  .player-gender-pill--male {
+    @apply border-blue-600/80 dark:border-blue-400/90;
+  }
+
+  .player-gender-pill--female {
+    @apply border-rose-600/80 dark:border-rose-400/90;
+  }
+
   .login-page,
   .signup-page {
     @apply bg-transparent;

@@ -17,7 +17,7 @@ export const QUICK_PLAY_WIZARD_STEPS = [
 ] as const;
 
 export type QuickPlayGameMode = "doubles" | "singles";
-export type QuickPlayMatchingType = "auto-balanced" | "winner-loser-groups";
+export type QuickPlayMatchingType = "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
 
 export const QUICK_PLAY_GAME_MODE_OPTIONS: Array<{
   value: QuickPlayGameMode;
@@ -54,6 +54,12 @@ export const QUICK_PLAY_MATCHING_TYPE_OPTIONS: Array<{
     label: "Winner / Loser rotation",
     description:
       "Play through the main queue in order. The next four on deck can include bracket players when the main line runs short. Complete bracket foursomes (not already on deck) move to the end of the main line.",
+  },
+  {
+    value: "mixed-doubles",
+    label: "Mixed doubles",
+    description:
+      "Each court has two men and two women. Register an even number of players with equal men and women.",
   },
 ];
 
@@ -207,6 +213,33 @@ export function findFirstMissingQuickPlayPlayerGenderIndex(entries: QuickPlayWiz
     const gender = entries[index]?.gender ?? "";
     if (name && gender !== "male" && gender !== "female") return index;
   }
+  return null;
+}
+
+export function isMixedDoublesMatching(matchingType?: QuickPlayMatchingType | null) {
+  return matchingType === "mixed-doubles";
+}
+
+export function getMixedDoublesPlayersValidationError(
+  players: ReadonlyArray<{ gender: "male" | "female" }>,
+): string | null {
+  if (players.length === 0) return null;
+
+  if (players.length % 2 !== 0) {
+    return "Mixed doubles requires an even number of players.";
+  }
+
+  let maleCount = 0;
+  let femaleCount = 0;
+  for (const player of players) {
+    if (player.gender === "male") maleCount += 1;
+    else femaleCount += 1;
+  }
+
+  if (maleCount !== femaleCount) {
+    return "Mixed doubles requires the same number of men and women (50% each).";
+  }
+
   return null;
 }
 

@@ -1,3 +1,5 @@
+import { randomMixedDoublesTeamSplit } from "@/lib/doubles/mixed-doubles-shuffle";
+
 export const SHUFFLE_DURATION_MS = 3000;
 export const SHUFFLE_TICK_MS = 75;
 export const SHUFFLE_REVEAL_MS = 650;
@@ -11,7 +13,20 @@ export function shuffleArray<T>(items: T[]): T[] {
   return copy;
 }
 
-export function randomTeamSplit<T>(pool: T[]): { teamA: T[]; teamB: T[] } {
+export function randomTeamSplit<T>(
+  pool: T[],
+  options?: {
+    mixedDoubles?: boolean;
+    getGender?: (item: T) => string | null | undefined;
+  },
+): { teamA: T[]; teamB: T[] } {
+  if (options?.mixedDoubles && options.getGender) {
+    const split = randomMixedDoublesTeamSplit(pool, options.getGender);
+    if (split) {
+      return { teamA: split.firstHalf, teamB: split.secondHalf };
+    }
+  }
+
   const shuffled = shuffleArray(pool);
   return { teamA: shuffled.slice(0, 2), teamB: shuffled.slice(2, 4) };
 }

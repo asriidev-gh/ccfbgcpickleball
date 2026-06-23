@@ -2,6 +2,7 @@ import { Clock, Link2 } from "lucide-react";
 
 import { PlayerNameWithPhoto } from "@/components/game/player-avatar";
 import { FirstTimerPill } from "@/components/game/leaderboard-standings";
+import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-menu";
 import { formatUpcomingGameBadgeLabel } from "@/lib/games-played-map";
@@ -46,6 +47,7 @@ function DeckPlayer({
             <span className="min-w-0 truncate">
               {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
             </span>
+            <PlayerGenderPill gender={entry.playerId.gender} />
             {entry.isFirstTimer ? <FirstTimerPill /> : null}
           </span>
         </PlayerNameWithPhoto>

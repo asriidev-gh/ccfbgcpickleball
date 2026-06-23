@@ -48,6 +48,8 @@ import {
   MAX_QUICK_PLAY_PLAYERS,
   MIN_EXPECTED_PLAYERS,
   QUICK_PLAY_TOTAL_STEPS,
+  getMixedDoublesPlayersValidationError,
+  isMixedDoublesMatching,
   resolvePlayerOpenPlayLevel,
   syncQuickPlayWizardPlayerEntryCount,
   type QuickPlayGameMode,
@@ -258,6 +260,24 @@ export function CreateGameWizard() {
   const hasMissingPlayerGender = missingGenderIndex !== null;
   const hasPlayerNameTooLong = tooLongPlayerNameIndex !== null;
   const hasInvalidPlayerName = invalidPlayerNameIndex !== null;
+  const playersForSubmit = useMemo(
+    () =>
+      filledPlayers.filter(
+        (
+          player,
+        ): player is {
+          displayName: string;
+          gender: "male" | "female";
+          openPlayLevel: (typeof filledPlayers)[number]["openPlayLevel"];
+        } => player.gender === "male" || player.gender === "female",
+      ),
+    [filledPlayers],
+  );
+  const mixedDoublesValidationError = useMemo(() => {
+    if (!isMixedDoublesMatching(form.matchingType) || form.gameMode !== "doubles") return null;
+    if (playersForSubmit.length !== filledPlayers.length) return null;
+    return getMixedDoublesPlayersValidationError(playersForSubmit);
+  }, [form.gameMode, form.matchingType, filledPlayers.length, playersForSubmit]);
 
   useEffect(() => {
     if (!createGameWizardOpen) return;
@@ -326,7 +346,8 @@ export function CreateGameWizard() {
         !hasMissingPlayerGender &&
         !hasPlayerNameTooLong &&
         !hasInvalidPlayerName &&
-        filledPlayers.every((player) => player.gender === "male" || player.gender === "female")
+        filledPlayers.every((player) => player.gender === "male" || player.gender === "female") &&
+        !mixedDoublesValidationError
       );
     }
     if (stepKind === "openPlayType") {
@@ -361,6 +382,7 @@ export function CreateGameWizard() {
         else if (hasInvalidPlayerName) toast.error(playerDisplayNameInvalidCharacterMessage());
         else if (hasDuplicatePlayerNames) toast.error("Each player name must be unique.");
         else if (hasMissingPlayerGender) toast.error("Select a gender for each player.");
+        else if (mixedDoublesValidationError) toast.error(mixedDoublesValidationError);
         else if (filledPlayers.length > MAX_QUICK_PLAY_PLAYERS) {
           toast.error(`You can add up to ${MAX_QUICK_PLAY_PLAYERS} players.`);
         } else toast.error("Enter at least one player name.");
@@ -570,7 +592,15 @@ export function CreateGameWizard() {
                   key={`create-quick-format-${wizardInstanceId}`}
                   idPrefix="create-quick"
                   form={form}
-                  onFormChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+                  onFormChange={(patch) =>
+                    setForm((prev) => {
+                      const next = { ...prev, ...patch };
+                      if (patch.gameMode === "singles" && next.matchingType === "mixed-doubles") {
+                        next.matchingType = "auto-balanced";
+                      }
+                      return next;
+                    })
+                  }
                   onOpenPlayTypeChange={(openPlayType) => {
                     setForm((prev) => ({ ...prev, openPlayType }));
                     if (isFixedOpenPlayType(openPlayType)) {
@@ -594,6 +624,8 @@ export function CreateGameWizard() {
                 <QuickPlayPlayersStep
                   idPrefix="create-quick"
                   openPlayType={form.openPlayType}
+                  matchingType={form.matchingType}
+                  gameMode={form.gameMode}
                   sessionLockedPlayerLevel={sessionLockedPlayerLevel}
                   playerEntries={playerEntries}
                   setPlayerEntries={setPlayerEntries}

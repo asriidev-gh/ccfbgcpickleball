@@ -73,7 +73,7 @@ import {
 import { useQuickGameSession, readQuickGamePayload } from "@/lib/quick-game-store";
 import { MAX_QUICK_PLAY_COURTS } from "@/lib/quick-play-wizard-shared";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
-import { SINGLES_MIN_QUEUE_TO_FILL } from "@/lib/singles/singles-constants";
+import { buildSessionPlayerLookup } from "@/lib/session-player-lookup";
 import {
   isSinglesWinnerLoserRotation,
   pickSinglesCourtPair,
@@ -526,6 +526,15 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
 
   const endCourt =
     endTargetCourt != null ? courts.find((court) => court.courtNumber === endTargetCourt) : undefined;
+  const sessionPlayerLookup = useMemo(
+    () =>
+      buildSessionPlayerLookup({
+        queue: queueWithStats,
+        checkedOut: payload?.checkedOut ?? [],
+        courts,
+      }),
+    [courts, payload?.checkedOut, queueWithStats],
+  );
   const endGameScoreError =
     pendingWinner != null
       ? getMatchScoreInputError(pendingWinner, teamAScore, teamBScore, { required: true })
@@ -1024,6 +1033,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
         <CourtEndGameDialog
           open={endTargetCourt != null}
           endCourt={endCourt}
+          playerLookup={sessionPlayerLookup}
           pendingWinner={pendingWinner}
           onPendingWinnerChange={setPendingWinner}
           endGameRematch={endGameRematch}

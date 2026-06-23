@@ -22,6 +22,7 @@ type FillCourtFlowProps = {
   replacePendingSourceIndex: number | null;
   onConfirmFill: (courtNumber: number) => void;
   onShuffle: () => Promise<void>;
+  mixedDoubles?: boolean;
   onReplace: (sourceIndex: number, sourceEntry: QueueEntryView) => void;
   /** When true, only dialogs are rendered (for mounting outside tab panels). */
   hideTrigger?: boolean;
@@ -46,6 +47,7 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
       replacePendingSourceIndex,
       onConfirmFill,
       onShuffle,
+      mixedDoubles = false,
       onReplace,
       hideTrigger = false,
     },
@@ -219,6 +221,7 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
               onConfirmFill={handleConfirmFill}
               fillPending={fillPending}
               onShuffle={onShuffle}
+              mixedDoubles={mixedDoubles}
             />
           ) : null}
         </>

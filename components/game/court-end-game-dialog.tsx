@@ -10,16 +10,22 @@ import {
 import { NumberStepper } from "@/components/ui/number-stepper";
 import type { CourtView } from "@/components/game/court-card";
 import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import {
   getMatchScoreInputError,
   MAX_MATCH_SCORE,
   parseEndGameScoreField,
 } from "@/lib/match-score-validation";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
+import {
+  resolveSessionPlayer,
+  resolveSessionPlayers,
+} from "@/lib/session-player-lookup";
 
 type CourtEndGameDialogProps = {
   open: boolean;
   endCourt?: CourtView;
+  playerLookup?: Map<string, PlayerPhotoRef>;
   pendingWinner: "A" | "B" | null;
   onPendingWinnerChange: (winner: "A" | "B" | null) => void;
   endGameRematch: boolean;
@@ -38,7 +44,35 @@ type CourtEndGameDialogProps = {
   }) => void;
 };
 
-function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
+function CourtWinnerPlayerRow({
+  player,
+  playerLookup,
+}: {
+  player: PlayerPhotoRef;
+  playerLookup?: Map<string, PlayerPhotoRef>;
+}) {
+  const displayPlayer = resolveSessionPlayer(player, playerLookup);
+
+  return (
+    <>
+      <PlayerAvatar player={displayPlayer} size="sm" className="!size-8 sm:!size-8" />
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        <span className="min-w-0 text-left text-xs font-medium leading-snug">
+          {formatPlayerDisplayName(displayPlayer.firstName, displayPlayer.lastName)}
+        </span>
+        <PlayerGenderPill gender={displayPlayer.gender} />
+      </span>
+    </>
+  );
+}
+
+export function CourtWinnerTeamRoster({
+  players,
+  playerLookup,
+}: {
+  players: PlayerPhotoRef[];
+  playerLookup?: Map<string, PlayerPhotoRef>;
+}) {
   if (players.length === 0) {
     return <p className="court-winner-team-roster text-center text-xs text-muted-foreground">—</p>;
   }
@@ -54,10 +88,7 @@ function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
           }
           className="flex items-center gap-2"
         >
-          <PlayerAvatar player={player} size="sm" className="!size-8 sm:!size-8" />
-          <span className="min-w-0 text-left text-xs font-medium leading-snug">
-            {formatPlayerDisplayName(player.firstName, player.lastName)}
-          </span>
+          <CourtWinnerPlayerRow player={player} playerLookup={playerLookup} />
         </li>
       ))}
     </ul>
@@ -67,6 +98,7 @@ function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
 export function CourtEndGameDialog({
   open,
   endCourt,
+  playerLookup,
   pendingWinner,
   onPendingWinnerChange,
   endGameRematch,
@@ -79,12 +111,14 @@ export function CourtEndGameDialog({
   onClose,
   onSubmit,
 }: CourtEndGameDialogProps) {
-  const winningPlayers =
+  const winningPlayers = resolveSessionPlayers(
     pendingWinner === "A"
       ? (endCourt?.teamA.playerIds ?? [])
       : pendingWinner === "B"
         ? (endCourt?.teamB.playerIds ?? [])
-        : [];
+        : [],
+    playerLookup,
+  );
 
   const endGameWinnerScoreRaw = pendingWinner === "A" ? teamAScore : teamBScore;
   const endGameWinnerScoreParsed =
@@ -145,7 +179,10 @@ export function CourtEndGameDialog({
               >
                 Team A won
               </Button>
-              <CourtWinnerTeamRoster players={endCourt?.teamA.playerIds ?? []} />
+              <CourtWinnerTeamRoster
+                players={endCourt?.teamA.playerIds ?? []}
+                playerLookup={playerLookup}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <Button
@@ -161,7 +198,10 @@ export function CourtEndGameDialog({
               >
                 Team B won
               </Button>
-              <CourtWinnerTeamRoster players={endCourt?.teamB.playerIds ?? []} />
+              <CourtWinnerTeamRoster
+                players={endCourt?.teamB.playerIds ?? []}
+                playerLookup={playerLookup}
+              />
             </div>
           </div>
         ) : (
@@ -182,8 +222,9 @@ export function CourtEndGameDialog({
                       className="flex items-center gap-2.5"
                     >
                       <PlayerAvatar player={player} size="sm" className="!size-9 sm:!size-9" />
-                      <span className="font-medium">
+                      <span className="inline-flex items-center gap-1.5 font-medium">
                         {formatPlayerDisplayName(player.firstName, player.lastName)}
+                        <PlayerGenderPill gender={player.gender} />
                       </span>
                     </li>
                   ))}

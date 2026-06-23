@@ -2,6 +2,7 @@
 
 import type { PlayerPhotoRef } from "@/components/game/player-avatar";
 import { PlayerAvatar, PlayerProfileTrigger } from "@/components/game/player-avatar";
+import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import {
   formatSessionRecordWithRankLabel,
   getPlayerLeaderboardRank,
@@ -59,10 +60,13 @@ function SinglesPlayerSlot({
       <span className="singles-court__label">{label}</span>
       <PlayerAvatar player={player} className="singles-court__avatar" />
       <div className="singles-court__info">
-        <PlayerProfileTrigger player={player} className="singles-court__name">
-          <span className="court-player-name--first">{firstName || courtName}</span>
-          <span className="court-player-name--full">{courtName}</span>
-        </PlayerProfileTrigger>
+        <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+          <PlayerProfileTrigger player={player} className="singles-court__name">
+            <span className="court-player-name--first">{firstName || courtName}</span>
+            <span className="court-player-name--full">{courtName}</span>
+          </PlayerProfileTrigger>
+          <PlayerGenderPill gender={player.gender} />
+        </span>
         <p className="singles-court__record">{sessionRecordLabel}</p>
       </div>
     </div>

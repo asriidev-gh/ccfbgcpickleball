@@ -71,7 +71,7 @@ import {
 } from "@/lib/quick-game-persistence-client";
 import { readQuickGamePayload } from "@/lib/quick-game-store";
 import { addLocalCourt } from "@/lib/local-game-session";
-import { MAX_QUICK_PLAY_COURTS } from "@/lib/quick-play-wizard-shared";
+import { MAX_QUICK_PLAY_COURTS, isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import {
   DOUBLES_PLAYERS_PER_COURT,
   isDoublesWinnerLoserRotation,
@@ -85,6 +85,7 @@ import {
 } from "@/lib/ephemeral-quick-game-transfer";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
+import { CourtEndGameDialog } from "@/components/game/court-end-game-dialog";
 import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
 import { GamePlayerProfileProvider } from "@/components/game/game-player-profile-context";
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
@@ -143,7 +144,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { NumberStepper } from "@/components/ui/number-stepper";
 import { isDemoOpenPlayTitle } from "@/lib/demo-open-play";
 import {
   clearQueueHighlightPlayerId,
@@ -159,9 +159,8 @@ import {
 } from "@/lib/queue-highlight";
 import {
   getMatchScoreInputError,
-  MAX_MATCH_SCORE,
-  parseEndGameScoreField,
 } from "@/lib/match-score-validation";
+import { buildSessionPlayerLookup } from "@/lib/session-player-lookup";
 import { announceCourtEnded } from "@/lib/call-names-speech";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 import { useOperatorDashboardLease } from "@/hooks/use-operator-dashboard-lease";
@@ -474,32 +473,6 @@ function QueueCheckedOutList({
         )
       ) : null}
     </div>
-  );
-}
-
-function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
-  if (players.length === 0) {
-    return <p className="court-winner-team-roster text-center text-xs text-muted-foreground">—</p>;
-  }
-
-  return (
-    <ul className="court-winner-team-roster flex flex-col gap-1.5">
-      {players.map((player, index) => (
-        <li
-          key={
-            player._id != null
-              ? `${String(player._id)}-${index}`
-              : `${player.firstName}-${player.lastName}-${index}`
-          }
-          className="flex items-center gap-2"
-        >
-          <PlayerAvatar player={player} size="sm" className="!size-8 sm:!size-8" />
-          <span className="min-w-0 text-left text-xs font-medium leading-snug">
-            {formatPlayerDisplayName(player.firstName, player.lastName)}
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -1629,6 +1602,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   );
   const matchingType = data?.game?.matchingType;
   const usesWinnerLoserRotation = isDoublesWinnerLoserRotation(matchingType);
+  const usesMixedDoubles = isMixedDoublesMatching(matchingType);
   const rotationQueue = useMemo(
     () =>
       usesWinnerLoserRotation && data?.queue
@@ -1682,6 +1656,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     }
     return queueWithStats.slice(DOUBLES_PLAYERS_PER_COURT);
   }, [queueWithStats, usesWinnerLoserRotation, nextCourtFoursomeIds]);
+  const sessionPlayerLookup = useMemo(
+    () =>
+      buildSessionPlayerLookup({
+        queue: queueWithStats,
+        checkedOut: checkedOutWithStats,
+        courts: data?.courts ?? [],
+      }),
+    [checkedOutWithStats, data?.courts, queueWithStats],
+  );
 
   /** Re-read on every queue update so highlight never drops after refetch or reorder. */
   const selfHighlightPlayerId = useMemo(
@@ -2244,47 +2227,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     startMutation.isPending && startMutation.variables != null ? startMutation.variables : null;
   const endCourt =
     endTargetCourt != null ? courts.find((c) => c.courtNumber === endTargetCourt) : undefined;
-  const winningPlayers =
-    pendingWinner === "A"
-      ? (endCourt?.teamA.playerIds ?? [])
-      : pendingWinner === "B"
-        ? (endCourt?.teamB.playerIds ?? [])
-        : [];
   const endGameScoreError =
     pendingWinner != null
       ? getMatchScoreInputError(pendingWinner, teamAScore, teamBScore, { required: true })
       : null;
-  const endGameWinnerScoreRaw = pendingWinner === "A" ? teamAScore : teamBScore;
-  const endGameWinnerScoreParsed =
-    endGameWinnerScoreRaw.trim() === "" ? undefined : Number(endGameWinnerScoreRaw);
-  const endGameLoserScoreMax =
-    endGameWinnerScoreParsed !== undefined &&
-    Number.isInteger(endGameWinnerScoreParsed) &&
-    endGameWinnerScoreParsed >= 0
-      ? Math.max(0, endGameWinnerScoreParsed - 1)
-      : undefined;
-
-  const handleTeamAScoreChange = (value: number) => {
-    setTeamAScore(String(value));
-    if (pendingWinner === "A") {
-      const maxLoser = Math.max(0, value - 1);
-      const loserScore = parseEndGameScoreField(teamBScore);
-      if (loserScore > maxLoser) {
-        setTeamBScore(String(maxLoser));
-      }
-    }
-  };
-
-  const handleTeamBScoreChange = (value: number) => {
-    setTeamBScore(String(value));
-    if (pendingWinner === "B") {
-      const maxLoser = Math.max(0, value - 1);
-      const loserScore = parseEndGameScoreField(teamAScore);
-      if (loserScore > maxLoser) {
-        setTeamAScore(String(maxLoser));
-      }
-    }
-  };
 
   const activeCourtCount = courts.filter((court) => court.status === "active").length;
   const activeCourts = courts.filter((court) => court.status === "active");
@@ -2744,6 +2690,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             swapPending={
               swapCourtMutation.isPending && swapCourtMutation.variables === court.courtNumber
             }
+            mixedDoubles={usesMixedDoubles}
             onTogglePause={
               hideControls || court.status !== "active"
                 ? undefined
@@ -3195,6 +3142,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               }
               onConfirmFill={handleFillCourtConfirm}
               onShuffle={handleFillCourtShuffle}
+              mixedDoubles={usesMixedDoubles}
               onReplace={handleFillCourtReplace}
             />
           ) : null}
@@ -3332,216 +3280,28 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       ) : null}
 
       {!readOnly ? (
-        <Dialog open={endTargetCourt !== null} onOpenChange={(open) => (!open ? closeEndDialog() : undefined)}>
-          <DialogContent className="court-winner-dialog">
-            <DialogHeader>
-              <DialogTitle>
-                {pendingWinner
-                  ? `Team ${pendingWinner} won — enter the score`
-                  : `Who won on Court ${endTargetCourt}?`}
-              </DialogTitle>
-            </DialogHeader>
-
-            {pendingWinner === null ? (
-              <div className="court-winner-dialog-actions grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-2">
-                  <Button
-                    type="button"
-                    size="lg"
-                    variant="outline"
-                    className="court-winner-btn"
-                    onClick={() => {
-                      setPendingWinner("A");
-                      setTeamAScore("11");
-                      setTeamBScore("0");
-                    }}
-                  >
-                    Team A won
-                  </Button>
-                  <CourtWinnerTeamRoster players={endCourt?.teamA.playerIds ?? []} />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Button
-                    type="button"
-                    size="lg"
-                    variant="outline"
-                    className="court-winner-btn"
-                    onClick={() => {
-                      setPendingWinner("B");
-                      setTeamBScore("11");
-                      setTeamAScore("0");
-                    }}
-                  >
-                    Team B won
-                  </Button>
-                  <CourtWinnerTeamRoster players={endCourt?.teamB.playerIds ?? []} />
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {winningPlayers.length > 0 ? (
-                  <div className="surface-muted flex flex-col gap-2 rounded-xl border p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Winners · Team {pendingWinner}
-                    </p>
-                    <ul className="flex flex-col gap-2">
-                      {winningPlayers.map((player, index) => (
-                        <li
-                          key={
-                            player._id != null
-                              ? `${String(player._id)}-${index}`
-                              : `${player.firstName}-${player.lastName}-${index}`
-                          }
-                          className="flex items-center gap-2.5"
-                        >
-                          <PlayerAvatar
-                            player={player}
-                            size="sm"
-                            className="!size-9 sm:!size-9"
-                          />
-                          <span className="font-medium">
-                            {formatPlayerDisplayName(player.firstName, player.lastName)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      htmlFor="team-a-score"
-                      className={cn(
-                        "text-sm font-medium",
-                        pendingWinner === "A" && "text-primary",
-                      )}
-                    >
-                      Team A
-                      {pendingWinner === "A"
-                        ? " (winner)"
-                        : pendingWinner != null
-                          ? " (loser)"
-                          : ""}
-                    </label>
-                    <NumberStepper
-                      id="team-a-score"
-                      min={0}
-                      max={
-                        pendingWinner === "A"
-                          ? MAX_MATCH_SCORE
-                          : endGameLoserScoreMax ?? MAX_MATCH_SCORE
-                      }
-                      value={parseEndGameScoreField(teamAScore)}
-                      onChange={handleTeamAScoreChange}
-                      className="court-winner-score-stepper w-full gap-1"
-                      buttonClassName="h-9 w-9"
-                      inputClassName="h-9 min-w-0 flex-1 px-1"
-                      invalid={endGameScoreError != null && pendingWinner === "B"}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label
-                      htmlFor="team-b-score"
-                      className={cn(
-                        "text-sm font-medium",
-                        pendingWinner === "B" && "text-primary",
-                      )}
-                    >
-                      Team B
-                      {pendingWinner === "B"
-                        ? " (winner)"
-                        : pendingWinner != null
-                          ? " (loser)"
-                          : ""}
-                    </label>
-                    <NumberStepper
-                      id="team-b-score"
-                      min={0}
-                      max={
-                        pendingWinner === "B"
-                          ? MAX_MATCH_SCORE
-                          : endGameLoserScoreMax ?? MAX_MATCH_SCORE
-                      }
-                      value={parseEndGameScoreField(teamBScore)}
-                      onChange={handleTeamBScoreChange}
-                      className="court-winner-score-stepper w-full gap-1"
-                      buttonClassName="h-9 w-9"
-                      inputClassName="h-9 min-w-0 flex-1 px-1"
-                      invalid={endGameScoreError != null && pendingWinner === "A"}
-                    />
-                  </div>
-                </div>
-                {endGameScoreError ? (
-                  <p className="text-sm text-destructive" role="alert">
-                    {endGameScoreError}
-                  </p>
-                ) : null}
-                <div className="end-game-rematch-block">
-                  <div className="end-game-rematch-row">
-                    <span className="end-game-rematch-label">Rematch?</span>
-                    <div className="end-game-rematch-toggle" role="group" aria-label="Rematch">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={endGameRematch ? "outline" : "default"}
-                        className="end-game-rematch-btn"
-                        onClick={() => setEndGameRematch(false)}
-                      >
-                        No
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={endGameRematch ? "default" : "outline"}
-                        className="end-game-rematch-btn"
-                        onClick={() => setEndGameRematch(true)}
-                      >
-                        Yes
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="end-game-rematch-hint">
-                    {endGameRematch
-                      ? "Same four, fresh clock on this court."
-                      : "Return all four to the queue."}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setPendingWinner(null);
-                      setEndGameRematch(false);
-                      setTeamAScore("");
-                      setTeamBScore("");
-                    }}
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={endGameScoreError != null}
-                    onClick={() => {
-                      if (!pendingWinner || endGameScoreError || endTargetCourt == null) return;
-                      const a = teamAScore.trim();
-                      const b = teamBScore.trim();
-                      endMutation.mutate({
-                        courtNumber: endTargetCourt,
-                        winnerTeam: pendingWinner,
-                        teamAScore: a === "" ? 0 : Number(a),
-                        teamBScore: b === "" ? 0 : Number(b),
-                        rematch: endGameRematch,
-                      });
-                    }}
-                  >
-                    {endGameRematch ? "Start rematch" : "End game"}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <CourtEndGameDialog
+          open={endTargetCourt !== null}
+          endCourt={endCourt}
+          playerLookup={sessionPlayerLookup}
+          pendingWinner={pendingWinner}
+          onPendingWinnerChange={setPendingWinner}
+          endGameRematch={endGameRematch}
+          onEndGameRematchChange={setEndGameRematch}
+          teamAScore={teamAScore}
+          onTeamAScoreChange={setTeamAScore}
+          teamBScore={teamBScore}
+          onTeamBScoreChange={setTeamBScore}
+          endGameScoreError={endGameScoreError}
+          onClose={closeEndDialog}
+          onSubmit={(input) => {
+            if (endTargetCourt == null) return;
+            endMutation.mutate({
+              courtNumber: endTargetCourt,
+              ...input,
+            });
+          }}
+        />
       ) : null}
 
       {showOperatorMobileNav ? (

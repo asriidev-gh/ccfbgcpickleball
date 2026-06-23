@@ -16,6 +16,7 @@ import {
   MIN_EXPECTED_PLAYERS,
   QUICK_PLAY_GAME_MODE_OPTIONS,
   getMinExpectedPlayersForGameMode,
+  isMixedDoublesMatching,
   QUICK_PLAY_MATCHING_TYPE_OPTIONS,
   QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS,
   QUICK_PLAY_STEP_HEADINGS,
@@ -31,6 +32,8 @@ import {
   playerPreviewInitial,
   quickPlayPlayerRowGridCols,
   resolvePlayerOpenPlayLevel,
+  type QuickPlayGameMode,
+  type QuickPlayMatchingType,
   type QuickPlayWizardFormFields,
   type QuickPlayWizardPlayerEntry,
 } from "@/lib/quick-play-wizard-shared";
@@ -290,6 +293,8 @@ export function QuickPlayFormatStep({
 export function QuickPlayPlayersStep({
   idPrefix,
   openPlayType,
+  matchingType,
+  gameMode = "doubles",
   sessionLockedPlayerLevel,
   playerEntries,
   setPlayerEntries,
@@ -307,6 +312,8 @@ export function QuickPlayPlayersStep({
 }: {
   idPrefix: string;
   openPlayType: string;
+  matchingType?: QuickPlayMatchingType;
+  gameMode?: QuickPlayGameMode;
   sessionLockedPlayerLevel: PlayerOpenPlayLevel | null;
   playerEntries: QuickPlayWizardPlayerEntry[];
   setPlayerEntries: Dispatch<SetStateAction<QuickPlayWizardPlayerEntry[]>>;
@@ -331,13 +338,17 @@ export function QuickPlayPlayersStep({
     sessionLevelOptions === null
       ? WIZARD_PLAYER_LEVEL_OPTIONS
       : WIZARD_PLAYER_LEVEL_OPTIONS.filter((option) => sessionLevelOptions.includes(option.value));
+  const showMixedDoublesHint =
+    gameMode === "doubles" && isMixedDoublesMatching(matchingType);
 
   return (
     <div className="space-y-4">
       <div className="space-y-1">
         <Label className="text-base">Enter player names</Label>
         <p className="text-sm text-muted-foreground">
-          {isAnyLevelOpenPlay
+          {showMixedDoublesHint
+            ? "Mixed doubles needs an even number of players with equal men and women (two of each gender per court)."
+            : isAnyLevelOpenPlay
             ? "One row per player with name, gender, and player level."
             : isMixedLevelOpenPlay
               ? `One row per player with name, gender, and level (${openPlayType.replace(/^Mix of /, "").replace(/ Open Play$/, "")}).`

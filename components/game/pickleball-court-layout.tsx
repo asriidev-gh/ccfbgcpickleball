@@ -7,6 +7,7 @@ import {
   PlayerProfileTrigger,
   type PlayerPhotoRef,
 } from "@/components/game/player-avatar";
+import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import {
   formatSessionRecordLabel,
   formatSessionRecordWithRankLabel,
@@ -99,27 +100,30 @@ function ServiceBox({
       />
       <div className="pickleball-court__box-info min-w-0 flex-1">
         <div className="pickleball-court__box-main flex min-w-0 items-center gap-1">
-          <PlayerProfileTrigger
-            player={player}
-            className="pickleball-court__player-name min-w-0 truncate"
-          >
-            <span
-              className={cn(
-                "court-player-name--first",
-                obscured && "fill-court-player-name--obscured",
-              )}
+          <span className="inline-flex min-w-0 max-w-full flex-1 items-center gap-1">
+            <PlayerProfileTrigger
+              player={player}
+              className="pickleball-court__player-name min-w-0 truncate"
             >
-              {firstName || courtName}
-            </span>
-            <span
-              className={cn(
-                "court-player-name--full",
-                obscured && "fill-court-player-name--obscured",
-              )}
-            >
-              {courtName}
-            </span>
-          </PlayerProfileTrigger>
+              <span
+                className={cn(
+                  "court-player-name--first",
+                  obscured && "fill-court-player-name--obscured",
+                )}
+              >
+                {firstName || courtName}
+              </span>
+              <span
+                className={cn(
+                  "court-player-name--full",
+                  obscured && "fill-court-player-name--obscured",
+                )}
+              >
+                {courtName}
+              </span>
+            </PlayerProfileTrigger>
+            <PlayerGenderPill gender={player.gender} />
+          </span>
           {onReplacePlayer ? (
             <Button
               type="button"
@@ -172,6 +176,7 @@ type PickleballCourtLayoutProps = {
   replacePendingKey?: string | null;
   onSwapTeams?: () => void | Promise<void>;
   swapPending?: boolean;
+  mixedDoubles?: boolean;
   hideEndGame?: boolean;
   empty?: boolean;
 };
@@ -188,6 +193,7 @@ export function PickleballCourtLayout({
   replacePendingKey = null,
   onSwapTeams,
   swapPending = false,
+  mixedDoubles = false,
   hideEndGame = false,
   empty = false,
 }: PickleballCourtLayoutProps) {
@@ -205,6 +211,8 @@ export function PickleballCourtLayout({
     onShuffle: onSwapTeams ?? (async () => {}),
     enabled: Boolean(onSwapTeams) && !empty,
     resetKey: courtNumber,
+    mixedDoubles,
+    getGender: (player) => player.gender,
   });
 
   const replaceHandler =

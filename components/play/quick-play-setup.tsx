@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { useActiveEphemeralSessions } from "@/hooks/use-active-ephemeral-sessions";
 import { createEphemeralQuickGameId, getQuickGameDashboardPath } from "@/lib/local-game-id";
 import { createLocalLiveQueueSession } from "@/lib/local-game-session";
+import { orderPlayersByAlternatingGender } from "@/lib/doubles/mixed-doubles-shuffle";
 import { seedLocalGameOperatorCache } from "@/lib/operator-game-cache";
 import {
   formatOpenPlayTimeRange,
@@ -49,6 +50,8 @@ import {
   findFirstMissingQuickPlayPlayerGenderIndex,
   findLastDuplicateQuickPlayPlayerNameIndex,
   getMinExpectedPlayersForGameMode,
+  getMixedDoublesPlayersValidationError,
+  isMixedDoublesMatching,
   resolvePlayerOpenPlayLevel,
   syncQuickPlayWizardPlayerEntryCount,
   type QuickPlayWizardFormFields,
@@ -125,6 +128,12 @@ export function QuickPlaySetup() {
       ),
     [filledPlayers],
   );
+  const previewQueuePlayers = useMemo(() => {
+    if (isMixedDoublesMatching(form.matchingType) && form.gameMode === "doubles") {
+      return orderPlayersByAlternatingGender(playersForSubmit, (player) => player.gender);
+    }
+    return playersForSubmit;
+  }, [form.gameMode, form.matchingType, playersForSubmit]);
   const duplicatePlayerNameIndex = useMemo(
     () => findLastDuplicateQuickPlayPlayerNameIndex(playerEntries),
     [playerEntries],
@@ -145,6 +154,11 @@ export function QuickPlaySetup() {
   const hasMissingPlayerGender = missingGenderIndex !== null;
   const hasPlayerNameTooLong = tooLongPlayerNameIndex !== null;
   const hasInvalidPlayerName = invalidPlayerNameIndex !== null;
+  const mixedDoublesValidationError = useMemo(() => {
+    if (!isMixedDoublesMatching(form.matchingType) || form.gameMode !== "doubles") return null;
+    if (playersForSubmit.length !== filledPlayers.length) return null;
+    return getMixedDoublesPlayersValidationError(playersForSubmit);
+  }, [form.gameMode, form.matchingType, filledPlayers.length, playersForSubmit]);
   const canAddMorePlayers = playerEntries.length < MAX_QUICK_PLAY_PLAYERS;
   const sessionTitle = form.title.trim() || defaultOpenPlayTitle(form.openPlayType);
 
@@ -167,7 +181,8 @@ export function QuickPlaySetup() {
         !hasMissingPlayerGender &&
         !hasPlayerNameTooLong &&
         !hasInvalidPlayerName &&
-        playersForSubmit.length === filledPlayers.length
+        playersForSubmit.length === filledPlayers.length &&
+        !mixedDoublesValidationError
       );
     }
     return true;
@@ -188,6 +203,7 @@ export function QuickPlaySetup() {
         else if (hasInvalidPlayerName) toast.error(playerDisplayNameInvalidCharacterMessage());
         else if (hasDuplicatePlayerNames) toast.error("Each player name must be unique.");
         else if (hasMissingPlayerGender) toast.error("Select a gender for each player.");
+        else if (mixedDoublesValidationError) toast.error(mixedDoublesValidationError);
         else if (filledPlayers.length < minExpectedPlayers) {
           toast.error(`Enter at least ${minExpectedPlayers} players for ${form.gameMode} play.`);
         } else if (filledPlayers.length > MAX_QUICK_PLAY_PLAYERS) {
@@ -217,6 +233,15 @@ export function QuickPlaySetup() {
       toast.error(`Enter at least ${minExpectedPlayers} players for ${form.gameMode} play.`);
       setStep(2);
       return;
+    }
+
+    if (isMixedDoublesMatching(form.matchingType) && form.gameMode === "doubles") {
+      const mixedDoublesError = getMixedDoublesPlayersValidationError(playersForSubmit);
+      if (mixedDoublesError) {
+        toast.error(mixedDoublesError);
+        setStep(2);
+        return;
+      }
     }
 
     try {
@@ -286,6 +311,9 @@ export function QuickPlaySetup() {
                 if (next.expectedPlayers < minPlayers) {
                   next.expectedPlayers = minPlayers;
                 }
+                if (patch.gameMode === "singles" && next.matchingType === "mixed-doubles") {
+                  next.matchingType = "auto-balanced";
+                }
               }
               return next;
             })
@@ -314,6 +342,8 @@ export function QuickPlaySetup() {
         <QuickPlayPlayersStep
           idPrefix="quick-play"
           openPlayType={form.openPlayType}
+          matchingType={form.matchingType}
+          gameMode={form.gameMode}
           sessionLockedPlayerLevel={sessionLockedPlayerLevel}
           playerEntries={playerEntries}
           setPlayerEntries={setPlayerEntries}
@@ -335,7 +365,7 @@ export function QuickPlaySetup() {
         <QuickPlayPreviewStep
           sessionTitle={sessionTitle}
           form={form}
-          filledPlayers={playersForSubmit}
+          filledPlayers={previewQueuePlayers}
           defaultCheckInAllPlayers={defaultCheckInAllPlayers}
           allowManualPlayerAdd={allowManualPlayerAdd}
           allowManualCourtAdd={allowManualCourtAdd}

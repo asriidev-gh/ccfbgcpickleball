@@ -19,6 +19,8 @@ type UseShuffleTeamsAnimationOptions<T> = {
   enabled?: boolean;
   /** Increment or change to cancel in-flight shuffle and reset state. */
   resetKey?: string | number | boolean;
+  mixedDoubles?: boolean;
+  getGender?: (item: T) => string | null | undefined;
 };
 
 export function useShuffleTeamsAnimation<T>({
@@ -27,6 +29,8 @@ export function useShuffleTeamsAnimation<T>({
   onShuffle,
   enabled = true,
   resetKey,
+  mixedDoubles = false,
+  getGender,
 }: UseShuffleTeamsAnimationOptions<T>) {
   const [isShuffling, setIsShuffling] = useState(false);
   const [isRevealing, setIsRevealing] = useState(false);
@@ -56,13 +60,14 @@ export function useShuffleTeamsAnimation<T>({
 
     setIsShuffling(true);
     setIsRevealing(false);
-    setPreview(randomTeamSplit(pool));
+    const splitOptions = mixedDoubles && getGender ? { mixedDoubles: true, getGender } : undefined;
+    setPreview(randomTeamSplit(pool, splitOptions));
 
     const tickInterval =
       duration > 0
         ? window.setInterval(() => {
             if (shuffleRunId.current !== runId) return;
-            setPreview(randomTeamSplit(pool));
+            setPreview(randomTeamSplit(pool, splitOptions));
           }, SHUFFLE_TICK_MS)
         : undefined;
 
@@ -90,7 +95,7 @@ export function useShuffleTeamsAnimation<T>({
         if (shuffleRunId.current === runId) setIsRevealing(false);
       }, SHUFFLE_REVEAL_MS);
     }
-  }, [enabled, isShuffling, onShuffle, teamA, teamB]);
+  }, [enabled, getGender, isShuffling, mixedDoubles, onShuffle, teamA, teamB]);
 
   return {
     isShuffling,

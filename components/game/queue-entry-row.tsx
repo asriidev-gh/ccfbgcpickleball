@@ -5,6 +5,7 @@ import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
 import { PlayerNameWithPhoto, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { FirstTimerPill } from "@/components/game/leaderboard-standings";
+import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-menu";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -134,6 +135,7 @@ function QueuePlayerLabel({
   return (
     <span className="inline-flex max-w-full flex-wrap items-center gap-1">
       <span className="min-w-0 truncate">{name}</span>
+      <PlayerGenderPill gender={entry.playerId.gender} />
       {entry.isFirstTimer ? <FirstTimerPill /> : null}
     </span>
   );

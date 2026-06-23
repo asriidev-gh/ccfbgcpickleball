@@ -20,6 +20,9 @@ import {
   removeQueueEntriesById,
   resolveDoublesRotationQueue,
 } from "@/lib/doubles/doubles-queue-fill";
+import { shuffleDoublesIntoNewHalves } from "@/lib/doubles/mixed-doubles-shuffle";
+import { appendMixedDoublesRequeueEntries } from "@/lib/doubles/mixed-doubles-requeue";
+import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 
 export type GamePayload = OperatorFullPayload;
 
@@ -108,14 +111,6 @@ function buildOptimisticRequeueEntries(
   });
 }
 
-function shuffleSlots<T>(items: T[]): T[] {
-  const result = [...items];
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
 
 function teamKeyFromPlayers(players: PlayerPhotoRef[]): string {
   return players
@@ -127,19 +122,26 @@ function teamKeyFromPlayers(players: PlayerPhotoRef[]): string {
 
 function shuffleIntoNewHalves(
   items: QueueEntryView[],
+  matchingType?: GamePayload["game"]["matchingType"],
 ): { firstHalf: QueueEntryView[]; secondHalf: QueueEntryView[] } {
-  const half = Math.floor(items.length / 2);
-  const currentKey = teamKeyFromPlayers(items.slice(0, half).map((entry) => entry.playerId));
+  return shuffleDoublesIntoNewHalves(
+    items,
+    matchingType,
+    (half) => teamKeyFromPlayers(half.map((entry) => entry.playerId)),
+    (entry) => entry.playerId.gender,
+  );
+}
 
-  let shuffled = items;
-  for (let attempt = 0; attempt < 25; attempt += 1) {
-    shuffled = shuffleSlots(items);
-    if (teamKeyFromPlayers(shuffled.slice(0, half).map((entry) => entry.playerId)) !== currentKey) {
-      break;
-    }
-  }
-
-  return { firstHalf: shuffled.slice(0, half), secondHalf: shuffled.slice(half) };
+function shufflePlayersIntoNewHalves(
+  players: PlayerPhotoRef[],
+  matchingType?: GamePayload["game"]["matchingType"],
+): { firstHalf: PlayerPhotoRef[]; secondHalf: PlayerPhotoRef[] } {
+  return shuffleDoublesIntoNewHalves(
+    players,
+    matchingType,
+    (half) => teamKeyFromPlayers(half),
+    (player) => player.gender,
+  );
 }
 
 function leaderboardRowPlayerId(row: LeaderboardGamesPlayedRow): string | null {
@@ -264,6 +266,34 @@ export function applyEndGameOptimistic(
   if (teamA.length + teamB.length < 4) return null;
 
   const baseTime = Date.now();
+
+  if (isMixedDoublesMatching(payload.game.matchingType)) {
+    const requeueEntries = buildOptimisticRequeueEntries(
+      teamA,
+      teamB,
+      input.winnerTeam,
+      baseTime,
+    );
+
+    return {
+      ...payload,
+      queue: appendMixedDoublesRequeueEntries(payload.queue, requeueEntries, baseTime),
+      courts: payload.courts.map((c) =>
+        c.courtNumber === input.courtNumber
+          ? {
+              ...c,
+              status: "empty",
+              startedAt: null,
+              pausedAt: null,
+              totalPausedMs: 0,
+              isRematch: false,
+              teamA: { playerIds: [] },
+              teamB: { playerIds: [] },
+            }
+          : c,
+      ),
+    };
+  }
 
   if (isDoublesWinnerLoserRotation(payload.game.matchingType)) {
     const requeueEntries = buildDoublesWinnerLoserRequeueEntries(
@@ -797,7 +827,7 @@ export function applyShuffleNextOptimistic(payload: GamePayload): GamePayload | 
   const pickedIds = new Set(nextUp.map((entry) => entry._id));
   const insertAt = ordered.findIndex((entry) => pickedIds.has(entry._id));
   const without = ordered.filter((entry) => !pickedIds.has(entry._id));
-  const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp);
+  const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp, payload.game.matchingType);
 
   const baseTime = new Date(nextUp[0].registeredAt).getTime();
   const shuffled = [...firstHalf, ...secondHalf].map((entry, index) => ({
@@ -833,15 +863,7 @@ export function applySwapCourtTeamsOptimistic(
   const slots = [...court.teamA.playerIds, ...court.teamB.playerIds];
   if (slots.length < 4) return null;
 
-  const asEntries: QueueEntryView[] = slots.map((player, index) => ({
-    _id: `swap-slot-${index}`,
-    queueType: "normal",
-    playerId: player,
-    registeredAt: new Date().toISOString(),
-    lastMatchResult: "none",
-  }));
-
-  const { firstHalf, secondHalf } = shuffleIntoNewHalves(asEntries);
+  const { firstHalf, secondHalf } = shufflePlayersIntoNewHalves(slots, payload.game.matchingType);
 
   return {
     ...payload,
@@ -849,8 +871,8 @@ export function applySwapCourtTeamsOptimistic(
       item.courtNumber === courtNumber
         ? {
             ...item,
-            teamA: { playerIds: firstHalf.map((entry) => entry.playerId) },
-            teamB: { playerIds: secondHalf.map((entry) => entry.playerId) },
+            teamA: { playerIds: firstHalf },
+            teamB: { playerIds: secondHalf },
           }
         : item,
     ),

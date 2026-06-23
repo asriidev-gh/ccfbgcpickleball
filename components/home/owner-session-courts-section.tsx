@@ -37,6 +37,8 @@ import {
   isDoublesWinnerLoserRotation,
   pickDoublesCourtFoursome,
 } from "@/lib/doubles/doubles-queue-fill";
+import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
+import { buildSessionPlayerLookup } from "@/lib/session-player-lookup";
 import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
 import { useQuickGameSession } from "@/lib/quick-game-store";
@@ -114,6 +116,7 @@ export function OwnerSessionCourtsSection({
 
   const matchingType = localPayload?.game.matchingType ?? session.matchingType;
   const usesWinnerLoserRotation = isDoublesWinnerLoserRotation(matchingType);
+  const usesMixedDoubles = isMixedDoublesMatching(matchingType);
 
   const nextCourtFoursome = useMemo(() => {
     const foursome = pickDoublesCourtFoursome(session.queue, matchingType) ?? [];
@@ -163,6 +166,16 @@ export function OwnerSessionCourtsSection({
         )
       : null;
 
+  const sessionPlayerLookup = useMemo(
+    () =>
+      buildSessionPlayerLookup({
+        queue: queueWithStats,
+        checkedOut: session.checkedOut ?? [],
+        courts: session.courts,
+      }),
+    [queueWithStats, session.checkedOut, session.courts],
+  );
+
   const queueCounts = useMemo(
     () => ({
       queuedCount: queueWithStats.length,
@@ -173,11 +186,13 @@ export function OwnerSessionCourtsSection({
   );
 
   const getCourtCardProps = useCallback(
-    (court: (typeof session.courts)[number]) =>
-      courtActions.getCourtCardProps(court, queueCounts, (courtNumber) =>
+    (court: (typeof session.courts)[number]) => ({
+      ...courtActions.getCourtCardProps(court, queueCounts, (courtNumber) =>
         fillCourtFlowRef.current?.openFillCourt(courtNumber),
       ),
-    [courtActions, queueCounts],
+      mixedDoubles: usesMixedDoubles,
+    }),
+    [courtActions, queueCounts, usesMixedDoubles],
   );
 
   const showPauseAll = canOperateSession && courtActions.activeCourts.length > 0;
@@ -340,6 +355,7 @@ export function OwnerSessionCourtsSection({
           onShuffle={async () => {
             await courtActions.shuffleNextMutation.mutateAsync();
           }}
+          mixedDoubles={usesMixedDoubles}
           onReplace={(sourceIndex, sourceEntry) => {
             courtActions.setReplaceDialog({ kind: "queue", sourceIndex, sourceEntry });
           }}
@@ -379,6 +395,7 @@ export function OwnerSessionCourtsSection({
           onCloseEndDialog={courtActions.closeEndDialog}
           onSubmitEndGame={(input) => courtActions.endMutation.mutate(input)}
           endGameScoreError={endGameScoreError}
+          playerLookup={sessionPlayerLookup}
         />
       ) : null}
       </CardContent>

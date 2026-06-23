@@ -4,6 +4,7 @@ import { memo, useMemo } from "react";
 import { ArrowLeftRight, Loader2, Play, Shuffle, Volume2, VolumeX } from "lucide-react";
 
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
+import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useShuffleTeamsAnimation } from "@/hooks/use-shuffle-teams-animation";
@@ -29,6 +30,7 @@ type FillCourtConfirmDialogProps = {
   onConfirmFill: () => void;
   fillPending?: boolean;
   onShuffle: () => Promise<void>;
+  mixedDoubles?: boolean;
   callingNames?: boolean;
   onCallNames?: (teamA: QueueEntryView[], teamB: QueueEntryView[]) => void;
   onCancelCallNames?: () => void;
@@ -87,11 +89,12 @@ const FillCourtPlayerRow = memo(function FillCourtPlayerRow({
       </Avatar>
       <span
         className={cn(
-          "min-w-0 flex-1 truncate text-sm font-medium",
+          "inline-flex min-w-0 flex-1 items-center gap-1.5",
           obscured && "fill-court-player-name--obscured",
         )}
       >
-        {name}
+        <span className="min-w-0 truncate text-sm font-medium">{name}</span>
+        <PlayerGenderPill gender={entry.playerId.gender} />
       </span>
       <Button
         type="button"
@@ -171,6 +174,7 @@ export function FillCourtConfirmDialog({
   onConfirmFill,
   fillPending = false,
   onShuffle,
+  mixedDoubles = false,
   callingNames = false,
   onCallNames,
   onCancelCallNames,
@@ -189,6 +193,8 @@ export function FillCourtConfirmDialog({
     onShuffle,
     enabled: open,
     resetKey: open,
+    mixedDoubles,
+    getGender: (entry) => entry.playerId.gender,
   });
 
   const actionsDisabled = fillPending || isShuffling;

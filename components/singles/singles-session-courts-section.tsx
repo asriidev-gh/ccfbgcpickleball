@@ -31,6 +31,7 @@ import {
 import { operatorPayloadToCourtsViewSession } from "@/lib/local-courts-view";
 import { getQuickGameDashboardPath, isQuickGame } from "@/lib/local-game-id";
 import { getMatchScoreInputError } from "@/lib/match-score-validation";
+import { buildSessionPlayerLookup } from "@/lib/session-player-lookup";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
 import { useQuickGameSession } from "@/lib/quick-game-store";
 import { pickSinglesCourtPair } from "@/lib/singles/singles-queue-fill";
@@ -132,6 +133,16 @@ export function SinglesSessionCourtsSection({
     courtActions.endTargetCourt != null
       ? session.courts.find((court) => court.courtNumber === courtActions.endTargetCourt)
       : undefined;
+
+  const sessionPlayerLookup = useMemo(
+    () =>
+      buildSessionPlayerLookup({
+        queue: queueWithStats,
+        checkedOut: session.checkedOut ?? [],
+        courts: session.courts,
+      }),
+    [queueWithStats, session.checkedOut, session.courts],
+  );
 
   const showPauseAll = courtActions.activeCourts.length > 0;
 
@@ -266,6 +277,7 @@ export function SinglesSessionCourtsSection({
           <CourtEndGameDialog
             open={courtActions.endTargetCourt != null}
             endCourt={endCourt}
+            playerLookup={sessionPlayerLookup}
             pendingWinner={courtActions.pendingWinner}
             onPendingWinnerChange={courtActions.setPendingWinner}
             endGameRematch={courtActions.endGameRematch}

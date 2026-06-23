@@ -18,6 +18,8 @@ import type { OperatorFullPayload } from "@/lib/operator-payload";
 import {
   getQuickGamePersistence,
 } from "@/lib/local-game-id";
+import { orderPlayersByAlternatingGender } from "@/lib/doubles/mixed-doubles-shuffle";
+import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import { isDuplicateSessionPlayerName } from "@/lib/session-player-display-names";
 
 export const LOCAL_SESSION_PLAYER_ID_PREFIX = "local-player-";
@@ -45,7 +47,7 @@ export type CreateLocalLiveQueueSessionInput = {
   players: LocalPreRegisteredPlayer[];
   checkInAllPlayers: boolean;
   gameMode?: "doubles" | "singles";
-  matchingType?: "auto-balanced" | "winner-loser-groups";
+  matchingType?: "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
 };
 
 function buildLocalPlayer(
@@ -110,9 +112,13 @@ export function createLocalLiveQueueSession(
       openPlayLevel: player.openPlayLevel,
     }))
     .filter((player) => player.displayName.length > 0);
+  const orderedPlayers =
+    isMixedDoublesMatching(input.matchingType) && (input.gameMode ?? "doubles") === "doubles"
+      ? orderPlayersByAlternatingGender(trimmedPlayers, (player) => player.gender)
+      : trimmedPlayers;
   const baseMs = Date.now();
 
-  const players = trimmedPlayers.map((player, index) =>
+  const players = orderedPlayers.map((player, index) =>
     buildLocalPlayer(
       player.displayName,
       `${runId}-${index + 1}`,
