@@ -166,6 +166,8 @@ type QueueEntryRowProps = {
   onViewPlayerInfo?: () => void;
   /** Organizer queue: show when a spectator shared this player's card. */
   showCardSharedStatus?: boolean;
+  /** Spectator self row: share player card action beside checkout. */
+  shareAction?: ReactNode;
 };
 
 export function QueueEntryRow({
@@ -194,6 +196,7 @@ export function QueueEntryRow({
   leaderboardRankMap,
   onViewPlayerInfo,
   showCardSharedStatus = false,
+  shareAction,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const playerMongoId = resolvePlayerId(entry.playerId);
@@ -235,7 +238,8 @@ export function QueueEntryRow({
     showReplace ||
     Boolean(onRemove) ||
     Boolean(onRemovePlayer) ||
-    (checkedOut && Boolean(onCheckBackIn));
+    (checkedOut && Boolean(onCheckBackIn)) ||
+    Boolean(shareAction);
 
   return (
     <div
@@ -338,26 +342,29 @@ export function QueueEntryRow({
         )}
       </p>
 
-      {showActionsMenu ? (
+      {(showActionsMenu || shareAction) ? (
         <div
           className={cn(
             showReplace ? "queue-swap-panel" : "mt-2",
             "flex flex-wrap justify-end gap-1 xl:gap-2",
           )}
         >
-          <QueuePlayerActionsMenu
-            onReplace={showReplace ? onReplace : undefined}
-            canReplace={canReplace}
-            replacePending={replacePending}
-            onCheckBackIn={checkedOut ? onCheckBackIn : undefined}
-            checkBackInPending={checkBackInPending}
-            checkInAsPlayer={checkInAsPlayer}
-            onCheckOut={onRemove}
-            checkOutPending={removePending}
-            onRemovePlayer={onRemovePlayer}
-            removePlayerPending={removePlayerPending}
-            compact={showReplace}
-          />
+          {shareAction}
+          {showActionsMenu ? (
+            <QueuePlayerActionsMenu
+              onReplace={showReplace ? onReplace : undefined}
+              canReplace={canReplace}
+              replacePending={replacePending}
+              onCheckBackIn={checkedOut ? onCheckBackIn : undefined}
+              checkBackInPending={checkBackInPending}
+              checkInAsPlayer={checkInAsPlayer}
+              onCheckOut={onRemove}
+              checkOutPending={removePending}
+              onRemovePlayer={onRemovePlayer}
+              removePlayerPending={removePlayerPending}
+              compact={showReplace}
+            />
+          ) : null}
         </div>
       ) : null}
     </div>

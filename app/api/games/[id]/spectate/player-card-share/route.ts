@@ -16,7 +16,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     return await runWithDatabase(async () => {
-      const result = await markSpectatorPlayerCardShared(gameId, parsed.data.queueEntryId);
+      const allowedPlayerIds = Array.from(
+        new Set(
+          [parsed.data.playerId, ...(parsed.data.selfPlayerIds ?? [])].filter(Boolean),
+        ),
+      );
+      const result = await markSpectatorPlayerCardShared(
+        gameId,
+        parsed.data.queueEntryId,
+        allowedPlayerIds,
+      );
       return NextResponse.json(result);
     });
   } catch (error) {

@@ -5,8 +5,17 @@ import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
 import "@/models/Player";
 
-export async function markSpectatorPlayerCardShared(gameId: string, queueEntryId: string) {
+export async function markSpectatorPlayerCardShared(
+  gameId: string,
+  queueEntryId: string,
+  allowedPlayerIds: string[],
+) {
   await connectToDatabase();
+
+  const uniquePlayerIds = Array.from(new Set(allowedPlayerIds.filter(Boolean)));
+  if (uniquePlayerIds.length === 0) {
+    throw new Error("Player session is required.");
+  }
 
   const game = await PickleGame.findOne({ gameId }).select("status").lean();
   if (!game) {
@@ -19,11 +28,12 @@ export async function markSpectatorPlayerCardShared(gameId: string, queueEntryId
   const entry = await QueueEntry.findOne({
     _id: queueEntryId,
     gameId,
+    playerId: { $in: uniquePlayerIds },
     status: { $in: ["queued", "checked_out"] },
   }).populate("playerId", "firstName lastName");
 
   if (!entry) {
-    throw new Error("Queue entry not found.");
+    throw new Error("You can only share your own player card.");
   }
 
   const player = entry.playerId as {
