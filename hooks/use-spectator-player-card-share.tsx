@@ -3,7 +3,6 @@
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { SpectatorPlayerShareCard } from "@/components/game/spectator-player-share-card";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { useAppTheme } from "@/components/theme/theme-manager";
 import { trackSpectatorPlayerCardShare } from "@/lib/fetch-spectate-player-card-share";
@@ -36,6 +35,7 @@ type UseSpectatorPlayerCardShareInput = {
   clubLogoUrl?: string | null;
   clubTagline?: string | null;
   openPlaySchedule?: string | null;
+  venueLabel?: string | null;
   leaderboardRankMap?: Map<string, number>;
 };
 
@@ -87,29 +87,21 @@ export function useSpectatorPlayerCardShare({
       toast.error(
         error instanceof Error ? error.message : "Could not create share image.",
       );
+      throw error;
     } finally {
       setSharing(false);
     }
   };
 
-  const captureTarget = (
-    <div className="pointer-events-none fixed top-0 -left-[10000px] opacity-0" aria-hidden>
-      <SpectatorPlayerShareCard
-        ref={shareCardRef}
-        theme={theme}
-        player={player}
-        wins={wins}
-        losses={losses}
-        rank={rank}
-        gameTitle={gameTitle}
-        clubName={clubName}
-        clubLogoUrl={clubLogoUrl}
-        clubTagline={clubTagline}
-        openPlaySchedule={openPlaySchedule}
-        siteLabel={siteLabel}
-      />
-    </div>
-  );
-
-  return { share, sharing, captureTarget };
+  return {
+    share,
+    sharing,
+    shareCardRef,
+    theme,
+    siteLabel,
+    player,
+    wins,
+    losses,
+    rank,
+  };
 }

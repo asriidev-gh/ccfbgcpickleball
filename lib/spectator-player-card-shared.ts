@@ -11,16 +11,22 @@ export function formatSpectatorPlayerGender(player: SpectatorPlayerCardPlayer): 
   return GENDER_OPTIONS.find((option) => option.value === gender)?.label ?? gender;
 }
 
-export function formatSpectatorPlayerSkillLevel(player: SpectatorPlayerCardPlayer): string {
+export function resolveSpectatorPlayerSkillLevelLabel(
+  player: SpectatorPlayerCardPlayer,
+): string | null {
   const sessionLevel = player.openPlayLevel?.trim();
   if (sessionLevel) return sessionLevel;
 
   const profileLevel = player.pickleballLevel?.trim();
-  if (!profileLevel) return "—";
+  if (!profileLevel) return null;
 
   return (
     PICKLEBALL_LEVELS.find((option) => option.value === profileLevel)?.label ?? profileLevel
   );
+}
+
+export function formatSpectatorPlayerSkillLevel(player: SpectatorPlayerCardPlayer): string {
+  return resolveSpectatorPlayerSkillLevelLabel(player) ?? "—";
 }
 
 export function formatSpectatorPlayerRank(rank: number | null | undefined): string {

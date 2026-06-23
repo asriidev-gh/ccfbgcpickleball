@@ -52,14 +52,24 @@ export function formatSessionRecordLabel(stats: PlayerSessionStats) {
   return `(W${wins}/L${losses})`;
 }
 
-/** e.g. "(W1/L1/Rank:1)" when rank is known; falls back to wins/losses only. */
+/** No games played this session yet (unranked). */
+export function isSessionRecordEmpty(
+  stats: Pick<PlayerSessionStats, "wins" | "losses" | "gamesPlayed">,
+) {
+  const gamesPlayed = stats.gamesPlayed ?? stats.wins + stats.losses;
+  return gamesPlayed === 0 && stats.wins === 0 && stats.losses === 0;
+}
+
+/** e.g. "(W1/L1/R1)" when rank is known; "(R0)" when no session record yet. */
 export function formatSessionRecordWithRankLabel(
   stats: PlayerSessionStats,
   rank?: number | null,
 ) {
+  if (isSessionRecordEmpty(stats)) return "(R0)";
+
   const { wins, losses } = stats;
   if (rank == null) return formatSessionRecordLabel(stats);
-  return `(W${wins}/L${losses}/Rank:${rank})`;
+  return `(W${wins}/L${losses}/R${rank})`;
 }
 
 function leaderboardWinRate(stats: Pick<PlayerSessionStats, "wins" | "losses" | "gamesPlayed">) {
@@ -94,6 +104,41 @@ export function buildPlayerLeaderboardRankMap(
     map.set(entry.id, index + 1);
   });
   return map;
+}
+
+type SessionRankParticipant = {
+  playerId: { _id?: { toString(): string } | string } | string | null | undefined;
+  wins?: number;
+  losses?: number;
+  gamesPlayed?: number;
+};
+
+/** Rank everyone in queue/checkout, merging leaderboard rows when available. */
+export function buildSessionLeaderboardRankMap(
+  leaderboard: LeaderboardGamesPlayedRow[] | undefined,
+  participants: SessionRankParticipant[] | undefined,
+): Map<string, number> {
+  const byPlayerId = new Map<string, LeaderboardGamesPlayedRow>();
+
+  for (const row of leaderboard ?? []) {
+    const id = resolvePlayerId(row.playerId);
+    if (id) byPlayerId.set(id, row);
+  }
+
+  const statsMap = buildPlayerSessionStatsMap(leaderboard);
+  for (const entry of participants ?? []) {
+    const id = resolvePlayerId(entry.playerId);
+    if (!id || byPlayerId.has(id)) continue;
+    const stats = getPlayerSessionStats(statsMap, entry.playerId);
+    byPlayerId.set(id, {
+      playerId: entry.playerId,
+      wins: entry.wins ?? stats.wins,
+      losses: entry.losses ?? stats.losses,
+      gamesPlayed: entry.gamesPlayed ?? stats.gamesPlayed,
+    });
+  }
+
+  return buildPlayerLeaderboardRankMap([...byPlayerId.values()]);
 }
 
 export function getPlayerLeaderboardRank(

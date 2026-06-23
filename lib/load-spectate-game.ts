@@ -16,7 +16,7 @@ import { User } from "@/models/User";
 import "@/models/Player";
 
 const LIVE_GAME_FIELDS =
-  "title openPlayType courtCount gameId status openPlayDate openPlayTimeRange ownerId";
+  "title openPlayType courtCount gameId status openPlayDate openPlayTimeRange venueName venueAddress ownerId";
 
 export type SpectateScope = "live" | "details" | "full";
 

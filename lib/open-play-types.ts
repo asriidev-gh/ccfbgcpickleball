@@ -129,6 +129,18 @@ export function defaultOpenPlayTitleFromLevels(levels: readonly PlayerOpenPlayLe
   return `${MIX_OPEN_PLAY_PREFIX}${formatLevelListWithAnd(sorted)}${MIX_OPEN_PLAY_SUFFIX}`;
 }
 
+/** Levels to show as individual skill pills in session headers. */
+export function getOpenPlayTypeDisplayLevels(openPlayType: string): string[] {
+  if (isAnyLevelOpenPlayType(openPlayType)) return [openPlayType];
+
+  const mixed = parseMixedOpenPlayLevels(openPlayType);
+  if (mixed) return mixed;
+
+  if (isFixedOpenPlayType(openPlayType)) return [openPlayType];
+
+  return openPlayType.trim() ? [openPlayType] : [];
+}
+
 export function defaultOpenPlayTitle(openPlayType: string) {
   if (openPlayType === "Any Level Open Play") return openPlayType;
   if (isMixedOpenPlayType(openPlayType)) return openPlayType;

@@ -80,9 +80,13 @@ import { GamePlayerProfileProvider } from "@/components/game/game-player-profile
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
 import { PlayerAvatar, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
+import { OpenPlaySkillLevelPills } from "@/components/game/open-play-skill-level-pills";
 import { SpectateBirthdaysThisMonthBadge } from "@/components/player/spectate-birthdays-this-month";
 import { SpectateFirstTimersBadge } from "@/components/player/spectate-first-timers";
 import { SpectatorPlayerCardShareButton } from "@/components/game/spectator-player-card-share-button";
+import { SpectatorPlayerEndorseButton, SpectatorPlayerEndorsementsCountButton } from "@/components/game/spectator-player-endorse-button";
+import { SpectatePlayerEndorseDialog } from "@/components/player/spectate-player-endorse-dialog";
+import { SpectatePlayerEndorsementsListDialog } from "@/components/player/spectate-player-endorsements-list-dialog";
 import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
 import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
 import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
@@ -92,7 +96,7 @@ import {
   MatchHistoryList,
   type MatchHistoryView,
 } from "@/components/game/match-history-list";
-import { formatOpenPlayDate, formatOpenPlayScheduleLabel } from "@/lib/open-play-time-range";
+import { formatOpenPlayDate, formatOpenPlayScheduleLabel, formatVenueShareLabel } from "@/lib/open-play-time-range";
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
 import { LiveQueueOffBadge } from "@/components/home/live-queue-off-badge";
@@ -120,7 +124,7 @@ import {
 } from "@/components/game/queue-waiting-line-panel";
 import {
   attachSessionStatsToQueueEntry,
-  buildPlayerLeaderboardRankMap,
+  buildSessionLeaderboardRankMap,
   buildPlayerSessionStatsMap,
   type LeaderboardGamesPlayedRow,
 } from "@/lib/games-played-map";
@@ -154,6 +158,12 @@ import { useOperatorQueueRegistrationSync } from "@/hooks/use-operator-queue-reg
 import { OperatorDashboardLeaseGate } from "@/components/game/operator-dashboard-lease-gate";
 import { useSpectatorSessionCleanup } from "@/hooks/use-spectator-session-cleanup";
 import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
+import {
+  fetchSpectatePlayerEndorsements,
+  fetchSpectateGameEndorsementCounts,
+  spectatePlayerEndorsementsQueryKey,
+  spectateGameEndorsementCountsQueryKey,
+} from "@/lib/fetch-spectate-player-endorsement";
 import { dispatchSpectatorCheckoutNotification } from "@/lib/spectator-checkout-notifications";
 import {
   mergeSpectatorGamePayload,
@@ -323,6 +333,7 @@ type QueueCheckedOutListProps = {
   leaderboardRankMap?: Map<string, number>;
   showCardSharedStatus?: boolean;
   renderShareAction?: (entry: QueueEntryView) => ReactNode;
+  renderEndorseAction?: (entry: QueueEntryView) => ReactNode;
 };
 
 function QueueCheckedOutList({
@@ -340,6 +351,7 @@ function QueueCheckedOutList({
   leaderboardRankMap,
   showCardSharedStatus = false,
   renderShareAction,
+  renderEndorseAction,
 }: QueueCheckedOutListProps) {
   const [showAllCheckedOut, setShowAllCheckedOut] = useState(false);
 
@@ -421,6 +433,7 @@ function QueueCheckedOutList({
                   leaderboardRankMap={leaderboardRankMap}
                   showCardSharedStatus={showCardSharedStatus}
                   shareAction={renderShareAction?.(entry)}
+                  endorseAction={renderEndorseAction?.(entry)}
                 />
               ))}
             </div>
@@ -509,6 +522,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const [uiPrefsHydrated, setUiPrefsHydrated] = useState(false);
   const [isLgViewport, setIsLgViewport] = useState<boolean | null>(null);
   const [compactQueue, setCompactQueue] = useState(false);
+  const [endorseTargetEntry, setEndorseTargetEntry] = useState<QueueEntryView | null>(null);
+  const [endorseListTargetEntry, setEndorseListTargetEntry] = useState<QueueEntryView | null>(null);
   const queuePanelRef = useRef<HTMLDivElement>(null);
   const fillCourtFlowRef = useRef<FillCourtFlowHandle>(null);
   const courtsPanelRef = useRef<HTMLDivElement>(null);
@@ -1549,10 +1564,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     () => buildPlayerSessionStatsMap(data?.leaderboard),
     [data?.leaderboard],
   );
-  const spectatorLeaderboardRankMap = useMemo(
-    () => buildPlayerLeaderboardRankMap(data?.leaderboard),
-    [data?.leaderboard],
-  );
   const queueWithStats = useMemo(
     () =>
       (data?.queue ?? []).map((entry) =>
@@ -1567,6 +1578,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       ),
     [data?.checkedOut, playerSessionStats],
   );
+  const leaderboardRankMap = useMemo(
+    () =>
+      buildSessionLeaderboardRankMap(data?.leaderboard, [
+        ...queueWithStats,
+        ...checkedOutWithStats,
+      ]),
+    [data?.leaderboard, queueWithStats, checkedOutWithStats],
+  );
   const waitingLineEntries = useMemo(() => queueWithStats.slice(4), [queueWithStats]);
 
   /** Re-read on every queue update so highlight never drops after refetch or reorder. */
@@ -1578,6 +1597,37 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     () => (gameId ? getActiveQueueHighlightPlayerIds(gameId) : []),
     [gameId, data?.queue],
   );
+  const endorserPlayerId = selfPlayerIds[0] ?? selfHighlightPlayerId ?? "";
+  const { data: myPlayerEndorsements = [] } = useQuery({
+    queryKey: spectatePlayerEndorsementsQueryKey(gameId, endorserPlayerId),
+    queryFn: () => fetchSpectatePlayerEndorsements(gameId, endorserPlayerId),
+    enabled:
+      isSpectator &&
+      Boolean(gameId) &&
+      Boolean(endorserPlayerId) &&
+      spectatorGameStatus !== "ended" &&
+      data?.game?.status !== "ended",
+    staleTime: 30_000,
+  });
+  const endorsedPlayerIds = useMemo(
+    () => new Set(myPlayerEndorsements.map((item) => item.endorsedPlayerId)),
+    [myPlayerEndorsements],
+  );
+  const { data: gameEndorsementCounts = {} } = useQuery({
+    queryKey: spectateGameEndorsementCountsQueryKey(gameId, endorserPlayerId),
+    queryFn: () => fetchSpectateGameEndorsementCounts(gameId, endorserPlayerId),
+    enabled:
+      isSpectator &&
+      Boolean(gameId) &&
+      Boolean(endorserPlayerId) &&
+      spectatorGameStatus !== "ended" &&
+      data?.game?.status !== "ended",
+    staleTime: 30_000,
+    refetchInterval: () => {
+      if (spectatorGameStatus === "ended" || data?.game?.status === "ended") return false;
+      return SPECTATOR_LIVE_POLL_MS;
+    },
+  });
 
   useEffect(() => {
     if (!data?.courts) return;
@@ -1818,6 +1868,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     game.openPlayDate,
     game.openPlayTimeRange,
   );
+  const venueShareLabel = formatVenueShareLabel(game.venueName, game.venueAddress);
   const isPastGame = game.status === "ended";
   const birthdayThisMonthCount = isSpectator
     ? (spectatorLiveQuery.data?.birthdayThisMonthCount ?? 0)
@@ -1890,6 +1941,47 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     if (result.isConfirmed) resetMutation.mutate();
   };
 
+  const renderSpectatorEndorseAction = (entry: QueueEntryView, compact?: boolean) => {
+    if (!isSpectator || isPastGame || !endorserPlayerId) return undefined;
+
+    const playerId = queueEntryPlayerId(entry);
+    if (!playerId) return undefined;
+
+    const isSelf = selfPlayerIds.includes(playerId);
+    const endorsementCount = gameEndorsementCounts[playerId] ?? 0;
+
+    if (isSelf) {
+      if (endorsementCount <= 0) return undefined;
+      return (
+        <SpectatorPlayerEndorsementsCountButton
+          compact={compact}
+          count={endorsementCount}
+          onClick={() => setEndorseListTargetEntry(entry)}
+        />
+      );
+    }
+
+    const endorsed = endorsedPlayerIds.has(playerId);
+
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-1 xl:gap-2">
+        {endorsementCount > 0 ? (
+          <SpectatorPlayerEndorsementsCountButton
+            compact={compact}
+            count={endorsementCount}
+            onClick={() => setEndorseListTargetEntry(entry)}
+          />
+        ) : null}
+        {!endorsed ? (
+          <SpectatorPlayerEndorseButton
+            compact={compact}
+            onClick={() => setEndorseTargetEntry(entry)}
+          />
+        ) : null}
+      </div>
+    );
+  };
+
   const renderSpectatorShareAction = (entry: QueueEntryView, compact?: boolean) => {
     if (!isSpectator || isPastGame || selfPlayerIds.length === 0) return undefined;
 
@@ -1907,7 +1999,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         clubLogoUrl={spectatorLiveQuery.data?.clubBranding?.clubLogoUrl ?? null}
         clubTagline={spectatorLiveQuery.data?.clubBranding?.clubTagline ?? null}
         openPlaySchedule={openPlayScheduleLabel}
-        leaderboardRankMap={spectatorLeaderboardRankMap}
+        venueLabel={venueShareLabel}
+        leaderboardRankMap={leaderboardRankMap}
         compact={compact}
       />
     );
@@ -1974,8 +2067,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             />
           ) : undefined
         }
-        showLeaderboardRank={isSpectator}
-        leaderboardRankMap={spectatorLeaderboardRankMap}
+        showLeaderboardRank
+        leaderboardRankMap={leaderboardRankMap}
+        endorseAction={renderSpectatorEndorseAction(entry, options?.compactName)}
         shareAction={renderSpectatorShareAction(entry, options?.compactName)}
         showCardSharedStatus={!isSpectator && !hideControls}
       />
@@ -2316,6 +2410,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 renderShareAction={
                   isSpectator ? (entry) => renderSpectatorShareAction(entry) : undefined
                 }
+                renderEndorseAction={
+                  isSpectator ? (entry) => renderSpectatorEndorseAction(entry) : undefined
+                }
+                showLeaderboardRank
+                leaderboardRankMap={leaderboardRankMap}
               />
             ) : null}
           </>
@@ -2701,6 +2800,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                   </h1>
                   {!operatorShellLoading && isAccountQuickSession ? <LiveQueueOffBadge /> : null}
                 </div>
+                {!operatorShellLoading ? (
+                  <OpenPlaySkillLevelPills
+                    openPlayType={game.openPlayType}
+                    className="mt-1"
+                  />
+                ) : null}
                 {isEphemeralQuickSession ? (
                   <p className="caption mt-1 text-muted-foreground">
                     Public quick play — this session lives only in this browser. Nothing is saved to
@@ -2725,9 +2830,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 ) : null}
               </div>
               <div className="game-dashboard-meta">
-                <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
-                  {game.openPlayType}
-                </Badge>
                 {openPlayDateLabel ? (
                   <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
                     <CalendarDays className="mr-1 h-3 w-3 shrink-0" aria-hidden />
@@ -3286,6 +3388,29 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           resetPending={resetMutation.isPending}
           onReset={handleResetGame}
         />
+      ) : null}
+
+      {isSpectator ? (
+        <>
+          <SpectatePlayerEndorseDialog
+            gameId={gameId}
+            endorserPlayerId={endorserPlayerId}
+            entry={endorseTargetEntry}
+            open={endorseTargetEntry != null}
+            onOpenChange={(open) => {
+              if (!open) setEndorseTargetEntry(null);
+            }}
+          />
+          <SpectatePlayerEndorsementsListDialog
+            gameId={gameId}
+            viewerPlayerId={endorserPlayerId}
+            entry={endorseListTargetEntry}
+            open={endorseListTargetEntry != null}
+            onOpenChange={(open) => {
+              if (!open) setEndorseListTargetEntry(null);
+            }}
+          />
+        </>
       ) : null}
     </main>
     </GamePlayerProfileProvider>

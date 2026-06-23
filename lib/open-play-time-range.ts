@@ -182,6 +182,49 @@ export function formatOpenPlayScheduleLabel(
   return dateLabel ?? timeLabel;
 }
 
+function extractCityFromVenueAddress(address: string): string | null {
+  const trimmed = address.trim();
+  if (!trimmed) return null;
+
+  const cityMatch = trimmed.match(/,\s*([^,]+?)\s+City(?:,|$)/i);
+  return cityMatch?.[1]?.trim() ?? null;
+}
+
+/** e.g. "Dragonsmash Taguig Branch" + Taguig address → "Dragonsmash, Taguig" */
+export function formatVenueShareLabel(
+  venueName: string | null | undefined,
+  venueAddress: string | null | undefined,
+): string | null {
+  const name = venueName?.trim() ?? "";
+  if (!name) return null;
+
+  const city = extractCityFromVenueAddress(venueAddress?.trim() ?? "");
+  if (!city) return name;
+
+  const cityPattern = new RegExp(`\\s+${city}\\b`, "i");
+  if (cityPattern.test(name)) {
+    const withoutBranch = name.replace(/\s+branch$/i, "").trim();
+    const shortName = withoutBranch.replace(cityPattern, "").trim();
+    if (shortName) return `${shortName}, ${city}`;
+  }
+
+  return `${name}, ${city}`;
+}
+
+/** e.g. "Mon, Jun 22, 2026 7PM-10PM @ Dragonsmash, Taguig" */
+export function formatOpenPlayScheduleVenueLabel(
+  openPlayDate: string | Date | null | undefined,
+  openPlayTimeRange: string | null | undefined,
+  venueName?: string | null,
+  venueAddress?: string | null,
+): string | null {
+  const scheduleLabel = formatOpenPlayScheduleLabel(openPlayDate, openPlayTimeRange);
+  const venueLabel = formatVenueShareLabel(venueName, venueAddress);
+
+  if (scheduleLabel && venueLabel) return `${scheduleLabel} @ ${venueLabel}`;
+  return scheduleLabel ?? venueLabel;
+}
+
 export function validateOpenPlayTimeRangeString(
   value: string,
 ): { ok: true } | { ok: false; message: string } {

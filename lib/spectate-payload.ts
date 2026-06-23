@@ -14,6 +14,8 @@ export type SpectateGameSummary = {
   status: "draft" | "active" | "ended";
   openPlayDate?: string | null;
   openPlayTimeRange?: string | null;
+  venueName?: string | null;
+  venueAddress?: string | null;
 };
 
 export type SpectateLivePayload = {

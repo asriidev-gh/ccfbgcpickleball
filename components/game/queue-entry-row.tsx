@@ -83,12 +83,14 @@ function QueueSessionStatsBadges({
   losses,
   rank,
   showLeaderboardRank = false,
+  hideRecordOnLargeScreens = false,
   className,
 }: {
   wins: number;
   losses: number;
   rank?: number | null;
   showLeaderboardRank?: boolean;
+  hideRecordOnLargeScreens?: boolean;
   className?: string;
 }) {
   const stats = { wins, losses, gamesPlayed: wins + losses };
@@ -100,7 +102,13 @@ function QueueSessionStatsBadges({
   return (
     <div className={cn("flex flex-wrap items-center justify-end gap-1", className)}>
       {showUndefeated ? <UndefeatedBadge /> : null}
-      <Badge variant="outline" className="whitespace-nowrap tabular-nums">
+      <Badge
+        variant="outline"
+        className={cn(
+          "whitespace-nowrap tabular-nums",
+          hideRecordOnLargeScreens && "xl:hidden",
+        )}
+      >
         {recordLabel}
       </Badge>
     </div>
@@ -168,6 +176,8 @@ type QueueEntryRowProps = {
   showCardSharedStatus?: boolean;
   /** Spectator self row: share player card action beside checkout. */
   shareAction?: ReactNode;
+  /** Spectator: endorse another player in the queue. */
+  endorseAction?: ReactNode;
 };
 
 export function QueueEntryRow({
@@ -197,6 +207,7 @@ export function QueueEntryRow({
   onViewPlayerInfo,
   showCardSharedStatus = false,
   shareAction,
+  endorseAction,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const playerMongoId = resolvePlayerId(entry.playerId);
@@ -239,7 +250,8 @@ export function QueueEntryRow({
     Boolean(onRemove) ||
     Boolean(onRemovePlayer) ||
     (checkedOut && Boolean(onCheckBackIn)) ||
-    Boolean(shareAction);
+    Boolean(shareAction) ||
+    Boolean(endorseAction);
 
   return (
     <div
@@ -292,6 +304,7 @@ export function QueueEntryRow({
                 losses={sessionStats.losses}
                 rank={leaderboardRank}
                 showLeaderboardRank={showLeaderboardRank}
+                hideRecordOnLargeScreens
                 className="xl:hidden"
               />
               {showSharedStatus ? <SharedStatusBadge className="xl:hidden" /> : null}
@@ -313,6 +326,7 @@ export function QueueEntryRow({
                 losses={sessionStats.losses}
                 rank={leaderboardRank}
                 showLeaderboardRank={showLeaderboardRank}
+                hideRecordOnLargeScreens
               />
             </div>
           )}
@@ -336,19 +350,19 @@ export function QueueEntryRow({
         ) : (
           <>
             Waiting for {formatRelativeTimeForCard(new Date(entry.registeredAt))} | Last match:{" "}
-            {formatLastMatchResult(entry.lastMatchResult)}
-            {!inWaitingLine ? ` | ${sessionRecordLabel}` : ""}
+            {formatLastMatchResult(entry.lastMatchResult)} | {sessionRecordLabel}
           </>
         )}
       </p>
 
-      {(showActionsMenu || shareAction) ? (
+      {(showActionsMenu || shareAction || endorseAction) ? (
         <div
           className={cn(
             showReplace ? "queue-swap-panel" : "mt-2",
             "flex flex-wrap justify-end gap-1 xl:gap-2",
           )}
         >
+          {endorseAction}
           {shareAction}
           {showActionsMenu ? (
             <QueuePlayerActionsMenu

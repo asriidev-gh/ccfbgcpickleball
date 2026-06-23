@@ -17,6 +17,11 @@ import {
   playerDisplayNameTooLongMessage,
 } from "@/lib/player-profile-shared";
 import {
+  MAX_PLAYER_ENDORSEMENT_BADGES,
+  MAX_PLAYER_ENDORSEMENT_NOTES,
+  PLAYER_ENDORSEMENT_BADGES,
+} from "@/lib/player-endorsement-shared";
+import {
   MAX_PRAYER_REQUEST_LENGTH,
   MIN_PRAYER_REQUEST_LENGTH,
 } from "@/lib/owner-prayer-requests-shared";
@@ -1246,4 +1251,14 @@ export const spectatePlayerCardShareSchema = z.object({
   queueEntryId: z.string().min(1, "Queue entry is required."),
   playerId: z.string().min(1, "Player session is required."),
   selfPlayerIds: z.array(z.string().min(1)).optional(),
+});
+
+export const spectatePlayerEndorsementSchema = z.object({
+  endorserPlayerId: z.string().min(1, "Player session is required."),
+  endorsedPlayerId: z.string().min(1, "Player is required."),
+  badges: z
+    .array(z.enum(PLAYER_ENDORSEMENT_BADGES))
+    .min(1, "Select at least one badge.")
+    .max(MAX_PLAYER_ENDORSEMENT_BADGES, `Select up to ${MAX_PLAYER_ENDORSEMENT_BADGES} badges.`),
+  notes: z.string().trim().max(MAX_PLAYER_ENDORSEMENT_NOTES).optional(),
 });
