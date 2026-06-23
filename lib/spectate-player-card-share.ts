@@ -50,7 +50,7 @@ export async function markSpectatorPlayerCardShared(
   await entry.save();
 
   const playerName =
-    formatPlayerDisplayName(player.firstName, player.lastName) || "Player";
+    formatPlayerDisplayName(player.firstName ?? "", player.lastName ?? "") || "Player";
 
   await recordPlayerCardSharedNotification({
     gameId,

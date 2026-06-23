@@ -14,9 +14,7 @@ import {
   type SpectatorCheckoutNotification,
 } from "@/lib/spectator-checkout-notifications";
 
-function toCheckinAttemptNotification(
-  item: Extract<OrganizerNotificationItem, { kind: "checkin_attempt" }>,
-): SpectatorCheckoutNotification {
+function toCheckinAttemptNotification(item: OrganizerNotificationItem): SpectatorCheckoutNotification {
   return {
     id: item.id,
     kind: "checkin_attempt",

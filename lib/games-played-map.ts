@@ -53,9 +53,11 @@ export function formatSessionRecordLabel(stats: PlayerSessionStats) {
 }
 
 /** No games played this session yet (unranked). */
-export function isSessionRecordEmpty(
-  stats: Pick<PlayerSessionStats, "wins" | "losses" | "gamesPlayed">,
-) {
+export function isSessionRecordEmpty(stats: {
+  wins: number;
+  losses: number;
+  gamesPlayed?: number;
+}) {
   const gamesPlayed = stats.gamesPlayed ?? stats.wins + stats.losses;
   return gamesPlayed === 0 && stats.wins === 0 && stats.losses === 0;
 }
