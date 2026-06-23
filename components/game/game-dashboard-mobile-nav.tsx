@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag, House, Loader2, QrCode, RotateCcw, Trophy, UserPlus } from "lucide-react";
+import { Flag, House, Loader2, LogOut, MoreHorizontal, QrCode, RotateCcw, Trophy, UserPlus } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
@@ -11,6 +11,7 @@ type GameDashboardMobileNavProps = {
   isQuickGameSession?: boolean;
   homeHref?: string;
   homeLabel?: string;
+  homeIcon?: "home" | "exit";
   showQr: boolean;
   qrLoading: boolean;
   onQrClick: () => void;
@@ -29,6 +30,7 @@ export function GameDashboardMobileNav({
   isQuickGameSession = false,
   homeHref = "/",
   homeLabel = "Home",
+  homeIcon = "home",
   showQr,
   qrLoading,
   onQrClick,
@@ -51,7 +53,13 @@ export function GameDashboardMobileNav({
     <MobileBottomNavButton
       href={homeHref}
       label={homeLabel}
-      icon={<House className="h-5 w-5 shrink-0" aria-hidden />}
+      icon={
+        homeIcon === "exit" ? (
+          <LogOut className="h-5 w-5 shrink-0" aria-hidden />
+        ) : (
+          <House className="h-5 w-5 shrink-0" aria-hidden />
+        )
+      }
     />
   );
 

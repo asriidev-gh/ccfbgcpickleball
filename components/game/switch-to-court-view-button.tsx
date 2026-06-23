@@ -79,11 +79,12 @@ export function SwitchToCourtViewButton({
           variant="outline"
           size="sm"
           className={cn("courts-view-btn inline-flex shrink-0", className, buttonClassName)}
-          aria-label="Switch Court View"
+          aria-label="Court View"
           onClick={() => setOpen(true)}
         >
           <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 lg:h-5 lg:w-5" aria-hidden />
-          <span>Switch Court View</span>
+          <span className="lg:hidden">Court View</span>
+          <span className="hidden lg:inline">Switch Court View</span>
         </Button>
       ) : (
         <SimpleTooltip label="Switch to Court View">

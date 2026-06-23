@@ -20,6 +20,8 @@ import {
 } from "@/lib/local-game-id";
 import { isDuplicateSessionPlayerName } from "@/lib/session-player-display-names";
 
+export const LOCAL_SESSION_PLAYER_ID_PREFIX = "local-player-";
+
 export type LocalPreRegisteredPlayer = {
   displayName: string;
   gender: GenderOption;
@@ -53,7 +55,7 @@ function buildLocalPlayer(
 ): PlayerPhotoRef {
   const { firstName, lastName } = parsePlayerDisplayName(displayName.trim());
   const personalQrCode = `P-local-${uniqueKey}`;
-  const playerId = `local-player-${uniqueKey}`;
+  const playerId = `${LOCAL_SESSION_PLAYER_ID_PREFIX}${uniqueKey}`;
 
   return {
     _id: playerId,

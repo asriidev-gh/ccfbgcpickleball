@@ -39,8 +39,8 @@ const QueueDndContext = createContext<QueueDndContextValue>({
   dropZone: null,
 });
 
-function queueZoneForIndex(index: number): QueueDndZoneId {
-  return index < 4 ? "next-up" : "waiting";
+function queueZoneForIndex(index: number, nextUpCount: number): QueueDndZoneId {
+  return index < nextUpCount ? "next-up" : "waiting";
 }
 
 const animateLayoutChanges: AnimateLayoutChanges = (args) =>
@@ -55,6 +55,8 @@ type SortableQueueListProps = {
   entryIds: string[];
   enabled: boolean;
   onReorder: (orderedEntryIds: string[]) => void;
+  /** How many top positions count as the "next on court" drop zone. Defaults to 4 (doubles). */
+  nextUpCount?: number;
   children: ReactNode;
 };
 
@@ -62,6 +64,7 @@ export function SortableQueueList({
   entryIds,
   enabled,
   onReorder,
+  nextUpCount = 4,
   children,
 }: SortableQueueListProps) {
   const sensors = useSensors(
@@ -82,7 +85,7 @@ export function SortableQueueList({
     setIsDragging(true);
     const activeIndex = entryIds.indexOf(String(event.active.id));
     if (activeIndex >= 0) {
-      setDropZone(queueZoneForIndex(activeIndex));
+      setDropZone(queueZoneForIndex(activeIndex, nextUpCount));
     }
   };
 
@@ -94,7 +97,7 @@ export function SortableQueueList({
     }
     const overIndex = entryIds.indexOf(String(overId));
     if (overIndex >= 0) {
-      setDropZone(queueZoneForIndex(overIndex));
+      setDropZone(queueZoneForIndex(overIndex, nextUpCount));
     }
   };
 

@@ -75,6 +75,10 @@ type ReplacePlayerDialogProps = {
   waitingEntries: QueueEntryView[];
   /** Full queued list (next on court + waiting) — used when replacing from a court. */
   courtReplaceEntries?: QueueEntryView[];
+  /** How many top queue positions are "next on court" (doubles default: 4). */
+  nextUpCount?: number;
+  /** Resolve flat queue index for a waiting-line entry (rotation / segmented queues). */
+  resolveTargetIndex?: (entry: QueueEntryView) => number;
   onConfirm: (input: ReplacePlayerConfirmInput) => void;
 };
 
@@ -84,6 +88,8 @@ export function ReplacePlayerDialog({
   state,
   waitingEntries,
   courtReplaceEntries = [],
+  nextUpCount = 4,
+  resolveTargetIndex,
   onConfirm,
 }: ReplacePlayerDialogProps) {
   const [selectedOffset, setSelectedOffset] = useState(0);
@@ -103,7 +109,11 @@ export function ReplacePlayerDialog({
   }, [open, selectedOffset, candidateEntries.length]);
 
   const selectedEntry = candidateEntries[selectedOffset];
-  const selectedTargetIndex = isCourtReplace ? selectedOffset : 4 + selectedOffset;
+  const selectedTargetIndex = isCourtReplace
+    ? selectedOffset
+    : selectedEntry && resolveTargetIndex
+      ? resolveTargetIndex(selectedEntry)
+      : nextUpCount + selectedOffset;
 
   const goNext = () => {
     if (candidateEntries.length === 0) return;
@@ -164,7 +174,11 @@ export function ReplacePlayerDialog({
               </p>
               <ul className="replace-player-dialog-list max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-muted/25 p-2">
                 {candidateEntries.map((entry, offset) => {
-                  const queuePosition = isCourtReplace ? offset + 1 : 5 + offset;
+                  const queuePosition = isCourtReplace
+                    ? offset + 1
+                    : resolveTargetIndex
+                      ? resolveTargetIndex(entry) + 1
+                      : nextUpCount + offset + 1;
                   const isSelected = offset === selectedOffset;
                   return (
                     <li key={entry._id}>

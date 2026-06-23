@@ -4,9 +4,11 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 import { useGamePlayerProfile } from "@/components/game/game-player-profile-context";
+import { LocalSessionPlayerDialog } from "@/components/game/local-session-player-dialog";
 import { PlayerPhotoDialog, type PlayerPhotoRef } from "@/components/game/player-photo-dialog";
 import { PlayerProfileViewDialog } from "@/components/game/player-profile-view-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { isLocalSessionPlayerId, isPersistedPlayerId } from "@/lib/player-id";
 import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
@@ -84,9 +86,10 @@ export function PlayerProfileTrigger({
   const playerId = resolvePlayerId(player);
   const [profileOpen, setProfileOpen] = useState(false);
   const displayName = getDisplayName(player);
-  const showProfile = profileEnabled && Boolean(playerId);
+  const showRegisteredProfile = profileEnabled && isPersistedPlayerId(playerId);
+  const showLocalProfile = profileEnabled && isLocalSessionPlayerId(playerId);
 
-  if (!showProfile) {
+  if (!showRegisteredProfile && !showLocalProfile) {
     return (
       <PlayerPhotoTrigger player={player} className={className}>
         {children}
@@ -109,12 +112,20 @@ export function PlayerProfileTrigger({
       >
         {children}
       </button>
-      <PlayerProfileViewDialog
-        playerId={playerId!}
-        player={player}
-        open={profileOpen}
-        onOpenChange={setProfileOpen}
-      />
+      {showLocalProfile ? (
+        <LocalSessionPlayerDialog
+          player={player}
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+        />
+      ) : (
+        <PlayerProfileViewDialog
+          playerId={playerId!}
+          player={player}
+          open={profileOpen}
+          onOpenChange={setProfileOpen}
+        />
+      )}
     </>
   );
 }

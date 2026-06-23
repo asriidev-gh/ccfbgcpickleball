@@ -26,6 +26,7 @@ import {
   PICKLEBALL_LEVELS,
 } from "@/lib/player-profile-shared";
 import { formatPlayerDisplayName } from "@/lib/utils";
+import { isPersistedPlayerId } from "@/lib/player-id";
 
 function labelForValue(
   value: string,
@@ -146,7 +147,7 @@ export function PlayerProfileViewDialog({
 
   const profileQuery = useQuery({
     queryKey: ["owner-player-profile", playerId],
-    enabled: open && Boolean(playerId),
+    enabled: open && isPersistedPlayerId(playerId),
     queryFn: async () => {
       const response = await fetch(
         `/api/owner/registered-players/${encodeURIComponent(playerId)}/profile`,

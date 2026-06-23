@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { CourtsViewCourtThemeSelect } from "@/components/game/courts-view-court-theme-select";
 import { OwnerSessionCourtsSection } from "@/components/home/owner-session-courts-section";
+import { SinglesSessionCourtsSection } from "@/components/singles/singles-session-courts-section";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -111,6 +112,8 @@ export function EphemeralCourtsView() {
             This session has ended.
           </CardContent>
         </Card>
+      ) : session.gameMode === "singles" ? (
+        <SinglesSessionCourtsSection session={session} courtTheme={courtTheme} />
       ) : (
         <OwnerSessionCourtsSection session={session} courtTheme={courtTheme} />
       )}

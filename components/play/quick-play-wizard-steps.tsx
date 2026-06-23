@@ -15,7 +15,9 @@ import {
   MAX_QUICK_PLAY_PLAYERS,
   MIN_EXPECTED_PLAYERS,
   QUICK_PLAY_GAME_MODE_OPTIONS,
+  getMinExpectedPlayersForGameMode,
   QUICK_PLAY_MATCHING_TYPE_OPTIONS,
+  QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS,
   QUICK_PLAY_STEP_HEADINGS,
   QUICK_PLAY_TOTAL_STEPS,
   QUICK_PLAY_WIZARD_STEPS,
@@ -24,8 +26,8 @@ import {
   createQuickPlayWizardPlayerEntry,
   defaultQuickPlayPlayerName,
   getQuickPlayGameModeLabel,
-  getQuickPlayMatchingTypeDescription,
-  getQuickPlayMatchingTypeLabel,
+  getQuickPlayQueueMatchingDescription,
+  getQuickPlayQueueMatchingLabel,
   playerPreviewInitial,
   quickPlayPlayerRowGridCols,
   resolvePlayerOpenPlayLevel,
@@ -167,6 +169,8 @@ export function QuickPlayFormatStep({
   onFormChange: (patch: Partial<QuickPlayWizardFormFields>) => void;
   onOpenPlayTypeChange: (openPlayType: string) => void;
 }) {
+  const minExpectedPlayers = getMinExpectedPlayersForGameMode(form.gameMode);
+
   return (
     <div className="space-y-6">
       <div className="space-y-3">
@@ -210,21 +214,38 @@ export function QuickPlayFormatStep({
         </div>
       </div>
 
-      <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
-        <Label className="text-base">Matching type</Label>
-        <div className="grid grid-cols-1 gap-3">
-          {QUICK_PLAY_MATCHING_TYPE_OPTIONS.map((option) => (
-            <QuickPlayFormatOptionButton
-              key={option.value}
-              selected={form.matchingType === option.value}
-              disabled={option.disabled}
-              label={option.label}
-              description={option.description}
-              onClick={() => onFormChange({ matchingType: option.value })}
-            />
-          ))}
+      {form.gameMode === "singles" ? (
+        <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
+          <Label className="text-base">Queue matching</Label>
+          <div className="grid grid-cols-1 gap-3">
+            {QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS.map((option) => (
+              <QuickPlayFormatOptionButton
+                key={option.value}
+                selected={form.matchingType === option.value}
+                label={option.label}
+                description={option.description}
+                onClick={() => onFormChange({ matchingType: option.value })}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
+          <Label className="text-base">Matching type</Label>
+          <div className="grid grid-cols-1 gap-3">
+            {QUICK_PLAY_MATCHING_TYPE_OPTIONS.map((option) => (
+              <QuickPlayFormatOptionButton
+                key={option.value}
+                selected={form.matchingType === option.value}
+                disabled={option.disabled}
+                label={option.label}
+                description={option.description}
+                onClick={() => onFormChange({ matchingType: option.value })}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
         <Label htmlFor={`${idPrefix}-courts`} className="text-base">
@@ -246,11 +267,12 @@ export function QuickPlayFormatStep({
           Expected number of players
         </Label>
         <p className="text-sm text-muted-foreground">
-          Step 2 will show this many player rows. Minimum {MIN_EXPECTED_PLAYERS} for doubles open play.
+          Step 2 will show this many player rows. Minimum {minExpectedPlayers} for{" "}
+          {form.gameMode === "singles" ? "singles" : "doubles"} play.
         </p>
         <NumberStepper
           id={`${idPrefix}-expected-players`}
-          min={MIN_EXPECTED_PLAYERS}
+          min={minExpectedPlayers}
           max={MAX_QUICK_PLAY_PLAYERS}
           value={form.expectedPlayers}
           inputClassName={WIZARD_PRIMARY_FIELD_BORDER}
@@ -678,11 +700,11 @@ export function QuickPlayPreviewStep({
       <div className="grid gap-4 sm:grid-cols-2">
         <QuickPlayPreviewSection title="Format" onEdit={() => onEditStep(1)}>
           <QuickPlayPreviewDetailRow
-            label="Matching type"
-            value={getQuickPlayMatchingTypeLabel(form.matchingType)}
+            label={form.gameMode === "singles" ? "Queue matching" : "Matching type"}
+            value={getQuickPlayQueueMatchingLabel(form.gameMode, form.matchingType)}
           />
           <p className="pt-1 text-xs leading-relaxed text-muted-foreground">
-            {getQuickPlayMatchingTypeDescription(form.matchingType)}
+            {getQuickPlayQueueMatchingDescription(form.gameMode, form.matchingType)}
           </p>
         </QuickPlayPreviewSection>
 

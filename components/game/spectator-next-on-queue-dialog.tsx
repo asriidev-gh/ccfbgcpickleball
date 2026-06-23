@@ -37,6 +37,10 @@ type SpectatorNextOnQueueButtonProps = {
   onFillNextCourt?: () => void;
   showLeaderboardRank?: boolean;
   leaderboard?: LeaderboardGamesPlayedRow[];
+  /** When set, overrides the default top-of-queue slice (e.g. singles winner/loser pairing). */
+  nextUpEntries?: QueueEntryView[];
+  /** Players required per court — used for labels (default 4). */
+  courtPlayerCount?: number;
 };
 
 export function SpectatorNextOnQueueButton({
@@ -50,13 +54,18 @@ export function SpectatorNextOnQueueButton({
   onFillNextCourt,
   showLeaderboardRank = false,
   leaderboard = [],
+  nextUpEntries,
+  courtPlayerCount = 4,
 }: SpectatorNextOnQueueButtonProps) {
   const [open, setOpen] = useState(false);
   const [callingNames, setCallingNames] = useState(false);
   const callNamesRunIdRef = useRef(0);
-  const nextUp = useMemo(() => queue.slice(0, 4), [queue]);
+  const nextUp = useMemo(
+    () => nextUpEntries ?? queue.slice(0, courtPlayerCount),
+    [courtPlayerCount, nextUpEntries, queue],
+  );
   const teamA = useMemo(() => nextUp.slice(0, 2), [nextUp]);
-  const teamB = useMemo(() => nextUp.slice(2, 4), [nextUp]);
+  const teamB = useMemo(() => nextUp.slice(2, courtPlayerCount), [courtPlayerCount, nextUp]);
   const count = nextUp.length;
   const leaderboardRankMap = useMemo(
     () => (showLeaderboardRank ? buildPlayerLeaderboardRankMap(leaderboard) : new Map()),
@@ -124,13 +133,13 @@ export function SpectatorNextOnQueueButton({
         size="sm"
         className={cn("inline-flex shrink-0", className)}
         onClick={() => setOpen(true)}
-        aria-label={`Next on queue: ${count} of 4 players`}
+        aria-label={`Next on queue: ${count} of ${courtPlayerCount} players`}
       >
         <Users className="mr-1.5 h-4 w-4 shrink-0" aria-hidden />
         <span className="sm:hidden">Queue</span>
         <span className="hidden sm:inline">Next on queue</span>
         <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 tabular-nums">
-          {count}/4
+          {count}/{courtPlayerCount}
         </Badge>
       </Button>
 
@@ -161,7 +170,9 @@ export function SpectatorNextOnQueueButton({
                     </p>
                   </div>
                 </div>
-                <Badge className="badge-next-up-count shrink-0">{count} / 4</Badge>
+                <Badge className="badge-next-up-count shrink-0">
+                  {count} / {courtPlayerCount}
+                </Badge>
               </div>
               <div className="queue-next-up-slots">
                 {nextUp.map((entry, index) => (

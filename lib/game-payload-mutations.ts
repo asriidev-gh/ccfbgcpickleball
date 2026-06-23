@@ -575,19 +575,32 @@ export function applyQueueReorderOptimistic(
   };
 }
 
-export function applyQueueSwapOptimistic(
+export function applyQueueSwapByIndexOptimistic(
   payload: GamePayload,
-  input: ReplaceQueueMutationInput,
+  sourceIndex: number,
+  targetIndex: number,
 ): GamePayload | null {
-  const { sourceIndex, targetIndex } = input;
-  if (sourceIndex < 0 || sourceIndex > 3) return null;
-  if (targetIndex < 4 || targetIndex >= payload.queue.length) return null;
+  if (sourceIndex < 0 || targetIndex < 0) return null;
+  if (sourceIndex >= payload.queue.length || targetIndex >= payload.queue.length) return null;
   if (sourceIndex === targetIndex) return null;
 
   return {
     ...payload,
     queue: swapQueueEntriesAt(payload.queue, sourceIndex, targetIndex),
   };
+}
+
+export function applyQueueSwapOptimistic(
+  payload: GamePayload,
+  input: ReplaceQueueMutationInput,
+  nextUpCount = 4,
+): GamePayload | null {
+  const { sourceIndex, targetIndex } = input;
+  if (sourceIndex < 0 || sourceIndex >= nextUpCount) return null;
+  if (targetIndex < nextUpCount || targetIndex >= payload.queue.length) return null;
+  if (sourceIndex === targetIndex) return null;
+
+  return applyQueueSwapByIndexOptimistic(payload, sourceIndex, targetIndex);
 }
 
 export function applyCourtReplaceOptimistic(

@@ -1,7 +1,7 @@
 "use client";
 
-import { GameDashboard } from "@/components/game/game-dashboard";
+import { QuickPlayDashboardRouter } from "@/components/play/quick-play-dashboard-router";
 
 export default function EphemeralQuickPlayDashboardPage() {
-  return <GameDashboard mode="operator" quickGameSurface="ephemeral" />;
+  return <QuickPlayDashboardRouter quickGameSurface="ephemeral" />;
 }

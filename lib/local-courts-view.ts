@@ -12,6 +12,8 @@ export function operatorPayloadToCourtsViewSession(
     status: payload.game.status,
     openPlayDate: payload.game.openPlayDate ?? null,
     openPlayTimeRange: payload.game.openPlayTimeRange ?? null,
+    gameMode: payload.game.gameMode ?? "doubles",
+    matchingType: payload.game.matchingType,
     courts: payload.courts,
     queue: payload.queue,
     leaderboard: payload.leaderboard ?? [],

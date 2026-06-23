@@ -34,7 +34,6 @@ export const QUICK_PLAY_GAME_MODE_OPTIONS: Array<{
     value: "singles",
     label: "Singles",
     description: "One player per side.",
-    disabled: true,
   },
 ];
 
@@ -58,6 +57,26 @@ export const QUICK_PLAY_MATCHING_TYPE_OPTIONS: Array<{
   },
 ];
 
+/** Matching options shown when game mode is singles. */
+export const QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS: Array<{
+  value: QuickPlayMatchingType;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "auto-balanced",
+    label: "Queue order",
+    description:
+      "Players return to the end of the queue after each game. The next two waiting players play.",
+  },
+  {
+    value: "winner-loser-groups",
+    label: "Winner / Loser rotation",
+    description:
+      "Keep queue order first (1, 2, 3…). Winners and losers wait at the end until a pair forms, then join the main line.",
+  },
+];
+
 export type QuickPlayWizardPlayerEntry = {
   name: string;
   gender: "male" | "female" | "";
@@ -76,6 +95,10 @@ export type QuickPlayWizardFormFields = {
 export const DEFAULT_PLAYER_OPEN_PLAY_LEVEL: PlayerOpenPlayLevel = "Beginner";
 export const MIN_EXPECTED_PLAYERS = 4;
 export const MAX_QUICK_PLAY_PLAYERS = 40;
+
+export function getMinExpectedPlayersForGameMode(gameMode: QuickPlayGameMode) {
+  return gameMode === "singles" ? 2 : MIN_EXPECTED_PLAYERS;
+}
 
 export const WIZARD_PLAYER_LEVEL_OPTIONS = PLAYER_OPEN_PLAY_LEVELS.map((level) => ({
   value: level,
@@ -209,6 +232,40 @@ export function getQuickPlayMatchingTypeLabel(type: QuickPlayMatchingType) {
 
 export function getQuickPlayMatchingTypeDescription(type: QuickPlayMatchingType) {
   return QUICK_PLAY_MATCHING_TYPE_OPTIONS.find((option) => option.value === type)?.description ?? "";
+}
+
+export const SINGLES_QUEUE_MATCHING_LABEL = QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS[0].label;
+
+export const SINGLES_QUEUE_MATCHING_DESCRIPTION =
+  QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS[0].description;
+
+export function getSinglesMatchingTypeLabel(type: QuickPlayMatchingType) {
+  return (
+    QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? type
+  );
+}
+
+export function getSinglesMatchingTypeDescription(type: QuickPlayMatchingType) {
+  return (
+    QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS.find((option) => option.value === type)
+      ?.description ?? ""
+  );
+}
+
+export function getQuickPlayQueueMatchingLabel(
+  gameMode: QuickPlayGameMode,
+  matchingType: QuickPlayMatchingType,
+) {
+  if (gameMode === "singles") return getSinglesMatchingTypeLabel(matchingType);
+  return getQuickPlayMatchingTypeLabel(matchingType);
+}
+
+export function getQuickPlayQueueMatchingDescription(
+  gameMode: QuickPlayGameMode,
+  matchingType: QuickPlayMatchingType,
+) {
+  if (gameMode === "singles") return getSinglesMatchingTypeDescription(matchingType);
+  return getQuickPlayMatchingTypeDescription(matchingType);
 }
 
 export function playerPreviewInitial(displayName: string) {

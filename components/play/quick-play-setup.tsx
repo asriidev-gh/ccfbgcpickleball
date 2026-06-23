@@ -48,6 +48,7 @@ import {
   createQuickPlayWizardPlayerEntry,
   findFirstMissingQuickPlayPlayerGenderIndex,
   findLastDuplicateQuickPlayPlayerNameIndex,
+  getMinExpectedPlayersForGameMode,
   resolvePlayerOpenPlayLevel,
   syncQuickPlayWizardPlayerEntryCount,
   type QuickPlayWizardFormFields,
@@ -145,18 +146,20 @@ export function QuickPlaySetup() {
   const canAddMorePlayers = playerEntries.length < MAX_QUICK_PLAY_PLAYERS;
   const sessionTitle = form.title.trim() || defaultOpenPlayTitle(form.openPlayType);
 
+  const minExpectedPlayers = getMinExpectedPlayersForGameMode(form.gameMode);
+
   const canGoNext = () => {
     if (step === 1) {
       if (hasActiveSession) return false;
       return (
         form.courtCount >= 1 &&
-        form.expectedPlayers >= MIN_EXPECTED_PLAYERS &&
+        form.expectedPlayers >= minExpectedPlayers &&
         form.expectedPlayers <= MAX_QUICK_PLAY_PLAYERS
       );
     }
     if (step === 2) {
       return (
-        filledPlayers.length > 0 &&
+        filledPlayers.length >= minExpectedPlayers &&
         filledPlayers.length <= MAX_QUICK_PLAY_PLAYERS &&
         !hasDuplicatePlayerNames &&
         !hasMissingPlayerGender &&
@@ -173,8 +176,8 @@ export function QuickPlaySetup() {
       if (step === 1 && hasActiveSession) {
         toast.error("End your active session before starting a new one.");
       } else if (step === 1) {
-        if (form.expectedPlayers < MIN_EXPECTED_PLAYERS) {
-          toast.error(`Expected players must be at least ${MIN_EXPECTED_PLAYERS}.`);
+        if (form.expectedPlayers < minExpectedPlayers) {
+          toast.error(`Expected players must be at least ${minExpectedPlayers}.`);
         } else if (form.expectedPlayers > MAX_QUICK_PLAY_PLAYERS) {
           toast.error(`You can add up to ${MAX_QUICK_PLAY_PLAYERS} players.`);
         }
@@ -183,7 +186,9 @@ export function QuickPlaySetup() {
         else if (hasInvalidPlayerName) toast.error(playerDisplayNameInvalidCharacterMessage());
         else if (hasDuplicatePlayerNames) toast.error("Each player name must be unique.");
         else if (hasMissingPlayerGender) toast.error("Select a gender for each player.");
-        else if (filledPlayers.length > MAX_QUICK_PLAY_PLAYERS) {
+        else if (filledPlayers.length < minExpectedPlayers) {
+          toast.error(`Enter at least ${minExpectedPlayers} players for ${form.gameMode} play.`);
+        } else if (filledPlayers.length > MAX_QUICK_PLAY_PLAYERS) {
           toast.error(`You can add up to ${MAX_QUICK_PLAY_PLAYERS} players.`);
         } else toast.error("Enter at least one player name.");
       }
@@ -206,8 +211,8 @@ export function QuickPlaySetup() {
       return;
     }
 
-    if (playersForSubmit.length < 1) {
-      toast.error("Enter at least one player name.");
+    if (playersForSubmit.length < minExpectedPlayers) {
+      toast.error(`Enter at least ${minExpectedPlayers} players for ${form.gameMode} play.`);
       setStep(2);
       return;
     }
@@ -270,7 +275,18 @@ export function QuickPlaySetup() {
         <QuickPlayFormatStep
           idPrefix="quick-play"
           form={form}
-          onFormChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+          onFormChange={(patch) =>
+            setForm((prev) => {
+              const next = { ...prev, ...patch };
+              if (patch.gameMode) {
+                const minPlayers = getMinExpectedPlayersForGameMode(patch.gameMode);
+                if (next.expectedPlayers < minPlayers) {
+                  next.expectedPlayers = minPlayers;
+                }
+              }
+              return next;
+            })
+          }
           onOpenPlayTypeChange={(openPlayType) => {
             setForm((prev) => ({ ...prev, openPlayType }));
             if (isFixedOpenPlayType(openPlayType)) {
