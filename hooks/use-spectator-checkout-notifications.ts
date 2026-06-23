@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchOrganizerNotifications } from "@/lib/fetch-organizer-notifications";
+import { fetchOrganizerNotifications, type OrganizerNotificationItem } from "@/lib/fetch-organizer-notifications";
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 import { ORGANIZER_NOTIFICATIONS_POLL_MS } from "@/lib/spectator-polling";
 import {
@@ -14,12 +14,9 @@ import {
   type SpectatorCheckoutNotification,
 } from "@/lib/spectator-checkout-notifications";
 
-function toCheckinAttemptNotification(item: {
-  id: string;
-  kind: "checkin_attempt" | "player_registered" | "player_checkout";
-  playerName: string;
-  occurredAt: string;
-}): SpectatorCheckoutNotification {
+function toCheckinAttemptNotification(
+  item: Extract<OrganizerNotificationItem, { kind: "checkin_attempt" }>,
+): SpectatorCheckoutNotification {
   return {
     id: item.id,
     kind: "checkin_attempt",
@@ -140,6 +137,10 @@ export function useSpectatorCheckoutNotifications(gameId: string | null) {
       if (item.kind === "checkin_attempt") {
         knownNotificationIdsRef.current.add(item.id);
         nextNotifications.push(toCheckinAttemptNotification(item));
+        continue;
+      }
+
+      if (item.kind === "player_card_shared" || item.kind === "player_registered") {
         continue;
       }
 
