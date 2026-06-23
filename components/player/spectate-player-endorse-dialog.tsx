@@ -168,14 +168,14 @@ export function SpectatePlayerEndorseDialog({
             </DialogHeader>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
-              <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-emerald-900 dark:text-emerald-100">
+              <div className="rounded-xl border border-emerald-500/40 bg-emerald-300 p-4 text-black shadow-sm">
                 <div className="flex items-start gap-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-black/10 text-black">
                     <ThumbsUp className="size-5" aria-hidden />
                   </span>
                   <div className="space-y-1">
-                    <p className="text-lg font-semibold">Endorse</p>
-                    <p className="text-sm leading-snug text-emerald-900/80 dark:text-emerald-100/80">
+                    <p className="text-lg font-semibold text-black">Endorse</p>
+                    <p className="text-sm leading-snug text-black/80">
                       I enjoyed playing with this player
                     </p>
                   </div>
