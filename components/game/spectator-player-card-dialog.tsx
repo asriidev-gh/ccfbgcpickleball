@@ -86,7 +86,8 @@ export function SpectatorPlayerCardDialog({
 
   const handleShare = async () => {
     const node = shareCardRef.current;
-    if (!node || !player) return;
+    const queueEntryId = entry?._id;
+    if (!node || !player || !queueEntryId) return;
 
     try {
       setSharing(true);
@@ -99,8 +100,8 @@ export function SpectatorPlayerCardDialog({
       toast.success(
         result === "shared" ? "Player card shared." : "Player card downloaded.",
       );
-      if (entry._id && gameId) {
-        void trackSpectatorPlayerCardShare(gameId, entry._id).catch(() => {
+      if (gameId) {
+        void trackSpectatorPlayerCardShare(gameId, queueEntryId).catch(() => {
           // Share already succeeded; tracking is best-effort for organizers.
         });
       }
