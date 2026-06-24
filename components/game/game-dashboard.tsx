@@ -823,21 +823,23 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
       throw new Error(lastMessage);
     },
-    onMutate: async (courtNumber) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+    onMutate: (courtNumber) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
-      if (!previous) return { previous: undefined as GamePayload | undefined };
-
-      const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
-      if (!optimistic) return { previous };
-
-      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      if (previous) {
+        const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
+      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous };
     },
     onSuccess: () => {
       toast.success("Next court filled from the queue.");
+    },
+    onSettled: () => {
       if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
       }
     },
     onError: (error, _, context) => {
@@ -884,17 +886,16 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message?: string; rematch?: boolean };
     },
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+    onMutate: (variables) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
-      if (!previous) return { previous: undefined as GamePayload | undefined };
-
-      const optimistic = isQuickGameSession
-        ? applyEndGameWithHistoryOptimistic(previous, variables)
-        : applyEndGameOptimistic(previous, variables);
-      if (!optimistic) return { previous };
-
-      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      if (previous) {
+        const optimistic = isQuickGameSession
+          ? applyEndGameWithHistoryOptimistic(previous, variables)
+          : applyEndGameOptimistic(previous, variables);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
 
       const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       if (variables.rematch) {
@@ -908,15 +909,20 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       }
 
       closeEndDialog();
-
+      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous, previousRematchCourtNumbers };
     },
     onSuccess: (data, variables) => {
       toast.success(data.message ?? "Court updated.");
-      if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      }
       void announceCourtEnded(variables.courtNumber);
+    },
+    onSettled: () => {
+      if (!isQuickGameSession) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+        if (operatorHistoryDataEnabled) {
+          void queryClient.refetchQueries({ queryKey: operatorDetailsQueryKey(gameId) });
+        }
+      }
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
@@ -928,6 +934,22 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       toastOperationError(error, "Failed to end game.");
     },
   });
+
+  const handleSubmitEndGame = useCallback(
+    (input: {
+      winnerTeam: "A" | "B";
+      teamAScore: number;
+      teamBScore: number;
+      rematch: boolean;
+    }) => {
+      if (endTargetCourt == null) return;
+      endMutation.mutate({
+        courtNumber: endTargetCourt,
+        ...input,
+      });
+    },
+    [endMutation, endTargetCourt],
+  );
 
   const shuffleNextMutation = useMutation({
     mutationFn: async () => {
@@ -1096,15 +1118,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onMutate: async (courtNumber) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+    onMutate: (courtNumber) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
-      if (!previous) return { previous: undefined as GamePayload | undefined };
-
-      const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
-      if (!optimistic) return { previous };
-
-      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      if (previous) {
+        const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
 
       const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       setRematchCourtNumbers((prev) => {
@@ -1113,13 +1134,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         return next;
       });
       setCancelCourtTarget(null);
-
+      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous, previousRematchCourtNumbers };
     },
     onSuccess: (data) => {
       toast.success(data.message);
+    },
+    onSettled: () => {
       if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
       }
     },
     onError: (error, _courtNumber, context) => {
@@ -1148,30 +1171,37 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onMutate: async (courtNumber) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+    onMutate: (courtNumber) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
-      if (!previous) return { previous: undefined as GamePayload | undefined };
-
-      const optimistic = applyCancelRematchOptimistic(previous, courtNumber);
-      if (!optimistic) return { previous };
-
-      writeOperatorGamePayload(queryClient, gameId, optimistic);
-      return { previous };
-    },
-    onSuccess: (data, courtNumber) => {
+      if (previous) {
+        const optimistic = applyCancelRematchOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
       setRematchCourtNumbers((prev) => {
         const next = new Set(prev);
         next.delete(courtNumber);
         return next;
       });
-      toast.success(data.message);
       setCancelRematchTarget(null);
+      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      return { previous };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+    },
+    onSettled: () => {
       if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
       }
     },
-    onError: (error) => toastOperationError(error, "Failed to cancel rematch."),
+    onError: (error, _courtNumber, context) => {
+      if (context?.previous) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
+      toastOperationError(error, "Failed to cancel rematch.");
+    },
   });
 
   const resetMutation = useMutation({
@@ -2108,15 +2138,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   if (cancelCourtMutation.isPending && cancelCourtMutation.variables != null) {
     clearingCourtNumbers.add(cancelCourtMutation.variables);
   }
-  const fillableEmptyCourts = emptyCourts.filter(
-    (court) => !clearingCourtNumbers.has(court.courtNumber),
-  );
+  const fillableEmptyCourts = emptyCourts;
   const nextEmptyCourt = fillableEmptyCourts[0] ?? null;
   const emptyCourtNumbers = fillableEmptyCourts.map((court) => court.courtNumber);
-  const courtsClearingInProgress = clearingCourtNumbers.size > 0;
+  const courtsClearingInProgress = courts.some(
+    (court) => clearingCourtNumbers.has(court.courtNumber) && court.status === "active",
+  );
   const canFillNextCourt = queueWithStats.length >= 4 && nextEmptyCourt != null;
-  const fillCourtTeamA = useMemo(() => queueWithStats.slice(0, 2), [queueWithStats]);
-  const fillCourtTeamB = useMemo(() => queueWithStats.slice(2, 4), [queueWithStats]);
+  const fillCourtTeamA = queueWithStats.slice(0, 2);
+  const fillCourtTeamB = queueWithStats.slice(2, 4);
   const fillingCourtNumber =
     startMutation.isPending && startMutation.variables != null ? startMutation.variables : null;
   const endCourt =
@@ -2125,22 +2155,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     pendingWinner != null
       ? getMatchScoreInputError(pendingWinner, teamAScore, teamBScore, { required: true })
       : null;
-
-  const handleSubmitEndGame = useCallback(
-    (input: {
-      winnerTeam: "A" | "B";
-      teamAScore: number;
-      teamBScore: number;
-      rematch: boolean;
-    }) => {
-      if (endTargetCourt == null) return;
-      endMutation.mutate({
-        courtNumber: endTargetCourt,
-        ...input,
-      });
-    },
-    [endMutation, endTargetCourt],
-  );
 
   const activeCourtCount = courts.filter((court) => court.status === "active").length;
   const activeCourts = courts.filter((court) => court.status === "active");
@@ -2583,8 +2597,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               cancelRematchMutation.isPending &&
               cancelRematchMutation.variables === court.courtNumber
             }
-            isFilling={fillingCourtNumber != null && court.courtNumber === fillingCourtNumber}
-            isClearing={clearingCourtNumbers.has(court.courtNumber)}
+            isFilling={
+              fillingCourtNumber != null &&
+              court.courtNumber === fillingCourtNumber &&
+              court.status !== "active"
+            }
+            isClearing={
+              clearingCourtNumbers.has(court.courtNumber) && court.status === "active"
+            }
             onFillCourt={
               hideControls || court.status !== "empty"
                 ? undefined
@@ -2593,7 +2613,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             canFillCourt={
               !hideControls &&
               court.status === "empty" &&
-              !clearingCourtNumbers.has(court.courtNumber) &&
               queueWithStats.length >= 4
             }
             fillCourtPending={

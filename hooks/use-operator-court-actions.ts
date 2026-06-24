@@ -23,7 +23,12 @@ import {
   applyShuffleNextOptimistic,
   applySwapCourtTeamsOptimistic,
 } from "@/lib/game-payload-mutations";
+import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { isQuickGame } from "@/lib/local-game-id";
+import {
+  readOperatorGamePayload,
+  writeOperatorGamePayload,
+} from "@/lib/operator-game-cache";
 
 type UseOperatorCourtActionsOptions = {
   gameId: string;
@@ -100,11 +105,31 @@ export function useOperatorCourtActions({
 
       throw new Error(lastMessage);
     },
+    onMutate: (courtNumber) => {
+      if (isLocalGame) return {};
+
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (previous) {
+        const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
+      void queryClient.cancelQueries({ queryKey: invalidateQueryKey });
+      return { previous };
+    },
     onSuccess: () => {
       toast.success("Court filled from the queue.");
-      invalidate();
     },
-    onError: (error) => {
+    onSettled: () => {
+      if (!isLocalGame) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
+    },
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
       toastOperationError(error, "Failed to fill court.");
     },
   });
@@ -144,8 +169,18 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message?: string; rematch?: boolean };
     },
-    onSuccess: (data, variables) => {
-      toast.success(data.message ?? "Court updated.");
+    onMutate: (variables) => {
+      if (isLocalGame) return {};
+
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (previous) {
+        const optimistic = applyEndGameOptimistic(previous, variables);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
+
+      const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       if (variables.rematch) {
         setRematchCourtNumbers((prev) => new Set(prev).add(variables.courtNumber));
       } else {
@@ -156,9 +191,24 @@ export function useOperatorCourtActions({
         });
       }
       closeEndDialog();
-      invalidate();
+      void queryClient.cancelQueries({ queryKey: invalidateQueryKey });
+      return { previous, previousRematchCourtNumbers };
     },
-    onError: (error) => {
+    onSuccess: (data) => {
+      toast.success(data.message ?? "Court updated.");
+    },
+    onSettled: () => {
+      if (!isLocalGame) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
+    },
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
+      if (context?.previousRematchCourtNumbers) {
+        setRematchCourtNumbers(context.previousRematchCourtNumbers);
+      }
       toastOperationError(error, "Failed to end game.");
     },
   });
@@ -274,17 +324,37 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onSuccess: (data, courtNumber) => {
-      toast.success(data.message);
+    onMutate: (courtNumber) => {
+      if (isLocalGame) return {};
+
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (previous) {
+        const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
       setRematchCourtNumbers((prev) => {
         const next = new Set(prev);
         next.delete(courtNumber);
         return next;
       });
       setCancelCourtTarget(null);
-      invalidate();
+      void queryClient.cancelQueries({ queryKey: invalidateQueryKey });
+      return { previous };
     },
-    onError: (error) => {
+    onSuccess: (data) => {
+      toast.success(data.message);
+    },
+    onSettled: () => {
+      if (!isLocalGame) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
+    },
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
       toastOperationError(error, "Failed to cancel assignment.");
     },
   });
@@ -549,13 +619,16 @@ export function useOperatorCourtActions({
             : undefined,
         cancelRematchPending:
           cancelRematchMutation.isPending && cancelRematchMutation.variables === court.courtNumber,
-        isFilling: fillingCourtNumber != null && court.courtNumber === fillingCourtNumber,
-        isClearing: clearingCourtNumbers.has(court.courtNumber),
+        isFilling:
+          fillingCourtNumber != null &&
+          court.courtNumber === fillingCourtNumber &&
+          court.status !== "active",
+        isClearing:
+          clearingCourtNumbers.has(court.courtNumber) && court.status === "active",
         onFillCourt:
           court.status === "empty" ? () => onFillCourt(court.courtNumber) : undefined,
         canFillCourt:
           court.status === "empty" &&
-          !clearingCourtNumbers.has(court.courtNumber) &&
           emptyCourtNumbers.includes(court.courtNumber) &&
           queueCounts.queuedCount >= 4,
         fillCourtPending: startMutation.isPending && startMutation.variables === court.courtNumber,

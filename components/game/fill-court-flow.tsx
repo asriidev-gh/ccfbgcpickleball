@@ -166,8 +166,8 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
 
   const handleConfirmFill = useCallback(() => {
     if (activeFillCourtNumber == null) return;
-    onConfirmFill(activeFillCourtNumber);
     setFillCourtDialogOpen(false);
+    onConfirmFill(activeFillCourtNumber);
   }, [activeFillCourtNumber, onConfirmFill]);
 
   return (
