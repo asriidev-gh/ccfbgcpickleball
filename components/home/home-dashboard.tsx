@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, Building2, ChevronDown, LayoutDashboard, LayoutGrid, Store, Users } from "lucide-react";
 import Link from "next/link";
@@ -7,21 +8,33 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthMe } from "@/hooks/use-auth-me";
 import { buildHomeSessionInsightsMap, type HomeSessionInsightPoint, type HomeSessionInsights } from "@/lib/home-session-insights-shared";
+import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { cn } from "@/lib/utils";
 
-import { HomeSessionInsightsCharts } from "./home-session-insights-charts";
 import { EmailVerificationBanner } from "./email-verification-banner";
 
 import type { HomeGameSummary } from "./home-game-summary";
 import { HomeSessionSummaryCard } from "./home-session-summary-card";
+
+const HomeSessionInsightsCharts = dynamic(
+  () =>
+    import("./home-session-insights-charts").then((module) => module.HomeSessionInsightsCharts),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="mb-5 h-36 w-full rounded-2xl" aria-hidden />,
+  },
+);
 
 export type { HomeGameSummary } from "./home-game-summary";
 
 type HomeDashboardProps = {
   activeGames: HomeGameSummary[];
   pastGames: HomeGameSummary[];
+  gamesLoading?: boolean;
   onSessionTabChange?: () => void;
 };
 
@@ -49,14 +62,26 @@ function SessionList({
   emptyMessage,
   insightsByGameId,
   showCcfInsights,
+  loading = false,
 }: {
   games: HomeGameSummary[];
   variant: "active" | "past";
   emptyMessage: string;
   insightsByGameId: Map<string, HomeSessionInsightPoint>;
   showCcfInsights: boolean;
+  loading?: boolean;
 }) {
   const grouped = useMemo(() => groupGamesByDate(games), [games]);
+
+  if (loading) {
+    return (
+      <div className="space-y-3" aria-busy="true" aria-label="Loading sessions">
+        {Array.from({ length: 3 }, (_, index) => (
+          <Skeleton key={index} className="h-28 w-full rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
 
   if (games.length === 0) {
     return <p className="px-1 py-6 text-center text-sm text-muted-foreground">{emptyMessage}</p>;
@@ -90,6 +115,7 @@ function SessionList({
 export function HomeDashboard({
   activeGames,
   pastGames,
+  gamesLoading = false,
   onSessionTabChange,
 }: HomeDashboardProps) {
   const [sessionTab, setSessionTab] = useState<SessionTab>("active");
@@ -99,28 +125,19 @@ export function HomeDashboard({
     onSessionTabChange?.();
   };
 
-  const { data: authData } = useQuery({
-    queryKey: ["auth-me"],
-    queryFn: async () => {
-      const response = await fetch("/api/auth/me");
-      if (!response.ok) return null;
-      const payload = await response.json();
-      return payload as {
-        user: { name: string; isSuperAdmin?: boolean; emailVerified?: boolean } | null;
-      };
-    },
-    staleTime: 60_000,
-  });
+  const { data: authData, isLoading: isAuthLoading } = useAuthMe();
 
   const { data: sessionInsightsData } = useQuery({
     queryKey: ["games-session-insights"],
     queryFn: async () => {
       const response = await fetch("/api/games/session-insights");
       const payload = (await response.json()) as HomeSessionInsights & { message?: string };
+      if (response.status === 401) return null;
       if (!response.ok) throw new Error(payload.message ?? "Failed to load session insights.");
       return payload;
     },
-    staleTime: 60_000,
+    retry: 1,
+    ...ownerHubQueryOptions,
   });
 
   const insightsByGameId = useMemo(
@@ -133,8 +150,9 @@ export function HomeDashboard({
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
   const showRegisteredPlayers = Boolean(authData?.user);
   const sessionGames = sessionTab === "active" ? activeGames : pastGames;
-  const dashboardTileCount =
-    1 + (showRegisteredPlayers ? 3 : 0) + (isSuperAdmin ? 1 : 0);
+  const dashboardTileCount = isAuthLoading
+    ? 4
+    : 1 + (showRegisteredPlayers ? 3 : 0) + (isSuperAdmin ? 1 : 0);
 
   return (
     <div className="home-dashboard space-y-5">
@@ -163,45 +181,55 @@ export function HomeDashboard({
           <span className="text-sm font-semibold text-foreground">My Games</span>
         </Link>
 
-        {showRegisteredPlayers ? (
-          <Link
-            href="/users"
-            className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
-          >
-            <Users className="h-6 w-6 text-primary" aria-hidden />
-            <span className="text-sm font-semibold text-foreground">Registered players</span>
-          </Link>
-        ) : null}
+        {isAuthLoading ? (
+          <>
+            {Array.from({ length: 3 }, (_, index) => (
+              <Skeleton key={index} className="min-h-[5.5rem] rounded-2xl" aria-hidden />
+            ))}
+          </>
+        ) : (
+          <>
+            {showRegisteredPlayers ? (
+              <Link
+                href="/users"
+                className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
+              >
+                <Users className="h-6 w-6 text-primary" aria-hidden />
+                <span className="text-sm font-semibold text-foreground">Registered players</span>
+              </Link>
+            ) : null}
 
-        {showRegisteredPlayers ? (
-          <Link
-            href="/my-club"
-            className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
-          >
-            <Building2 className="h-6 w-6 text-primary" aria-hidden />
-            <span className="text-sm font-semibold text-foreground">My Club</span>
-          </Link>
-        ) : null}
+            {showRegisteredPlayers ? (
+              <Link
+                href="/my-club"
+                className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
+              >
+                <Building2 className="h-6 w-6 text-primary" aria-hidden />
+                <span className="text-sm font-semibold text-foreground">My Club</span>
+              </Link>
+            ) : null}
 
-        {showRegisteredPlayers ? (
-          <Link
-            href="/marketplace"
-            className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
-          >
-            <Store className="h-6 w-6 text-primary" aria-hidden />
-            <span className="text-sm font-semibold text-foreground">Marketplace</span>
-          </Link>
-        ) : null}
+            {showRegisteredPlayers ? (
+              <Link
+                href="/marketplace"
+                className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
+              >
+                <Store className="h-6 w-6 text-primary" aria-hidden />
+                <span className="text-sm font-semibold text-foreground">Marketplace</span>
+              </Link>
+            ) : null}
 
-        {isSuperAdmin ? (
-          <Link
-            href="/insights"
-            className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
-          >
-            <BarChart3 className="h-6 w-6 text-primary" aria-hidden />
-            <span className="text-sm font-semibold text-foreground">Statistics</span>
-          </Link>
-        ) : null}
+            {isSuperAdmin ? (
+              <Link
+                href="/insights"
+                className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
+              >
+                <BarChart3 className="h-6 w-6 text-primary" aria-hidden />
+                <span className="text-sm font-semibold text-foreground">Statistics</span>
+              </Link>
+            ) : null}
+          </>
+        )}
       </div>
 
       <Card className="home-dashboard-sessions glass-panel border-border/70">
@@ -274,6 +302,7 @@ export function HomeDashboard({
             variant={sessionTab}
             insightsByGameId={insightsByGameId}
             showCcfInsights={showCcfInsights}
+            loading={gamesLoading && sessionGames.length === 0}
             emptyMessage={
               sessionTab === "active"
                 ? "No active open play sessions. Create one to get started."

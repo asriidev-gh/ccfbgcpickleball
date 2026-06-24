@@ -21,6 +21,11 @@ import {
   MAX_PRAYER_REPLY_LENGTH,
   type PrayerReplyItem,
 } from "@/lib/owner-prayer-replies-shared";
+import {
+  myClubPrayerCountQueryKey,
+  myClubPrayerRequestsQueryKey,
+  myClubQueryOptions,
+} from "@/lib/my-club-queries";
 
 export function PrayerReplyDialog({
   requestId,
@@ -58,6 +63,7 @@ export function PrayerReplyDialog({
       return payload as { replies: PrayerReplyItem[] };
     },
     enabled: open,
+    ...myClubQueryOptions,
   });
 
   const replies = useMemo(() => {
@@ -72,8 +78,8 @@ export function PrayerReplyDialog({
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["my-club-prayer-replies", requestId] });
-    queryClient.invalidateQueries({ queryKey: ["my-club-prayer-requests"] });
-    queryClient.invalidateQueries({ queryKey: ["my-club-prayer-count"] });
+    queryClient.invalidateQueries({ queryKey: [myClubPrayerRequestsQueryKey] });
+    queryClient.invalidateQueries({ queryKey: myClubPrayerCountQueryKey });
   };
 
   const saveMutation = useMutation({

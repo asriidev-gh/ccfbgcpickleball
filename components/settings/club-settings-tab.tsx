@@ -27,7 +27,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { ClubSettings } from "@/lib/club-settings-shared";
+import {
+  clubSettingsQueryKey,
+  fetchClubSettings,
+  myClubQueryOptions,
+  type ClubSettingsResponse,
+} from "@/lib/my-club-queries";
 import {
   MAX_CLUB_ADDRESS_LENGTH,
   MAX_CLUB_ADDITIONAL_INFO_LENGTH,
@@ -43,12 +48,6 @@ import {
 } from "@/lib/compress-registration-photo";
 import { isAcceptedRegistrationPhotoType } from "@/lib/registration-photo";
 import { cn } from "@/lib/utils";
-
-type ClubSettingsResponse = ClubSettings & {
-  defaultClubName: string;
-  logoUploadConfigured: boolean;
-  message?: string;
-};
 
 type ClubFormState = {
   clubName: string;
@@ -152,13 +151,9 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
   const [organizers, setOrganizers] = useState<ClubOrganizerFormEntry[]>(organizersFromSaved([]));
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["club-settings"],
-    queryFn: async () => {
-      const response = await fetch("/api/settings/club");
-      const payload = (await response.json()) as ClubSettingsResponse;
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load club settings.");
-      return payload;
-    },
+    queryKey: clubSettingsQueryKey,
+    queryFn: fetchClubSettings,
+    ...myClubQueryOptions,
   });
 
   const applySavedData = (saved: ClubSettingsResponse) => {
@@ -229,9 +224,8 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
     },
     onSuccess: (payload) => {
       toast.success(payload.message ?? "Club profile saved.");
-      queryClient.setQueryData(["club-settings"], payload);
+      queryClient.setQueryData(clubSettingsQueryKey, payload);
       queryClient.invalidateQueries({ queryKey: ["player-qr-settings"] });
-      queryClient.invalidateQueries({ queryKey: ["club-settings"] });
       setLogoUrl(payload.clubLogoUrl);
       setLogoFile(null);
       setRemoveLogo(false);

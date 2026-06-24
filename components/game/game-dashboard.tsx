@@ -1614,12 +1614,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     [myPlayerEndorsements],
   );
   const { data: gameEndorsementCounts = {} } = useQuery({
-    queryKey: spectateGameEndorsementCountsQueryKey(gameId, endorserPlayerId),
-    queryFn: () => fetchSpectateGameEndorsementCounts(gameId, endorserPlayerId),
+    queryKey: spectateGameEndorsementCountsQueryKey(gameId),
+    queryFn: () => fetchSpectateGameEndorsementCounts(gameId),
     enabled:
       isSpectator &&
       Boolean(gameId) &&
-      Boolean(endorserPlayerId) &&
       spectatorGameStatus !== "ended" &&
       data?.game?.status !== "ended",
     staleTime: 30_000,
@@ -1942,36 +1941,36 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   };
 
   const renderSpectatorEndorseAction = (entry: QueueEntryView, compact?: boolean) => {
-    if (!isSpectator || isPastGame || !endorserPlayerId) return undefined;
+    if (!isSpectator || isPastGame) return undefined;
 
     const playerId = queueEntryPlayerId(entry);
     if (!playerId) return undefined;
 
-    const isSelf = selfPlayerIds.includes(playerId);
     const endorsementCount = gameEndorsementCounts[playerId] ?? 0;
-
-    if (isSelf) {
-      if (endorsementCount <= 0) return undefined;
-      return (
+    const countButton =
+      endorsementCount > 0 ? (
         <SpectatorPlayerEndorsementsCountButton
           compact={compact}
           count={endorsementCount}
           onClick={() => setEndorseListTargetEntry(entry)}
         />
-      );
+      ) : null;
+
+    if (!endorserPlayerId) {
+      return countButton ?? undefined;
+    }
+
+    const isSelf = selfPlayerIds.includes(playerId);
+
+    if (isSelf) {
+      return countButton ?? undefined;
     }
 
     const endorsed = endorsedPlayerIds.has(playerId);
 
     return (
       <div className="flex flex-wrap items-center justify-end gap-1 xl:gap-2">
-        {endorsementCount > 0 ? (
-          <SpectatorPlayerEndorsementsCountButton
-            compact={compact}
-            count={endorsementCount}
-            onClick={() => setEndorseListTargetEntry(entry)}
-          />
-        ) : null}
+        {countButton}
         {!endorsed ? (
           <SpectatorPlayerEndorseButton
             compact={compact}
@@ -3403,7 +3402,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           />
           <SpectatePlayerEndorsementsListDialog
             gameId={gameId}
-            viewerPlayerId={endorserPlayerId}
             entry={endorseListTargetEntry}
             open={endorseListTargetEntry != null}
             onOpenChange={(open) => {

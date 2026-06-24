@@ -21,13 +21,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const counts = url.searchParams.get("counts") === "1";
     const received = url.searchParams.get("received") === "1";
 
-    if (!endorserPlayerId) {
-      return NextResponse.json({ message: "Player session is required." }, { status: 400 });
-    }
-
     return await runWithDatabase(async () => {
       if (counts) {
-        const endorsementCounts = await listSpectateGameEndorsementCounts(gameId, endorserPlayerId);
+        const endorsementCounts = await listSpectateGameEndorsementCounts(gameId);
         return NextResponse.json({ counts: endorsementCounts });
       }
 
@@ -35,9 +31,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         const endorsements = await listSpectatePlayerEndorsementsReceived(
           gameId,
           endorsedPlayerId,
-          endorserPlayerId,
         );
         return NextResponse.json({ endorsements });
+      }
+
+      if (!endorserPlayerId) {
+        return NextResponse.json({ message: "Player session is required." }, { status: 400 });
       }
 
       if (endorsedPlayerId) {

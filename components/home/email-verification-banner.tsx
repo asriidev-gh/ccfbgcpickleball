@@ -1,31 +1,17 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Mail, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useAuthMe } from "@/hooks/use-auth-me";
 import { cn } from "@/lib/utils";
 
-type AuthMeUser = {
-  email: string;
-  emailVerified?: boolean;
-};
-
 export function EmailVerificationBanner({ className }: { className?: string }) {
-  const queryClient = useQueryClient();
   const [resending, setResending] = useState(false);
 
-  const { data } = useQuery({
-    queryKey: ["auth-me"],
-    queryFn: async () => {
-      const response = await fetch("/api/auth/me");
-      if (!response.ok) return null;
-      return (await response.json()) as { user: AuthMeUser | null };
-    },
-    staleTime: 30_000,
-  });
+  const { data } = useAuthMe();
 
   const user = data?.user;
   if (!user || user.emailVerified) return null;
@@ -85,15 +71,7 @@ export function EmailVerificationBanner({ className }: { className?: string }) {
 }
 
 export function useEmailVerified() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["auth-me"],
-    queryFn: async () => {
-      const response = await fetch("/api/auth/me");
-      if (!response.ok) return null;
-      return (await response.json()) as { user: { emailVerified?: boolean } | null };
-    },
-    staleTime: 30_000,
-  });
+  const { data, isLoading } = useAuthMe();
 
   return {
     isLoading,

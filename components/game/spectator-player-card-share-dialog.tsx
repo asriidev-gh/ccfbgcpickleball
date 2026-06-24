@@ -63,8 +63,8 @@ export function SpectatorPlayerCardShareDialog({
   const [shareContent, setShareContent] = useState<PlayerCardShareContent>("stats");
 
   const { data: endorsements = [], isLoading: endorsementsLoading } = useQuery({
-    queryKey: spectatePlayerEndorsementsReceivedQueryKey(gameId, playerId, playerId),
-    queryFn: () => fetchSpectatePlayerEndorsementsReceived(gameId, playerId, playerId),
+    queryKey: spectatePlayerEndorsementsReceivedQueryKey(gameId, playerId),
+    queryFn: () => fetchSpectatePlayerEndorsementsReceived(gameId, playerId),
     enabled: open && Boolean(playerId),
     staleTime: 0,
   });

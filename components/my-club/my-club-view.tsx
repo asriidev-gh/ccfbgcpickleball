@@ -21,17 +21,22 @@ import { ClubSettingsTab } from "@/components/settings/club-settings-tab";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { ClubSettings } from "@/lib/club-settings-shared";
+import {
+  clubSettingsQueryKey,
+  fetchClubSettings,
+  fetchMyClubAnnouncements,
+  fetchMyClubDgroupCount,
+  fetchMyClubPrayerCount,
+  myClubAnnouncementsQueryKey,
+  myClubDgroupCountQueryKey,
+  myClubPrayerCountQueryKey,
+  myClubQueryOptions,
+  type ClubSettingsResponse,
+} from "@/lib/my-club-queries";
 import { isCcfUserType } from "@/lib/registration-variant";
 import { cn } from "@/lib/utils";
 
 type MyClubTab = "profile" | "announcements" | "dgroup" | "prayer";
-
-type ClubSettingsResponse = ClubSettings & {
-  defaultClubName: string;
-  logoUploadConfigured: boolean;
-  userType?: string;
-};
 
 const tabItems = [
   {
@@ -180,48 +185,29 @@ export function MyClubView() {
   const [activeTab, setActiveTab] = useState<MyClubTab>("profile");
 
   const { data: clubData, isLoading: clubLoading } = useQuery({
-    queryKey: ["club-settings"],
-    queryFn: async () => {
-      const response = await fetch("/api/settings/club");
-      const payload = (await response.json()) as ClubSettingsResponse & { message?: string };
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load club profile.");
-      return payload;
-    },
+    queryKey: clubSettingsQueryKey,
+    queryFn: fetchClubSettings,
+    ...myClubQueryOptions,
   });
 
   const { data: dgroupData } = useQuery({
-    queryKey: ["my-club-dgroup-count"],
-    queryFn: async () => {
-      const response = await fetch("/api/my-club/dgroup-requests");
-      const payload = await response.json();
-      if (!response.ok) return { total: 0 };
-      return payload as { total: number };
-    },
+    queryKey: myClubDgroupCountQueryKey,
+    queryFn: fetchMyClubDgroupCount,
     enabled: isCcfUserType(clubData?.userType),
-    staleTime: 30_000,
+    ...myClubQueryOptions,
   });
 
   const { data: announcementsData } = useQuery({
-    queryKey: ["my-club-announcements"],
-    queryFn: async () => {
-      const response = await fetch("/api/my-club/announcements");
-      const payload = await response.json();
-      if (!response.ok) return { announcements: [] };
-      return payload as { announcements: { isPublished: boolean; isArchived?: boolean }[] };
-    },
-    staleTime: 30_000,
+    queryKey: myClubAnnouncementsQueryKey,
+    queryFn: fetchMyClubAnnouncements,
+    ...myClubQueryOptions,
   });
 
   const { data: prayerData } = useQuery({
-    queryKey: ["my-club-prayer-count"],
-    queryFn: async () => {
-      const response = await fetch("/api/my-club/prayer-requests");
-      const payload = await response.json();
-      if (!response.ok) return { total: 0 };
-      return payload as { total: number };
-    },
+    queryKey: myClubPrayerCountQueryKey,
+    queryFn: fetchMyClubPrayerCount,
     enabled: isCcfUserType(clubData?.userType),
-    staleTime: 30_000,
+    ...myClubQueryOptions,
   });
 
   const showCcfMinistryFeatures = isCcfUserType(clubData?.userType);
@@ -407,29 +393,37 @@ export function MyClubView() {
         </div>
 
         <TabsContent value="profile" className="mt-0 pt-2 outline-none sm:pt-3">
-          <MyClubPanel>
-            <ClubSettingsTab hideLivePreview />
-          </MyClubPanel>
+          {activeTab === "profile" ? (
+            <MyClubPanel>
+              <ClubSettingsTab hideLivePreview />
+            </MyClubPanel>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="announcements" className="mt-0 pt-2 outline-none sm:pt-3">
-          <MyClubPanel>
-            <ClubAnnouncementsPanel embedded />
-          </MyClubPanel>
+          {activeTab === "announcements" ? (
+            <MyClubPanel>
+              <ClubAnnouncementsPanel embedded />
+            </MyClubPanel>
+          ) : null}
         </TabsContent>
 
         {showCcfMinistryFeatures ? (
           <>
             <TabsContent value="dgroup" className="mt-0 pt-2 outline-none sm:pt-3">
-              <MyClubPanel>
-                <DgroupRequestsPanel embedded />
-              </MyClubPanel>
+              {activeTab === "dgroup" ? (
+                <MyClubPanel>
+                  <DgroupRequestsPanel embedded />
+                </MyClubPanel>
+              ) : null}
             </TabsContent>
 
             <TabsContent value="prayer" className="mt-0 pt-2 outline-none sm:pt-3">
-              <MyClubPanel>
-                <PrayerRequestsPanel embedded />
-              </MyClubPanel>
+              {activeTab === "prayer" ? (
+                <MyClubPanel>
+                  <PrayerRequestsPanel embedded />
+                </MyClubPanel>
+              ) : null}
             </TabsContent>
           </>
         ) : null}

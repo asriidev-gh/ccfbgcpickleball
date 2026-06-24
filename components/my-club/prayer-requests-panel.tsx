@@ -31,6 +31,11 @@ import type {
   PrayerRequestItem,
   PrayerRequestView,
 } from "@/lib/owner-prayer-requests-shared";
+import {
+  myClubPrayerCountQueryKey,
+  myClubPrayerRequestsQueryKey,
+  myClubQueryOptions,
+} from "@/lib/my-club-queries";
 import { cn } from "@/lib/utils";
 
 const acknowledgeAlertOptions = {
@@ -49,7 +54,7 @@ const deleteAlertOptions = {
 
 function usePrayerRequests(view: PrayerRequestView, debouncedSearch: string) {
   return useQuery({
-    queryKey: ["my-club-prayer-requests", view, debouncedSearch],
+    queryKey: [myClubPrayerRequestsQueryKey, view, debouncedSearch],
     queryFn: async () => {
       const params = new URLSearchParams({ view });
       if (debouncedSearch) params.set("q", debouncedSearch);
@@ -62,6 +67,7 @@ function usePrayerRequests(view: PrayerRequestView, debouncedSearch: string) {
         view: PrayerRequestView;
       };
     },
+    ...myClubQueryOptions,
   });
 }
 
@@ -316,8 +322,8 @@ export function PrayerRequestsPanel({ embedded = false }: { embedded?: boolean }
     },
     onSuccess: (payload, variables) => {
       toast.success(payload.message ?? "Request updated.");
-      queryClient.invalidateQueries({ queryKey: ["my-club-prayer-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["my-club-prayer-count"] });
+      queryClient.invalidateQueries({ queryKey: [myClubPrayerRequestsQueryKey] });
+      queryClient.invalidateQueries({ queryKey: myClubPrayerCountQueryKey });
       if (variables.action === "acknowledge") {
         setActiveView("acknowledged");
       }

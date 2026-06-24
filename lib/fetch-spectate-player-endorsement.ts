@@ -8,21 +8,15 @@ export function spectatePlayerEndorsementsQueryKey(gameId: string, endorserPlaye
   return ["spectate-player-endorsements", gameId, endorserPlayerId] as const;
 }
 
-export function spectateGameEndorsementCountsQueryKey(gameId: string, viewerPlayerId: string) {
-  return ["spectate-game-endorsement-counts", gameId, viewerPlayerId] as const;
+export function spectateGameEndorsementCountsQueryKey(gameId: string) {
+  return ["spectate-game-endorsement-counts", gameId] as const;
 }
 
 export function spectatePlayerEndorsementsReceivedQueryKey(
   gameId: string,
   endorsedPlayerId: string,
-  viewerPlayerId: string,
 ) {
-  return [
-    "spectate-player-endorsements-received",
-    gameId,
-    endorsedPlayerId,
-    viewerPlayerId,
-  ] as const;
+  return ["spectate-player-endorsements-received", gameId, endorsedPlayerId] as const;
 }
 
 export async function fetchSpectatePlayerEndorsements(gameId: string, endorserPlayerId: string) {
@@ -36,13 +30,8 @@ export async function fetchSpectatePlayerEndorsements(gameId: string, endorserPl
   return (data.endorsements ?? []) as SpectatePlayerEndorsementSummary[];
 }
 
-export async function fetchSpectateGameEndorsementCounts(
-  gameId: string,
-  viewerPlayerId: string,
-) {
-  const response = await fetch(
-    `/api/games/${gameId}/spectate/player/endorsement?endorserPlayerId=${encodeURIComponent(viewerPlayerId)}&counts=1`,
-  );
+export async function fetchSpectateGameEndorsementCounts(gameId: string) {
+  const response = await fetch(`/api/games/${gameId}/spectate/player/endorsement?counts=1`);
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.message ?? "Failed to load endorsement counts.");
@@ -53,10 +42,9 @@ export async function fetchSpectateGameEndorsementCounts(
 export async function fetchSpectatePlayerEndorsementsReceived(
   gameId: string,
   endorsedPlayerId: string,
-  viewerPlayerId: string,
 ) {
   const response = await fetch(
-    `/api/games/${gameId}/spectate/player/endorsement?endorserPlayerId=${encodeURIComponent(viewerPlayerId)}&endorsedPlayerId=${encodeURIComponent(endorsedPlayerId)}&received=1`,
+    `/api/games/${gameId}/spectate/player/endorsement?endorsedPlayerId=${encodeURIComponent(endorsedPlayerId)}&received=1`,
   );
   const data = await response.json();
   if (!response.ok) {

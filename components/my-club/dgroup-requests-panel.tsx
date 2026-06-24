@@ -33,6 +33,11 @@ import type {
   DgroupRequestItem,
   DgroupRequestView,
 } from "@/lib/owner-dgroup-requests-shared";
+import {
+  myClubDgroupCountQueryKey,
+  myClubDgroupRequestsQueryKey,
+  myClubQueryOptions,
+} from "@/lib/my-club-queries";
 import { cn } from "@/lib/utils";
 
 const acknowledgeAlertOptions = {
@@ -57,7 +62,7 @@ function useDgroupRequests(
 ) {
   return useQuery({
     queryKey: [
-      "my-club-dgroup-requests",
+      myClubDgroupRequestsQueryKey,
       view,
       debouncedSearch,
       includeRegistrationDgroup,
@@ -83,6 +88,7 @@ function useDgroupRequests(
         showAcknowledged?: boolean;
       };
     },
+    ...myClubQueryOptions,
   });
 }
 
@@ -396,8 +402,8 @@ export function DgroupRequestsPanel({ embedded = false }: { embedded?: boolean }
     },
     onSuccess: (payload, variables) => {
       toast.success(payload.message ?? "Request updated.");
-      queryClient.invalidateQueries({ queryKey: ["my-club-dgroup-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["my-club-dgroup-count"] });
+      queryClient.invalidateQueries({ queryKey: [myClubDgroupRequestsQueryKey] });
+      queryClient.invalidateQueries({ queryKey: myClubDgroupCountQueryKey });
       if (variables.action === "mark_joined") {
         setActiveView("joined");
       } else if (variables.action === "unmark_joined") {

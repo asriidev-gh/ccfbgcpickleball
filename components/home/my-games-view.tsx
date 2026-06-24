@@ -947,7 +947,7 @@ export function MyGamesView() {
     saveGameListView(view);
   };
 
-  const { data, refetch, isLoading } = useGamesList();
+  const { data, isLoading } = useGamesList();
   const { emailVerified, isLoading: emailVerifiedLoading } = useEmailVerified();
   const canCreateGames = !emailVerifiedLoading && emailVerified;
   const { data: savedQuickGames = [] } = useSavedQuickGames();
@@ -962,10 +962,6 @@ export function MyGamesView() {
       setViewReady(true);
       saveGameListView("list");
     }
-    if (tab === "quick") {
-      void queryClient.invalidateQueries({ queryKey: ["saved-quick-games"] });
-    }
-    if (tab !== "quick") void refetch();
   };
 
   const hasDemoOpenPlay = Boolean(data?.hasDemoOpenPlay);

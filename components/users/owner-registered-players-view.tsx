@@ -51,6 +51,8 @@ import {
   ownerRegisteredPlayersQueryKey,
   ownerSessionFilterOptionsQueryKey,
 } from "@/lib/fetch-registered-players";
+import { useAuthMe } from "@/hooks/use-auth-me";
+import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
 import type {
   OwnerPlayerSessions,
   OwnerRegisteredPlayerItem,
@@ -159,6 +161,7 @@ function OwnerPlayerSessionsDialog({
       if (!response.ok) throw new Error(payload.message ?? "Failed to load sessions.");
       return payload;
     },
+    ...ownerHubQueryOptions,
   });
 
   return (
@@ -356,17 +359,7 @@ export function OwnerRegisteredPlayersView() {
   const [qrPlayer, setQrPlayer] = useState<{ id: string; name: string } | null>(null);
   const [emailErrorPlayer, setEmailErrorPlayer] = useState<OwnerRegisteredPlayerItem | null>(null);
 
-  const { data: authData } = useQuery({
-    queryKey: ["auth-me"],
-    queryFn: async () => {
-      const response = await fetch("/api/auth/me");
-      if (!response.ok) return null;
-      return (await response.json()) as {
-        user: { name: string; isSuperAdmin?: boolean } | null;
-      };
-    },
-    staleTime: 60_000,
-  });
+  const { data: authData } = useAuthMe();
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
 
   const { data: sessionInsightsData } = useQuery({
@@ -374,10 +367,12 @@ export function OwnerRegisteredPlayersView() {
     queryFn: async () => {
       const response = await fetch("/api/games/session-insights");
       const payload = (await response.json()) as HomeSessionInsights & { message?: string };
+      if (response.status === 401) return null;
       if (!response.ok) throw new Error(payload.message ?? "Failed to load session insights.");
       return payload;
     },
-    staleTime: 60_000,
+    ...ownerHubQueryOptions,
+    retry: 1,
   });
   const showCcfInsights = sessionInsightsData?.showCcfInsights ?? false;
 
@@ -418,7 +413,7 @@ export function OwnerRegisteredPlayersView() {
   const { data: sessionOptionsData, isLoading: sessionOptionsLoading } = useQuery({
     queryKey: ownerSessionFilterOptionsQueryKey(),
     queryFn: fetchOwnerSessionFilterOptions,
-    staleTime: 60_000,
+    ...ownerHubQueryOptions,
   });
 
   const sessionOptions = sessionOptionsData?.sessions ?? [];
@@ -448,6 +443,7 @@ export function OwnerRegisteredPlayersView() {
       if (payload.page !== page) setPage(payload.page);
       return payload;
     },
+    ...ownerHubQueryOptions,
   });
 
   const deleteMutation = useMutation({
