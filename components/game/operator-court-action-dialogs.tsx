@@ -41,6 +41,7 @@ type OperatorCourtActionDialogsProps = {
   }) => void;
   endGameScoreError: string | null;
   playerLookup?: Map<string, PlayerPhotoRef>;
+  gameMode?: "doubles" | "singles";
 };
 
 export function OperatorCourtActionDialogs({
@@ -65,6 +66,7 @@ export function OperatorCourtActionDialogs({
   onSubmitEndGame,
   endGameScoreError,
   playerLookup,
+  gameMode = "doubles",
 }: OperatorCourtActionDialogsProps) {
   const endCourt =
     endTargetCourt != null ? courts.find((court) => court.courtNumber === endTargetCourt) : undefined;
@@ -156,6 +158,7 @@ export function OperatorCourtActionDialogs({
         open={endTargetCourt !== null}
         endCourt={endCourt}
         playerLookup={playerLookup}
+        gameMode={gameMode}
         pendingWinner={pendingWinner}
         onPendingWinnerChange={onPendingWinnerChange}
         endGameRematch={endGameRematch}

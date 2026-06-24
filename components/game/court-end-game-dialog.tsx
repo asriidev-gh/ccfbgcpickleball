@@ -28,6 +28,7 @@ type CourtEndGameDialogProps = {
   open: boolean;
   endCourt?: CourtView;
   playerLookup?: Map<string, PlayerPhotoRef>;
+  gameMode?: "doubles" | "singles";
   pendingWinner: "A" | "B" | null;
   onPendingWinnerChange: (winner: "A" | "B" | null) => void;
   endGameRematch: boolean;
@@ -101,6 +102,7 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
   open,
   endCourt,
   playerLookup,
+  gameMode = "doubles",
   pendingWinner,
   onPendingWinnerChange,
   endGameRematch,
@@ -113,6 +115,14 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
   onClose,
   onSubmit,
 }: CourtEndGameDialogProps) {
+  const isSingles = gameMode === "singles";
+  const rematchHint = isSingles
+    ? "Same two, fresh clock on this court."
+    : "Same four, fresh clock on this court.";
+  const noRematchHint = isSingles
+    ? "Return both to the queue."
+    : "Return all four to the queue.";
+
   const winningPlayers = resolveSessionPlayers(
     pendingWinner === "A"
       ? (endCourt?.teamA.playerIds ?? [])
@@ -317,9 +327,7 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                 </div>
               </div>
               <p className="end-game-rematch-hint">
-                {endGameRematch
-                  ? "Same four, fresh clock on this court."
-                  : "Return all four to the queue."}
+                {endGameRematch ? rematchHint : noRematchHint}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">

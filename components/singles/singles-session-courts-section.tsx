@@ -278,6 +278,7 @@ export function SinglesSessionCourtsSection({
             open={courtActions.endTargetCourt != null}
             endCourt={endCourt}
             playerLookup={sessionPlayerLookup}
+            gameMode="singles"
             pendingWinner={courtActions.pendingWinner}
             onPendingWinnerChange={courtActions.setPendingWinner}
             endGameRematch={courtActions.endGameRematch}

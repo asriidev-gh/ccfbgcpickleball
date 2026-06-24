@@ -16,6 +16,7 @@ export type OwnerCourtsViewSession = {
   matchingType?: QuickPlayMatchingType;
   courts: CourtView[];
   queue: QueueEntryView[];
+  checkedOut?: QueueEntryView[];
   leaderboard: LeaderboardGamesPlayedRow[];
 };
 

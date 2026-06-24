@@ -19,7 +19,7 @@ export async function loadOwnerCourtsView(ownerId: string): Promise<OwnerCourtsV
 
   const sessions = await Promise.all(
     games.map(async (game) => {
-      const [{ courts, queue }, leaderboard, firstTimerIdentityKeys] = await Promise.all([
+      const [{ courts, queue, checkedOut }, leaderboard, firstTimerIdentityKeys] = await Promise.all([
         loadQueueCourtsAndCheckedOut(game.gameId),
         LeaderboardStats.find({ gameId: game.gameId })
           .select("playerId gamesPlayed wins losses")
@@ -40,6 +40,10 @@ export async function loadOwnerCourtsView(ownerId: string): Promise<OwnerCourtsV
           queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
           firstTimerIdentityKeys,
         ) as unknown as OwnerCourtsViewPayload["sessions"][number]["queue"],
+        checkedOut: serializeQueueEntriesForPayload(
+          checkedOut as Parameters<typeof serializeQueueEntriesForPayload>[0],
+          firstTimerIdentityKeys,
+        ) as unknown as OwnerCourtsViewPayload["sessions"][number]["checkedOut"],
         leaderboard:
           leaderboard as OwnerCourtsViewPayload["sessions"][number]["leaderboard"],
       };

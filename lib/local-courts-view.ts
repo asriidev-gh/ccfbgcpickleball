@@ -16,6 +16,7 @@ export function operatorPayloadToCourtsViewSession(
     matchingType: payload.game.matchingType,
     courts: payload.courts,
     queue: payload.queue,
+    checkedOut: payload.checkedOut ?? [],
     leaderboard: payload.leaderboard ?? [],
   };
 }

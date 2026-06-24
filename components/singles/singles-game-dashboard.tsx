@@ -78,6 +78,7 @@ import {
   isSinglesWinnerLoserRotation,
   pickSinglesCourtPair,
 } from "@/lib/singles/singles-queue-fill";
+import { SINGLES_MIN_QUEUE_TO_FILL } from "@/lib/singles/singles-constants";
 import {
   applySinglesCancelCourtAssignmentOptimistic,
   applySinglesEndGameWithHistoryOptimistic,
@@ -1034,6 +1035,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
           open={endTargetCourt != null}
           endCourt={endCourt}
           playerLookup={sessionPlayerLookup}
+          gameMode="singles"
           pendingWinner={pendingWinner}
           onPendingWinnerChange={setPendingWinner}
           endGameRematch={endGameRematch}

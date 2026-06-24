@@ -396,6 +396,7 @@ export function OwnerSessionCourtsSection({
           onSubmitEndGame={(input) => courtActions.endMutation.mutate(input)}
           endGameScoreError={endGameScoreError}
           playerLookup={sessionPlayerLookup}
+          gameMode={session.gameMode ?? "doubles"}
         />
       ) : null}
       </CardContent>

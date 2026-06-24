@@ -48,6 +48,7 @@ import {
   MAX_QUICK_PLAY_PLAYERS,
   MIN_EXPECTED_PLAYERS,
   QUICK_PLAY_TOTAL_STEPS,
+  getMinExpectedPlayersForGameMode,
   getMixedDoublesPlayersValidationError,
   isMixedDoublesMatching,
   resolvePlayerOpenPlayLevel,
@@ -56,8 +57,10 @@ import {
   type QuickPlayMatchingType,
   type QuickPlayWizardPlayerEntry,
 } from "@/lib/quick-play-wizard-shared";
+import { orderPlayersByAlternatingGender } from "@/lib/doubles/mixed-doubles-shuffle";
 import { createAccountQuickGameId } from "@/lib/local-game-id";
 import { createLocalLiveQueueSession } from "@/lib/local-game-session";
+import { seedLocalGameOperatorCache } from "@/lib/operator-game-cache";
 import type { GenderOption } from "@/lib/player-profile-shared";
 import {
   findFirstPlayerNameTooLongIndex,
@@ -207,6 +210,7 @@ export function CreateGameWizard() {
   ]);
   const [allowQrRegistration, setAllowQrRegistration] = useState(false);
   const [allowManualPlayerAdd, setAllowManualPlayerAdd] = useState(false);
+  const [allowManualCourtAdd, setAllowManualCourtAdd] = useState(false);
   const [defaultCheckInAllPlayers, setDefaultCheckInAllPlayers] = useState(true);
   const [liveQueue, setLiveQueue] = useState(true);
   const [form, setForm] = useState<CreateGameForm>(createInitialForm);
@@ -221,6 +225,7 @@ export function CreateGameWizard() {
   const sessionLockedPlayerLevel = isFixedOpenPlayType(form.openPlayType) ? form.openPlayType : null;
   const sessionTitle = form.title.trim() || defaultGameTitle(form.openPlayType);
   const canAddMorePlayers = playerEntries.length < MAX_QUICK_PLAY_PLAYERS;
+  const minExpectedPlayers = getMinExpectedPlayersForGameMode(form.gameMode);
 
   const filledPlayers = useMemo(
     () =>
@@ -273,6 +278,13 @@ export function CreateGameWizard() {
       ),
     [filledPlayers],
   );
+  const previewQueuePlayers = useMemo(() => {
+    if (!isQuickGamePreset) return playersForSubmit;
+    if (isMixedDoublesMatching(form.matchingType) && form.gameMode === "doubles") {
+      return orderPlayersByAlternatingGender(playersForSubmit, (player) => player.gender);
+    }
+    return playersForSubmit;
+  }, [form.gameMode, form.matchingType, isQuickGamePreset, playersForSubmit]);
   const mixedDoublesValidationError = useMemo(() => {
     if (!isMixedDoublesMatching(form.matchingType) || form.gameMode !== "doubles") return null;
     if (playersForSubmit.length !== filledPlayers.length) return null;
@@ -288,6 +300,7 @@ export function CreateGameWizard() {
     setPlayerEntries([createQuickPlayWizardPlayerEntry(1)]);
     setAllowQrRegistration(false);
     setAllowManualPlayerAdd(false);
+    setAllowManualCourtAdd(false);
     setDefaultCheckInAllPlayers(true);
     setLiveQueue(preset.liveQueue);
     setForm({
@@ -334,19 +347,19 @@ export function CreateGameWizard() {
     if (stepKind === "quickFormat") {
       return (
         form.courtCount >= 1 &&
-        form.expectedPlayers >= MIN_EXPECTED_PLAYERS &&
+        form.expectedPlayers >= minExpectedPlayers &&
         form.expectedPlayers <= MAX_QUICK_PLAY_PLAYERS
       );
     }
     if (stepKind === "quickPlayers") {
       return (
-        filledPlayers.length > 0 &&
+        filledPlayers.length >= minExpectedPlayers &&
         filledPlayers.length <= MAX_QUICK_PLAY_PLAYERS &&
         !hasDuplicatePlayerNames &&
         !hasMissingPlayerGender &&
         !hasPlayerNameTooLong &&
         !hasInvalidPlayerName &&
-        filledPlayers.every((player) => player.gender === "male" || player.gender === "female") &&
+        playersForSubmit.length === filledPlayers.length &&
         !mixedDoublesValidationError
       );
     }
@@ -372,8 +385,8 @@ export function CreateGameWizard() {
   const goNext = () => {
     if (!canGoNext()) {
       if (stepKind === "quickFormat") {
-        if (form.expectedPlayers < MIN_EXPECTED_PLAYERS) {
-          toast.error(`Expected players must be at least ${MIN_EXPECTED_PLAYERS}.`);
+        if (form.expectedPlayers < minExpectedPlayers) {
+          toast.error(`Expected players must be at least ${minExpectedPlayers}.`);
         } else if (form.expectedPlayers > MAX_QUICK_PLAY_PLAYERS) {
           toast.error(`You can add up to ${MAX_QUICK_PLAY_PLAYERS} players.`);
         }
@@ -383,7 +396,9 @@ export function CreateGameWizard() {
         else if (hasDuplicatePlayerNames) toast.error("Each player name must be unique.");
         else if (hasMissingPlayerGender) toast.error("Select a gender for each player.");
         else if (mixedDoublesValidationError) toast.error(mixedDoublesValidationError);
-        else if (filledPlayers.length > MAX_QUICK_PLAY_PLAYERS) {
+        else if (filledPlayers.length < minExpectedPlayers) {
+          toast.error(`Enter at least ${minExpectedPlayers} players for ${form.gameMode} play.`);
+        } else if (filledPlayers.length > MAX_QUICK_PLAY_PLAYERS) {
           toast.error(`You can add up to ${MAX_QUICK_PLAY_PLAYERS} players.`);
         } else toast.error("Enter at least one player name.");
       } else if (stepKind === "openPlayType") {
@@ -468,14 +483,23 @@ export function CreateGameWizard() {
       );
 
       if (registrationMode === "owner" && !liveQueue) {
+        if (playersForSubmit.length < minExpectedPlayers) {
+          toast.error(`Enter at least ${minExpectedPlayers} players for ${form.gameMode} play.`);
+          setStep(2);
+          return;
+        }
+
+        if (isMixedDoublesMatching(form.matchingType) && form.gameMode === "doubles") {
+          const mixedDoublesError = getMixedDoublesPlayersValidationError(playersForSubmit);
+          if (mixedDoublesError) {
+            toast.error(mixedDoublesError);
+            setStep(2);
+            return;
+          }
+        }
+
         const gameId = createAccountQuickGameId();
-        const players = filledPlayers.filter(
-          (player): player is {
-            displayName: string;
-            gender: "male" | "female";
-            openPlayLevel: typeof player.openPlayLevel;
-          } => player.gender === "male" || player.gender === "female",
-        );
+        const players = playersForSubmit;
         const session = createLocalLiveQueueSession({
           gameId,
           title,
@@ -489,13 +513,14 @@ export function CreateGameWizard() {
           expectedPlayers: players.length,
           allowQrRegistration: false,
           allowManualPlayerAdd,
-          allowManualCourtAdd: false,
+          allowManualCourtAdd,
           players,
           checkInAllPlayers: defaultCheckInAllPlayers,
           gameMode: form.gameMode,
           matchingType: form.matchingType,
         });
         initializeQuickGameSession(gameId, session);
+        seedLocalGameOperatorCache(queryClient, gameId);
         try {
           await saveQuickGameSession(gameId, session, "create", "active");
           void queryClient.invalidateQueries({ queryKey: ["saved-quick-games"] });
@@ -595,8 +620,14 @@ export function CreateGameWizard() {
                   onFormChange={(patch) =>
                     setForm((prev) => {
                       const next = { ...prev, ...patch };
-                      if (patch.gameMode === "singles" && next.matchingType === "mixed-doubles") {
-                        next.matchingType = "auto-balanced";
+                      if (patch.gameMode) {
+                        const minPlayers = getMinExpectedPlayersForGameMode(patch.gameMode);
+                        if (next.expectedPlayers < minPlayers) {
+                          next.expectedPlayers = minPlayers;
+                        }
+                        if (patch.gameMode === "singles" && next.matchingType === "mixed-doubles") {
+                          next.matchingType = "auto-balanced";
+                        }
                       }
                       return next;
                     })
@@ -637,8 +668,8 @@ export function CreateGameWizard() {
                   setDefaultCheckInAllPlayers={setDefaultCheckInAllPlayers}
                   allowManualPlayerAdd={allowManualPlayerAdd}
                   setAllowManualPlayerAdd={setAllowManualPlayerAdd}
-                  allowManualCourtAdd={false}
-                  setAllowManualCourtAdd={() => {}}
+                  allowManualCourtAdd={allowManualCourtAdd}
+                  setAllowManualCourtAdd={setAllowManualCourtAdd}
                   canAddMorePlayers={canAddMorePlayers}
                 />
               ) : null}
@@ -646,16 +677,10 @@ export function CreateGameWizard() {
                 <QuickPlayPreviewStep
                   sessionTitle={sessionTitle}
                   form={form}
-                  filledPlayers={filledPlayers.filter(
-                    (player): player is {
-                      displayName: string;
-                      gender: "male" | "female";
-                      openPlayLevel: typeof player.openPlayLevel;
-                    } => player.gender === "male" || player.gender === "female",
-                  )}
+                  filledPlayers={previewQueuePlayers}
                   defaultCheckInAllPlayers={defaultCheckInAllPlayers}
                   allowManualPlayerAdd={allowManualPlayerAdd}
-                  allowManualCourtAdd={false}
+                  allowManualCourtAdd={allowManualCourtAdd}
                   onEditStep={setStep}
                   footerNote="This quick game saves to your account with live queuing off. Manage it from My Games."
                 />

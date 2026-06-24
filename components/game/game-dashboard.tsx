@@ -3330,6 +3330,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           open={endTargetCourt !== null}
           endCourt={endCourt}
           playerLookup={sessionPlayerLookup}
+          gameMode={game.gameMode ?? "doubles"}
           pendingWinner={pendingWinner}
           onPendingWinnerChange={setPendingWinner}
           endGameRematch={endGameRematch}
