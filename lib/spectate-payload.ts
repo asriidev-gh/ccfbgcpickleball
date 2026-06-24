@@ -23,6 +23,8 @@ export type SpectateLivePayload = {
   queue: QueueEntryView[];
   checkedOut: QueueEntryView[];
   courts: CourtView[];
+  /** Session W/L for queue badges — loaded with live scope to avoid a details fetch. */
+  leaderboard?: LeaderboardGamesPlayedRow[];
   spectatorCount?: number;
   firstTimerCount?: number;
   birthdayThisMonthCount?: number;
@@ -49,7 +51,7 @@ export function mergeSpectatorGamePayload(
 ): SpectateFullPayload {
   return {
     ...live,
-    leaderboard: details?.leaderboard ?? [],
+    leaderboard: details?.leaderboard ?? live.leaderboard ?? [],
     matches: details?.matches ?? [],
     recap: details?.recap,
   };

@@ -124,8 +124,6 @@ function defaultGameTitle(openPlayType: string) {
 
 type WizardPlayerEntry = QuickPlayWizardPlayerEntry;
 
-const EMPTY_WIZARD_PLAYER: WizardPlayerEntry = createQuickPlayWizardPlayerEntry(1);
-
 const WIZARD_PLAYER_GENDER_OPTIONS = [
   { value: "male", label: "Male" },
   { value: "female", label: "Female" },
@@ -202,7 +200,9 @@ export function CreateGameWizard() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [registrationMode, setRegistrationMode] = useState<RegistrationMode | "">("self");
-  const [playerEntries, setPlayerEntries] = useState<WizardPlayerEntry[]>([EMPTY_WIZARD_PLAYER]);
+  const [playerEntries, setPlayerEntries] = useState<WizardPlayerEntry[]>([
+    createQuickPlayWizardPlayerEntry(1),
+  ]);
   const [allowQrRegistration, setAllowQrRegistration] = useState(false);
   const [allowManualPlayerAdd, setAllowManualPlayerAdd] = useState(false);
   const [defaultCheckInAllPlayers, setDefaultCheckInAllPlayers] = useState(true);
@@ -1045,7 +1045,12 @@ export function CreateGameWizard() {
                 type="button"
                 variant="outline"
                 className="mt-4 w-full"
-                onClick={() => setPlayerEntries((prev) => [...prev, EMPTY_WIZARD_PLAYER])}
+                onClick={() =>
+                  setPlayerEntries((prev) => [
+                    ...prev,
+                    createQuickPlayWizardPlayerEntry(prev.length + 1),
+                  ])
+                }
               >
                 <Plus className="mr-2 h-4 w-4" aria-hidden />
                 Add more player

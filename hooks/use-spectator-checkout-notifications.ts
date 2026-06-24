@@ -75,7 +75,11 @@ export function formatCheckoutNotificationLabel(notification: SpectatorCheckoutN
   return `${parts.playerName} checkout ${parts.relativeTime}`;
 }
 
-export function useSpectatorCheckoutNotifications(gameId: string | null) {
+export function useSpectatorCheckoutNotifications(
+  gameId: string | null,
+  options?: { pollOrganizerNotifications?: boolean },
+) {
+  const pollOrganizerNotifications = options?.pollOrganizerNotifications ?? true;
   const enabled = Boolean(gameId);
   const [readIds, setReadIds] = useState<Set<string>>(() =>
     gameId ? loadReadCheckoutNotificationIds(gameId) : new Set(),
@@ -87,7 +91,7 @@ export function useSpectatorCheckoutNotifications(gameId: string | null) {
   const { data: organizerNotificationData } = useQuery({
     queryKey: ["game", gameId, "notifications"],
     queryFn: () => fetchOrganizerNotifications(gameId!),
-    enabled,
+    enabled: enabled && pollOrganizerNotifications,
     refetchInterval: ORGANIZER_NOTIFICATIONS_POLL_MS,
     refetchOnWindowFocus: false,
   });

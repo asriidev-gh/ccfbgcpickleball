@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchSpectateClubProfile, spectateClubProfileQueryKey } from "@/lib/fetch-spectate-club-profile";
+import { spectatorNavQueryOptions } from "@/lib/spectator-query-options";
 import {
   buildGoogleMapsSearchUrl,
   profileHasAboutDetails,
@@ -385,7 +386,7 @@ export function SpectateClubProfileDialog({
     queryKey: spectateClubProfileQueryKey(gameId),
     queryFn: () => fetchSpectateClubProfile(gameId),
     enabled: open,
-    staleTime: 60_000,
+    ...spectatorNavQueryOptions,
   });
 
   const profile = data;

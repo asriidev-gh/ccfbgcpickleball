@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -64,7 +66,7 @@ function CourtWinnerTeamRoster({ players }: { players: PlayerPhotoRef[] }) {
   );
 }
 
-export function CourtEndGameDialog({
+export const CourtEndGameDialog = memo(function CourtEndGameDialog({
   open,
   endCourt,
   pendingWinner,
@@ -118,8 +120,12 @@ export function CourtEndGameDialog({
     }
   };
 
+  if (!open) {
+    return <Dialog open={false} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)} />;
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
+    <Dialog open onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
       <DialogContent className="court-winner-dialog">
         <DialogHeader>
           <DialogTitle>
@@ -311,4 +317,4 @@ export function CourtEndGameDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});

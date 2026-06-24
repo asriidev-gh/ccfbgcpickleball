@@ -949,7 +949,12 @@ export function MyGamesView() {
 
   const { data, isLoading } = useGamesList();
   const { emailVerified, isLoading: emailVerifiedLoading } = useEmailVerified();
-  const canCreateGames = !emailVerifiedLoading && emailVerified;
+  const [authUiReady, setAuthUiReady] = useState(false);
+
+  useEffect(() => {
+    setAuthUiReady(true);
+  }, []);
+
   const { data: savedQuickGames = [] } = useSavedQuickGames();
 
   const localSessionsRecord = useLocalGameStore((state) => state.sessions);
@@ -1020,6 +1025,12 @@ export function MyGamesView() {
       toast.error(error instanceof Error ? error.message : "Failed to generate test game.");
     },
   });
+
+  const createMenuDisabled =
+    !authUiReady ||
+    emailVerifiedLoading ||
+    !emailVerified ||
+    generateTestGameMutation.isPending;
 
   const deleteGameMutation = useMutation({
     mutationFn: async (gameId: string) => {
@@ -1102,7 +1113,8 @@ export function MyGamesView() {
   };
 
   const openCreateGameWizard = (preset?: CreateGameWizardPreset) => {
-    if (!canCreateGames) {
+    if (!authUiReady || emailVerifiedLoading) return;
+    if (!emailVerified) {
       toast.error("Verify your email before creating a game.");
       return;
     }
@@ -1110,7 +1122,8 @@ export function MyGamesView() {
   };
 
   const openDemoDialog = () => {
-    if (!canCreateGames) {
+    if (!authUiReady || emailVerifiedLoading) return;
+    if (!emailVerified) {
       toast.error("Verify your email before creating a game.");
       return;
     }
@@ -1149,9 +1162,9 @@ export function MyGamesView() {
               {showCourtsView ? <SwitchToCourtViewButton /> : null}
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  disabled={generateTestGameMutation.isPending || !canCreateGames}
+                  disabled={createMenuDisabled}
                   render={
-                    <Button size="lg" className="min-w-28" disabled={!canCreateGames}>
+                    <Button size="lg" className="min-w-28">
                       {generateTestGameMutation.isPending ? (
                         <Loader2 className="h-5 w-5 animate-spin" />
                       ) : (

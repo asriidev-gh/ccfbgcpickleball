@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { GameLeaderboardRecapRow } from "@/lib/game-leaderboard-recap";
 import { isQuickGame } from "@/lib/local-game-id";
 import { buildLocalLeaderboardRecap } from "@/lib/local-leaderboard-recap";
+import { spectatorLeaderboardQueryOptions } from "@/lib/spectator-query-options";
 import type { SessionInsight } from "@/lib/session-insights";
 import { readQuickGamePayload } from "@/lib/quick-game-store";
 
@@ -39,6 +40,6 @@ export function prefetchLeaderboardRecap(
   void queryClient.prefetchQuery({
     queryKey: leaderboardRecapQueryKey(gameId, isSpectatorView),
     queryFn: () => fetchLeaderboardRecap(gameId, isSpectatorView),
-    staleTime: 30_000,
+    ...spectatorLeaderboardQueryOptions,
   });
 }

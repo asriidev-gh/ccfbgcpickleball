@@ -40,6 +40,8 @@ export type OperatorQueuePayload = {
   queue: QueueEntryView[];
   checkedOut: QueueEntryView[];
   courts: CourtView[];
+  /** Session W/L for queue badges without loading full details. */
+  leaderboard?: LeaderboardGamesPlayedRow[];
   firstTimerCount?: number;
   birthdayThisMonthCount?: number;
 };
@@ -86,7 +88,7 @@ export function mergeOperatorGamePayload(
     queue: queue?.queue ?? [],
     checkedOut: queue?.checkedOut ?? [],
     courts: queue?.courts ?? [],
-    leaderboard: details?.leaderboard ?? [],
+    leaderboard: details?.leaderboard ?? queue?.leaderboard ?? [],
     matches: details?.matches ?? [],
     recap: details?.recap,
     firstTimerCount: queue?.firstTimerCount ?? 0,

@@ -4,6 +4,10 @@ import { getAuthUserFromCookie } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import { handleApiError } from "@/lib/handle-api-error";
 import { loadGameLeaderboardRecap } from "@/lib/game-leaderboard-recap";
+import {
+  getCachedSpectatorLeaderboardRecap,
+  setCachedSpectatorLeaderboardRecap,
+} from "@/lib/spectate-leaderboard-recap-cache";
 import { PickleGame } from "@/models/PickleGame";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +28,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         if (!game) return NextResponse.json({ message: "Game not found." }, { status: 404 });
       }
 
-      const recap = await loadGameLeaderboardRecap(gameId);
+      let recap = isSpectatorView ? getCachedSpectatorLeaderboardRecap(gameId) : null;
+      if (!recap) {
+        recap = await loadGameLeaderboardRecap(gameId);
+        if (isSpectatorView) {
+          setCachedSpectatorLeaderboardRecap(gameId, recap);
+        }
+      }
+
       return NextResponse.json(recap);
     });
   } catch (error) {

@@ -3,6 +3,11 @@ import type { QueryClient } from "@tanstack/react-query";
 import { sanitizeErrorMessage } from "@/lib/infrastructure-error";
 import { isQuickGame } from "@/lib/local-game-id";
 import { seedLocalGameOperatorCache } from "@/lib/operator-game-cache";
+import {
+  operatorDetailsQueryOptions,
+  operatorQueueQueryOptions,
+  operatorShellQueryOptions,
+} from "@/lib/operator-query-options";
 import type {
   OperatorDetailsPayload,
   OperatorQueuePayload,
@@ -35,12 +40,12 @@ export function prefetchOperatorDashboard(queryClient: QueryClient, gameId: stri
   void queryClient.prefetchQuery({
     queryKey: operatorShellQueryKey(gameId),
     queryFn: () => fetchOperatorShell(gameId),
-    staleTime: Number.POSITIVE_INFINITY,
+    ...operatorShellQueryOptions,
   });
   void queryClient.prefetchQuery({
     queryKey: operatorQueueQueryKey(gameId),
     queryFn: () => fetchOperatorQueue(gameId),
-    staleTime: 30_000,
+    ...operatorQueueQueryOptions,
   });
 }
 

@@ -24,7 +24,8 @@ export function FillCourtSelectDialog({
 }: FillCourtSelectDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      {open ? (
+        <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Which court should be filled?</DialogTitle>
           <DialogDescription>
@@ -44,7 +45,8 @@ export function FillCourtSelectDialog({
             </Button>
           ))}
         </div>
-      </DialogContent>
+        </DialogContent>
+      ) : null}
     </Dialog>
   );
 }
