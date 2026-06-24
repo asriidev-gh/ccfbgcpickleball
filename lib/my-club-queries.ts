@@ -1,4 +1,5 @@
 import type { ClubSettings } from "@/lib/club-settings-shared";
+import type { ClubAnnouncementItem } from "@/lib/club-announcements-shared";
 import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
 
 export const MY_CLUB_STALE_TIME_MS = 10 * 60_000;
@@ -26,15 +27,7 @@ export async function fetchClubSettings(): Promise<ClubSettingsResponse> {
 export const myClubAnnouncementsQueryKey = ["my-club-announcements"] as const;
 
 export type MyClubAnnouncementsResponse = {
-  announcements: Array<{
-    id?: string;
-    isPublished: boolean;
-    isArchived?: boolean;
-    title?: string;
-    body?: string;
-    postingDate?: string | null;
-    expirationDate?: string | null;
-  }>;
+  announcements: ClubAnnouncementItem[];
   imageUploadConfigured?: boolean;
   message?: string;
 };

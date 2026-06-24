@@ -38,7 +38,6 @@ export function useGamesList() {
   return useQuery({
     queryKey: ["games"],
     queryFn: fetchGamesList,
-    refetchOnWindowFocus: false,
     ...ownerHubQueryOptions,
     retry: (failureCount, error) => {
       if (error instanceof Error && /unauthorized/i.test(error.message)) {
