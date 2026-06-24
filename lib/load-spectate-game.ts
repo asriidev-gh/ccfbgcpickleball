@@ -6,6 +6,13 @@ import {
   serializeQueueEntriesForPayload,
 } from "@/lib/queue-first-timer";
 import type { SpectateDetailsPayload, SpectateLivePayload } from "@/lib/spectate-payload";
+import {
+  firstTimerCacheKey,
+  getCachedBirthdayThisMonthCount,
+  getCachedFirstTimerIdentityKeys,
+  setCachedBirthdayThisMonthCount,
+  setCachedFirstTimerIdentityKeys,
+} from "@/lib/spectate-live-meta-cache";
 import { getSpectatorCount } from "@/lib/spectator-presence";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
@@ -42,14 +49,35 @@ export async function loadSpectateLive(gameId: string): Promise<SpectateLivePayl
   if (!game) return null;
 
   const ownerId = game.ownerId?.toString();
-  const [owner, queueState, firstTimerIdentityKeys, birthdaysThisMonth] = await Promise.all([
-    ownerId
-      ? User.findById(ownerId).select("name clubName clubLogoUrl clubTagline").lean()
-      : Promise.resolve(null),
-    loadQueueCourtsAndCheckedOut(gameId),
-    ownerId ? loadFirstTimerIdentityKeysForGame(ownerId, gameId) : Promise.resolve(new Set<string>()),
-    getGameBirthdaysThisMonth(gameId),
-  ]);
+  const firstTimerKey = ownerId ? firstTimerCacheKey(ownerId, gameId) : null;
+
+  const cachedFirstTimerKeys = firstTimerKey
+    ? getCachedFirstTimerIdentityKeys(firstTimerKey)
+    : null;
+  const cachedBirthdayCount = getCachedBirthdayThisMonthCount(gameId);
+
+  const [owner, queueState, leaderboardRows, firstTimerIdentityKeys, birthdaysThisMonth] =
+    await Promise.all([
+      ownerId
+        ? User.findById(ownerId).select("name clubName clubLogoUrl clubTagline").lean()
+        : Promise.resolve(null),
+      loadQueueCourtsAndCheckedOut(gameId),
+      LeaderboardStats.find({ gameId }).select("playerId gamesPlayed wins losses").lean(),
+      cachedFirstTimerKeys != null
+        ? Promise.resolve(cachedFirstTimerKeys)
+        : ownerId
+          ? loadFirstTimerIdentityKeysForGame(ownerId, gameId).then((keys) => {
+              if (firstTimerKey) setCachedFirstTimerIdentityKeys(firstTimerKey, keys);
+              return keys;
+            })
+          : Promise.resolve(new Set<string>()),
+      cachedBirthdayCount != null
+        ? Promise.resolve({ count: cachedBirthdayCount, players: [] })
+        : getGameBirthdaysThisMonth(gameId).then((result) => {
+            setCachedBirthdayThisMonthCount(gameId, result.count);
+            return result;
+          }),
+    ]);
   const { queue, checkedOut, courts } = queueState;
 
   return {
@@ -63,6 +91,7 @@ export async function loadSpectateLive(gameId: string): Promise<SpectateLivePayl
       firstTimerIdentityKeys,
     ) as unknown as SpectateLivePayload["checkedOut"],
     courts: courts as unknown as SpectateLivePayload["courts"],
+    leaderboard: leaderboardRows as unknown as SpectateLivePayload["leaderboard"],
     spectatorCount: getSpectatorCount(gameId),
     firstTimerCount: firstTimerIdentityKeys.size,
     birthdayThisMonthCount: birthdaysThisMonth.count,

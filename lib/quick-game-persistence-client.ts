@@ -43,6 +43,7 @@ export async function saveQuickGameSession(
 export async function fetchSavedQuickGames(): Promise<SavedQuickGameListItem[]> {
   const response = await fetch("/api/quick-games");
   const data = (await response.json()) as { games?: SavedQuickGameListItem[]; message?: string };
+  if (response.status === 401) return [];
   if (!response.ok) {
     throw new Error(data.message ?? "Failed to load saved quick games.");
   }

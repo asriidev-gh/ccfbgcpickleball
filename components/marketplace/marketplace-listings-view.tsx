@@ -76,9 +76,13 @@ import {
   type MarketplacePaymentMethod,
 } from "@/lib/marketplace-payment-shared";
 import {
+  fetchMarketplaceListings,
+  fetchOwnerMarketplaceOrders,
+  marketplaceListingsQueryKey,
+  ownerHubQueryOptions,
   ownerMarketplaceOrdersQueryKey,
-  type MarketplaceOrderItem,
-} from "@/lib/marketplace-orders-shared";
+} from "@/lib/marketplace-queries";
+import type { MarketplaceOrderItem } from "@/lib/marketplace-orders-shared";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
@@ -1164,30 +1168,15 @@ export function MarketplaceListingsView() {
   const [draftPhotoUrl, setDraftPhotoUrl] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["marketplace-listings"],
-    queryFn: async () => {
-      const response = await fetch("/api/marketplace/listings");
-      const payload = (await response.json()) as {
-        listings: MarketplaceListingItem[];
-        photoUploadConfigured?: boolean;
-        message?: string;
-      };
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load listings.");
-      return payload;
-    },
+    queryKey: marketplaceListingsQueryKey,
+    queryFn: fetchMarketplaceListings,
+    ...ownerHubQueryOptions,
   });
 
   const { data: orders = [], error: ordersError } = useQuery({
     queryKey: ownerMarketplaceOrdersQueryKey(),
-    queryFn: async () => {
-      const response = await fetch("/api/marketplace/orders");
-      const payload = (await response.json()) as {
-        orders: MarketplaceOrderItem[];
-        message?: string;
-      };
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load orders.");
-      return payload.orders;
-    },
+    queryFn: fetchOwnerMarketplaceOrders,
+    ...ownerHubQueryOptions,
   });
 
   const ordersByListingId = useMemo(() => {
@@ -1268,7 +1257,7 @@ export function MarketplaceListingsView() {
       setEditing(null);
       setDraft(emptyForm);
       setDraftPhotoUrl(null);
-      queryClient.invalidateQueries({ queryKey: ["marketplace-listings"] });
+      queryClient.invalidateQueries({ queryKey: marketplaceListingsQueryKey });
     },
     onError: (mutationError) => {
       toast.error(mutationError instanceof Error ? mutationError.message : "Failed to save listing.");
@@ -1284,7 +1273,7 @@ export function MarketplaceListingsView() {
     },
     onSuccess: (payload) => {
       toast.success(payload.message ?? "Listing deleted.");
-      queryClient.invalidateQueries({ queryKey: ["marketplace-listings"] });
+      queryClient.invalidateQueries({ queryKey: marketplaceListingsQueryKey });
     },
     onError: (mutationError) => {
       toast.error(
@@ -1307,7 +1296,7 @@ export function MarketplaceListingsView() {
       toast.success(
         payload.isActive ? "Listing is now active." : "Listing is now inactive.",
       );
-      queryClient.invalidateQueries({ queryKey: ["marketplace-listings"] });
+      queryClient.invalidateQueries({ queryKey: marketplaceListingsQueryKey });
     },
     onError: (mutationError) => {
       toast.error(

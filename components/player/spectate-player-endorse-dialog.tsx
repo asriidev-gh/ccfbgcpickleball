@@ -129,7 +129,7 @@ export function SpectatePlayerEndorseDialog({
         queryKey: spectatePlayerEndorsementsQueryKey(gameId, endorserPlayerId),
       });
       void queryClient.invalidateQueries({
-        queryKey: spectateGameEndorsementCountsQueryKey(gameId, endorserPlayerId),
+        queryKey: spectateGameEndorsementCountsQueryKey(gameId),
       });
       onOpenChange(false);
     },

@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { getLinkedPlayerIdForGame } from "@/lib/player-session";
-import type { SpectatePlayerFeatures } from "@/lib/spectate-player-features-shared";
+import {
+  fetchSpectatePlayerFeatures,
+  spectatePlayerFeaturesQueryKey,
+} from "@/lib/fetch-spectate-player-features";
+import { spectatorNavQueryOptions } from "@/lib/spectator-query-options";
 
 export function SpectateMarketplaceGate({
   gameId,
@@ -30,17 +34,11 @@ export function SpectateMarketplaceGate({
   }, [gameId]);
 
   const featuresQuery = useQuery({
-    queryKey: ["spectate-player-features", gameId, playerId],
-    queryFn: async () => {
-      const response = await fetch(
-        `/api/games/${gameId}/spectate/player/features?playerId=${encodeURIComponent(playerId!)}`,
-      );
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message ?? "Failed to verify player session.");
-      return payload as SpectatePlayerFeatures;
-    },
+    queryKey: spectatePlayerFeaturesQueryKey(gameId, playerId ?? ""),
+    queryFn: () => fetchSpectatePlayerFeatures(gameId, playerId!),
     enabled: Boolean(playerId),
     retry: false,
+    ...spectatorNavQueryOptions,
   });
 
   useEffect(() => {

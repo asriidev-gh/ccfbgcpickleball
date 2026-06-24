@@ -22,6 +22,11 @@ import {
   MAX_DGROUP_REMARK_LENGTH,
   type DgroupRemarkItem,
 } from "@/lib/owner-dgroup-remarks-shared";
+import {
+  myClubDgroupCountQueryKey,
+  myClubDgroupRequestsQueryKey,
+  myClubQueryOptions,
+} from "@/lib/my-club-queries";
 
 const deleteAlertOptions = {
   background: "#0f172a",
@@ -61,11 +66,13 @@ export function DgroupRemarksDialog({
       return payload as { remarks: DgroupRemarkItem[] };
     },
     enabled: open,
+    ...myClubQueryOptions,
   });
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["my-club-dgroup-remarks", playerId] });
-    queryClient.invalidateQueries({ queryKey: ["my-club-dgroup-requests"] });
+    queryClient.invalidateQueries({ queryKey: [myClubDgroupRequestsQueryKey] });
+    queryClient.invalidateQueries({ queryKey: myClubDgroupCountQueryKey });
   };
 
   const saveMutation = useMutation({

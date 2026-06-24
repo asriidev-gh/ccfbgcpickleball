@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import { ArrowLeftRight, Loader2, Play, Shuffle, Volume2, VolumeX } from "lucide-react";
 
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
@@ -162,9 +162,8 @@ function FillCourtTeamSection({
   );
 }
 
-export function FillCourtConfirmDialog({
+function FillCourtConfirmDialogBody({
   open,
-  onOpenChange,
   courtNumber,
   teamA,
   teamB,
@@ -172,13 +171,13 @@ export function FillCourtConfirmDialog({
   onReplace,
   replacePendingSourceIndex,
   onConfirmFill,
-  fillPending = false,
+  fillPending,
   onShuffle,
   mixedDoubles = false,
   callingNames = false,
   onCallNames,
   onCancelCallNames,
-}: FillCourtConfirmDialogProps) {
+}: Omit<FillCourtConfirmDialogProps, "onOpenChange">) {
   const {
     isShuffling,
     isRevealing,
@@ -201,8 +200,7 @@ export function FillCourtConfirmDialog({
   const courtLabel = courtNumber != null ? `Court ${courtNumber}` : "the next court";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="fill-court-confirm-dialog flex w-full max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+    <>
         <DialogHeader className="border-b border-border px-5 py-4">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Play className="h-5 w-5 shrink-0 text-primary" aria-hidden />
@@ -328,7 +326,27 @@ export function FillCourtConfirmDialog({
             )}
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </>
   );
 }
+
+export const FillCourtConfirmDialog = memo(function FillCourtConfirmDialog({
+  open,
+  onOpenChange,
+  ...bodyProps
+}: FillCourtConfirmDialogProps) {
+  let dialogBody: ReactNode = null;
+  if (open) {
+    dialogBody = <FillCourtConfirmDialogBody open={open} {...bodyProps} />;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {dialogBody ? (
+        <DialogContent className="fill-court-confirm-dialog flex w-full max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+          {dialogBody}
+        </DialogContent>
+      ) : null}
+    </Dialog>
+  );
+});

@@ -38,6 +38,7 @@ export function MobileBottomNavButton({
   label,
   icon,
   onClick,
+  onPrefetch,
   disabled,
   destructive = false,
   active = false,
@@ -46,6 +47,8 @@ export function MobileBottomNavButton({
   label: string;
   icon: ReactNode;
   onClick?: () => void;
+  /** Warm route data before navigation (hover / touch). */
+  onPrefetch?: () => void;
   disabled?: boolean;
   destructive?: boolean;
   active?: boolean;
@@ -59,7 +62,15 @@ export function MobileBottomNavButton({
 
   if (href) {
     return (
-      <Link href={href} className={className} aria-label={label} aria-current={active ? "page" : undefined}>
+      <Link
+        href={href}
+        className={className}
+        aria-label={label}
+        aria-current={active ? "page" : undefined}
+        onMouseEnter={onPrefetch}
+        onFocus={onPrefetch}
+        onTouchStart={onPrefetch}
+      >
         {icon}
         <span className="max-w-full truncate text-center">{label}</span>
       </Link>
@@ -67,7 +78,16 @@ export function MobileBottomNavButton({
   }
 
   return (
-    <button type="button" className={className} onClick={onClick} disabled={disabled} aria-label={label}>
+    <button
+      type="button"
+      className={className}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      onMouseEnter={onPrefetch}
+      onFocus={onPrefetch}
+      onTouchStart={onPrefetch}
+    >
       {icon}
       <span className="max-w-full truncate text-center">{label}</span>
     </button>

@@ -168,11 +168,9 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
 
   const handleConfirmFill = useCallback(() => {
     if (activeFillCourtNumber == null) return;
-    onConfirmFill(activeFillCourtNumber);
     setFillCourtDialogOpen(false);
+    onConfirmFill(activeFillCourtNumber);
   }, [activeFillCourtNumber, onConfirmFill]);
-
-  const showDialogs = fillCourtDialogOpen || fillCourtSelectDialogOpen;
 
   return (
     <>
@@ -192,40 +190,32 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
         </Button>
       )}
 
-      {showDialogs ? (
-        <>
-          {fillCourtSelectDialogOpen ? (
-            <FillCourtSelectDialog
-              open={fillCourtSelectDialogOpen}
-              onOpenChange={setFillCourtSelectDialogOpen}
-              emptyCourtNumbers={emptyCourtNumbers}
-              onSelect={(courtNumber) => {
-                setFillCourtSelectDialogOpen(false);
-                openFillCourtConfirmDialog(courtNumber);
-              }}
-            />
-          ) : null}
-          {fillCourtDialogOpen ? (
-            <FillCourtConfirmDialog
-              open={fillCourtDialogOpen}
-              onOpenChange={handleFillCourtDialogOpenChange}
-              callingNames={callingNames}
-              onCallNames={startPlayerAnnouncement}
-              onCancelCallNames={cancelPlayerAnnouncement}
-              courtNumber={activeFillCourtNumber}
-              teamA={teamA}
-              teamB={teamB}
-              canReplace={waitingLineEntries.length > 0}
-              onReplace={onReplace}
-              replacePendingSourceIndex={replacePendingSourceIndex}
-              onConfirmFill={handleConfirmFill}
-              fillPending={fillPending}
-              onShuffle={onShuffle}
-              mixedDoubles={mixedDoubles}
-            />
-          ) : null}
-        </>
-      ) : null}
+      <FillCourtSelectDialog
+        open={fillCourtSelectDialogOpen}
+        onOpenChange={setFillCourtSelectDialogOpen}
+        emptyCourtNumbers={emptyCourtNumbers}
+        onSelect={(courtNumber) => {
+          setFillCourtSelectDialogOpen(false);
+          openFillCourtConfirmDialog(courtNumber);
+        }}
+      />
+      <FillCourtConfirmDialog
+        open={fillCourtDialogOpen}
+        onOpenChange={handleFillCourtDialogOpenChange}
+        callingNames={callingNames}
+        onCallNames={startPlayerAnnouncement}
+        onCancelCallNames={cancelPlayerAnnouncement}
+        courtNumber={activeFillCourtNumber}
+        teamA={teamA}
+        teamB={teamB}
+        canReplace={waitingLineEntries.length > 0}
+        onReplace={onReplace}
+        replacePendingSourceIndex={replacePendingSourceIndex}
+        onConfirmFill={handleConfirmFill}
+        fillPending={fillPending}
+        onShuffle={onShuffle}
+        mixedDoubles={mixedDoubles}
+      />
     </>
   );
   },

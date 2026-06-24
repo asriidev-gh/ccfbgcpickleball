@@ -19,6 +19,7 @@ import {
   isMobileDevice,
   savePlayerQrPng,
 } from "@/lib/player-qr-download";
+import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
 
 type OwnerPlayerQrResponse = {
   firstName: string;
@@ -48,6 +49,7 @@ export function OwnerPlayerQrDialog({
       if (!response.ok) throw new Error(payload.message ?? "Failed to load QR code.");
       return payload;
     },
+    ...ownerHubQueryOptions,
   });
 
   const downloadQr = async () => {

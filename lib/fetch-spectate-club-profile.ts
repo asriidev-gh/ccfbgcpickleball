@@ -1,4 +1,7 @@
+import type { QueryClient } from "@tanstack/react-query";
+
 import type { SpectateClubProfile } from "@/lib/spectate-club-profile-shared";
+import { spectatorNavQueryOptions } from "@/lib/spectator-query-options";
 
 export function spectateClubProfileQueryKey(gameId: string) {
   return ["spectate-club-profile", gameId] as const;
@@ -21,4 +24,14 @@ export async function fetchSpectateClubProfile(gameId: string) {
   }
 
   return payload.profile;
+}
+
+export function prefetchSpectateClubProfile(queryClient: QueryClient, gameId: string) {
+  if (!gameId) return;
+
+  void queryClient.prefetchQuery({
+    queryKey: spectateClubProfileQueryKey(gameId),
+    queryFn: () => fetchSpectateClubProfile(gameId),
+    ...spectatorNavQueryOptions,
+  });
 }

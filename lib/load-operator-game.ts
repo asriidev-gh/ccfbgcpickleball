@@ -7,6 +7,13 @@ import {
   loadFirstTimerIdentityKeysForGame,
   serializeQueueEntriesForPayload,
 } from "@/lib/queue-first-timer";
+import {
+  firstTimerCacheKey,
+  getCachedBirthdayThisMonthCount,
+  getCachedFirstTimerIdentityKeys,
+  setCachedBirthdayThisMonthCount,
+  setCachedFirstTimerIdentityKeys,
+} from "@/lib/spectate-live-meta-cache";
 import type {
   OperatorDetailsPayload,
   OperatorQueuePayload,
@@ -46,11 +53,27 @@ export async function loadOperatorQueueState(
   const game = await PickleGame.findOne({ gameId, ownerId }).select("status");
   if (!game) return null;
 
-  const { queue, checkedOut, courts } = await loadQueueCourtsAndCheckedOut(gameId);
-  const [firstTimerIdentityKeys, birthdaysThisMonth] = await Promise.all([
-    loadFirstTimerIdentityKeysForGame(ownerId, gameId),
-    getGameBirthdaysThisMonth(gameId),
-  ]);
+  const firstTimerKey = firstTimerCacheKey(ownerId, gameId);
+  const cachedFirstTimerKeys = getCachedFirstTimerIdentityKeys(firstTimerKey);
+  const cachedBirthdayCount = getCachedBirthdayThisMonthCount(gameId);
+
+  const [{ queue, checkedOut, courts }, leaderboardRows, firstTimerIdentityKeys, birthdaysThisMonth] =
+    await Promise.all([
+      loadQueueCourtsAndCheckedOut(gameId),
+      LeaderboardStats.find({ gameId }).select("playerId gamesPlayed wins losses").lean(),
+      cachedFirstTimerKeys != null
+        ? Promise.resolve(cachedFirstTimerKeys)
+        : loadFirstTimerIdentityKeysForGame(ownerId, gameId).then((keys) => {
+            setCachedFirstTimerIdentityKeys(firstTimerKey, keys);
+            return keys;
+          }),
+      cachedBirthdayCount != null
+        ? Promise.resolve({ count: cachedBirthdayCount, players: [] })
+        : getGameBirthdaysThisMonth(gameId).then((result) => {
+            setCachedBirthdayThisMonthCount(gameId, result.count);
+            return result;
+          }),
+    ]);
 
   return {
     status: game.status as OperatorQueuePayload["status"],
@@ -63,6 +86,7 @@ export async function loadOperatorQueueState(
       firstTimerIdentityKeys,
     ) as unknown as OperatorQueuePayload["checkedOut"],
     courts: courts as unknown as OperatorQueuePayload["courts"],
+    leaderboard: leaderboardRows as unknown as OperatorQueuePayload["leaderboard"],
     firstTimerCount: firstTimerIdentityKeys.size,
     birthdayThisMonthCount: birthdaysThisMonth.count,
   };

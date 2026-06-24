@@ -14,7 +14,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ClubAnnouncementBody } from "@/components/my-club/club-announcement-body";
-import type { SpectatePlayerAnnouncement } from "@/lib/spectate-player-features-shared";
+import {
+  fetchSpectateAnnouncements,
+  spectateAnnouncementsQueryKey,
+} from "@/lib/fetch-spectate-announcements";
+import { spectatePlayerFeaturesQueryKey } from "@/lib/fetch-spectate-player-features";
+import { spectatorNavQueryOptions } from "@/lib/spectator-query-options";
 
 export function SpectateAnnouncementsDialog({
   gameId,
@@ -31,20 +36,10 @@ export function SpectateAnnouncementsDialog({
   const isRegisteredPlayer = Boolean(playerId);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["spectate-announcements", gameId, playerId ?? "viewer"],
-    queryFn: async () => {
-      const response = await fetch(
-        isRegisteredPlayer
-          ? `/api/games/${gameId}/spectate/player/announcements?playerId=${encodeURIComponent(playerId!)}`
-          : `/api/games/${gameId}/spectate/announcements`,
-      );
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load community posts.");
-      return payload as { announcements: SpectatePlayerAnnouncement[]; unreadCount?: number };
-    },
+    queryKey: spectateAnnouncementsQueryKey(gameId, playerId),
+    queryFn: () => fetchSpectateAnnouncements(gameId, playerId),
     enabled: open,
-    staleTime: 0,
-    refetchOnMount: "always",
+    ...spectatorNavQueryOptions,
   });
 
   const markReadMutation = useMutation({
@@ -60,8 +55,12 @@ export function SpectateAnnouncementsDialog({
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["spectate-player-features", gameId, playerId] }),
-        queryClient.refetchQueries({ queryKey: ["spectate-announcements", gameId, playerId] }),
+        queryClient.invalidateQueries({
+          queryKey: spectatePlayerFeaturesQueryKey(gameId, playerId!),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: spectateAnnouncementsQueryKey(gameId, playerId),
+        }),
       ]);
     },
   });

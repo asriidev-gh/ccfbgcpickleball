@@ -89,12 +89,13 @@ import { CourtEndGameDialog } from "@/components/game/court-end-game-dialog";
 import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
 import { GamePlayerProfileProvider } from "@/components/game/game-player-profile-context";
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
-import { PlayerAvatar, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import { PlayerAvatar, resolvePlayerId } from "@/components/game/player-avatar";
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
 import { OpenPlaySkillLevelPills } from "@/components/game/open-play-skill-level-pills";
 import { SpectateBirthdaysThisMonthBadge } from "@/components/player/spectate-birthdays-this-month";
 import { SpectateFirstTimersBadge } from "@/components/player/spectate-first-timers";
 import { SpectatorPlayerCardShareButton } from "@/components/game/spectator-player-card-share-button";
+import { SpectatorPlayerCardShareDialog } from "@/components/game/spectator-player-card-share-dialog";
 import { SpectatorPlayerEndorseButton, SpectatorPlayerEndorsementsCountButton } from "@/components/game/spectator-player-endorse-button";
 import { SpectatePlayerEndorseDialog } from "@/components/player/spectate-player-endorse-dialog";
 import { SpectatePlayerEndorsementsListDialog } from "@/components/player/spectate-player-endorsements-list-dialog";
@@ -203,6 +204,16 @@ import {
   spectatorLiveQueryKey,
 } from "@/lib/fetch-spectate-game";
 import { SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
+import {
+  operatorDetailsQueryOptions,
+  operatorQueueQueryOptions,
+  operatorShellQueryOptions,
+} from "@/lib/operator-query-options";
+import {
+  spectatorDetailsQueryOptions,
+  spectatorEndorsementQueryOptions,
+  spectatorLiveQueryOptions,
+} from "@/lib/spectator-query-options";
 import { SPECTATOR_VIEW_UNAVAILABLE_MESSAGE } from "@/lib/spectator-availability-shared";
 
 export type GameDashboardMode = "operator" | "spectator";
@@ -508,6 +519,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const [compactQueue, setCompactQueue] = useState(false);
   const [endorseTargetEntry, setEndorseTargetEntry] = useState<QueueEntryView | null>(null);
   const [endorseListTargetEntry, setEndorseListTargetEntry] = useState<QueueEntryView | null>(null);
+  const [spectatorSharePreviewEntry, setSpectatorSharePreviewEntry] =
+    useState<QueueEntryView | null>(null);
   const queuePanelRef = useRef<HTMLDivElement>(null);
   const fillCourtFlowRef = useRef<FillCourtFlowHandle>(null);
   const courtsPanelRef = useRef<HTMLDivElement>(null);
@@ -653,18 +666,23 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     queryKey: operatorShellQueryKey(gameId),
     queryFn: () => fetchOperatorShell(gameId),
     enabled: !!gameId && operatorCanLoadData,
-    staleTime: Number.POSITIVE_INFINITY,
+    ...operatorShellQueryOptions,
   });
 
   const operatorQueueQuery = useQuery({
     queryKey: operatorQueueQueryKey(gameId),
     queryFn: () => fetchOperatorQueue(gameId),
     enabled: !!gameId && operatorCanLoadData,
-    refetchOnWindowFocus: false,
+    ...operatorQueueQueryOptions,
   });
 
-  const operatorWantsMatchDetails =
-    !isSpectator && (showMatchHistory || mobileDashboardTab === "history");
+  const operatorGameStatus =
+    operatorQueueQuery.data?.status ?? operatorShellQuery.data?.game.status;
+  const operatorHistoryDataEnabled =
+    !isSpectator &&
+    (operatorGameStatus === "ended" ||
+      showMatchHistory ||
+      mobileDashboardTab === "history");
 
   const operatorDetailsQuery = useQuery({
     queryKey: operatorDetailsQueryKey(gameId),
@@ -673,13 +691,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       !!gameId &&
       !isQuickGameSession &&
       Boolean(operatorShellQuery.data) &&
-      operatorWantsMatchDetails,
-    refetchOnWindowFocus: false,
+      operatorHistoryDataEnabled,
+    ...operatorDetailsQueryOptions,
   });
 
   useOperatorQueueRegistrationSync({
     gameId,
     enabled:
+      operatorCanLoadData &&
       !isQuickGameSession &&
       !!gameId &&
       hasDashboardLease &&
@@ -687,14 +706,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       operatorQueueQuery.data?.status !== "draft",
     queueQuery: operatorQueueQuery,
     detailsQuery: operatorDetailsQuery,
-    refreshDetails: operatorWantsMatchDetails,
+    refreshDetails: operatorHistoryDataEnabled,
   });
 
   const spectatorLiveQuery = useQuery({
     queryKey: spectatorLiveQueryKey(gameId),
     queryFn: () => fetchSpectateGame(gameId, "live") as Promise<SpectateLivePayload>,
     enabled: !!gameId && isSpectator,
-    refetchOnWindowFocus: false,
+    ...spectatorLiveQueryOptions,
     retry: (failureCount, error) => {
       if (isSpectatorGameNotFoundError(error) || isSpectatorViewUnavailableError(error)) {
         return false;
@@ -710,19 +729,19 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   });
 
   const spectatorGameStatus = spectatorLiveQuery.data?.game?.status;
-  const spectatorWantsDetails =
+  const spectatorHistoryDataEnabled =
     isSpectator &&
     (spectatorGameStatus === "ended" ||
       showMatchHistory ||
-      mobileDashboardTab === "history" ||
-      spectatorGameStatus === "active");
+      (isLgViewport === false && mobileDashboardTab === "history"));
 
   const spectatorDetailsQuery = useQuery({
     queryKey: spectatorDetailsQueryKey(gameId),
     queryFn: () => fetchSpectateGame(gameId, "details") as Promise<SpectateDetailsPayload>,
-    enabled: !!gameId && spectatorWantsDetails,
-    refetchOnWindowFocus: false,
+    enabled: !!gameId && spectatorHistoryDataEnabled,
+    ...spectatorDetailsQueryOptions,
     refetchInterval: () => {
+      if (!spectatorHistoryDataEnabled) return false;
       if (spectatorGameStatus === "ended") return false;
       return SPECTATOR_LIVE_POLL_MS;
     },
@@ -816,21 +835,23 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
       throw new Error(lastMessage);
     },
-    onMutate: async (courtNumber) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+    onMutate: (courtNumber) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
-      if (!previous) return { previous: undefined as GamePayload | undefined };
-
-      const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
-      if (!optimistic) return { previous };
-
-      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      if (previous) {
+        const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
+      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous };
     },
     onSuccess: () => {
       toast.success("Next court filled from the queue.");
+    },
+    onSettled: () => {
       if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
       }
     },
     onError: (error, _, context) => {
@@ -841,13 +862,21 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     },
   });
 
-  const closeEndDialog = () => {
+  const closeEndDialog = useCallback(() => {
     setEndTargetCourt(null);
     setPendingWinner(null);
     setEndGameRematch(false);
     setTeamAScore("");
     setTeamBScore("");
-  };
+  }, []);
+
+  const openEndGameDialog = useCallback((courtNumber: number) => {
+    setEndTargetCourt(courtNumber);
+    setPendingWinner(null);
+    setTeamAScore("");
+    setTeamBScore("");
+    setEndGameRematch(false);
+  }, []);
 
   const endMutation = useMutation({
     mutationFn: async (input: EndGameMutationInput) => {
@@ -869,17 +898,16 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message?: string; rematch?: boolean };
     },
-    onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+    onMutate: (variables) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
-      if (!previous) return { previous: undefined as GamePayload | undefined };
-
-      const optimistic = isQuickGameSession
-        ? applyEndGameWithHistoryOptimistic(previous, variables)
-        : applyEndGameOptimistic(previous, variables);
-      if (!optimistic) return { previous };
-
-      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      if (previous) {
+        const optimistic = isQuickGameSession
+          ? applyEndGameWithHistoryOptimistic(previous, variables)
+          : applyEndGameOptimistic(previous, variables);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
 
       const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       if (variables.rematch) {
@@ -893,15 +921,20 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       }
 
       closeEndDialog();
-
+      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous, previousRematchCourtNumbers };
     },
     onSuccess: (data, variables) => {
       toast.success(data.message ?? "Court updated.");
-      if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      }
       void announceCourtEnded(variables.courtNumber);
+    },
+    onSettled: () => {
+      if (!isQuickGameSession) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+        if (operatorHistoryDataEnabled) {
+          void queryClient.refetchQueries({ queryKey: operatorDetailsQueryKey(gameId) });
+        }
+      }
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
@@ -913,6 +946,22 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       toastOperationError(error, "Failed to end game.");
     },
   });
+
+  const handleSubmitEndGame = useCallback(
+    (input: {
+      winnerTeam: "A" | "B";
+      teamAScore: number;
+      teamBScore: number;
+      rematch: boolean;
+    }) => {
+      if (endTargetCourt == null) return;
+      endMutation.mutate({
+        courtNumber: endTargetCourt,
+        ...input,
+      });
+    },
+    [endMutation, endTargetCourt],
+  );
 
   const shuffleNextMutation = useMutation({
     mutationFn: async () => {
@@ -1081,15 +1130,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onMutate: async (courtNumber) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+    onMutate: (courtNumber) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
-      if (!previous) return { previous: undefined as GamePayload | undefined };
-
-      const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
-      if (!optimistic) return { previous };
-
-      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      if (previous) {
+        const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
 
       const previousRematchCourtNumbers = new Set(rematchCourtNumbers);
       setRematchCourtNumbers((prev) => {
@@ -1098,13 +1146,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         return next;
       });
       setCancelCourtTarget(null);
-
+      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous, previousRematchCourtNumbers };
     },
     onSuccess: (data) => {
       toast.success(data.message);
+    },
+    onSettled: () => {
       if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
       }
     },
     onError: (error, _courtNumber, context) => {
@@ -1133,30 +1183,37 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onMutate: async (courtNumber) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+    onMutate: (courtNumber) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
-      if (!previous) return { previous: undefined as GamePayload | undefined };
-
-      const optimistic = applyCancelRematchOptimistic(previous, courtNumber);
-      if (!optimistic) return { previous };
-
-      writeOperatorGamePayload(queryClient, gameId, optimistic);
-      return { previous };
-    },
-    onSuccess: (data, courtNumber) => {
+      if (previous) {
+        const optimistic = applyCancelRematchOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
       setRematchCourtNumbers((prev) => {
         const next = new Set(prev);
         next.delete(courtNumber);
         return next;
       });
-      toast.success(data.message);
       setCancelRematchTarget(null);
+      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      return { previous };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+    },
+    onSettled: () => {
       if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
       }
     },
-    onError: (error) => toastOperationError(error, "Failed to cancel rematch."),
+    onError: (error, _courtNumber, context) => {
+      if (context?.previous) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
+      toastOperationError(error, "Failed to cancel rematch.");
+    },
   });
 
   const resetMutation = useMutation({
@@ -1685,22 +1742,21 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       Boolean(endorserPlayerId) &&
       spectatorGameStatus !== "ended" &&
       data?.game?.status !== "ended",
-    staleTime: 30_000,
+    ...spectatorEndorsementQueryOptions,
   });
   const endorsedPlayerIds = useMemo(
     () => new Set(myPlayerEndorsements.map((item) => item.endorsedPlayerId)),
     [myPlayerEndorsements],
   );
   const { data: gameEndorsementCounts = {} } = useQuery({
-    queryKey: spectateGameEndorsementCountsQueryKey(gameId, endorserPlayerId),
-    queryFn: () => fetchSpectateGameEndorsementCounts(gameId, endorserPlayerId),
+    queryKey: spectateGameEndorsementCountsQueryKey(gameId),
+    queryFn: () => fetchSpectateGameEndorsementCounts(gameId),
     enabled:
       isSpectator &&
       Boolean(gameId) &&
-      Boolean(endorserPlayerId) &&
       spectatorGameStatus !== "ended" &&
       data?.game?.status !== "ended",
-    staleTime: 30_000,
+    ...spectatorEndorsementQueryOptions,
     refetchInterval: () => {
       if (spectatorGameStatus === "ended" || data?.game?.status === "ended") return false;
       return SPECTATOR_LIVE_POLL_MS;
@@ -2027,36 +2083,36 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   };
 
   const renderSpectatorEndorseAction = (entry: QueueEntryView, compact?: boolean) => {
-    if (!isSpectator || isPastGame || !endorserPlayerId) return undefined;
+    if (!isSpectator || isPastGame) return undefined;
 
     const playerId = queueEntryPlayerId(entry);
     if (!playerId) return undefined;
 
-    const isSelf = selfPlayerIds.includes(playerId);
     const endorsementCount = gameEndorsementCounts[playerId] ?? 0;
-
-    if (isSelf) {
-      if (endorsementCount <= 0) return undefined;
-      return (
+    const countButton =
+      endorsementCount > 0 ? (
         <SpectatorPlayerEndorsementsCountButton
           compact={compact}
           count={endorsementCount}
           onClick={() => setEndorseListTargetEntry(entry)}
         />
-      );
+      ) : null;
+
+    if (!endorserPlayerId) {
+      return countButton ?? undefined;
+    }
+
+    const isSelf = selfPlayerIds.includes(playerId);
+
+    if (isSelf) {
+      return countButton ?? undefined;
     }
 
     const endorsed = endorsedPlayerIds.has(playerId);
 
     return (
       <div className="flex flex-wrap items-center justify-end gap-1 xl:gap-2">
-        {endorsementCount > 0 ? (
-          <SpectatorPlayerEndorsementsCountButton
-            compact={compact}
-            count={endorsementCount}
-            onClick={() => setEndorseListTargetEntry(entry)}
-          />
-        ) : null}
+        {countButton}
         {!endorsed ? (
           <SpectatorPlayerEndorseButton
             compact={compact}
@@ -2068,25 +2124,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   };
 
   const renderSpectatorShareAction = (entry: QueueEntryView, compact?: boolean) => {
-    if (!isSpectator || isPastGame || selfPlayerIds.length === 0) return undefined;
+    if (!isSpectator || isPastGame) return undefined;
 
     const playerId = queueEntryPlayerId(entry);
-    if (!playerId || !selfPlayerIds.includes(playerId)) return undefined;
+    if (!playerId) return undefined;
 
     return (
       <SpectatorPlayerCardShareButton
-        gameId={gameId}
-        entry={entry}
-        playerId={playerId}
-        selfPlayerIds={selfPlayerIds}
-        gameTitle={game.title}
-        clubName={spectatorLiveQuery.data?.clubBranding?.clubName ?? null}
-        clubLogoUrl={spectatorLiveQuery.data?.clubBranding?.clubLogoUrl ?? null}
-        clubTagline={spectatorLiveQuery.data?.clubBranding?.clubTagline ?? null}
-        openPlaySchedule={openPlayScheduleLabel}
-        venueLabel={venueShareLabel}
-        leaderboardRankMap={leaderboardRankMap}
         compact={compact}
+        onOpen={() => setSpectatorSharePreviewEntry(entry)}
       />
     );
   };
@@ -2213,12 +2259,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   if (cancelCourtMutation.isPending && cancelCourtMutation.variables != null) {
     clearingCourtNumbers.add(cancelCourtMutation.variables);
   }
-  const fillableEmptyCourts = emptyCourts.filter(
-    (court) => !clearingCourtNumbers.has(court.courtNumber),
-  );
+  const fillableEmptyCourts = emptyCourts;
   const nextEmptyCourt = fillableEmptyCourts[0] ?? null;
   const emptyCourtNumbers = fillableEmptyCourts.map((court) => court.courtNumber);
-  const courtsClearingInProgress = clearingCourtNumbers.size > 0;
+  const courtsClearingInProgress = courts.some(
+    (court) => clearingCourtNumbers.has(court.courtNumber) && court.status === "active",
+  );
   const canFillNextCourt =
     pickDoublesCourtFoursome(data.queue, game.matchingType) != null && nextEmptyCourt != null;
   const fillCourtTeamA = (nextCourtFoursome ?? queueWithStats.slice(0, 2)).slice(0, 2);
@@ -2673,12 +2719,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             onEndGame={
               hideControls
                 ? () => {}
-                : () => {
-                    setPendingWinner(null);
-                    setTeamAScore("");
-                    setTeamBScore("");
-                    setEndTargetCourt(court.courtNumber);
-                  }
+                : () => openEndGameDialog(court.courtNumber)
             }
             onSwapTeams={
               hideControls
@@ -2723,8 +2764,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               cancelRematchMutation.isPending &&
               cancelRematchMutation.variables === court.courtNumber
             }
-            isFilling={fillingCourtNumber != null && court.courtNumber === fillingCourtNumber}
-            isClearing={clearingCourtNumbers.has(court.courtNumber)}
+            isFilling={
+              fillingCourtNumber != null &&
+              court.courtNumber === fillingCourtNumber &&
+              court.status !== "active"
+            }
+            isClearing={
+              clearingCourtNumbers.has(court.courtNumber) && court.status === "active"
+            }
             onFillCourt={
               hideControls || court.status !== "empty"
                 ? undefined
@@ -2733,7 +2780,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             canFillCourt={
               !hideControls &&
               court.status === "empty" &&
-              !clearingCourtNumbers.has(court.courtNumber) &&
               pickDoublesCourtFoursome(data.queue, game.matchingType) != null
             }
             fillCourtPending={
@@ -3294,13 +3340,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           onTeamBScoreChange={setTeamBScore}
           endGameScoreError={endGameScoreError}
           onClose={closeEndDialog}
-          onSubmit={(input) => {
-            if (endTargetCourt == null) return;
-            endMutation.mutate({
-              courtNumber: endTargetCourt,
-              ...input,
-            });
-          }}
+          onSubmit={handleSubmitEndGame}
         />
       ) : null}
 
@@ -3337,13 +3377,31 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           />
           <SpectatePlayerEndorsementsListDialog
             gameId={gameId}
-            viewerPlayerId={endorserPlayerId}
             entry={endorseListTargetEntry}
             open={endorseListTargetEntry != null}
             onOpenChange={(open) => {
               if (!open) setEndorseListTargetEntry(null);
             }}
           />
+          {spectatorSharePreviewEntry ? (
+            <SpectatorPlayerCardShareDialog
+              gameId={gameId}
+              entry={spectatorSharePreviewEntry}
+              playerId={queueEntryPlayerId(spectatorSharePreviewEntry)!}
+              selfPlayerIds={selfPlayerIds}
+              gameTitle={game.title}
+              clubName={spectatorLiveQuery.data?.clubBranding?.clubName ?? null}
+              clubLogoUrl={spectatorLiveQuery.data?.clubBranding?.clubLogoUrl ?? null}
+              clubTagline={spectatorLiveQuery.data?.clubBranding?.clubTagline ?? null}
+              openPlaySchedule={openPlayScheduleLabel}
+              venueLabel={venueShareLabel}
+              leaderboardRankMap={leaderboardRankMap}
+              open
+              onOpenChange={(open) => {
+                if (!open) setSpectatorSharePreviewEntry(null);
+              }}
+            />
+          ) : null}
         </>
       ) : null}
     </main>

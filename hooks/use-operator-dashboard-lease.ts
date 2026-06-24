@@ -289,7 +289,7 @@ export function useOperatorDashboardLease(gameId: string, enabled: boolean) {
     leaseState: state,
     checkAgain,
     takeOver,
-    hasDashboardLease: !enabled || state.status === "active",
+    hasDashboardLease: enabled && state.status === "active",
   };
 }
 

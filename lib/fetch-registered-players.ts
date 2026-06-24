@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { OwnerSessionInsightFilter } from "@/lib/owner-session-insight-filter-shared";
 import type { OwnerRegisteredPlayersPage } from "@/lib/owner-registered-players-shared";
 import type { OwnerSessionFilterOption } from "@/lib/owner-session-filter-options-shared";
+import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
 
 export function ownerSessionFilterOptionsQueryKey() {
   return ["owner-session-filter-options"] as const;
@@ -88,13 +89,13 @@ export function prefetchRegisteredPlayersInsight(
   void queryClient.prefetchQuery({
     queryKey: ownerSessionFilterOptionsQueryKey(),
     queryFn: fetchOwnerSessionFilterOptions,
-    staleTime: 60_000,
+    ...ownerHubQueryOptions,
   });
 
   void queryClient.prefetchQuery({
     queryKey: ownerRegisteredPlayersQueryKey(1, "", gameId, insight, false, false, false, false),
     queryFn: () => fetchOwnerRegisteredPlayersPage(1, "", gameId, insight, false, false, false, false),
-    staleTime: 30_000,
+    ...ownerHubQueryOptions,
   });
 }
 

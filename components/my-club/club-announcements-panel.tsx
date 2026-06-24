@@ -40,6 +40,11 @@ import {
   isClubAnnouncementVisibleToPlayers,
 } from "@/lib/club-announcement-schedule";
 import { formatAppDateTime } from "@/lib/format-datetime";
+import {
+  fetchMyClubAnnouncements,
+  myClubAnnouncementsQueryKey,
+  myClubQueryOptions,
+} from "@/lib/my-club-queries";
 import { cn } from "@/lib/utils";
 
 const alertOptions = {
@@ -436,16 +441,9 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["my-club-announcements"],
-    queryFn: async () => {
-      const response = await fetch("/api/my-club/announcements");
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load community posts.");
-      return payload as {
-        announcements: ClubAnnouncementItem[];
-        imageUploadConfigured?: boolean;
-      };
-    },
+    queryKey: myClubAnnouncementsQueryKey,
+    queryFn: fetchMyClubAnnouncements,
+    ...myClubQueryOptions,
   });
 
   const saveMutation = useMutation({
@@ -472,7 +470,7 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
     },
     onSuccess: (payload) => {
       toast.success(payload.message ?? "Community post saved.");
-      queryClient.invalidateQueries({ queryKey: ["my-club-announcements"] });
+      queryClient.invalidateQueries({ queryKey: myClubAnnouncementsQueryKey });
       setEditorOpen(false);
       setEditing(null);
       setDraft(emptyForm);
@@ -491,7 +489,7 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
     },
     onSuccess: (payload) => {
       toast.success(payload.message ?? "Community post deleted.");
-      queryClient.invalidateQueries({ queryKey: ["my-club-announcements"] });
+      queryClient.invalidateQueries({ queryKey: myClubAnnouncementsQueryKey });
     },
     onError: (deleteError) => {
       toast.error(deleteError instanceof Error ? deleteError.message : "Failed to delete community post.");
@@ -515,7 +513,7 @@ export function ClubAnnouncementsPanel({ embedded = false }: { embedded?: boolea
       toast.success(
         payload.isArchived ? "Community post archived." : "Community post restored.",
       );
-      queryClient.invalidateQueries({ queryKey: ["my-club-announcements"] });
+      queryClient.invalidateQueries({ queryKey: myClubAnnouncementsQueryKey });
     },
     onError: (archiveError) => {
       toast.error(

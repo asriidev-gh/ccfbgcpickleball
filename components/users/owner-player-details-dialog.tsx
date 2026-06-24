@@ -40,6 +40,7 @@ import {
   getZodFieldErrors,
 } from "@/lib/format-zod-error";
 import type { OwnerPlayerProfile } from "@/lib/owner-registered-players-shared";
+import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
 import {
   GENDER_OPTIONS,
   PICKLEBALL_LEVELS,
@@ -151,6 +152,7 @@ export function OwnerPlayerDetailsDialog({
       if (!response.ok) throw new Error(payload.message ?? "Failed to load player profile.");
       return payload;
     },
+    ...ownerHubQueryOptions,
   });
 
   useEffect(() => {

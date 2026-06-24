@@ -21,7 +21,6 @@ import { formatPlayerDisplayName } from "@/lib/utils";
 
 type SpectatePlayerEndorsementsListDialogProps = {
   gameId: string;
-  viewerPlayerId: string;
   entry: QueueEntryView | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -29,7 +28,6 @@ type SpectatePlayerEndorsementsListDialogProps = {
 
 export function SpectatePlayerEndorsementsListDialog({
   gameId,
-  viewerPlayerId,
   entry,
   open,
   onOpenChange,
@@ -40,14 +38,9 @@ export function SpectatePlayerEndorsementsListDialog({
     : "Player";
 
   const { data: endorsements = [], isLoading } = useQuery({
-    queryKey: spectatePlayerEndorsementsReceivedQueryKey(
-      gameId,
-      endorsedPlayerId,
-      viewerPlayerId,
-    ),
-    queryFn: () =>
-      fetchSpectatePlayerEndorsementsReceived(gameId, endorsedPlayerId, viewerPlayerId),
-    enabled: open && Boolean(endorsedPlayerId) && Boolean(viewerPlayerId),
+    queryKey: spectatePlayerEndorsementsReceivedQueryKey(gameId, endorsedPlayerId),
+    queryFn: () => fetchSpectatePlayerEndorsementsReceived(gameId, endorsedPlayerId),
+    enabled: open && Boolean(endorsedPlayerId),
     staleTime: 0,
   });
 

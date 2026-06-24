@@ -15,6 +15,7 @@ import {
   fetchLeaderboardRecap,
   leaderboardRecapQueryKey,
 } from "@/lib/fetch-leaderboard";
+import { spectatorLeaderboardQueryOptions } from "@/lib/spectator-query-options";
 import {
   getQuickGameDashboardPath,
   isEphemeralQuickGame,
@@ -86,7 +87,7 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
     queryKey: leaderboardRecapQueryKey(gameId, isSpectatorView),
     queryFn: () => fetchLeaderboardRecap(gameId, isSpectatorView),
     enabled: Boolean(gameId) && !isQuickGameSession,
-    refetchOnWindowFocus: false,
+    ...(isSpectatorView ? spectatorLeaderboardQueryOptions : { refetchOnWindowFocus: false }),
   });
 
   useEffect(() => {

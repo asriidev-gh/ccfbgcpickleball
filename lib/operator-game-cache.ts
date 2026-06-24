@@ -52,6 +52,7 @@ export function writeOperatorGamePayload(
     queue: next.queue,
     checkedOut: next.checkedOut ?? [],
     courts: next.courts,
+    leaderboard: next.leaderboard ?? existingQueue?.leaderboard ?? [],
     firstTimerCount: next.firstTimerCount ?? existingQueue?.firstTimerCount ?? 0,
     birthdayThisMonthCount:
       next.birthdayThisMonthCount ?? existingQueue?.birthdayThisMonthCount ?? 0,
@@ -82,6 +83,7 @@ export function seedLocalGameOperatorCache(queryClient: QueryClient, gameId: str
     queue: payload.queue,
     checkedOut: payload.checkedOut ?? [],
     courts: payload.courts,
+    leaderboard: payload.leaderboard ?? [],
     firstTimerCount: payload.firstTimerCount ?? 0,
     birthdayThisMonthCount: payload.birthdayThisMonthCount ?? 0,
   });

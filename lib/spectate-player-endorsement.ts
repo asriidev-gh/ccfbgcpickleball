@@ -79,9 +79,13 @@ export async function getSpectatePlayerEndorsement(
 
 export async function listSpectateGameEndorsementCounts(
   gameId: string,
-  viewerPlayerId: string,
 ): Promise<Record<string, number>> {
-  await assertPlayerRegisteredForGame(gameId, viewerPlayerId);
+  await connectToDatabase();
+
+  const game = await PickleGame.findOne({ gameId }).select("_id").lean();
+  if (!game) {
+    throw new PlayerProfileAccessError("Game not found.", 404);
+  }
 
   const rows = await PlayerEndorsement.aggregate<{ _id: unknown; count: number }>([
     { $match: { gameId } },
@@ -98,9 +102,13 @@ export async function listSpectateGameEndorsementCounts(
 export async function listSpectatePlayerEndorsementsReceived(
   gameId: string,
   endorsedPlayerId: string,
-  viewerPlayerId: string,
 ): Promise<SpectatePlayerEndorsementReceived[]> {
-  await assertPlayerRegisteredForGame(gameId, viewerPlayerId);
+  await connectToDatabase();
+
+  const game = await PickleGame.findOne({ gameId }).select("_id").lean();
+  if (!game) {
+    throw new PlayerProfileAccessError("Game not found.", 404);
+  }
   await assertEndorsedPlayerInGame(gameId, endorsedPlayerId);
 
   const rows = await PlayerEndorsement.find({ gameId, endorsedPlayerId })
