@@ -27,6 +27,8 @@ export type OperatorGameSummary = {
   quickGamePersistence?: "account" | "ephemeral";
   gameMode?: "doubles" | "singles";
   matchingType?: "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
+  expectedPlayers?: number;
+  strictPlayerCount?: boolean;
   registerUrl?: string;
   publicQrCodeDataUrl?: string;
 };

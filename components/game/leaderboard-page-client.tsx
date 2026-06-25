@@ -3,9 +3,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, LogOut } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
+import { SpectatorPlayerCardShareDialog } from "@/components/game/spectator-player-card-share-dialog";
+import type { LeaderboardRow } from "@/components/game/leaderboard-standings";
+import { resolveLeaderboardPlayerId } from "@/components/game/leaderboard-standings";
+import { SpectatePlayerEndorsementsListDialog } from "@/components/player/spectate-player-endorsements-list-dialog";
 import { EphemeralLeaderboardSaveBanner } from "@/components/play/ephemeral-leaderboard-save-banner";
 import { ScrollToTopButton } from "@/components/scroll-to-top-button";
 import { Button } from "@/components/ui/button";
@@ -15,7 +19,20 @@ import {
   fetchLeaderboardRecap,
   leaderboardRecapQueryKey,
 } from "@/lib/fetch-leaderboard";
-import { spectatorLeaderboardQueryOptions } from "@/lib/spectator-query-options";
+import { fetchSpectateGame, spectatorLiveQueryKey } from "@/lib/fetch-spectate-game";
+import {
+  fetchSpectateGameEndorsementCounts,
+  spectateGameEndorsementCountsQueryKey,
+} from "@/lib/fetch-spectate-player-endorsement";
+import { buildPlayerLeaderboardRankMap } from "@/lib/games-played-map";
+import { leaderboardRowToShareEntry } from "@/lib/leaderboard-share";
+import { formatOpenPlayScheduleLabel, formatVenueShareLabel } from "@/lib/open-play-time-range";
+import { getActiveQueueHighlightPlayerIds } from "@/lib/queue-highlight";
+import {
+  spectatorEndorsementQueryOptions,
+  spectatorLeaderboardQueryOptions,
+  spectatorLiveQueryOptions,
+} from "@/lib/spectator-query-options";
 import {
   getQuickGameDashboardPath,
   isEphemeralQuickGame,
@@ -32,6 +49,8 @@ const QUICK_GAME_LOOKUP_TIMEOUT_MS = 750;
 
 export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPageClientProps) {
   const queryClient = useQueryClient();
+  const [endorseListTargetRow, setEndorseListTargetRow] = useState<LeaderboardRow | null>(null);
+  const [shareTargetRow, setShareTargetRow] = useState<LeaderboardRow | null>(null);
   const isQuickGameSession = isQuickGame(gameId);
   const { payload: quickPayload, mounted: quickSessionMounted } = useQuickGameSessionAfterMount(
     isQuickGameSession ? gameId : "",
@@ -90,6 +109,45 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
     ...(isSpectatorView ? spectatorLeaderboardQueryOptions : { refetchOnWindowFocus: false }),
   });
 
+  const { data: endorsementCounts = {} } = useQuery({
+    queryKey: spectateGameEndorsementCountsQueryKey(gameId),
+    queryFn: () => fetchSpectateGameEndorsementCounts(gameId),
+    enabled: Boolean(gameId) && !isQuickGameSession,
+    ...spectatorEndorsementQueryOptions,
+  });
+
+  const spectatorLiveQuery = useQuery({
+    queryKey: spectatorLiveQueryKey(gameId),
+    queryFn: () => fetchSpectateGame(gameId, "live"),
+    enabled: isSpectatorView && Boolean(gameId) && !isQuickGameSession,
+    ...spectatorLiveQueryOptions,
+  });
+
+  const handleEndorsementClick = useCallback((row: LeaderboardRow) => {
+    setEndorseListTargetRow(row);
+  }, []);
+
+  const handlePodiumShareClick = useCallback((row: LeaderboardRow) => {
+    setShareTargetRow(row);
+  }, []);
+
+  const endorseListEntry = useMemo(
+    () =>
+      endorseListTargetRow
+        ? {
+            _id: `leaderboard-${endorseListTargetRow.playerId ?? endorseListTargetRow.id}`,
+            queueType: "normal" as const,
+            playerId: {
+              ...endorseListTargetRow,
+              _id: endorseListTargetRow.playerId ?? endorseListTargetRow.id,
+            },
+            registeredAt: "",
+            lastMatchResult: "none" as const,
+          }
+        : null,
+    [endorseListTargetRow],
+  );
+
   useEffect(() => {
     if (!isQuickGameSession || !localRecap) return;
     queryClient.setQueryData(leaderboardRecapQueryKey(gameId, isSpectatorView), localRecap);
@@ -99,6 +157,39 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
   const insights = isQuickGameSession
     ? (localRecap?.insights ?? [])
     : (recapQuery.data?.insights ?? []);
+
+  const selfPlayerIds = useMemo(
+    () => (isSpectatorView && gameId ? getActiveQueueHighlightPlayerIds(gameId) : []),
+    [gameId, isSpectatorView],
+  );
+
+  const leaderboardRankMap = useMemo(
+    () =>
+      buildPlayerLeaderboardRankMap(
+        rows.map((row) => ({
+          playerId: resolveLeaderboardPlayerId(row),
+          wins: row.wins,
+          losses: row.losses,
+          gamesPlayed: row.gamesPlayed,
+        })),
+      ),
+    [rows],
+  );
+
+  const shareEntry = useMemo(
+    () => (shareTargetRow ? leaderboardRowToShareEntry(shareTargetRow) : null),
+    [shareTargetRow],
+  );
+  const sharePlayerId = shareTargetRow ? resolveLeaderboardPlayerId(shareTargetRow) : "";
+
+  const shareGame = isQuickGameSession ? quickPayload?.game : spectatorLiveQuery.data?.game;
+  const canPodiumShare = isSpectatorView && shareGame?.status === "active";
+  const openPlayScheduleLabel = shareGame
+    ? formatOpenPlayScheduleLabel(shareGame.openPlayDate, shareGame.openPlayTimeRange)
+    : null;
+  const venueShareLabel = shareGame
+    ? formatVenueShareLabel(shareGame.venueName, shareGame.venueAddress)
+    : null;
   const quickGameLoading =
     isQuickGameSession && quickSessionMounted && !quickPayload && !quickLookupTimedOut;
   const loading = quickGameLoading || (!isQuickGameSession && recapQuery.isPending && !recapQuery.data);
@@ -152,9 +243,43 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
             {error instanceof Error ? error.message : "Unknown error"}
           </p>
         ) : (
-          <LeaderboardPageContent insights={insights} rows={rows} loading={loading} />
+          <LeaderboardPageContent
+            insights={insights}
+            rows={rows}
+            loading={loading}
+            endorsementCounts={endorsementCounts}
+            onEndorsementClick={handleEndorsementClick}
+            onPodiumShareClick={canPodiumShare ? handlePodiumShareClick : undefined}
+          />
         )}
       </section>
+      <SpectatePlayerEndorsementsListDialog
+        gameId={gameId}
+        entry={endorseListEntry}
+        open={endorseListTargetRow != null}
+        onOpenChange={(open) => {
+          if (!open) setEndorseListTargetRow(null);
+        }}
+      />
+      {shareEntry && sharePlayerId ? (
+        <SpectatorPlayerCardShareDialog
+          gameId={gameId}
+          entry={shareEntry}
+          playerId={sharePlayerId}
+          selfPlayerIds={selfPlayerIds}
+          gameTitle={shareGame?.title}
+          clubName={spectatorLiveQuery.data?.clubBranding?.clubName ?? null}
+          clubLogoUrl={spectatorLiveQuery.data?.clubBranding?.clubLogoUrl ?? null}
+          clubTagline={spectatorLiveQuery.data?.clubBranding?.clubTagline ?? null}
+          openPlaySchedule={openPlayScheduleLabel}
+          venueLabel={venueShareLabel}
+          leaderboardRankMap={leaderboardRankMap}
+          open={shareTargetRow != null}
+          onOpenChange={(open) => {
+            if (!open) setShareTargetRow(null);
+          }}
+        />
+      ) : null}
       <ScrollToTopButton />
     </main>
   );

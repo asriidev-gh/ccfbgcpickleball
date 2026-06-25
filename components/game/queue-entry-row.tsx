@@ -1,10 +1,11 @@
-import { Share2, ThumbsUp } from "lucide-react";
+import { Share2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
 import { PlayerNameWithPhoto, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { FirstTimerPill } from "@/components/game/leaderboard-standings";
+import { PlayerEndorsementStatusBadge } from "@/components/game/player-endorsement-status-badge";
 import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-menu";
 import { UndefeatedBadge } from "@/components/game/undefeated-badge";
@@ -87,42 +88,6 @@ function SharedStatusBadge({
   );
 }
 
-function EndorsedStatusBadge({
-  count,
-  onClick,
-  className,
-}: {
-  count: number;
-  onClick?: () => void;
-  className?: string;
-}) {
-  if (count <= 0) return null;
-
-  const label = count === 1 ? "1 endorsement" : `${count} endorsements`;
-  const badge = (
-    <Badge
-      variant="outline"
-      className={cn(
-        "whitespace-nowrap border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200",
-        onClick && "cursor-pointer transition-colors hover:bg-emerald-500/20",
-        className,
-      )}
-      aria-label={label}
-    >
-      <ThumbsUp className="mr-1 size-3 shrink-0" aria-hidden />
-      Endorsed{count > 1 ? ` (${count})` : ""}
-    </Badge>
-  );
-
-  if (!onClick) return badge;
-
-  return (
-    <button type="button" className="inline-flex" onClick={onClick} aria-label={`View ${label}`}>
-      {badge}
-    </button>
-  );
-}
-
 function QueueSessionStatsBadges({
   wins,
   losses,
@@ -167,11 +132,15 @@ function QueuePlayerLabel({
   compactName,
   checkedOut,
   slot,
+  endorsementCount = 0,
+  onEndorsementClick,
 }: {
   entry: QueueEntryView;
   compactName: boolean;
   checkedOut: boolean;
   slot: number;
+  endorsementCount?: number;
+  onEndorsementClick?: () => void;
 }) {
   const rank = checkedOut ? undefined : slot;
   const name = compactName
@@ -183,6 +152,9 @@ function QueuePlayerLabel({
       <span className="min-w-0 truncate">{name}</span>
       <PlayerGenderPill gender={entry.playerId.gender} birthdate={entry.playerId.birthdate} />
       {entry.isFirstTimer ? <FirstTimerPill /> : null}
+      {endorsementCount > 0 ? (
+        <PlayerEndorsementStatusBadge count={endorsementCount} onClick={onEndorsementClick} />
+      ) : null}
     </span>
   );
 }
@@ -225,6 +197,8 @@ type QueueEntryRowProps = {
   onSharedClick?: () => void;
   /** Organizer queue: show when other players endorsed this player. */
   showEndorsementStatus?: boolean;
+  /** Spectator queue: show endorsement badge beside the player name. */
+  showEndorsementInPlayerLabel?: boolean;
   endorsementCount?: number;
   onEndorsementClick?: () => void;
   /** Open this player's session match history (undefeated badge). */
@@ -264,6 +238,7 @@ export function QueueEntryRow({
   onSharedClick,
   onUndefeatedClick,
   showEndorsementStatus = false,
+  showEndorsementInPlayerLabel = false,
   endorsementCount = 0,
   onEndorsementClick,
   shareAction,
@@ -293,9 +268,10 @@ export function QueueEntryRow({
   const sharedBadge = showSharedStatus ? (
     <SharedStatusBadge onClick={onSharedClick} />
   ) : null;
-  const showEndorsedStatus = showEndorsementStatus && endorsementCount > 0;
+  const showEndorsedInPlayerLabel = showEndorsementInPlayerLabel && endorsementCount > 0;
+  const showEndorsedStatus = showEndorsementStatus && endorsementCount > 0 && !showEndorsedInPlayerLabel;
   const endorsedBadge = showEndorsedStatus ? (
-    <EndorsedStatusBadge count={endorsementCount} onClick={onEndorsementClick} />
+    <PlayerEndorsementStatusBadge count={endorsementCount} onClick={onEndorsementClick} />
   ) : null;
   const undefeatedBadge = showUndefeated ? (
     <UndefeatedBadge onClick={onUndefeatedClick} />
@@ -361,6 +337,8 @@ export function QueueEntryRow({
                   compactName={compactName}
                   checkedOut={checkedOut}
                   slot={slot}
+                  endorsementCount={showEndorsedInPlayerLabel ? endorsementCount : 0}
+                  onEndorsementClick={showEndorsedInPlayerLabel ? onEndorsementClick : undefined}
                 />
               </PlayerNameWithPhoto>
             </div>

@@ -25,6 +25,9 @@ type LeaderboardPageContentProps = {
   insights: SessionInsight[];
   rows: LeaderboardRow[];
   loading?: boolean;
+  endorsementCounts?: Record<string, number>;
+  onEndorsementClick?: (row: LeaderboardRow) => void;
+  onPodiumShareClick?: (row: LeaderboardRow) => void;
 };
 
 function LeaderboardPanelLoading({ label }: { label: string }) {
@@ -47,6 +50,9 @@ export function LeaderboardPageContent({
   insights,
   rows,
   loading = false,
+  endorsementCounts,
+  onEndorsementClick,
+  onPodiumShareClick,
 }: LeaderboardPageContentProps) {
   const [layout, setLayout] = useState<LeaderboardPageLayout>("stacked");
   const [isDesktop, setIsDesktop] = useState(false);
@@ -103,7 +109,13 @@ export function LeaderboardPageContent({
             <CardContent className="p-6 text-muted-foreground">No leaderboard data yet.</CardContent>
           </Card>
         ) : (
-          <LeaderboardSection rows={rows} compact={isSplit} />
+          <LeaderboardSection
+            rows={rows}
+            compact={isSplit}
+            endorsementCounts={endorsementCounts}
+            onEndorsementClick={onEndorsementClick}
+            onPodiumShareClick={onPodiumShareClick}
+          />
         )}
       </div>
     </div>

@@ -7925,3 +7925,86 @@
     }
   }
 }
+
+/* Endorsements received dialog — avatar column + list rhythm */
+.endorsements-received-dialog .endorsements-received-dialog__header-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.endorsements-received-dialog .endorsements-received-dialog__header-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.endorsements-received-dialog .endorsements-received-dialog__avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.endorsements-received-dialog .endorsements-received-dialog__avatar--header {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.endorsements-received-dialog .endorsements-received-dialog__avatar--row {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-top: 0.125rem;
+}
+
+.endorsements-received-dialog .endorsements-received-dialog__avatar .player-avatar-trigger,
+.endorsements-received-dialog .endorsements-received-dialog__avatar .player-avatar,
+.endorsements-received-dialog .endorsements-received-dialog__avatar [data-slot="avatar"] {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0;
+}
+
+.endorsements-received-dialog .endorsements-received-dialog__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.endorsements-received-dialog .endorsements-received-dialog__body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.endorsements-received-dialog .endorsements-received-dialog__name {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.endorsements-received-dialog .endorsements-received-dialog__note {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+
+.endorsements-received-dialog .endorsements-received-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.endorsements-received-dialog .endorsements-received-list__item {
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: color-mix(in oklab, var(--muted) 22%, transparent);
+  padding: 0.875rem 1rem;
+}

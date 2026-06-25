@@ -12,6 +12,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthMe } from "@/hooks/use-auth-me";
 import { buildHomeSessionInsightsMap, type HomeSessionInsightPoint } from "@/lib/home-session-insights-shared";
 import { fetchGamesSessionInsights, gamesSessionInsightsQueryKey } from "@/lib/fetch-games-session-insights";
+import {
+  fetchOwnerRegisteredPlayersCount,
+  ownerRegisteredPlayersCountQueryKey,
+} from "@/lib/fetch-registered-players";
 import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { cn } from "@/lib/utils";
@@ -135,6 +139,15 @@ export function HomeDashboard({
     ...ownerHubQueryOptions,
   });
 
+  const showRegisteredPlayers = Boolean(authData?.user);
+
+  const { data: registeredPlayersTotal, isLoading: registeredPlayersCountLoading } = useQuery({
+    queryKey: ownerRegisteredPlayersCountQueryKey(),
+    queryFn: fetchOwnerRegisteredPlayersCount,
+    enabled: showRegisteredPlayers,
+    ...ownerHubQueryOptions,
+  });
+
   const insightsByGameId = useMemo(
     () => buildHomeSessionInsightsMap(sessionInsightsData?.sessions ?? []),
     [sessionInsightsData?.sessions],
@@ -143,7 +156,6 @@ export function HomeDashboard({
   const chartSessions = sessionInsightsData?.sessions ?? [];
 
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
-  const showRegisteredPlayers = Boolean(authData?.user);
   const sessionGames = sessionTab === "active" ? activeGames : pastGames;
   const dashboardTileCount = isAuthLoading
     ? 4
@@ -188,8 +200,22 @@ export function HomeDashboard({
               <Link
                 href="/users"
                 className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
+                aria-label={
+                  registeredPlayersTotal != null
+                    ? `Registered players: ${registeredPlayersTotal.toLocaleString()} total`
+                    : "Registered players"
+                }
               >
-                <Users className="h-6 w-6 text-primary" aria-hidden />
+                <div className="flex h-6 items-center gap-2">
+                  <Users className="size-6 shrink-0 text-primary" aria-hidden />
+                  {registeredPlayersCountLoading ? (
+                    <Skeleton className="h-6 w-12" aria-hidden />
+                  ) : registeredPlayersTotal != null ? (
+                    <span className="text-[1.5rem] font-bold leading-none tabular-nums text-primary">
+                      {registeredPlayersTotal.toLocaleString()}
+                    </span>
+                  ) : null}
+                </div>
                 <span className="text-sm font-semibold text-foreground">Registered players</span>
               </Link>
             ) : null}

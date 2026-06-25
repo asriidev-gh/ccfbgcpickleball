@@ -26,7 +26,7 @@ import { User } from "@/models/User";
 import "@/models/Player";
 
 const OPERATOR_LIVE_GAME_FIELDS =
-  "title openPlayType courtCount gameId status openPlayDate openPlayTimeRange allowQrRegistration registrationMode allowManualPlayerAdd gameMode matchingType";
+  "title openPlayType courtCount gameId status openPlayDate openPlayTimeRange allowQrRegistration registrationMode allowManualPlayerAdd gameMode matchingType expectedPlayers strictPlayerCount registerUrl publicQrCodeDataUrl";
 
 export type OperatorScope = "shell" | "queue" | "live" | "details" | "full";
 

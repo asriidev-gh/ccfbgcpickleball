@@ -41,6 +41,7 @@ import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import { isSinglesGameMode } from "@/lib/singles/singles-constants";
 import { pickSinglesCourtPair } from "@/lib/singles/singles-queue-fill";
 import { SINGLES_MIN_QUEUE_TO_FILL } from "@/lib/singles/singles-constants";
+import { COURTS_VIEW_QUERY_KEY } from "@/lib/courts-view-cache";
 import { buildSessionPlayerLookup } from "@/lib/session-player-lookup";
 import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
@@ -176,7 +177,7 @@ export function OwnerSessionCourtsSection({
     gameId: session.gameId,
     courts: session.courts,
     enabled: canOperateSession,
-    invalidateQueryKey: ["games", "courts-view"],
+    invalidateQueryKey: COURTS_VIEW_QUERY_KEY,
   });
 
   const endGameScoreError =

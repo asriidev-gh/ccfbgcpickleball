@@ -37,6 +37,7 @@ import {
   listActiveLocalCourtsViewSessions,
   mergeCourtsViewSessions,
 } from "@/lib/local-courts-view";
+import { COURTS_VIEW_QUERY_KEY } from "@/lib/courts-view-cache";
 import type { OwnerCourtsViewPayload } from "@/lib/owner-courts-view-payload";
 import { useLocalGameStore } from "@/store/local-game-store";
 import { cn } from "@/lib/utils";
@@ -82,7 +83,7 @@ export function OwnerCourtsView() {
   const localSessionsRecord = useLocalGameStore((state) => state.sessions);
 
   const query = useQuery({
-    queryKey: ["games", "courts-view"],
+    queryKey: COURTS_VIEW_QUERY_KEY,
     queryFn: fetchOwnerCourtsView,
     refetchInterval: OWNER_COURTS_VIEW_POLL_MS,
     refetchOnWindowFocus: true,

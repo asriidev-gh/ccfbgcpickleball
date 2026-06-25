@@ -23,6 +23,12 @@ import {
   applyShuffleNextOptimistic,
   applySwapCourtTeamsOptimistic,
 } from "@/lib/game-payload-mutations";
+import type { GamePayload } from "@/lib/game-payload-mutations";
+import {
+  isCourtsViewQueryKey,
+  readCourtsViewGamePayload,
+  writeCourtsViewGamePayload,
+} from "@/lib/courts-view-cache";
 import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { isQuickGame } from "@/lib/local-game-id";
 import {
@@ -60,6 +66,33 @@ export function useOperatorCourtActions({
     if (isLocalGame) return;
     void queryClient.invalidateQueries({ queryKey: invalidateQueryKey });
   }, [invalidateQueryKey, isLocalGame, queryClient]);
+
+  const readCachedGamePayload = useCallback((): GamePayload | undefined => {
+    if (isCourtsViewQueryKey(invalidateQueryKey)) {
+      return readCourtsViewGamePayload(queryClient, gameId);
+    }
+    return readOperatorGamePayload(queryClient, gameId);
+  }, [gameId, invalidateQueryKey, queryClient]);
+
+  const writeCachedGamePayload = useCallback(
+    (next: GamePayload) => {
+      if (isCourtsViewQueryKey(invalidateQueryKey)) {
+        writeCourtsViewGamePayload(queryClient, gameId, next);
+        return;
+      }
+      writeOperatorGamePayload(queryClient, gameId, next);
+    },
+    [gameId, invalidateQueryKey, queryClient],
+  );
+
+  const syncAfterMutation = useCallback(() => {
+    if (isLocalGame) return;
+    if (isCourtsViewQueryKey(invalidateQueryKey)) {
+      void queryClient.invalidateQueries({ queryKey: invalidateQueryKey });
+      return;
+    }
+    void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+  }, [gameId, invalidateQueryKey, isLocalGame, queryClient]);
 
   const closeEndDialog = useCallback(() => {
     setEndTargetCourt(null);
@@ -108,11 +141,11 @@ export function useOperatorCourtActions({
     onMutate: (courtNumber) => {
       if (isLocalGame) return {};
 
-      const previous = readOperatorGamePayload(queryClient, gameId);
+      const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
         if (optimistic) {
-          writeOperatorGamePayload(queryClient, gameId, optimistic);
+          writeCachedGamePayload(optimistic);
         }
       }
       void queryClient.cancelQueries({ queryKey: invalidateQueryKey });
@@ -122,13 +155,11 @@ export function useOperatorCourtActions({
       toast.success("Court filled from the queue.");
     },
     onSettled: () => {
-      if (!isLocalGame) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      }
+      syncAfterMutation();
     },
     onError: (error, _, context) => {
       if (!isLocalGame && context?.previous) {
-        writeOperatorGamePayload(queryClient, gameId, context.previous);
+        writeCachedGamePayload(context.previous);
       }
       toastOperationError(error, "Failed to fill court.");
     },
@@ -172,11 +203,11 @@ export function useOperatorCourtActions({
     onMutate: (variables) => {
       if (isLocalGame) return {};
 
-      const previous = readOperatorGamePayload(queryClient, gameId);
+      const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyEndGameOptimistic(previous, variables);
         if (optimistic) {
-          writeOperatorGamePayload(queryClient, gameId, optimistic);
+          writeCachedGamePayload(optimistic);
         }
       }
 
@@ -198,13 +229,11 @@ export function useOperatorCourtActions({
       toast.success(data.message ?? "Court updated.");
     },
     onSettled: () => {
-      if (!isLocalGame) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      }
+      syncAfterMutation();
     },
     onError: (error, _, context) => {
       if (!isLocalGame && context?.previous) {
-        writeOperatorGamePayload(queryClient, gameId, context.previous);
+        writeCachedGamePayload(context.previous);
       }
       if (context?.previousRematchCourtNumbers) {
         setRematchCourtNumbers(context.previousRematchCourtNumbers);
@@ -327,11 +356,11 @@ export function useOperatorCourtActions({
     onMutate: (courtNumber) => {
       if (isLocalGame) return {};
 
-      const previous = readOperatorGamePayload(queryClient, gameId);
+      const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
         if (optimistic) {
-          writeOperatorGamePayload(queryClient, gameId, optimistic);
+          writeCachedGamePayload(optimistic);
         }
       }
       setRematchCourtNumbers((prev) => {
@@ -347,13 +376,11 @@ export function useOperatorCourtActions({
       toast.success(data.message);
     },
     onSettled: () => {
-      if (!isLocalGame) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      }
+      syncAfterMutation();
     },
     onError: (error, _, context) => {
       if (!isLocalGame && context?.previous) {
-        writeOperatorGamePayload(queryClient, gameId, context.previous);
+        writeCachedGamePayload(context.previous);
       }
       toastOperationError(error, "Failed to cancel assignment.");
     },
@@ -412,11 +439,27 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: () => {
+      if (isLocalGame) return {};
+
+      const previous = readCachedGamePayload();
+      if (previous) {
+        const optimistic = applyShuffleNextOptimistic(previous);
+        if (optimistic) {
+          writeCachedGamePayload(optimistic);
+        }
+      }
+      void queryClient.cancelQueries({ queryKey: invalidateQueryKey });
+      return { previous };
+    },
     onSuccess: (data) => {
       toast.success(data.message);
       invalidate();
     },
-    onError: (error) => {
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous) {
+        writeCachedGamePayload(context.previous);
+      }
       toastOperationError(error, "Failed to shuffle queue.");
     },
   });

@@ -24,6 +24,58 @@ export type PlayerAvatarSeed = {
   pickleballLevel?: string | null;
 };
 
+export function normalizeBirthdateForClient(value: unknown): string | undefined {
+  if (value == null) return undefined;
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return undefined;
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) return undefined;
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return undefined;
+}
+
+/** Normalize populated Player refs for client payloads (queue, courts, leaderboards). */
+export function normalizePlayerPhotoRef(player: unknown): PlayerAvatarSeed {
+  if (!player || typeof player !== "object") {
+    return { firstName: "", lastName: "" };
+  }
+
+  const record = player as Record<string, unknown>;
+  const rawId = record._id;
+  let id: string | undefined;
+  if (rawId != null) {
+    id =
+      typeof rawId === "object" && rawId !== null && "toString" in rawId
+        ? String((rawId as { toString(): string }).toString())
+        : String(rawId);
+  }
+
+  return {
+    _id: id,
+    firstName: typeof record.firstName === "string" ? record.firstName : "",
+    lastName: typeof record.lastName === "string" ? record.lastName : "",
+    gender: typeof record.gender === "string" ? record.gender : undefined,
+    birthdate: normalizeBirthdateForClient(record.birthdate),
+    photoUrl: typeof record.photoUrl === "string" ? record.photoUrl : undefined,
+    photoPublicId: typeof record.photoPublicId === "string" ? record.photoPublicId : undefined,
+    personalQrCode:
+      typeof record.personalQrCode === "string" ? record.personalQrCode : undefined,
+    openPlayLevel: typeof record.openPlayLevel === "string" ? record.openPlayLevel : undefined,
+    pickleballLevel:
+      typeof record.pickleballLevel === "string" ? record.pickleballLevel : undefined,
+  };
+}
+
 function hashCode(value: string) {
   let hash = 0;
   for (let i = 0; i < value.length; i += 1) {

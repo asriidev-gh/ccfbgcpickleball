@@ -10,6 +10,7 @@ import {
   type PlayerPhotoRef,
 } from "@/components/game/player-avatar";
 import { PlayerGenderPill } from "@/components/game/player-gender-pill";
+import { PlayerEndorsementStatusBadge } from "@/components/game/player-endorsement-status-badge";
 import {
   formatSessionRecordLabel,
   formatSessionRecordWithRankLabel,
@@ -59,6 +60,9 @@ function TeamPlayers({
   canReplace = false,
   onReplacePlayer,
   replacePendingKey = null,
+  showEndorsementInPlayerLabel = false,
+  getPlayerEndorsementCount,
+  onPlayerEndorsementClick,
 }: {
   players: PlayerRef[];
   playerSessionStats: Map<string, PlayerSessionStats>;
@@ -69,6 +73,9 @@ function TeamPlayers({
   canReplace?: boolean;
   onReplacePlayer?: (slotIndex: number, player: PlayerRef) => void;
   replacePendingKey?: string | null;
+  showEndorsementInPlayerLabel?: boolean;
+  getPlayerEndorsementCount?: (playerId: string) => number;
+  onPlayerEndorsementClick?: (player: PlayerRef) => void;
 }) {
   if (!players.length) {
     return <p className="court-team-players">—</p>;
@@ -87,6 +94,11 @@ function TeamPlayers({
         const sessionRecordLabel = showLeaderboardRank
           ? formatSessionRecordWithRankLabel(stats, rank)
           : formatSessionRecordLabel(stats);
+        const playerId = player._id != null ? String(player._id) : "";
+        const endorsementCount =
+          showEndorsementInPlayerLabel && playerId
+            ? (getPlayerEndorsementCount?.(playerId) ?? 0)
+            : 0;
 
         return (
           <li
@@ -107,6 +119,16 @@ function TeamPlayers({
                       <span className="court-player-name--full">{courtName}</span>
                     </PlayerProfileTrigger>
                     <PlayerGenderPill gender={player.gender} birthdate={player.birthdate} />
+                    {endorsementCount > 0 ? (
+                      <PlayerEndorsementStatusBadge
+                        count={endorsementCount}
+                        onClick={
+                          onPlayerEndorsementClick
+                            ? () => onPlayerEndorsementClick(player)
+                            : undefined
+                        }
+                      />
+                    ) : null}
                   </span>
                 </div>
                 {onReplacePlayer ? (
@@ -183,6 +205,9 @@ type CourtCardProps = {
   onFillCourt?: () => void;
   /** Visual layout: standard cards or pickleball court diagram (Courts View). */
   layoutVariant?: "standard" | "pickleball";
+  showEndorsementInPlayerLabel?: boolean;
+  getPlayerEndorsementCount?: (playerId: string) => number;
+  onPlayerEndorsementClick?: (player: PlayerRef) => void;
 };
 
 export function CourtCard({
@@ -211,6 +236,9 @@ export function CourtCard({
   fillCourtPending = false,
   onFillCourt,
   layoutVariant = "standard",
+  showEndorsementInPlayerLabel = false,
+  getPlayerEndorsementCount,
+  onPlayerEndorsementClick,
 }: CourtCardProps) {
   const isActive = court.status === "active";
   const teamA = court.teamA?.playerIds ?? [];
@@ -275,6 +303,9 @@ export function CourtCard({
                 swapPending={swapPending}
                 mixedDoubles={mixedDoubles}
                 hideEndGame={hideEndGame}
+                showEndorsementInPlayerLabel={showEndorsementInPlayerLabel}
+                getPlayerEndorsementCount={getPlayerEndorsementCount}
+                onPlayerEndorsementClick={onPlayerEndorsementClick}
               />
             ) : (
             <div className="court-teams">
@@ -300,6 +331,9 @@ export function CourtCard({
                       : undefined
                   }
                   replacePendingKey={replacePendingKey}
+                  showEndorsementInPlayerLabel={showEndorsementInPlayerLabel}
+                  getPlayerEndorsementCount={getPlayerEndorsementCount}
+                  onPlayerEndorsementClick={onPlayerEndorsementClick}
                 />
               </div>
               <div className="court-vs-column flex flex-col items-center justify-center gap-1.5">
@@ -343,6 +377,9 @@ export function CourtCard({
                       : undefined
                   }
                   replacePendingKey={replacePendingKey}
+                  showEndorsementInPlayerLabel={showEndorsementInPlayerLabel}
+                  getPlayerEndorsementCount={getPlayerEndorsementCount}
+                  onPlayerEndorsementClick={onPlayerEndorsementClick}
                 />
               </div>
             </div>

@@ -8,6 +8,7 @@ import {
   type PlayerPhotoRef,
 } from "@/components/game/player-avatar";
 import { PlayerGenderPill } from "@/components/game/player-gender-pill";
+import { PlayerEndorsementStatusBadge } from "@/components/game/player-endorsement-status-badge";
 import {
   formatSessionRecordLabel,
   formatSessionRecordWithRankLabel,
@@ -47,6 +48,9 @@ type ServiceBoxProps = {
   replacePendingKey?: string | null;
   empty?: boolean;
   obscured?: boolean;
+  showEndorsementInPlayerLabel?: boolean;
+  getPlayerEndorsementCount?: (playerId: string) => number;
+  onPlayerEndorsementClick?: (player: PlayerRef) => void;
 };
 
 function ServiceBox({
@@ -62,6 +66,9 @@ function ServiceBox({
   replacePendingKey = null,
   empty = false,
   obscured = false,
+  showEndorsementInPlayerLabel = false,
+  getPlayerEndorsementCount,
+  onPlayerEndorsementClick,
 }: ServiceBoxProps) {
   if (!player) {
     return (
@@ -85,6 +92,11 @@ function ServiceBox({
     : formatSessionRecordLabel(stats);
   const pending =
     replacePendingKey === courtReplacePendingKey(courtNumber, team, slotIndex);
+  const playerId = player._id != null ? String(player._id) : "";
+  const endorsementCount =
+    showEndorsementInPlayerLabel && playerId
+      ? (getPlayerEndorsementCount?.(playerId) ?? 0)
+      : 0;
 
   return (
     <div
@@ -123,6 +135,14 @@ function ServiceBox({
               </span>
             </PlayerProfileTrigger>
             <PlayerGenderPill gender={player.gender} birthdate={player.birthdate} />
+            {endorsementCount > 0 ? (
+              <PlayerEndorsementStatusBadge
+                count={endorsementCount}
+                onClick={
+                  onPlayerEndorsementClick ? () => onPlayerEndorsementClick(player) : undefined
+                }
+              />
+            ) : null}
           </span>
           {onReplacePlayer ? (
             <Button
@@ -179,6 +199,9 @@ type PickleballCourtLayoutProps = {
   mixedDoubles?: boolean;
   hideEndGame?: boolean;
   empty?: boolean;
+  showEndorsementInPlayerLabel?: boolean;
+  getPlayerEndorsementCount?: (playerId: string) => number;
+  onPlayerEndorsementClick?: (player: PlayerRef) => void;
 };
 
 export function PickleballCourtLayout({
@@ -196,6 +219,9 @@ export function PickleballCourtLayout({
   mixedDoubles = false,
   hideEndGame = false,
   empty = false,
+  showEndorsementInPlayerLabel = false,
+  getPlayerEndorsementCount,
+  onPlayerEndorsementClick,
 }: PickleballCourtLayoutProps) {
   const {
     isShuffling,
@@ -267,6 +293,9 @@ export function PickleballCourtLayout({
             replacePendingKey={replacePendingKey}
             empty={empty}
             obscured={obscured}
+            showEndorsementInPlayerLabel={showEndorsementInPlayerLabel}
+            getPlayerEndorsementCount={getPlayerEndorsementCount}
+            onPlayerEndorsementClick={onPlayerEndorsementClick}
           />
           <ServiceBox
             player={displayTeamA[1]}
@@ -281,6 +310,9 @@ export function PickleballCourtLayout({
             replacePendingKey={replacePendingKey}
             empty={empty}
             obscured={obscured}
+            showEndorsementInPlayerLabel={showEndorsementInPlayerLabel}
+            getPlayerEndorsementCount={getPlayerEndorsementCount}
+            onPlayerEndorsementClick={onPlayerEndorsementClick}
           />
         </div>
 
@@ -339,6 +371,9 @@ export function PickleballCourtLayout({
             replacePendingKey={replacePendingKey}
             empty={empty}
             obscured={obscured}
+            showEndorsementInPlayerLabel={showEndorsementInPlayerLabel}
+            getPlayerEndorsementCount={getPlayerEndorsementCount}
+            onPlayerEndorsementClick={onPlayerEndorsementClick}
           />
           <ServiceBox
             player={displayTeamB[1]}
@@ -353,6 +388,9 @@ export function PickleballCourtLayout({
             replacePendingKey={replacePendingKey}
             empty={empty}
             obscured={obscured}
+            showEndorsementInPlayerLabel={showEndorsementInPlayerLabel}
+            getPlayerEndorsementCount={getPlayerEndorsementCount}
+            onPlayerEndorsementClick={onPlayerEndorsementClick}
           />
         </div>
       </div>

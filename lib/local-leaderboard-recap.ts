@@ -94,6 +94,7 @@ export function buildLocalLeaderboardRecap(payload: OperatorFullPayload): Leader
 
     rows.push({
       id: playerId,
+      playerId,
       firstName: player?.firstName ?? "",
       lastName: player?.lastName ?? "",
       photoUrl: player?.photoUrl ?? undefined,

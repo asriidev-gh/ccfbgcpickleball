@@ -9,6 +9,7 @@ import "@/models/Player";
 
 export type GameLeaderboardRecapRow = {
   id: string;
+  playerId: string;
   firstName: string;
   lastName: string;
   photoUrl?: string;
@@ -73,6 +74,7 @@ export async function loadGameLeaderboardRecap(gameId: string): Promise<{
 
     return {
       id: String(item._id),
+      playerId: String(player._id),
       firstName: player.firstName,
       lastName: player.lastName,
       photoUrl: player.photoUrl,

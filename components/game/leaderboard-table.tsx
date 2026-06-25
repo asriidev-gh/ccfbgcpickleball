@@ -9,11 +9,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { FirstTimerPill, type LeaderboardRow } from "@/components/game/leaderboard-standings";
+import { FirstTimerPill, resolveLeaderboardPlayerId, type LeaderboardRow } from "@/components/game/leaderboard-standings";
+import { PlayerEndorsementStatusBadge } from "@/components/game/player-endorsement-status-badge";
 import { UndefeatedBadge } from "@/components/game/undefeated-badge";
 import { isSessionUndefeated } from "@/lib/games-played-map";
 
-export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
+export function LeaderboardTable({
+  rows,
+  endorsementCounts,
+  onEndorsementClick,
+}: {
+  rows: LeaderboardRow[];
+  endorsementCounts?: Record<string, number>;
+  onEndorsementClick?: (row: LeaderboardRow) => void;
+}) {
   return (
     <div className="leaderboard-table leaderboard-table-wrap overflow-x-auto rounded-lg border border-border">
       <Table>
@@ -31,6 +40,8 @@ export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
         <TableBody>
           {rows.map((row, index) => {
             const rank = index + 1;
+            const playerId = resolveLeaderboardPlayerId(row);
+            const endorsementCount = endorsementCounts?.[playerId] ?? 0;
             return (
               <TableRow key={row.id}>
                 <TableCell className="font-semibold tabular-nums">#{rank}</TableCell>
@@ -42,6 +53,14 @@ export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
                     {row.isFirstTimer ? <FirstTimerPill /> : null}
                     {isSessionUndefeated({ wins: row.wins, losses: row.losses }) ? (
                       <UndefeatedBadge className="leaderboard-undefeated-badge" />
+                    ) : null}
+                    {endorsementCount > 0 ? (
+                      <PlayerEndorsementStatusBadge
+                        count={endorsementCount}
+                        onClick={
+                          onEndorsementClick ? () => onEndorsementClick(row) : undefined
+                        }
+                      />
                     ) : null}
                   </span>
                 </TableCell>

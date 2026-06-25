@@ -14,6 +14,7 @@ import {
   setCachedFirstTimerIdentityKeys,
 } from "@/lib/spectate-live-meta-cache";
 import { getSpectatorCount } from "@/lib/spectator-presence";
+import { normalizePlayerPhotoRef } from "@/lib/player-avatar-url";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -26,6 +27,30 @@ const LIVE_GAME_FIELDS =
   "title openPlayType courtCount gameId status openPlayDate openPlayTimeRange venueName venueAddress ownerId";
 
 export type SpectateScope = "live" | "details" | "full";
+
+type CourtDoc = {
+  toObject?: () => Record<string, unknown>;
+  teamA?: { playerIds?: unknown[] };
+  teamB?: { playerIds?: unknown[] };
+};
+
+function serializeCourtForPayload(court: CourtDoc) {
+  const plain = (court.toObject?.() ?? court) as Record<string, unknown> & {
+    teamA?: { playerIds?: unknown[] };
+    teamB?: { playerIds?: unknown[] };
+  };
+
+  const mapTeam = (team?: { playerIds?: unknown[] }) => ({
+    ...team,
+    playerIds: (team?.playerIds ?? []).map((player) => normalizePlayerPhotoRef(player)),
+  });
+
+  return {
+    ...plain,
+    teamA: mapTeam(plain.teamA),
+    teamB: mapTeam(plain.teamB),
+  };
+}
 
 export async function loadQueueCourtsAndCheckedOut(gameId: string) {
   const [queue, checkedOut, courts] = await Promise.all([
@@ -41,7 +66,11 @@ export async function loadQueueCourtsAndCheckedOut(gameId: string) {
     ]),
   ]);
 
-  return { queue, checkedOut, courts };
+  return {
+    queue,
+    checkedOut,
+    courts: courts.map((court) => serializeCourtForPayload(court as CourtDoc)),
+  };
 }
 
 export async function loadSpectateLive(gameId: string): Promise<SpectateLivePayload | null> {

@@ -37,6 +37,9 @@ type LeaderboardSectionProps = {
   collapsible?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  endorsementCounts?: Record<string, number>;
+  onEndorsementClick?: (row: LeaderboardRow) => void;
+  onPodiumShareClick?: (row: LeaderboardRow) => void;
 };
 
 export function LeaderboardSection({
@@ -45,6 +48,9 @@ export function LeaderboardSection({
   collapsible = false,
   open: openProp,
   onOpenChange,
+  endorsementCounts,
+  onEndorsementClick,
+  onPodiumShareClick,
 }: LeaderboardSectionProps) {
   const [view, setView] = useState<LeaderboardViewMode>("cards");
   const [internalOpen, setInternalOpen] = useState(false);
@@ -127,9 +133,19 @@ export function LeaderboardSection({
       {panelOpen ? (
         <CardContent id="leaderboard-panel-content">
           {view === "table" ? (
-            <LeaderboardTable rows={rows} />
+            <LeaderboardTable
+              rows={rows}
+              endorsementCounts={endorsementCounts}
+              onEndorsementClick={onEndorsementClick}
+            />
           ) : (
-            <LeaderboardStandings rows={rows} compact={compact} />
+            <LeaderboardStandings
+              rows={rows}
+              compact={compact}
+              endorsementCounts={endorsementCounts}
+              onEndorsementClick={onEndorsementClick}
+              onPodiumShareClick={onPodiumShareClick}
+            />
           )}
         </CardContent>
       ) : null}

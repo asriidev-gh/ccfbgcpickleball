@@ -2,6 +2,8 @@ import { Clock, Minus, TrendingDown, TrendingUp } from "lucide-react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
 import { LeaderboardPodiumFrame } from "@/components/game/leaderboard-podium-frame";
+import { SpectatorPlayerCardShareButton } from "@/components/game/spectator-player-card-share-button";
+import { PlayerEndorsementStatusBadge } from "@/components/game/player-endorsement-status-badge";
 import { PlayerAvatar, type PlayerPhotoRef } from "@/components/game/player-avatar";
 import { UndefeatedBadge } from "@/components/game/undefeated-badge";
 import { isSessionUndefeated } from "@/lib/games-played-map";
@@ -9,6 +11,7 @@ import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type LeaderboardRow = PlayerPhotoRef & {
   id: string;
+  playerId?: string;
   wins: number;
   losses: number;
   gamesPlayed: number;
@@ -20,6 +23,19 @@ export type LeaderboardRow = PlayerPhotoRef & {
 function displayLabel(row: LeaderboardRow, rank: number) {
   return formatPlayerDisplayName(row.firstName, row.lastName, rank);
 }
+
+export function resolveLeaderboardPlayerId(row: LeaderboardRow) {
+  return row.playerId ?? row.id;
+}
+
+type LeaderboardEndorsementProps = {
+  endorsementCounts?: Record<string, number>;
+  onEndorsementClick?: (row: LeaderboardRow) => void;
+};
+
+type LeaderboardPodiumShareProps = {
+  onPodiumShareClick?: (row: LeaderboardRow) => void;
+};
 
 export function FirstTimerPill({ className }: { className?: string }) {
   return (
@@ -40,13 +56,18 @@ function LeaderboardPlayerName({
   align = "start",
   className,
   nameClassName,
+  endorsementCounts,
+  onEndorsementClick,
 }: {
   row: LeaderboardRow;
   rank: number;
   align?: "start" | "center";
   className?: string;
   nameClassName?: string;
-}) {
+} & LeaderboardEndorsementProps) {
+  const playerId = resolveLeaderboardPlayerId(row);
+  const endorsementCount = endorsementCounts?.[playerId] ?? 0;
+
   return (
     <span
       className={cn(
@@ -59,6 +80,12 @@ function LeaderboardPlayerName({
       {row.isFirstTimer ? <FirstTimerPill /> : null}
       {isSessionUndefeated({ wins: row.wins, losses: row.losses }) ? (
         <UndefeatedBadge className="leaderboard-undefeated-badge" />
+      ) : null}
+      {endorsementCount > 0 ? (
+        <PlayerEndorsementStatusBadge
+          count={endorsementCount}
+          onClick={onEndorsementClick ? () => onEndorsementClick(row) : undefined}
+        />
       ) : null}
     </span>
   );
@@ -141,11 +168,15 @@ function PodiumCard({
   row,
   rank,
   compact = false,
+  endorsementCounts,
+  onEndorsementClick,
+  onPodiumShareClick,
 }: {
   row: LeaderboardRow;
   rank: 1 | 2 | 3;
   compact?: boolean;
-}) {
+} & LeaderboardEndorsementProps &
+  LeaderboardPodiumShareProps) {
   const podiumClass =
     rank === 1
       ? "leaderboard-podium-card-gold"
@@ -199,6 +230,8 @@ function PodiumCard({
             rank={rank}
             align="center"
             nameClassName={cn("font-semibold", compact ? "text-[11px]" : "body-lg")}
+            endorsementCounts={endorsementCounts}
+            onEndorsementClick={onEndorsementClick}
           />
         </p>
         <div
@@ -244,6 +277,15 @@ function PodiumCard({
             </span>
           </div>
         </div>
+        {onPodiumShareClick ? (
+          <div className="relative z-[1] mt-2 flex justify-center">
+            <SpectatorPlayerCardShareButton
+              compact={compact}
+              iconOnly={compact}
+              onOpen={() => onPodiumShareClick(row)}
+            />
+          </div>
+        ) : null}
         <div className="leaderboard-podium-card__pedestal" aria-hidden />
       </article>
     </LeaderboardPodiumFrame>
@@ -254,11 +296,13 @@ function StandingRow({
   row,
   rank,
   compact = false,
+  endorsementCounts,
+  onEndorsementClick,
 }: {
   row: LeaderboardRow;
   rank: number;
   compact?: boolean;
-}) {
+} & LeaderboardEndorsementProps) {
   const isPodium = rank <= 3;
 
   return (
@@ -281,6 +325,8 @@ function StandingRow({
               row={row}
               rank={rank}
               nameClassName={cn("font-semibold", compact ? "text-sm" : "body-lg")}
+              endorsementCounts={endorsementCounts}
+              onEndorsementClick={onEndorsementClick}
             />
             {!compact ? (
               <p className="caption">
@@ -341,10 +387,14 @@ function StandingRow({
 export function LeaderboardStandings({
   rows,
   compact = false,
+  endorsementCounts,
+  onEndorsementClick,
+  onPodiumShareClick,
 }: {
   rows: LeaderboardRow[];
   compact?: boolean;
-}) {
+} & LeaderboardEndorsementProps &
+  LeaderboardPodiumShareProps) {
   const showPodium = rows.length >= 3;
   const topThree = rows.slice(0, 3) as [LeaderboardRow?, LeaderboardRow?, LeaderboardRow?];
   const rest = showPodium ? rows.slice(3) : rows;
@@ -368,9 +418,30 @@ export function LeaderboardStandings({
                 compact ? "grid-cols-3 gap-1.5" : "grid-cols-3 gap-2 sm:gap-3",
               )}
             >
-              <PodiumCard row={topThree[1]!} rank={2} compact={compact} />
-              <PodiumCard row={topThree[0]!} rank={1} compact={compact} />
-              <PodiumCard row={topThree[2]!} rank={3} compact={compact} />
+              <PodiumCard
+                row={topThree[1]!}
+                rank={2}
+                compact={compact}
+                endorsementCounts={endorsementCounts}
+                onEndorsementClick={onEndorsementClick}
+                onPodiumShareClick={onPodiumShareClick}
+              />
+              <PodiumCard
+                row={topThree[0]!}
+                rank={1}
+                compact={compact}
+                endorsementCounts={endorsementCounts}
+                onEndorsementClick={onEndorsementClick}
+                onPodiumShareClick={onPodiumShareClick}
+              />
+              <PodiumCard
+                row={topThree[2]!}
+                rank={3}
+                compact={compact}
+                endorsementCounts={endorsementCounts}
+                onEndorsementClick={onEndorsementClick}
+                onPodiumShareClick={onPodiumShareClick}
+              />
             </div>
           </div>
         </div>
@@ -398,6 +469,8 @@ export function LeaderboardStandings({
                 row={row}
                 rank={showPodium ? index + 4 : index + 1}
                 compact={compact}
+                endorsementCounts={endorsementCounts}
+                onEndorsementClick={onEndorsementClick}
               />
             ))}
           </ol>

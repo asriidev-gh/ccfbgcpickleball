@@ -9,14 +9,34 @@ import { cn } from "@/lib/utils";
 type SpectatorPlayerCardShareButtonProps = {
   onOpen: () => void;
   compact?: boolean;
+  iconOnly?: boolean;
   className?: string;
 };
 
 export function SpectatorPlayerCardShareButton({
   onOpen,
   compact = false,
+  iconOnly = false,
   className,
 }: SpectatorPlayerCardShareButtonProps) {
+  if (iconOnly) {
+    return (
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className={queuePlayerActionButtonClassName({
+          compact: true,
+          className: cn("queue-player-share-btn size-8", className),
+        })}
+        onClick={onOpen}
+        aria-label="Share player card"
+      >
+        <Share2 className="size-3.5" aria-hidden />
+      </Button>
+    );
+  }
+
   return (
     <Button
       type="button"

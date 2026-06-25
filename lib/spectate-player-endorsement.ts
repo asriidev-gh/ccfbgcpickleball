@@ -22,6 +22,11 @@ export type SpectatePlayerEndorsementSummary = {
 export type SpectatePlayerEndorsementReceived = {
   endorserPlayerId: string;
   endorserPlayerName: string;
+  endorserFirstName: string;
+  endorserLastName: string;
+  photoUrl?: string;
+  photoPublicId?: string;
+  personalQrCode?: string;
   badges: PlayerEndorsementBadge[];
   notes: string;
   createdAt: string;
@@ -113,20 +118,34 @@ export async function listSpectatePlayerEndorsementsReceived(
 
   const rows = await PlayerEndorsement.find({ gameId, endorsedPlayerId })
     .sort({ createdAt: -1 })
-    .populate("endorserPlayerId", "firstName lastName")
+    .populate("endorserPlayerId", "firstName lastName photoUrl photoPublicId personalQrCode")
     .lean();
 
   return rows.map((row) => {
     const endorser = row.endorserPlayerId as
-      | { _id?: unknown; firstName?: string; lastName?: string }
+      | {
+          _id?: unknown;
+          firstName?: string;
+          lastName?: string;
+          photoUrl?: string;
+          photoPublicId?: string;
+          personalQrCode?: string;
+        }
       | null
       | undefined;
     const endorserPlayerId = endorser?._id != null ? String(endorser._id) : String(row.endorserPlayerId);
+    const endorserFirstName = endorser?.firstName ?? "";
+    const endorserLastName = endorser?.lastName ?? "";
 
     return {
       endorserPlayerId,
       endorserPlayerName:
-        formatPlayerDisplayName(endorser?.firstName ?? "", endorser?.lastName ?? "") || "Player",
+        formatPlayerDisplayName(endorserFirstName, endorserLastName) || "Player",
+      endorserFirstName,
+      endorserLastName,
+      photoUrl: endorser?.photoUrl,
+      photoPublicId: endorser?.photoPublicId,
+      personalQrCode: endorser?.personalQrCode,
       badges: row.badges as PlayerEndorsementBadge[],
       notes: row.notes ?? "",
       createdAt: row.createdAt.toISOString(),

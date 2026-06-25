@@ -1,5 +1,6 @@
 import { getSessionInsightIdentityKeys } from "@/lib/owner-session-insight-filter";
 import { getPlayerIdentityKey } from "@/lib/owner-session-insight-filter-shared";
+import { normalizePlayerPhotoRef } from "@/lib/player-avatar-url";
 
 type PopulatedPlayer = {
   _id?: { toString(): string } | string;
@@ -80,6 +81,7 @@ export function serializeQueueEntriesForPayload<T extends QueueEntryDoc>(
     const annotated = annotateQueueEntryFirstTimer(plain, firstTimerIdentityKeys);
     return {
       ...annotated,
+      playerId: normalizePlayerPhotoRef(plain.playerId),
       cardSharedAt: serializeCardSharedAt(plain.cardSharedAt),
     };
   });

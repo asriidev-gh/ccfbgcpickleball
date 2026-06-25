@@ -89,6 +89,7 @@ import { CourtEndGameDialog } from "@/components/game/court-end-game-dialog";
 import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
 import { GamePlayerProfileProvider } from "@/components/game/game-player-profile-context";
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
+import type { LeaderboardRow } from "@/components/game/leaderboard-standings";
 import { PlayerSessionMatchHistoryDialog } from "@/components/game/player-session-match-history-dialog";
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
 import { OpenPlaySkillLevelPills } from "@/components/game/open-play-skill-level-pills";
@@ -97,7 +98,7 @@ import { SpectateBirthdaysThisMonthBadge } from "@/components/player/spectate-bi
 import { SpectateFirstTimersBadge } from "@/components/player/spectate-first-timers";
 import { SpectatorPlayerCardShareButton } from "@/components/game/spectator-player-card-share-button";
 import { SpectatorPlayerCardShareDialog } from "@/components/game/spectator-player-card-share-dialog";
-import { SpectatorPlayerEndorseButton, SpectatorPlayerEndorsementsCountButton } from "@/components/game/spectator-player-endorse-button";
+import { SpectatorPlayerEndorseButton } from "@/components/game/spectator-player-endorse-button";
 import { SpectatePlayerEndorseDialog } from "@/components/player/spectate-player-endorse-dialog";
 import { SpectatePlayerEndorsementsListDialog } from "@/components/player/spectate-player-endorsements-list-dialog";
 import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
@@ -105,7 +106,8 @@ import { AddCourtButton } from "@/components/game/add-court-button";
 import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
 import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
-import { promptIfRegistrationFull } from "@/components/game/registration-capacity-prompt";
+import { promptIfRegistrationFullFromSession } from "@/components/game/registration-capacity-prompt";
+import { fetchGameRegistrationQr } from "@/lib/fetch-game-registration-qr";
 import {
   MatchHistoryList,
   type MatchHistoryView,
@@ -357,6 +359,7 @@ type QueueCheckedOutListProps = {
   leaderboardRankMap?: Map<string, number>;
   showCardSharedStatus?: boolean;
   showEndorsementStatus?: boolean;
+  showEndorsementInPlayerLabel?: boolean;
   getEndorsementCount?: (entry: QueueEntryView) => number;
   onEndorsementClick?: (entry: QueueEntryView) => void;
   onSharedClick?: (entry: QueueEntryView) => void;
@@ -380,6 +383,7 @@ function QueueCheckedOutList({
   leaderboardRankMap,
   showCardSharedStatus = false,
   showEndorsementStatus = false,
+  showEndorsementInPlayerLabel = false,
   getEndorsementCount,
   onEndorsementClick,
   onSharedClick,
@@ -473,6 +477,7 @@ function QueueCheckedOutList({
                     onUndefeatedClick ? () => onUndefeatedClick(entry) : undefined
                   }
                   showEndorsementStatus={showEndorsementStatus}
+                  showEndorsementInPlayerLabel={showEndorsementInPlayerLabel}
                   endorsementCount={getEndorsementCount?.(entry) ?? 0}
                   onEndorsementClick={
                     onEndorsementClick ? () => onEndorsementClick(entry) : undefined
@@ -570,29 +575,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     registerUrl: string;
     publicQrCodeDataUrl: string;
   } | null>(null);
-  const openQrRegistrationDialog = async () => {
-    setQrDialogLoading(true);
-    try {
-      const canProceed = await promptIfRegistrationFull(gameId);
-      if (!canProceed) return;
-
-      if (!qrDialogData) {
-        const response = await fetch(`/api/games/${gameId}/qr`);
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.message);
-        setQrDialogData({
-          registerUrl: payload.registerUrl,
-          publicQrCodeDataUrl: payload.publicQrCodeDataUrl,
-        });
-      }
-
-      setQrDialogOpen(true);
-    } catch (error) {
-      toastOperationError(error, "Could not load registration QR.");
-    } finally {
-      setQrDialogLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (!gameId || !isQuickGameSession) return;
@@ -702,6 +684,91 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     enabled: !!gameId && operatorCanLoadData,
     ...operatorQueueQueryOptions,
   });
+
+  const openQrRegistrationDialog = useCallback(async () => {
+    try {
+      const shellGame = operatorShellQuery.data?.game;
+      const queuePayload = operatorQueueQuery.data;
+      const canProceed = await promptIfRegistrationFullFromSession({
+        gameId,
+        status: queuePayload?.status ?? shellGame?.status ?? "active",
+        strictPlayerCount: shellGame?.strictPlayerCount,
+        expectedPlayers: shellGame?.expectedPlayers,
+        allowQrRegistration: shellGame?.allowQrRegistration,
+        queue: queuePayload?.queue ?? [],
+        checkedOut: queuePayload?.checkedOut ?? [],
+        courts: queuePayload?.courts ?? [],
+      });
+      if (!canProceed) return;
+
+      setQrDialogOpen(true);
+
+      const cachedQr =
+        qrDialogData ??
+        (shellGame?.registerUrl && shellGame?.publicQrCodeDataUrl
+          ? {
+              registerUrl: shellGame.registerUrl,
+              publicQrCodeDataUrl: shellGame.publicQrCodeDataUrl,
+            }
+          : null);
+
+      if (cachedQr) {
+        if (!qrDialogData) {
+          setQrDialogData(cachedQr);
+        }
+        return;
+      }
+
+      setQrDialogLoading(true);
+      const payload = await fetchGameRegistrationQr(gameId);
+      setQrDialogData({
+        registerUrl: payload.registerUrl,
+        publicQrCodeDataUrl: payload.publicQrCodeDataUrl,
+      });
+    } catch (error) {
+      setQrDialogOpen(false);
+      toastOperationError(error, "Could not load registration QR.");
+    } finally {
+      setQrDialogLoading(false);
+    }
+  }, [
+    gameId,
+    operatorQueueQuery.data,
+    operatorShellQuery.data?.game,
+    qrDialogData,
+  ]);
+
+  useEffect(() => {
+    if (isQuickGameSession || isSpectator || !gameId || !operatorCanLoadData) return;
+
+    const shellGame = operatorShellQuery.data?.game;
+    if (!shellGame || shellGame.allowQrRegistration === false) return;
+    if (qrDialogData || (shellGame.registerUrl && shellGame.publicQrCodeDataUrl)) return;
+
+    let cancelled = false;
+    void fetchGameRegistrationQr(gameId)
+      .then((payload) => {
+        if (cancelled) return;
+        setQrDialogData({
+          registerUrl: payload.registerUrl,
+          publicQrCodeDataUrl: payload.publicQrCodeDataUrl,
+        });
+      })
+      .catch(() => {
+        // Prefetch is best-effort; click handler retries with user feedback.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    gameId,
+    isQuickGameSession,
+    isSpectator,
+    operatorCanLoadData,
+    operatorShellQuery.data?.game,
+    qrDialogData,
+  ]);
 
   const operatorGameStatus =
     operatorQueueQuery.data?.status ?? operatorShellQuery.data?.game.status;
@@ -1767,6 +1834,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     (isSpectator
       ? spectatorGameStatus !== "ended" && data?.game?.status !== "ended"
       : operatorGameStatus !== "ended" && operatorGameStatus !== "draft");
+  const showEndorsementCounts =
+    Boolean(gameId) &&
+    !isQuickGameSession &&
+    (showLiveEndorsements ||
+      (isSpectator &&
+        (spectatorGameStatus === "ended" || data?.game?.status === "ended")));
   const { data: myPlayerEndorsements = [] } = useQuery({
     queryKey: spectatePlayerEndorsementsQueryKey(gameId, endorserPlayerId),
     queryFn: () => fetchSpectatePlayerEndorsements(gameId, endorserPlayerId),
@@ -1783,7 +1856,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const { data: gameEndorsementCounts = {} } = useQuery({
     queryKey: spectateGameEndorsementCountsQueryKey(gameId),
     queryFn: () => fetchSpectateGameEndorsementCounts(gameId),
-    enabled: showLiveEndorsements,
+    enabled: showEndorsementCounts,
     ...spectatorEndorsementQueryOptions,
     refetchInterval: () => {
       if (!showLiveEndorsements) return false;
@@ -2123,38 +2196,27 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     const playerId = queueEntryPlayerId(entry);
     if (!playerId) return undefined;
 
-    const endorsementCount = gameEndorsementCounts[playerId] ?? 0;
-    const countButton =
-      endorsementCount > 0 ? (
-        <SpectatorPlayerEndorsementsCountButton
-          compact={compact}
-          count={endorsementCount}
-          onClick={() => setEndorseListTargetEntry(entry)}
-        />
-      ) : null;
-
     if (!endorserPlayerId) {
-      return countButton ?? undefined;
+      return undefined;
     }
 
     const isSelf = selfPlayerIds.includes(playerId);
 
     if (isSelf) {
-      return countButton ?? undefined;
+      return undefined;
     }
 
     const endorsed = endorsedPlayerIds.has(playerId);
 
+    if (endorsed) {
+      return undefined;
+    }
+
     return (
-      <div className="flex flex-wrap items-center justify-end gap-1 xl:gap-2">
-        {countButton}
-        {!endorsed ? (
-          <SpectatorPlayerEndorseButton
-            compact={compact}
-            onClick={() => setEndorseTargetEntry(entry)}
-          />
-        ) : null}
-      </div>
+      <SpectatorPlayerEndorseButton
+        compact={compact}
+        onClick={() => setEndorseTargetEntry(entry)}
+      />
     );
   };
 
@@ -2175,6 +2237,35 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const getPlayerEndorsementCount = (entry: QueueEntryView) => {
     const playerId = queueEntryPlayerId(entry);
     return playerId ? (gameEndorsementCounts[playerId] ?? 0) : 0;
+  };
+
+  const showSpectatorEndorsementInPlayerLabel = isSpectator && showLiveEndorsements;
+
+  const openEndorseListForPlayer = (player: QueueEntryView["playerId"]) => {
+    const playerId = player._id != null ? String(player._id) : "";
+    if (!playerId || (gameEndorsementCounts[playerId] ?? 0) <= 0) return;
+    setEndorseListTargetEntry({
+      _id: `endorse-list-${playerId}`,
+      queueType: "normal",
+      playerId: player,
+      registeredAt: "",
+      lastMatchResult: "none",
+    });
+  };
+
+  const openEndorseListForLeaderboardRow = (row: LeaderboardRow) => {
+    const playerId = row.playerId ?? row.id;
+    if (!playerId || (gameEndorsementCounts[playerId] ?? 0) <= 0) return;
+    setEndorseListTargetEntry({
+      _id: `leaderboard-${playerId}`,
+      queueType: "normal",
+      playerId: {
+        ...row,
+        _id: playerId,
+      },
+      registeredAt: "",
+      lastMatchResult: "none",
+    });
   };
 
   const openOrganizerSharedPreview = (entry: QueueEntryView) => {
@@ -2266,9 +2357,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         }
         onUndefeatedClick={showUndefeatedForEntry(entry) ? () => openUndefeatedHistory(entry) : undefined}
         showEndorsementStatus={!isSpectator && !hideControls}
+        showEndorsementInPlayerLabel={showSpectatorEndorsementInPlayerLabel}
         endorsementCount={getPlayerEndorsementCount(entry)}
         onEndorsementClick={
-          !isSpectator && getPlayerEndorsementCount(entry) > 0
+          getPlayerEndorsementCount(entry) > 0 &&
+          (showSpectatorEndorsementInPlayerLabel || (!isSpectator && !hideControls))
             ? () => setEndorseListTargetEntry(entry)
             : undefined
         }
@@ -2626,6 +2719,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 onSharedClick={!isSpectator ? openOrganizerSharedPreview : undefined}
                 onUndefeatedClick={openUndefeatedHistory}
                 showEndorsementStatus={!isSpectator && !hideControls}
+                showEndorsementInPlayerLabel={showSpectatorEndorsementInPlayerLabel}
                 getEndorsementCount={getPlayerEndorsementCount}
                 onEndorsementClick={(entry) => setEndorseListTargetEntry(entry)}
                 renderShareAction={
@@ -2858,6 +2952,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             }
             fillCourtPending={
               startMutation.isPending && startMutation.variables === court.courtNumber
+            }
+            showEndorsementInPlayerLabel={showSpectatorEndorsementInPlayerLabel}
+            getPlayerEndorsementCount={(playerId) => gameEndorsementCounts[playerId] ?? 0}
+            onPlayerEndorsementClick={
+              showSpectatorEndorsementInPlayerLabel ? openEndorseListForPlayer : undefined
             }
           />
         ))
@@ -3159,6 +3258,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           <LeaderboardPageContent
             insights={recap?.insights ?? []}
             rows={recap?.rows ?? []}
+            endorsementCounts={gameEndorsementCounts}
+            onEndorsementClick={openEndorseListForLeaderboardRow}
           />
         ) : isLgViewport === true ? (
           <>
@@ -3395,13 +3496,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         />
       ) : null}
 
-      {!readOnly && resolvedQrDialogData ? (
+      {!readOnly && (resolvedQrDialogData || qrDialogOpen) ? (
         <GameQrDialog
           open={qrDialogOpen}
           onOpenChange={setQrDialogOpen}
           gameTitle={game.title}
-          registerUrl={resolvedQrDialogData.registerUrl}
-          qrCodeDataUrl={resolvedQrDialogData.publicQrCodeDataUrl}
+          registerUrl={resolvedQrDialogData?.registerUrl ?? ""}
+          qrCodeDataUrl={resolvedQrDialogData?.publicQrCodeDataUrl ?? ""}
+          loading={qrDialogLoading || !resolvedQrDialogData}
         />
       ) : null}
 

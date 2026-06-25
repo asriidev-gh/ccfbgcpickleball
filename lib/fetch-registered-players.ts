@@ -9,6 +9,19 @@ export function ownerSessionFilterOptionsQueryKey() {
   return ["owner-session-filter-options"] as const;
 }
 
+export function ownerRegisteredPlayersCountQueryKey() {
+  return ["owner-registered-players-count"] as const;
+}
+
+async function fetchOwnerRegisteredPlayersCount() {
+  const response = await fetch("/api/owner/registered-players?page=1&pageSize=1");
+  const payload = (await response.json()) as OwnerRegisteredPlayersPage & { message?: string };
+  if (!response.ok) {
+    throw new Error(payload.message ?? "Failed to load registered players count.");
+  }
+  return payload.total;
+}
+
 export function ownerRegisteredPlayersQueryKey(
   page: number,
   search: string,
@@ -99,4 +112,8 @@ export function prefetchRegisteredPlayersInsight(
   });
 }
 
-export { fetchOwnerRegisteredPlayersPage, fetchOwnerSessionFilterOptions };
+export {
+  fetchOwnerRegisteredPlayersCount,
+  fetchOwnerRegisteredPlayersPage,
+  fetchOwnerSessionFilterOptions,
+};
