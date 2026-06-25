@@ -13,6 +13,8 @@ export type LocalGameListCard = {
   status: "draft" | "active" | "ended";
   openPlayDate?: string | null;
   openPlayTimeRange?: string | null;
+  gameMode?: "doubles" | "singles";
+  matchingType?: "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
   isLocalGame: true;
   updatedAt?: string;
 };
@@ -54,6 +56,8 @@ export function localPayloadToGameCard(payload: OperatorFullPayload): LocalGameL
     status: game.status,
     openPlayDate: game.openPlayDate ?? null,
     openPlayTimeRange: game.openPlayTimeRange ?? null,
+    gameMode: game.gameMode,
+    matchingType: game.matchingType,
     isLocalGame: true,
   };
 }

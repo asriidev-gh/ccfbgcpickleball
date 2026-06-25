@@ -1,4 +1,4 @@
-import { Trophy, Share2 } from "lucide-react";
+import { Share2, ThumbsUp } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
@@ -7,6 +7,7 @@ import { PlayerNameWithPhoto, resolvePlayerId, type PlayerPhotoRef } from "@/com
 import { FirstTimerPill } from "@/components/game/leaderboard-standings";
 import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-menu";
+import { UndefeatedBadge } from "@/components/game/undefeated-badge";
 import { Badge } from "@/components/ui/badge";
 import {
   formatSessionRecordLabel,
@@ -50,12 +51,19 @@ function formatLastMatchResult(result: QueueEntryView["lastMatchResult"]) {
   return "None";
 }
 
-function SharedStatusBadge({ className }: { className?: string }) {
-  return (
+function SharedStatusBadge({
+  onClick,
+  className,
+}: {
+  onClick?: () => void;
+  className?: string;
+}) {
+  const badge = (
     <Badge
       variant="outline"
       className={cn(
         "whitespace-nowrap border-sky-500/40 bg-sky-500/10 text-sky-800 dark:text-sky-200",
+        onClick && "cursor-pointer transition-colors hover:bg-sky-500/20",
         className,
       )}
       aria-label="Player card shared by spectator"
@@ -64,18 +72,54 @@ function SharedStatusBadge({ className }: { className?: string }) {
       Shared
     </Badge>
   );
+
+  if (!onClick) return badge;
+
+  return (
+    <button
+      type="button"
+      className="inline-flex"
+      onClick={onClick}
+      aria-label="View shared player card preview"
+    >
+      {badge}
+    </button>
+  );
 }
 
-function UndefeatedBadge({ className }: { className?: string }) {
-  return (
+function EndorsedStatusBadge({
+  count,
+  onClick,
+  className,
+}: {
+  count: number;
+  onClick?: () => void;
+  className?: string;
+}) {
+  if (count <= 0) return null;
+
+  const label = count === 1 ? "1 endorsement" : `${count} endorsements`;
+  const badge = (
     <Badge
       variant="outline"
-      className={cn("queue-undefeated-badge whitespace-nowrap", className)}
-      aria-label="Undefeated — 3 or more wins, no losses"
+      className={cn(
+        "whitespace-nowrap border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200",
+        onClick && "cursor-pointer transition-colors hover:bg-emerald-500/20",
+        className,
+      )}
+      aria-label={label}
     >
-      <Trophy className="queue-undefeated-badge-icon" aria-hidden />
-      <span className="queue-undefeated-badge-text">Undefeated</span>
+      <ThumbsUp className="mr-1 size-3 shrink-0" aria-hidden />
+      Endorsed{count > 1 ? ` (${count})` : ""}
     </Badge>
+  );
+
+  if (!onClick) return badge;
+
+  return (
+    <button type="button" className="inline-flex" onClick={onClick} aria-label={`View ${label}`}>
+      {badge}
+    </button>
   );
 }
 
@@ -85,6 +129,7 @@ function QueueSessionStatsBadges({
   rank,
   showLeaderboardRank = false,
   hideRecordOnLargeScreens = false,
+  onUndefeatedClick,
   className,
 }: {
   wins: number;
@@ -92,6 +137,7 @@ function QueueSessionStatsBadges({
   rank?: number | null;
   showLeaderboardRank?: boolean;
   hideRecordOnLargeScreens?: boolean;
+  onUndefeatedClick?: () => void;
   className?: string;
 }) {
   const stats = { wins, losses, gamesPlayed: wins + losses };
@@ -102,7 +148,7 @@ function QueueSessionStatsBadges({
 
   return (
     <div className={cn("flex flex-wrap items-center justify-end gap-1", className)}>
-      {showUndefeated ? <UndefeatedBadge /> : null}
+      {showUndefeated ? <UndefeatedBadge onClick={onUndefeatedClick} /> : null}
       <Badge
         variant="outline"
         className={cn(
@@ -176,6 +222,13 @@ type QueueEntryRowProps = {
   onViewPlayerInfo?: () => void;
   /** Organizer queue: show when a spectator shared this player's card. */
   showCardSharedStatus?: boolean;
+  onSharedClick?: () => void;
+  /** Organizer queue: show when other players endorsed this player. */
+  showEndorsementStatus?: boolean;
+  endorsementCount?: number;
+  onEndorsementClick?: () => void;
+  /** Open this player's session match history (undefeated badge). */
+  onUndefeatedClick?: () => void;
   /** Spectator self row: share player card action beside checkout. */
   shareAction?: ReactNode;
   /** Spectator: endorse another player in the queue. */
@@ -208,6 +261,11 @@ export function QueueEntryRow({
   leaderboardRankMap,
   onViewPlayerInfo,
   showCardSharedStatus = false,
+  onSharedClick,
+  onUndefeatedClick,
+  showEndorsementStatus = false,
+  endorsementCount = 0,
+  onEndorsementClick,
   shareAction,
   endorseAction,
 }: QueueEntryRowProps) {
@@ -232,6 +290,16 @@ export function QueueEntryRow({
     : formatSessionRecordLabel(sessionStats);
   const showUndefeated = isSessionUndefeated(sessionStats);
   const showSharedStatus = showCardSharedStatus && Boolean(entry.cardSharedAt);
+  const sharedBadge = showSharedStatus ? (
+    <SharedStatusBadge onClick={onSharedClick} />
+  ) : null;
+  const showEndorsedStatus = showEndorsementStatus && endorsementCount > 0;
+  const endorsedBadge = showEndorsedStatus ? (
+    <EndorsedStatusBadge count={endorsementCount} onClick={onEndorsementClick} />
+  ) : null;
+  const undefeatedBadge = showUndefeated ? (
+    <UndefeatedBadge onClick={onUndefeatedClick} />
+  ) : null;
   const rowClass = checkedOut
     ? "queue-checked-out"
     : isNextUp
@@ -307,28 +375,36 @@ export function QueueEntryRow({
                 rank={leaderboardRank}
                 showLeaderboardRank={showLeaderboardRank}
                 hideRecordOnLargeScreens
+                onUndefeatedClick={onUndefeatedClick}
                 className="xl:hidden"
               />
-              {showSharedStatus ? <SharedStatusBadge className="xl:hidden" /> : null}
+              {sharedBadge ? <span className="xl:hidden">{sharedBadge}</span> : null}
+              {endorsedBadge ? <span className="xl:hidden">{endorsedBadge}</span> : null}
               <div className="hidden items-center gap-1.5 xl:flex">
-                {showSharedStatus ? <SharedStatusBadge /> : null}
-                {showUndefeated ? <UndefeatedBadge /> : null}
+                {sharedBadge}
+                {endorsedBadge}
+                {undefeatedBadge}
                 <Badge className="badge-next-up" aria-label="Next on court">
                   <NextOnCourtLabel />
                 </Badge>
               </div>
             </>
           ) : hideSessionStats ? (
-            showSharedStatus ? <SharedStatusBadge /> : null
+            <>
+              {sharedBadge}
+              {endorsedBadge}
+            </>
           ) : (
             <div className="flex flex-wrap items-center justify-end gap-1">
-              {showSharedStatus ? <SharedStatusBadge /> : null}
+              {sharedBadge}
+              {endorsedBadge}
               <QueueSessionStatsBadges
                 wins={sessionStats.wins}
                 losses={sessionStats.losses}
                 rank={leaderboardRank}
                 showLeaderboardRank={showLeaderboardRank}
                 hideRecordOnLargeScreens
+                onUndefeatedClick={onUndefeatedClick}
               />
             </div>
           )}
@@ -347,7 +423,9 @@ export function QueueEntryRow({
           <>
             Checked out {formatRelativeTimeForCard(checkedOutTime, { addSuffix: true })} | Last match:{" "}
             {formatLastMatchResult(entry.lastMatchResult)} | {sessionRecordLabel}
-            {showUndefeated ? <UndefeatedBadge className="ml-1 align-middle" /> : null}
+            {showUndefeated ? (
+              <UndefeatedBadge className="ml-1 align-middle" onClick={onUndefeatedClick} />
+            ) : null}
           </>
         ) : (
           <>

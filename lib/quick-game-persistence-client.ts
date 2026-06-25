@@ -13,6 +13,8 @@ export type SavedQuickGameListItem = {
   status: "active" | "ended";
   openPlayDate?: string | null;
   openPlayTimeRange?: string | null;
+  gameMode?: "doubles" | "singles";
+  matchingType?: "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
   isLocalGame: true;
   isSavedQuickGame: true;
   updatedAt?: string;

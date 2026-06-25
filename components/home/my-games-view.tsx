@@ -19,6 +19,8 @@ import {
   Pencil,
   QrCode,
   Plus,
+  RotateCcw,
+  SlidersHorizontal,
   Share2,
   Trash2,
   Users,
@@ -39,6 +41,7 @@ import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-
 import { DemoVideoDialog } from "@/components/demo-video-dialog";
 import { EditGameDialog, type EditGameDialogGame } from "@/components/game/edit-game-dialog";
 import { EditQuickGameDialog } from "@/components/game/edit-quick-game-dialog";
+import { GameFormatHeaderBadges } from "@/components/game/game-format-header-badges";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { GameSpectatorShareDialog } from "@/components/game/game-spectator-share-dialog";
 import { WatchDemoButton } from "@/components/watch-demo-button";
@@ -73,6 +76,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import { prefetchOperatorDashboard } from "@/lib/fetch-operator-game";
 import { getClientSpectatorShareUrl } from "@/lib/app-url";
 import { useGamesList } from "@/hooks/use-games-list";
+import { useAuthMe } from "@/hooks/use-auth-me";
 import { useUiStore, type CreateGameWizardPreset } from "@/store/ui-store";
 import {
   isDemoOpenPlayTitle,
@@ -114,6 +118,8 @@ type GameCard = {
   status: "draft" | "active" | "ended";
   openPlayDate?: string | null;
   openPlayTimeRange?: string | null;
+  gameMode?: "doubles" | "singles";
+  matchingType?: "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
   updatedAt?: string;
   isLocalGame?: boolean;
   isSavedQuickGame?: boolean;
@@ -141,6 +147,11 @@ function GameMeta({
   return (
     <ul className="list-none space-y-0.5 text-xs leading-relaxed text-muted-foreground md:text-sm">
       <GameMetaRow icon={Gauge}>{game.openPlayType}</GameMetaRow>
+      <GameMetaRow icon={SlidersHorizontal}>
+        <span className="flex flex-wrap items-center gap-1.5">
+          <GameFormatHeaderBadges gameMode={game.gameMode} matchingType={game.matchingType} />
+        </span>
+      </GameMetaRow>
       <GameMetaRow icon={LayoutGrid}>Courts: {game.courtCount}</GameMetaRow>
       <GameMetaRow icon={Users}>
         {game.isLocalGame ? "Players" : "Expected"}: {game.expectedPlayers}
@@ -225,6 +236,7 @@ function GameListInfoGrouped({
           <span className="text-lg font-semibold leading-snug md:text-xl">{game.title}</span>
           {isDemoOpenPlayTitle(game.title) ? <DemoOnlyBadge /> : null}
           {game.isLocalGame ? <LiveQueueOffBadge /> : null}
+          <GameFormatHeaderBadges gameMode={game.gameMode} matchingType={game.matchingType} />
           {variant === "past" || game.status === "ended" ? (
             <Badge variant="outline" className="shrink-0">
               Ended
@@ -305,18 +317,26 @@ function GameListIconToolbar({
   game,
   onEdit,
   onDelete,
+  onReactivate,
   deletingGameId,
+  reactivatingGameId,
+  isSuperAdmin = false,
   includeQr = false,
   className,
 }: {
   game: GameCard;
   onEdit: (game: GameCard) => void;
   onDelete: (game: GameCard) => void;
+  onReactivate?: (game: GameCard) => void;
   deletingGameId: string | null;
+  reactivatingGameId?: string | null;
+  isSuperAdmin?: boolean;
   includeQr?: boolean;
   className?: string;
 }) {
   const canEdit = game.status !== "ended";
+  const canReactivate =
+    isSuperAdmin && game.status === "ended" && !game.isLocalGame && onReactivate != null;
 
   return (
     <div
@@ -394,6 +414,25 @@ function GameListIconToolbar({
           ) : null}
         </>
       )}
+      {canReactivate ? (
+        <SimpleTooltip label="Reactivate open play">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-8 shrink-0 rounded-full"
+            aria-label={`Reactivate ${game.title}`}
+            disabled={reactivatingGameId === game.gameId}
+            onClick={() => onReactivate?.(game)}
+          >
+            {reactivatingGameId === game.gameId ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <RotateCcw className="h-4 w-4" aria-hidden />
+            )}
+          </Button>
+        </SimpleTooltip>
+      ) : null}
       <Button
         type="button"
         variant="ghost"
@@ -414,14 +453,20 @@ function GameListActionsMenu({
   variant,
   onEdit,
   onDelete,
+  onReactivate,
   deletingGameId,
+  reactivatingGameId,
+  isSuperAdmin = false,
   userType,
 }: {
   game: GameCard;
   variant: "active" | "past" | "quick";
   onEdit: (game: GameCard) => void;
   onDelete: (game: GameCard) => void;
+  onReactivate?: (game: GameCard) => void;
   deletingGameId: string | null;
+  reactivatingGameId?: string | null;
+  isSuperAdmin?: boolean;
   userType?: string | null;
 }) {
   const router = useRouter();
@@ -429,6 +474,8 @@ function GameListActionsMenu({
   const isDemo = isDemoOpenPlayTitle(game.title);
   const dashboardHref = `/games/${game.gameId}`;
   const isEnded = game.status === "ended";
+  const canReactivate =
+    isSuperAdmin && isEnded && !game.isLocalGame && variant === "past" && onReactivate != null;
   const dashboardLabel = "Enter Game";
   const DashboardIcon = LogIn;
 
@@ -547,6 +594,20 @@ function GameListActionsMenu({
               <DashboardIcon aria-hidden />
               {dashboardLabel}
             </DropdownMenuItem>
+            {canReactivate ? (
+              <DropdownMenuItem
+                className="game-list-actions-menu__item"
+                disabled={reactivatingGameId === game.gameId}
+                onClick={() => onReactivate?.(game)}
+              >
+                {reactivatingGameId === game.gameId ? (
+                  <Loader2 className="animate-spin" aria-hidden />
+                ) : (
+                  <RotateCcw aria-hidden />
+                )}
+                Reactivate open play
+              </DropdownMenuItem>
+            ) : null}
             {game.isLocalGame ? (
               <>
                 <DropdownMenuItem
@@ -649,7 +710,10 @@ function GameListActions({
   variant,
   onEdit,
   onDelete,
+  onReactivate,
   deletingGameId,
+  reactivatingGameId,
+  isSuperAdmin = false,
   userType,
   compact = false,
   hideToolbarOnMobile = false,
@@ -658,7 +722,10 @@ function GameListActions({
   variant: "active" | "past" | "quick";
   onEdit: (game: GameCard) => void;
   onDelete: (game: GameCard) => void;
+  onReactivate?: (game: GameCard) => void;
   deletingGameId: string | null;
+  reactivatingGameId?: string | null;
+  isSuperAdmin?: boolean;
   userType?: string | null;
   compact?: boolean;
   hideToolbarOnMobile?: boolean;
@@ -710,7 +777,10 @@ function GameListActions({
       game={game}
       onEdit={onEdit}
       onDelete={onDelete}
+      onReactivate={onReactivate}
       deletingGameId={deletingGameId}
+      reactivatingGameId={reactivatingGameId}
+      isSuperAdmin={isSuperAdmin}
     />
   );
 
@@ -765,7 +835,10 @@ function GameList({
   view,
   onEdit,
   onDelete,
+  onReactivate,
   deletingGameId,
+  reactivatingGameId,
+  isSuperAdmin = false,
   userType,
 }: {
   games: GameCard[];
@@ -774,7 +847,10 @@ function GameList({
   view: GameListViewMode;
   onEdit: (game: GameCard) => void;
   onDelete: (game: GameCard) => void;
+  onReactivate?: (game: GameCard) => void;
   deletingGameId: string | null;
+  reactivatingGameId?: string | null;
+  isSuperAdmin?: boolean;
   userType?: string | null;
 }) {
   if (games.length === 0) {
@@ -805,7 +881,10 @@ function GameList({
                 game={game}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onReactivate={onReactivate}
                 deletingGameId={deletingGameId}
+                reactivatingGameId={reactivatingGameId}
+                isSuperAdmin={isSuperAdmin}
                 includeQr={!game.isLocalGame}
               />
             </div>
@@ -821,6 +900,10 @@ function GameList({
                         Ended
                       </Badge>
                     ) : null}
+                    <GameFormatHeaderBadges
+                      gameMode={game.gameMode}
+                      matchingType={game.matchingType}
+                    />
                   </div>
                   <GameMeta game={game} variant={variant} />
                 </div>
@@ -843,7 +926,10 @@ function GameList({
                 variant={variant}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onReactivate={onReactivate}
                 deletingGameId={deletingGameId}
+                reactivatingGameId={reactivatingGameId}
+                isSuperAdmin={isSuperAdmin}
                 userType={userType ?? undefined}
                 compact
                 hideToolbarOnMobile
@@ -881,7 +967,10 @@ function GameList({
               variant={variant}
               onEdit={onEdit}
               onDelete={onDelete}
+              onReactivate={onReactivate}
               deletingGameId={deletingGameId}
+              reactivatingGameId={reactivatingGameId}
+              isSuperAdmin={isSuperAdmin}
               userType={userType ?? undefined}
             />
           </section>
@@ -913,6 +1002,7 @@ export function MyGamesView() {
   const queryClient = useQueryClient();
   const setCreateGameWizardOpen = useUiStore((state) => state.setCreateGameWizardOpen);
   const [deletingGameId, setDeletingGameId] = useState<string | null>(null);
+  const [reactivatingGameId, setReactivatingGameId] = useState<string | null>(null);
   const [editingGame, setEditingGame] = useState<EditGameDialogGame | null>(null);
   const [editingQuickGame, setEditingQuickGame] = useState<GameCard | null>(null);
   const [listView, setListView] = useState<GameListViewMode>("list");
@@ -948,6 +1038,8 @@ export function MyGamesView() {
   };
 
   const { data, isLoading } = useGamesList();
+  const { data: authData } = useAuthMe();
+  const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
   const { emailVerified, isLoading: emailVerifiedLoading } = useEmailVerified();
   const [authUiReady, setAuthUiReady] = useState(false);
 
@@ -1032,6 +1124,28 @@ export function MyGamesView() {
     !emailVerified ||
     generateTestGameMutation.isPending;
 
+  const reactivateGameMutation = useMutation({
+    mutationFn: async (gameId: string) => {
+      const response = await fetch("/api/games", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reactivate", gameId }),
+      });
+      const payload = (await response.json()) as { message?: string };
+      if (!response.ok) throw new Error(payload.message ?? "Failed to reactivate open play.");
+      return payload;
+    },
+    onSuccess: (payload) => {
+      toast.success(payload.message ?? "Open play reactivated.");
+      void queryClient.invalidateQueries({ queryKey: ["games"] });
+      setGamesTab("active");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to reactivate open play.");
+    },
+    onSettled: () => setReactivatingGameId(null),
+  });
+
   const deleteGameMutation = useMutation({
     mutationFn: async (gameId: string) => {
       const response = await fetch(`/api/games/${gameId}`, { method: "DELETE" });
@@ -1062,6 +1176,25 @@ export function MyGamesView() {
       return;
     }
     setEditingGame(game);
+  };
+
+  const handleReactivateGame = async (game: GameCard) => {
+    if (!isSuperAdmin || game.isLocalGame || game.status !== "ended") return;
+
+    const result = await Swal.fire({
+      ...deleteAlertOptions,
+      title: "Reactivate open play?",
+      text: `"${game.title}" will move back to Active Games. The operator dashboard can run again with existing queue, court, and match data.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Reactivate",
+      confirmButtonColor: "#22c55e",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+
+    setReactivatingGameId(game.gameId);
+    reactivateGameMutation.mutate(game.gameId);
   };
 
   const handleDeleteGame = async (game: GameCard) => {
@@ -1280,7 +1413,10 @@ export function MyGamesView() {
                     emptyMessage="No past games yet. Ended open play sessions will appear here."
                     onEdit={handleEditGame}
                     onDelete={handleDeleteGame}
+                    onReactivate={isSuperAdmin ? handleReactivateGame : undefined}
                     deletingGameId={deletingGameId}
+                    reactivatingGameId={reactivatingGameId}
+                    isSuperAdmin={isSuperAdmin}
                     userType={userType}
                   />
                 )}

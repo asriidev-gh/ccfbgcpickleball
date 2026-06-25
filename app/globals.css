@@ -1296,6 +1296,36 @@
     @apply inline-flex shrink-0 items-center rounded-full border border-sky-500/35 bg-sky-500/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200 sm:text-[10px];
   }
 
+  /* Undefeated badge on leaderboard — same component as queue, tuned for narrow rows */
+  .leaderboard-standings .leaderboard-undefeated-badge,
+  .leaderboard-table .leaderboard-undefeated-badge {
+    @apply shrink-0;
+  }
+
+  @media (max-width: 640px) {
+    .leaderboard-standings .leaderboard-undefeated-badge,
+    .leaderboard-table .leaderboard-undefeated-badge {
+      @apply px-1.5 py-0;
+    }
+
+    .leaderboard-standings .leaderboard-undefeated-badge .queue-undefeated-badge-text,
+    .leaderboard-table .leaderboard-undefeated-badge .queue-undefeated-badge-text {
+      @apply text-[9px];
+    }
+
+    .leaderboard-podium-card--compact .leaderboard-undefeated-badge {
+      @apply px-1 py-0;
+    }
+
+    .leaderboard-podium-card--compact .leaderboard-undefeated-badge .queue-undefeated-badge-icon {
+      @apply size-2.5;
+    }
+
+    .leaderboard-podium-card--compact .leaderboard-undefeated-badge .queue-undefeated-badge-text {
+      @apply text-[8px] tracking-wide;
+    }
+  }
+
   .player-gender-pill {
     @apply inline-flex shrink-0 items-center rounded-full border px-1.5 py-px text-[9px] font-semibold leading-none sm:text-[10px];
     background-color: color-mix(in oklch, var(--card) 50%, transparent);
@@ -1534,17 +1564,89 @@
   }
 
   .queue-undefeated-badge {
-    @apply inline-flex items-center gap-1 border-amber-400/80 bg-gradient-to-r from-amber-400/25 via-yellow-300/15 to-amber-500/20 px-2 py-0.5 shadow-[0_0_10px_rgba(251,191,36,0.28)];
-    animation: queue-undefeated-glow 2.5s ease-in-out infinite;
+    @apply inline-flex items-center gap-1 px-2 py-0.5;
   }
 
   .queue-undefeated-badge-icon {
-    @apply size-3 shrink-0 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)];
+    @apply size-3 shrink-0;
   }
 
   .queue-undefeated-badge-text {
-    @apply text-[10px] font-bold uppercase tracking-wider text-white;
+    @apply text-[10px] font-bold uppercase tracking-wider;
+  }
+
+  /* Dark themes — original glowing pill (white text, amber border glow) */
+  :is(
+    [data-theme="neon"],
+    [data-theme="emerald"],
+    [data-theme="sunset"],
+    [data-theme="cosmos"],
+    [data-theme="session"],
+    [data-theme="makati"]
+  )
+    .queue-undefeated-badge {
+    @apply border-amber-400/80 bg-gradient-to-r from-amber-400/25 via-yellow-300/15 to-amber-500/20 shadow-[0_0_10px_rgba(251,191,36,0.28)];
+    animation: queue-undefeated-glow 2.5s ease-in-out infinite;
+  }
+
+  :is(
+    [data-theme="neon"],
+    [data-theme="emerald"],
+    [data-theme="sunset"],
+    [data-theme="cosmos"],
+    [data-theme="session"],
+    [data-theme="makati"]
+  )
+    .queue-undefeated-badge-icon {
+    @apply text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)];
+  }
+
+  :is(
+    [data-theme="neon"],
+    [data-theme="emerald"],
+    [data-theme="sunset"],
+    [data-theme="cosmos"],
+    [data-theme="session"],
+    [data-theme="makati"]
+  )
+    .queue-undefeated-badge-text {
+    @apply text-white;
     text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  }
+
+  /* Light themes — higher-contrast badge for pale surfaces */
+  :is(
+    [data-theme="fintech"],
+    [data-theme="material"],
+    [data-theme="cupertino"],
+    [data-theme="smarthome"],
+    [data-theme="travel"]
+  )
+    .queue-undefeated-badge {
+    @apply border-amber-600/55 bg-gradient-to-r from-amber-300/50 via-amber-200/40 to-amber-400/45 shadow-[0_0_10px_rgba(245,158,11,0.22)];
+  }
+
+  :is(
+    [data-theme="fintech"],
+    [data-theme="material"],
+    [data-theme="cupertino"],
+    [data-theme="smarthome"],
+    [data-theme="travel"]
+  )
+    .queue-undefeated-badge-icon {
+    @apply text-amber-900 drop-shadow-none;
+  }
+
+  :is(
+    [data-theme="fintech"],
+    [data-theme="material"],
+    [data-theme="cupertino"],
+    [data-theme="smarthome"],
+    [data-theme="travel"]
+  )
+    .queue-undefeated-badge-text {
+    @apply text-amber-950;
+    text-shadow: none;
   }
 
   @keyframes queue-undefeated-glow {

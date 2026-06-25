@@ -16,6 +16,7 @@ import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 import { QuickGameSession } from "@/models/QuickGameSession";
 import { User } from "@/models/User";
+import type { PipelineStage } from "mongoose";
 import type { OperatorFullPayload } from "@/lib/operator-payload";
 import { quickGamePayloadToListItem } from "@/lib/quick-game-persistence-server";
 
@@ -24,6 +25,162 @@ export { USER_FILTERS } from "@/lib/insights-shared";
 
 // Players created for demo open plays use these QR code prefixes.
 const DEMO_PLAYER_QR_PREFIX = /^P-(test|demo)-/i;
+
+type PlayerGroupRow = {
+  _id: string;
+  id: { toString(): string };
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  mobileNumber?: string;
+  personalQrCode?: string;
+  createdAt?: Date;
+  hasNonDemoDoc: number;
+  playerIds: Array<{ toString(): string }>;
+  docs: Array<{
+    photoUrl?: string | null;
+    photoPublicId?: string | null;
+    personalQrCode?: string;
+  }>;
+};
+
+/** Collapse duplicate Player docs by name + email without loading every document. */
+function buildPlayerGroupPipelineStages(realPlayersOnly: boolean, limit?: number): PipelineStage[] {
+  const stages: PipelineStage[] = [
+    {
+      $addFields: {
+        groupKey: {
+          $concat: [
+            {
+              $toLower: {
+                $trim: {
+                  input: {
+                    $cond: [
+                      {
+                        $eq: [
+                          {
+                            $trim: {
+                              input: {
+                                $concat: [
+                                  { $ifNull: ["$firstName", ""] },
+                                  " ",
+                                  { $ifNull: ["$lastName", ""] },
+                                ],
+                              },
+                            },
+                          },
+                          "",
+                        ],
+                      },
+                      "—",
+                      {
+                        $trim: {
+                          input: {
+                            $concat: [
+                              { $ifNull: ["$firstName", ""] },
+                              " ",
+                              { $ifNull: ["$lastName", ""] },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            "|",
+            { $toLower: { $ifNull: ["$email", "—"] } },
+          ],
+        },
+        isDemoDoc: {
+          $regexMatch: {
+            input: { $ifNull: ["$personalQrCode", ""] },
+            regex: DEMO_PLAYER_QR_PREFIX.source,
+            options: "i",
+          },
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$groupKey",
+        id: { $first: "$_id" },
+        firstName: { $first: "$firstName" },
+        lastName: { $first: "$lastName" },
+        email: { $first: "$email" },
+        mobileNumber: { $first: "$mobileNumber" },
+        personalQrCode: { $first: "$personalQrCode" },
+        createdAt: { $min: "$createdAt" },
+        hasNonDemoDoc: { $max: { $cond: ["$isDemoDoc", 0, 1] } },
+        playerIds: { $addToSet: "$_id" },
+        docs: {
+          $push: {
+            photoUrl: "$photoUrl",
+            photoPublicId: "$photoPublicId",
+            personalQrCode: "$personalQrCode",
+          },
+        },
+      },
+    },
+  ];
+
+  if (realPlayersOnly) {
+    stages.push({ $match: { hasNonDemoDoc: 1 } });
+  }
+
+  stages.push({ $sort: { createdAt: -1 } });
+
+  if (limit !== undefined) {
+    stages.push({ $limit: limit });
+  }
+
+  return stages;
+}
+
+function mapPlayerGroupRow(
+  group: PlayerGroupRow,
+  gamesByPlayer: Map<string, string[]>,
+  demoGameIds: Set<string>,
+  realPlayersOnly: boolean,
+): PlayerListItem {
+  const gameSet = new Set<string>();
+  for (const playerId of group.playerIds) {
+    for (const gameId of gamesByPlayer.get(playerId.toString()) ?? []) {
+      if (realPlayersOnly && demoGameIds.has(gameId)) continue;
+      gameSet.add(gameId);
+    }
+  }
+
+  let photoUrl = group.docs[0]?.photoUrl;
+  let photoPublicId = group.docs[0]?.photoPublicId;
+  let personalQrCode = group.personalQrCode;
+  for (const doc of group.docs) {
+    if (!doc.photoUrl?.trim()) continue;
+    const current = { photoUrl, photoPublicId };
+    if (!photoUrl || (isUploadedPlayerPhoto(doc) && !isUploadedPlayerPhoto(current))) {
+      photoUrl = doc.photoUrl;
+      photoPublicId = doc.photoPublicId;
+      personalQrCode = doc.personalQrCode;
+    }
+  }
+
+  const firstName = group.firstName ?? "";
+  const lastName = group.lastName ?? "";
+  return {
+    id: group.id.toString(),
+    name: formatPlayerTableName(firstName, lastName) || "—",
+    firstName,
+    lastName,
+    email: group.email ?? "—",
+    mobileNumber: group.mobileNumber ?? "—",
+    photoUrl,
+    photoPublicId,
+    personalQrCode,
+    gamesPlayed: gameSet.size,
+    createdAt: group.createdAt ? new Date(group.createdAt).toISOString() : null,
+  };
+}
 
 async function getDemoGameIds(): Promise<Set<string>> {
   const games = await PickleGame.find({ title: { $regex: DEMO_OPEN_PLAY_TITLE } })
@@ -331,8 +488,14 @@ export async function getUserDemoOpenPlays(userId: string): Promise<UserOpenPlay
 
 /** Distinct real players (grouped by name + email), excluding demo-generated records. */
 export async function countRealPlayersRegistered(): Promise<number> {
-  const players = await getPlayersList(10_000, true);
-  return players.length;
+  await connectToDatabase();
+
+  const result = await Player.aggregate<{ total?: number }>([
+    ...buildPlayerGroupPipelineStages(true),
+    { $count: "total" },
+  ]);
+
+  return result[0]?.total ?? 0;
 }
 
 export async function getPlayersList(
@@ -341,126 +504,27 @@ export async function getPlayersList(
 ): Promise<PlayerListItem[]> {
   await connectToDatabase();
 
-  const demoGameIds = realPlayersOnly ? await getDemoGameIds() : new Set<string>();
+  const [demoGameIds, groups] = await Promise.all([
+    realPlayersOnly ? getDemoGameIds() : Promise.resolve(new Set<string>()),
+    Player.aggregate<PlayerGroupRow>(buildPlayerGroupPipelineStages(realPlayersOnly, limit)),
+  ]);
 
-  // Same real person can have multiple Player docs (one per open play). Fetch
-  // all of them, then collapse by name + email so each person is one row.
-  const docs = (await Player.find({})
-    .sort({ createdAt: -1 })
-    .select(
-      "firstName lastName email mobileNumber personalQrCode photoUrl photoPublicId createdAt",
-    )
-    .lean()) as Array<{
-    _id: { toString(): string };
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-    mobileNumber?: string;
-    personalQrCode?: string;
-    photoUrl?: string | null;
-    photoPublicId?: string | null;
-    createdAt?: Date;
-  }>;
-
-  // Player.gamesPlayed is not maintained; derive the distinct open plays each
-  // Player doc joined from their queue entries.
-  const joinedAgg = (await QueueEntry.aggregate([
-    { $group: { _id: "$playerId", games: { $addToSet: "$gameId" } } },
-  ])) as Array<{ _id: { toString(): string }; games: string[] }>;
+  const allPlayerIds = groups.flatMap((group) => group.playerIds);
+  const joinedAgg =
+    allPlayerIds.length === 0
+      ? []
+      : ((await QueueEntry.aggregate([
+          { $match: { playerId: { $in: allPlayerIds } } },
+          { $group: { _id: "$playerId", games: { $addToSet: "$gameId" } } },
+        ])) as Array<{ _id: { toString(): string }; games: string[] }>);
 
   const gamesByPlayer = new Map(
-    joinedAgg.map((row) => [row._id?.toString(), row.games ?? []]),
+    joinedAgg.map((row) => [row._id.toString(), row.games ?? []]),
   );
 
-  type Group = {
-    id: string;
-    name: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    mobileNumber: string;
-    photoUrl?: string | null;
-    photoPublicId?: string | null;
-    personalQrCode?: string;
-    createdAt: Date | null;
-    games: Set<string>;
-    hasNonDemoDoc: boolean;
-  };
-  const groups = new Map<string, Group>();
-
-  for (const doc of docs) {
-    const name = formatPlayerTableName(doc.firstName ?? "", doc.lastName ?? "") || "—";
-    const email = doc.email ?? "—";
-    const key = `${name.toLowerCase()}|${email.toLowerCase()}`;
-    const isDemoPlayer = DEMO_PLAYER_QR_PREFIX.test(doc.personalQrCode ?? "");
-
-    let group = groups.get(key);
-    if (!group) {
-      group = {
-        id: doc._id.toString(),
-        name,
-        firstName: doc.firstName ?? "",
-        lastName: doc.lastName ?? "",
-        email,
-        mobileNumber: doc.mobileNumber ?? "—",
-        photoUrl: doc.photoUrl,
-        photoPublicId: doc.photoPublicId,
-        personalQrCode: doc.personalQrCode,
-        createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
-        games: new Set<string>(),
-        hasNonDemoDoc: false,
-      };
-      groups.set(key, group);
-    }
-
-    if (!isDemoPlayer) group.hasNonDemoDoc = true;
-
-    if (doc.photoUrl?.trim()) {
-      const current = {
-        photoUrl: group.photoUrl,
-        photoPublicId: group.photoPublicId,
-      };
-      if (!group.photoUrl || isUploadedPlayerPhoto(doc) && !isUploadedPlayerPhoto(current)) {
-        group.photoUrl = doc.photoUrl;
-        group.photoPublicId = doc.photoPublicId;
-        group.personalQrCode = doc.personalQrCode;
-      }
-    }
-
-    for (const gameId of gamesByPlayer.get(doc._id.toString()) ?? []) {
-      if (realPlayersOnly && demoGameIds.has(gameId)) continue;
-      group.games.add(gameId);
-    }
-    const created = doc.createdAt ? new Date(doc.createdAt) : null;
-    if (created && (!group.createdAt || created < group.createdAt)) {
-      group.createdAt = created;
-    }
-  }
-
-  const filtered = realPlayersOnly
-    ? [...groups.values()].filter((group) => group.hasNonDemoDoc)
-    : [...groups.values()];
-
-  return filtered
-    .sort((a, b) => {
-      const at = a.createdAt ? a.createdAt.getTime() : 0;
-      const bt = b.createdAt ? b.createdAt.getTime() : 0;
-      return bt - at;
-    })
-    .slice(0, limit)
-    .map((group) => ({
-      id: group.id,
-      name: group.name,
-      firstName: group.firstName,
-      lastName: group.lastName,
-      email: group.email,
-      mobileNumber: group.mobileNumber,
-      photoUrl: group.photoUrl,
-      photoPublicId: group.photoPublicId,
-      personalQrCode: group.personalQrCode,
-      gamesPlayed: group.games.size,
-      createdAt: group.createdAt ? group.createdAt.toISOString() : null,
-    }));
+  return groups.map((group) =>
+    mapPlayerGroupRow(group, gamesByPlayer, demoGameIds, realPlayersOnly),
+  );
 }
 
 export async function getUserInsights(): Promise<UserInsights> {

@@ -1,4 +1,5 @@
 import type { OwnerCourtsViewPayload } from "@/lib/owner-courts-view-payload";
+import { resolveGameFormatSettings } from "@/lib/game-format-settings";
 import { loadQueueCourtsAndCheckedOut } from "@/lib/load-spectate-game";
 import {
   loadFirstTimerIdentityKeysForGame,
@@ -9,7 +10,7 @@ import { PickleGame } from "@/models/PickleGame";
 import "@/models/Player";
 
 const ACTIVE_GAME_FIELDS =
-  "title gameId openPlayType courtCount status openPlayDate openPlayTimeRange";
+  "title gameId openPlayType courtCount status openPlayDate openPlayTimeRange gameMode matchingType";
 
 export async function loadOwnerCourtsView(ownerId: string): Promise<OwnerCourtsViewPayload> {
   const games = await PickleGame.find({ ownerId, status: "active" })
@@ -27,6 +28,8 @@ export async function loadOwnerCourtsView(ownerId: string): Promise<OwnerCourtsV
         loadFirstTimerIdentityKeysForGame(ownerId, game.gameId),
       ]);
 
+      const format = resolveGameFormatSettings(game);
+
       return {
         gameId: game.gameId,
         title: game.title,
@@ -35,6 +38,8 @@ export async function loadOwnerCourtsView(ownerId: string): Promise<OwnerCourtsV
         status: game.status as OwnerCourtsViewPayload["sessions"][number]["status"],
         openPlayDate: game.openPlayDate ? new Date(game.openPlayDate).toISOString() : null,
         openPlayTimeRange: game.openPlayTimeRange ?? null,
+        gameMode: format.gameMode,
+        matchingType: format.matchingType,
         courts: courts as unknown as OwnerCourtsViewPayload["sessions"][number]["courts"],
         queue: serializeQueueEntriesForPayload(
           queue as Parameters<typeof serializeQueueEntriesForPayload>[0],

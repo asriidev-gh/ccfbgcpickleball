@@ -20,9 +20,15 @@ import {
   removeQueueEntriesById,
   resolveDoublesRotationQueue,
 } from "@/lib/doubles/doubles-queue-fill";
-import { shuffleDoublesIntoNewHalves } from "@/lib/doubles/mixed-doubles-shuffle";
+import { shuffleDoublesIntoNewHalves, randomMixedDoublesTeamSplit } from "@/lib/doubles/mixed-doubles-shuffle";
 import { appendMixedDoublesRequeueEntries } from "@/lib/doubles/mixed-doubles-requeue";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
+import { isSinglesGameMode } from "@/lib/singles/singles-constants";
+import {
+  applySinglesEndGameOptimistic,
+  applySinglesEndGameWithHistoryOptimistic,
+  applySinglesFillCourtOptimistic,
+} from "@/lib/singles/singles-payload-mutations";
 
 export type GamePayload = OperatorFullPayload;
 
@@ -205,21 +211,39 @@ export function applyFillNextCourtOptimistic(
   payload: GamePayload,
   courtNumber: number,
 ): GamePayload | null {
-  const queue = resolveDoublesRotationQueue(payload.queue, payload.game.matchingType);
-  const nextFour = queue.slice(0, DOUBLES_PLAYERS_PER_COURT);
-  if (nextFour.length < DOUBLES_PLAYERS_PER_COURT) return null;
+  if (isSinglesGameMode(payload.game.gameMode)) {
+    return applySinglesFillCourtOptimistic(payload, courtNumber);
+  }
+
+  const foursome = pickDoublesCourtFoursome(payload.queue, payload.game.matchingType);
+  if (!foursome || foursome.length < DOUBLES_PLAYERS_PER_COURT) return null;
+
+  let teamAEntries = foursome.slice(0, 2);
+  let teamBEntries = foursome.slice(2, 4);
+  if (isMixedDoublesMatching(payload.game.matchingType)) {
+    const split = randomMixedDoublesTeamSplit(foursome, (entry) => entry.playerId.gender);
+    if (!split) return null;
+    const byId = new Map(foursome.map((entry) => [entry._id, entry]));
+    teamAEntries = split.firstHalf
+      .map((entry) => byId.get(entry._id))
+      .filter((entry): entry is (typeof foursome)[number] => entry != null);
+    teamBEntries = split.secondHalf
+      .map((entry) => byId.get(entry._id))
+      .filter((entry): entry is (typeof foursome)[number] => entry != null);
+    if (teamAEntries.length !== 2 || teamBEntries.length !== 2) return null;
+  }
 
   const emptyCourt = payload.courts.find(
     (court) => court.courtNumber === courtNumber && court.status === "empty",
   );
   if (!emptyCourt) return null;
 
-  const pickedIds = new Set(nextFour.map((entry) => entry._id));
+  const pickedIds = new Set(foursome.map((entry) => entry._id));
   const startedAt = new Date().toISOString();
 
   return {
     ...payload,
-    queue: removeQueueEntriesById(queue, pickedIds),
+    queue: removeQueueEntriesById(payload.queue, pickedIds),
     courts: payload.courts.map((court) =>
       court.courtNumber === emptyCourt.courtNumber
         ? {
@@ -229,8 +253,8 @@ export function applyFillNextCourtOptimistic(
             pausedAt: null,
             totalPausedMs: 0,
             isRematch: false,
-            teamA: { playerIds: nextFour.slice(0, 2).map((entry) => entry.playerId) },
-            teamB: { playerIds: nextFour.slice(2, 4).map((entry) => entry.playerId) },
+            teamA: { playerIds: teamAEntries.map((entry) => entry.playerId) },
+            teamB: { playerIds: teamBEntries.map((entry) => entry.playerId) },
           }
         : court,
     ),
@@ -259,6 +283,10 @@ export function applyEndGameOptimistic(
           : c,
       ),
     };
+  }
+
+  if (isSinglesGameMode(payload.game.gameMode)) {
+    return applySinglesEndGameOptimistic(payload, input);
   }
 
   const teamA = court.teamA?.playerIds ?? [];
@@ -394,6 +422,10 @@ export function applyEndGameWithHistoryOptimistic(
   payload: GamePayload,
   input: EndGameMutationInput,
 ): GamePayload | null {
+  if (isSinglesGameMode(payload.game.gameMode)) {
+    return applySinglesEndGameWithHistoryOptimistic(payload, input);
+  }
+
   const court = payload.courts.find((c) => c.courtNumber === input.courtNumber);
   if (!court || court.status !== "active") return null;
 

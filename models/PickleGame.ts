@@ -15,7 +15,17 @@ const pickleGameSchema = new Schema(
     venueAddress: { type: String, trim: true, default: "" },
     venueGoogleMapEmbedUrl: { type: String, trim: true, maxlength: 2000, default: "" },
     courtCount: { type: Number, required: true, min: 1 },
-    expectedPlayers: { type: Number, required: true, min: 4 },
+    expectedPlayers: { type: Number, required: true, min: 2 },
+    gameMode: {
+      type: String,
+      enum: ["doubles", "singles"],
+      default: "doubles",
+    },
+    matchingType: {
+      type: String,
+      enum: ["auto-balanced", "winner-loser-groups", "mixed-doubles"],
+      default: "auto-balanced",
+    },
     strictPlayerCount: { type: Boolean, required: true, default: false },
     allowQrRegistration: { type: Boolean, required: true, default: true },
     registrationMode: {

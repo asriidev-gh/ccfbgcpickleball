@@ -10,10 +10,12 @@ import {
 } from "@/components/ui/table";
 
 import { FirstTimerPill, type LeaderboardRow } from "@/components/game/leaderboard-standings";
+import { UndefeatedBadge } from "@/components/game/undefeated-badge";
+import { isSessionUndefeated } from "@/lib/games-played-map";
 
 export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
   return (
-    <div className="leaderboard-table-wrap overflow-x-auto rounded-lg border border-border">
+    <div className="leaderboard-table leaderboard-table-wrap overflow-x-auto rounded-lg border border-border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -38,6 +40,9 @@ export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
                       {formatPlayerTableName(row.firstName, row.lastName)}
                     </PlayerNameWithPhoto>
                     {row.isFirstTimer ? <FirstTimerPill /> : null}
+                    {isSessionUndefeated({ wins: row.wins, losses: row.losses }) ? (
+                      <UndefeatedBadge className="leaderboard-undefeated-badge" />
+                    ) : null}
                   </span>
                 </TableCell>
                 <TableCell className="stat-num text-right text-emerald-600 dark:text-emerald-400">

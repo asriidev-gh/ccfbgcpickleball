@@ -1,3 +1,4 @@
+import { isSessionUndefeated } from "@/lib/games-played-map";
 import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import { formatPlayerTableName } from "@/lib/utils";
 
@@ -445,16 +446,23 @@ export function computeSessionInsights(
     });
   }
 
-  // The Undefeated
-  const undefeated = stats.filter((s) => s.gamesPlayed >= 3 && s.losses === 0);
+  // The Undefeated — list every player with a perfect session record (min. 3 wins)
+  const undefeated = stats
+    .filter((s) => isSessionUndefeated({ wins: s.wins, losses: s.losses }))
+    .sort((a, b) => b.wins - a.wins || b.winRate - a.winRate);
   if (undefeated.length > 0) {
-    const u = undefeated.sort((a, b) => b.wins - a.wins)[0];
     insights.push({
       id: "undefeated",
       title: "The Undefeated",
-      description: "Perfect record with at least 3 matches.",
-      players: [insightPlayer(u.playerId)],
-      stat: `${u.wins}-${u.losses}`,
+      description:
+        undefeated.length >= 2
+          ? `${undefeated.length} players with a perfect record (min. 3 matches).`
+          : "Perfect record with at least 3 matches.",
+      players: undefeated.map((u) => insightPlayer(u.playerId)),
+      stat:
+        undefeated.length >= 2
+          ? `${undefeated.length} undefeated`
+          : `${undefeated[0].wins}-${undefeated[0].losses}`,
     });
   }
 

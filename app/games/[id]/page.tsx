@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 
-import { GameDashboard } from "@/components/game/game-dashboard";
+import { LiveGameDashboardRouter } from "@/components/game/live-game-dashboard-router";
 import { QuickPlayDashboardRouter } from "@/components/play/quick-play-dashboard-router";
 import { isQuickGame } from "@/lib/local-game-id";
 
@@ -13,5 +13,5 @@ export default function GameDashboardPage() {
     return <QuickPlayDashboardRouter quickGameSurface="account" />;
   }
 
-  return <GameDashboard mode="operator" />;
+  return <LiveGameDashboardRouter />;
 }

@@ -18,11 +18,14 @@ export type GamesListPayload = {
     status: "draft" | "active" | "ended";
     openPlayDate?: string | null;
     openPlayTimeRange?: string | null;
+    gameMode?: "doubles" | "singles";
+    matchingType?: "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
     updatedAt?: string;
     createdAt?: string;
   }>;
   hasDemoOpenPlay?: boolean;
   canCreateDemoOpenPlay?: boolean;
+  isSuperAdmin?: boolean;
   userType?: string;
 };
 

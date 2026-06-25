@@ -15,6 +15,7 @@ import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
 import { OpenPlayTypePicker } from "@/components/game/open-play-type-picker";
 import {
   QuickPlayFormatStep,
+  QuickPlayGameFormatFields,
   QuickPlayPlayersStep,
   QuickPlayPreviewStep,
   QuickPlayWizardHeader,
@@ -78,7 +79,9 @@ import { useUiStore } from "@/store/ui-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 
-const MIN_PRE_REGISTERED_PLAYERS = 4;
+function liveQueueMinPlayers(form: CreateGameForm) {
+  return getMinExpectedPlayersForGameMode(form.gameMode);
+}
 
 type RegistrationMode = "self" | "owner";
 type Meridiem = OpenPlayMeridiem;
@@ -185,8 +188,8 @@ function getTotalSteps(mode: RegistrationMode | "", isQuickGame: boolean) {
 function getStepKind(step: number, mode: RegistrationMode | "") {
   if (step === 1) return "registrationMode";
   if (mode === "owner") {
-    if (step === 2) return "playerNames";
-    if (step === 3) return "sessionBasics";
+    if (step === 2) return "sessionBasics";
+    if (step === 3) return "playerNames";
     if (step === 4) return "openPlayType";
   }
   if (mode === "self") {
@@ -286,10 +289,24 @@ export function CreateGameWizard() {
     return playersForSubmit;
   }, [form.gameMode, form.matchingType, isQuickGamePreset, playersForSubmit]);
   const mixedDoublesValidationError = useMemo(() => {
+    if (isQuickGamePreset) {
+      if (!isMixedDoublesMatching(form.matchingType) || form.gameMode !== "doubles") return null;
+      if (playersForSubmit.length !== filledPlayers.length) return null;
+      return getMixedDoublesPlayersValidationError(playersForSubmit);
+    }
+    if (!liveQueue || registrationMode !== "owner") return null;
     if (!isMixedDoublesMatching(form.matchingType) || form.gameMode !== "doubles") return null;
     if (playersForSubmit.length !== filledPlayers.length) return null;
     return getMixedDoublesPlayersValidationError(playersForSubmit);
-  }, [form.gameMode, form.matchingType, filledPlayers.length, playersForSubmit]);
+  }, [
+    filledPlayers.length,
+    form.gameMode,
+    form.matchingType,
+    isQuickGamePreset,
+    liveQueue,
+    playersForSubmit,
+    registrationMode,
+  ]);
 
   useEffect(() => {
     if (!createGameWizardOpen) return;
@@ -370,13 +387,15 @@ export function CreateGameWizard() {
     }
     if (stepKind === "registrationMode") return registrationMode !== "";
     if (stepKind === "playerNames") {
+      const minPlayers = liveQueueMinPlayers(form);
       return (
-        filledPlayers.length >= MIN_PRE_REGISTERED_PLAYERS &&
+        filledPlayers.length >= minPlayers &&
         !hasDuplicatePlayerNames &&
         !hasMissingPlayerGender &&
         !hasPlayerNameTooLong &&
         !hasInvalidPlayerName &&
-        filledPlayers.every((player) => player.gender === "male" || player.gender === "female")
+        playersForSubmit.length === filledPlayers.length &&
+        !mixedDoublesValidationError
       );
     }
     return true;
@@ -418,6 +437,7 @@ export function CreateGameWizard() {
       } else if (stepKind === "registrationMode") {
         toast.error("Choose how players will be registered.");
       } else if (stepKind === "playerNames") {
+        const minPlayers = liveQueueMinPlayers(form);
         if (hasPlayerNameTooLong) {
           toast.error(playerDisplayNameTooLongMessage());
         } else if (hasInvalidPlayerName) {
@@ -426,8 +446,10 @@ export function CreateGameWizard() {
           toast.error("Each player name must be unique.");
         } else if (hasMissingPlayerGender) {
           toast.error("Select a gender for each player.");
-        } else if (filledPlayers.length < MIN_PRE_REGISTERED_PLAYERS) {
-          toast.error(`Enter at least ${MIN_PRE_REGISTERED_PLAYERS} players.`);
+        } else if (mixedDoublesValidationError) {
+          toast.error(mixedDoublesValidationError);
+        } else if (filledPlayers.length < minPlayers) {
+          toast.error(`Enter at least ${minPlayers} players for ${form.gameMode} play.`);
         } else {
           toast.error("Enter at least one player name.");
         }
@@ -481,6 +503,20 @@ export function CreateGameWizard() {
         openPlayToHour,
         openPlayToMeridiem as Meridiem,
       );
+
+      if (registrationMode === "owner" && liveQueue) {
+        const minPlayers = liveQueueMinPlayers(form);
+        if (playersForSubmit.length < minPlayers) {
+          toast.error(`Enter at least ${minPlayers} players for ${form.gameMode} play.`);
+          setStep(3);
+          return;
+        }
+        if (mixedDoublesValidationError) {
+          toast.error(mixedDoublesValidationError);
+          setStep(3);
+          return;
+        }
+      }
 
       if (registrationMode === "owner" && !liveQueue) {
         if (playersForSubmit.length < minExpectedPlayers) {
@@ -730,6 +766,25 @@ export function CreateGameWizard() {
                 description="What skill level is this session for?"
               />
               <Separator />
+              <QuickPlayGameFormatFields
+                form={form}
+                onFormChange={(patch) =>
+                  setForm((prev) => {
+                    const next = { ...prev, ...patch };
+                    if (patch.gameMode) {
+                      const minPlayers = getMinExpectedPlayersForGameMode(patch.gameMode);
+                      if (registrationMode === "self" && next.expectedPlayers < minPlayers) {
+                        next.expectedPlayers = minPlayers;
+                      }
+                      if (patch.gameMode === "singles" && next.matchingType === "mixed-doubles") {
+                        next.matchingType = "auto-balanced";
+                      }
+                    }
+                    return next;
+                  })
+                }
+              />
+              <Separator />
               <div className="space-y-3">
                 <Label htmlFor="title" className="text-base">
                   Game title
@@ -765,7 +820,7 @@ export function CreateGameWizard() {
                       </Label>
                       <NumberStepper
                         id="expectedPlayers"
-                        min={4}
+                        min={minExpectedPlayers}
                         max={300}
                         value={form.expectedPlayers}
                         onChange={(expectedPlayers) =>
@@ -977,7 +1032,7 @@ export function CreateGameWizard() {
               <div className="space-y-1">
                 <Label className="text-base">Enter player names</Label>
                 <p className="text-sm text-muted-foreground">
-                  One row per player with name and gender (minimum {MIN_PRE_REGISTERED_PLAYERS}{" "}
+                  One row per player with name and gender (minimum {liveQueueMinPlayers(form)}{" "}
                   players). Each player gets an auto-generated avatar when the session is created.
                   {liveQueue
                     ? allowQrRegistration

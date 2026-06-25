@@ -1438,18 +1438,20 @@ export function InsightsView({ insights }: { insights: UserInsights }) {
           </TabsContent>
 
           <TabsContent value="users">
-            <UserListPanel
-              selection={selection}
-              onSelectFilter={(filter) => setSelection({ type: "filter", filter })}
-            />
+            {tab === "users" ? (
+              <UserListPanel
+                selection={selection}
+                onSelectFilter={(filter) => setSelection({ type: "filter", filter })}
+              />
+            ) : null}
           </TabsContent>
 
           <TabsContent value="players">
-            <PlayersPanel />
+            {tab === "players" ? <PlayersPanel /> : null}
           </TabsContent>
 
           <TabsContent value="system-logs">
-            <SystemLogsPanel />
+            {tab === "system-logs" ? <SystemLogsPanel /> : null}
           </TabsContent>
         </Tabs>
       </section>

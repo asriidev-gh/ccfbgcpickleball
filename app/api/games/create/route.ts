@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
+import { DEFAULT_GAME_MODE, DEFAULT_MATCHING_TYPE, resolveGameMode, resolveMatchingType } from "@/lib/game-format-settings";
 import { createGameSchema } from "@/lib/validations";
 import { runWithDatabase } from "@/lib/db";
 import { createPreRegisteredPlayers } from "@/lib/create-game-players";
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
     const liveQueue =
       payload.registrationMode === "owner" ? payload.liveQueue !== false : true;
 
+    const gameMode = resolveGameMode(payload.gameMode ?? DEFAULT_GAME_MODE);
+    const matchingType = resolveMatchingType(payload.matchingType ?? DEFAULT_MATCHING_TYPE);
+
     const game = await PickleGame.create({
       title: payload.title,
       openPlayDate: new Date(`${payload.openPlayDate}T12:00:00.000Z`),
@@ -63,6 +67,8 @@ export async function POST(request: Request) {
         payload.registrationMode === "owner" ? payload.allowManualPlayerAdd === true : false,
       liveQueue,
       registrationMode: payload.registrationMode === "owner" ? "owner" : "self",
+      gameMode,
+      matchingType,
       gameId,
       ownerId: authUser.userId,
       registerUrl,

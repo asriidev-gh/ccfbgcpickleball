@@ -234,12 +234,12 @@ export async function operatorCheckInPlayerFromDatabase(
     });
   }
 
-  await assertGameRegistrationAllowed(gameId, { email: player.email ?? undefined });
-
   if (queueStatus === "checked_out") {
     const message = await reactivateCheckedOutEntry(gameId, playerId);
     return { message, playerId };
   }
+
+  await assertGameRegistrationAllowed(gameId, { email: player.email ?? undefined });
 
   player.lastAttendedAt = new Date();
   await player.save();

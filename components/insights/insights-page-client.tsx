@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { InsightsPageLoading } from "@/components/insights/insights-page-loading";
 import { InsightsView } from "@/components/insights/insights-view";
 import type { UserInsights } from "@/lib/insights-shared";
+import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
 
 export function InsightsPageClient() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export function InsightsPageClient() {
       return payload.insights as UserInsights;
     },
     retry: false,
+    ...ownerHubQueryOptions,
   });
 
   useEffect(() => {

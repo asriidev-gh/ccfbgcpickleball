@@ -164,46 +164,15 @@ export function QuickPlayFormatOptionButton({
   );
 }
 
-export function QuickPlayFormatStep({
-  idPrefix,
+export function QuickPlayGameFormatFields({
   form,
   onFormChange,
-  onOpenPlayTypeChange,
 }: {
-  idPrefix: string;
-  form: QuickPlayWizardFormFields;
-  onFormChange: (patch: Partial<QuickPlayWizardFormFields>) => void;
-  onOpenPlayTypeChange: (openPlayType: string) => void;
+  form: Pick<QuickPlayWizardFormFields, "gameMode" | "matchingType">;
+  onFormChange: (patch: Partial<Pick<QuickPlayWizardFormFields, "gameMode" | "matchingType">>) => void;
 }) {
-  const minExpectedPlayers = getMinExpectedPlayersForGameMode(form.gameMode);
-
   return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <Label htmlFor={`${idPrefix}-title`} className="text-base">
-          Session name
-        </Label>
-        <Input
-          id={`${idPrefix}-title`}
-          className={cn("h-11 text-base", WIZARD_PRIMARY_FIELD_BORDER)}
-          placeholder={defaultOpenPlayTitle(form.openPlayType)}
-          value={form.title}
-          onChange={(event) => onFormChange({ title: event.target.value })}
-        />
-      </div>
-
-      <div className={cn("rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
-        <OpenPlayTypePicker
-          key={`${idPrefix}-open-play-type`}
-          value={form.openPlayType}
-          onChange={(openPlayType) => {
-            onFormChange({ openPlayType });
-            onOpenPlayTypeChange(openPlayType);
-          }}
-          label="Player level"
-        />
-      </div>
-
+    <>
       <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
         <Label className="text-base">Game mode</Label>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -252,6 +221,60 @@ export function QuickPlayFormatStep({
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+export function QuickPlayFormatStep({
+  idPrefix,
+  form,
+  onFormChange,
+  onOpenPlayTypeChange,
+}: {
+  idPrefix: string;
+  form: QuickPlayWizardFormFields;
+  onFormChange: (patch: Partial<QuickPlayWizardFormFields>) => void;
+  onOpenPlayTypeChange: (openPlayType: string) => void;
+}) {
+  const minExpectedPlayers = getMinExpectedPlayersForGameMode(form.gameMode);
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <Label htmlFor={`${idPrefix}-title`} className="text-base">
+          Session name
+        </Label>
+        <Input
+          id={`${idPrefix}-title`}
+          className={cn("h-11 text-base", WIZARD_PRIMARY_FIELD_BORDER)}
+          placeholder={defaultOpenPlayTitle(form.openPlayType)}
+          value={form.title}
+          onChange={(event) => onFormChange({ title: event.target.value })}
+        />
+      </div>
+
+      <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
+        <OpenPlayTypePicker
+          key={`${idPrefix}-open-play-type`}
+          value={form.openPlayType}
+          onChange={(openPlayType) => {
+            onFormChange({ openPlayType });
+            onOpenPlayTypeChange(openPlayType);
+          }}
+          label="Player level"
+        />
+      </div>
+
+      <QuickPlayGameFormatFields
+        form={form}
+        onFormChange={(patch) => {
+          const next = { ...patch };
+          if (patch.gameMode === "singles" && form.matchingType === "mixed-doubles") {
+            next.matchingType = "auto-balanced";
+          }
+          onFormChange(next);
+        }}
+      />
 
       <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
         <Label htmlFor={`${idPrefix}-courts`} className="text-base">

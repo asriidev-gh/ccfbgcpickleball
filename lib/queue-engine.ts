@@ -12,10 +12,18 @@ import {
   countActiveRotationPlayers,
   shouldUseRotationRequeue,
 } from "@/lib/rotation-requeue";
+import {
+  minPlayersForGameFormat,
+  resolveGameFormatSettings,
+} from "@/lib/game-format-settings";
+import { resolveCourtAssignmentFromQueue, type QueueEntryLike } from "@/lib/queue-court-assignment";
+import { requeuePlayersAfterCourtEnd } from "@/lib/queue-end-requeue";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
+import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
+import "@/models/Player";
 
 const COURT_EMPTY_WAIT_MS = 5_000;
 const COURT_EMPTY_POLL_MS = 250;
@@ -45,6 +53,12 @@ async function findEmptyCourt(gameId: string, courtNumber?: number) {
 }
 
 export async function startGameOnCourt(gameId: string, courtNumber?: number) {
+  const game = await PickleGame.findOne({ gameId }).select("gameMode matchingType");
+  if (!game) throw new Error("Game not found.");
+
+  const format = resolveGameFormatSettings(game);
+  const minPlayers = minPlayersForGameFormat(format.gameMode);
+
   const court = await findEmptyCourt(gameId, courtNumber);
   if (!court) {
     throw new Error(
@@ -54,14 +68,27 @@ export async function startGameOnCourt(gameId: string, courtNumber?: number) {
     );
   }
 
-  const entries = await QueueEntry.find({ gameId, status: "queued" }).sort({ registeredAt: 1 }).limit(4);
-  if (entries.length < 4) {
-    throw new Error("Not enough queued players. At least 4 players are required.");
+  const entries = await QueueEntry.find({ gameId, status: "queued" })
+    .sort({ registeredAt: 1 })
+    .populate("playerId");
+
+  const assignment = resolveCourtAssignmentFromQueue(entries as QueueEntryLike[], format);
+  if (!assignment) {
+    throw new Error(`Not enough queued players. At least ${minPlayers} players are required.`);
   }
 
-  const [p1, p2, p3, p4] = entries;
+  const resolvePlayerObjectId = (entry: QueueEntryLike) => {
+    const player = entry.playerId as Types.ObjectId | { _id: Types.ObjectId };
+    return typeof player === "object" && player != null && "_id" in player
+      ? player._id
+      : (player as Types.ObjectId);
+  };
+
+  const resolveEntryObjectId = (entry: QueueEntryLike) =>
+    entry._id instanceof Types.ObjectId ? entry._id : new Types.ObjectId(String(entry._id));
+
   await QueueEntry.updateMany(
-    { _id: { $in: entries.map((entry) => entry._id) } },
+    { _id: { $in: assignment.picked.map(resolveEntryObjectId) } },
     { $set: { status: "on_court" } },
   );
 
@@ -70,8 +97,14 @@ export async function startGameOnCourt(gameId: string, courtNumber?: number) {
   court.pausedAt = null;
   court.totalPausedMs = 0;
   court.isRematch = false;
-  court.teamA = { playerIds: [p1.playerId, p2.playerId], queueEntryIds: [p1._id, p2._id] };
-  court.teamB = { playerIds: [p3.playerId, p4.playerId], queueEntryIds: [p3._id, p4._id] };
+  court.teamA = {
+    playerIds: assignment.teamA.map(resolvePlayerObjectId),
+    queueEntryIds: assignment.teamA.map(resolveEntryObjectId),
+  };
+  court.teamB = {
+    playerIds: assignment.teamB.map(resolvePlayerObjectId),
+    queueEntryIds: assignment.teamB.map(resolveEntryObjectId),
+  };
   await court.save();
 
   return court;
@@ -666,67 +699,15 @@ export async function endGameAndRequeue(input: {
     };
   }
 
-  const activePlayerCount = await countActiveRotationPlayers(input.gameId);
-  const useRotation = shouldUseRotationRequeue(activePlayerCount);
+  const game = await PickleGame.findOne({ gameId: input.gameId }).select("gameMode matchingType");
+  const format = resolveGameFormatSettings(game ?? undefined);
 
-  if (useRotation) {
-    const applied = await requeueCourtPlayersWithRotation({
-      gameId: input.gameId,
-      court,
-      winnerPlayerIdSet,
-    });
-
-    if (applied) {
-      court.status = "empty";
-      court.teamA = { playerIds: [], queueEntryIds: [] };
-      court.teamB = { playerIds: [], queueEntryIds: [] };
-      court.startedAt = null;
-      Object.assign(court, clearCourtTimerPauseFields());
-      court.isRematch = false;
-      await court.save();
-
-      return {
-        ok: true,
-        rematch: false,
-        requeueMode: "rotation" as const,
-        message: "Game ended — players rotated in the queue.",
-      };
-    }
-  }
-
-  const teamAPlayers = [...court.teamA.playerIds];
-  const teamBPlayers = [...court.teamB.playerIds];
-  const requeueOrder: Types.ObjectId[] = [
-    teamAPlayers[0],
-    teamBPlayers[0],
-    teamAPlayers[1],
-    teamBPlayers[1],
-  ].filter(Boolean) as Types.ObjectId[];
-
-  const winnerPairGroupId = `W-${nanoid(8)}`;
-  const loserPairGroupId = `L-${nanoid(8)}`;
-  const now = new Date();
-
-  await QueueEntry.insertMany(
-    requeueOrder.map((playerId: Types.ObjectId, index: number) => {
-      const isWinner = winnerPlayerIdSet.has(playerId.toString());
-      return {
-        gameId: input.gameId,
-        playerId,
-        status: "queued",
-        queueType: isWinner ? "winner" : "loser",
-        pairGroupId: isWinner ? winnerPairGroupId : loserPairGroupId,
-        registeredAt: new Date(now.getTime() + index),
-        lastMatchResult: isWinner ? "win" : "loss",
-        winStreak: isWinner ? 1 : 0,
-      };
-    }),
-  );
-
-  await QueueEntry.updateMany(
-    { _id: { $in: [...court.teamA.queueEntryIds, ...court.teamB.queueEntryIds] } },
-    { $set: { status: "done" } },
-  );
+  const requeueResult = await requeuePlayersAfterCourtEnd({
+    gameId: input.gameId,
+    court,
+    winnerTeam: input.winnerTeam,
+    format,
+  });
 
   court.status = "empty";
   court.teamA = { playerIds: [], queueEntryIds: [] };
@@ -736,12 +717,7 @@ export async function endGameAndRequeue(input: {
   court.isRematch = false;
   await court.save();
 
-  return {
-    ok: true,
-    rematch: false,
-    requeueMode: "standard" as const,
-    message: "Game ended and players returned to the queue.",
-  };
+  return requeueResult;
 }
 
 async function requeueCourtPlayersWithRotation(input: {

@@ -44,7 +44,7 @@ import {
   parseOwnerSessionInsightFilter,
   type OwnerSessionInsightFilter,
 } from "@/lib/owner-session-insight-filter-shared";
-import type { HomeSessionInsights } from "@/lib/home-session-insights-shared";
+import { fetchGamesSessionInsights, gamesSessionInsightsQueryKey } from "@/lib/fetch-games-session-insights";
 import {
   fetchOwnerRegisteredPlayersPage,
   fetchOwnerSessionFilterOptions,
@@ -363,14 +363,8 @@ export function OwnerRegisteredPlayersView() {
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
 
   const { data: sessionInsightsData } = useQuery({
-    queryKey: ["games-session-insights"],
-    queryFn: async () => {
-      const response = await fetch("/api/games/session-insights");
-      const payload = (await response.json()) as HomeSessionInsights & { message?: string };
-      if (response.status === 401) return null;
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load session insights.");
-      return payload;
-    },
+    queryKey: gamesSessionInsightsQueryKey,
+    queryFn: fetchGamesSessionInsights,
     ...ownerHubQueryOptions,
     retry: 1,
   });

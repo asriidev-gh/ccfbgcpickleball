@@ -128,10 +128,10 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
     },
   });
 
-  const handleCheckIn = async (player: DatabaseCheckInPlayerItem) => {
+  const handleCheckIn = (player: DatabaseCheckInPlayerItem) => {
     if (!player.canCheckIn || checkInMutation.isPending) return;
     setCheckingInPlayerId(player.id);
-    await checkInMutation.mutateAsync(player.id);
+    checkInMutation.mutate(player.id);
   };
 
   const totalPages = playersQuery.data?.totalPages ?? 0;
@@ -231,7 +231,7 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
                       variant={player.canCheckIn ? "default" : "outline"}
                       className={cn("shrink-0", !player.canCheckIn && "pointer-events-none opacity-60")}
                       disabled={!player.canCheckIn || isCheckingIn}
-                      onClick={() => void handleCheckIn(player)}
+                      onClick={() => handleCheckIn(player)}
                     >
                       {isCheckingIn ? (
                         <>

@@ -38,6 +38,9 @@ import {
   pickDoublesCourtFoursome,
 } from "@/lib/doubles/doubles-queue-fill";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
+import { isSinglesGameMode } from "@/lib/singles/singles-constants";
+import { pickSinglesCourtPair } from "@/lib/singles/singles-queue-fill";
+import { SINGLES_MIN_QUEUE_TO_FILL } from "@/lib/singles/singles-constants";
 import { buildSessionPlayerLookup } from "@/lib/session-player-lookup";
 import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
@@ -115,24 +118,37 @@ export function OwnerSessionCourtsSection({
   );
 
   const matchingType = localPayload?.game.matchingType ?? session.matchingType;
+  const gameMode = localPayload?.game.gameMode ?? session.gameMode ?? "doubles";
+  const isSingles = isSinglesGameMode(gameMode);
   const usesWinnerLoserRotation = isDoublesWinnerLoserRotation(matchingType);
   const usesMixedDoubles = isMixedDoublesMatching(matchingType);
 
   const nextCourtFoursome = useMemo(() => {
+    if (isSingles) {
+      const pair = pickSinglesCourtPair(session.queue, matchingType) ?? [];
+      const byId = new Map(queueWithStats.map((entry) => [entry._id, entry]));
+      return pair
+        .map((entry) => byId.get(entry._id))
+        .filter((entry): entry is (typeof queueWithStats)[number] => entry != null);
+    }
     const foursome = pickDoublesCourtFoursome(session.queue, matchingType) ?? [];
     const byId = new Map(queueWithStats.map((entry) => [entry._id, entry]));
     return foursome
       .map((entry) => byId.get(entry._id))
       .filter((entry): entry is (typeof queueWithStats)[number] => entry != null);
-  }, [matchingType, queueWithStats, session.queue]);
+  }, [isSingles, matchingType, queueWithStats, session.queue]);
 
   const waitingLineEntries = useMemo(() => {
+    if (isSingles) {
+      const nextIds = new Set(nextCourtFoursome.map((entry) => entry._id));
+      return queueWithStats.filter((entry) => !nextIds.has(entry._id));
+    }
     if (usesWinnerLoserRotation) {
       const nextIds = new Set(nextCourtFoursome.map((entry) => entry._id));
       return queueWithStats.filter((entry) => !nextIds.has(entry._id));
     }
     return queueWithStats.slice(DOUBLES_PLAYERS_PER_COURT);
-  }, [nextCourtFoursome, queueWithStats, usesWinnerLoserRotation]);
+  }, [isSingles, nextCourtFoursome, queueWithStats, usesWinnerLoserRotation]);
 
   const emptyCourtNumbers = useMemo(
     () =>
@@ -144,10 +160,17 @@ export function OwnerSessionCourtsSection({
   );
 
   const canFillNextCourt =
-    pickDoublesCourtFoursome(session.queue, matchingType) != null &&
+    (isSingles
+      ? pickSinglesCourtPair(session.queue, matchingType) != null
+      : pickDoublesCourtFoursome(session.queue, matchingType) != null) &&
     emptyCourtNumbers.length > 0;
-  const fillCourtTeamA = nextCourtFoursome.slice(0, 2);
-  const fillCourtTeamB = nextCourtFoursome.slice(2, 4);
+  const fillCourtTeamA = isSingles
+    ? nextCourtFoursome.slice(0, 1)
+    : nextCourtFoursome.slice(0, 2);
+  const fillCourtTeamB = isSingles
+    ? nextCourtFoursome.slice(1, 2)
+    : nextCourtFoursome.slice(2, 4);
+  const minQueueToFill = isSingles ? SINGLES_MIN_QUEUE_TO_FILL : DOUBLES_PLAYERS_PER_COURT;
 
   const courtActions = useOperatorCourtActions({
     gameId: session.gameId,
@@ -180,9 +203,11 @@ export function OwnerSessionCourtsSection({
     () => ({
       queuedCount: queueWithStats.length,
       waitingLineCount: waitingLineEntries.length,
-      canFillFromQueue: pickDoublesCourtFoursome(session.queue, matchingType) != null,
+      canFillFromQueue: isSingles
+        ? pickSinglesCourtPair(session.queue, matchingType) != null
+        : pickDoublesCourtFoursome(session.queue, matchingType) != null,
     }),
-    [matchingType, queueWithStats.length, session.queue, waitingLineEntries.length],
+    [isSingles, matchingType, queueWithStats.length, session.queue, waitingLineEntries.length],
   );
 
   const getCourtCardProps = useCallback(
@@ -344,6 +369,7 @@ export function OwnerSessionCourtsSection({
           ref={fillCourtFlowRef}
           hideTrigger
           canFillNextCourt={canFillNextCourt}
+          minQueueToFill={minQueueToFill}
           queuePlayerCount={queueWithStats.length}
           teamA={fillCourtTeamA}
           teamB={fillCourtTeamB}

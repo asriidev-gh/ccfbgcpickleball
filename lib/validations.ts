@@ -82,6 +82,11 @@ import {
   MAX_MATCH_SCORE,
 } from "@/lib/match-score-validation";
 import { validateOpenPlayTimeRangeString } from "@/lib/open-play-time-range";
+import { minPlayersForGameFormat, resolveGameFormatSettings } from "@/lib/game-format-settings";
+import {
+  getMixedDoublesPlayersValidationError,
+  isMixedDoublesMatching,
+} from "@/lib/quick-play-wizard-shared";
 import { PLAYER_OPEN_PLAY_LEVELS, isValidOpenPlayTypeValue } from "@/lib/open-play-types";
 
 const openPlayTypeSchema = z
@@ -144,6 +149,10 @@ export const createGameSchema = z
     allowManualPlayerAdd: z.boolean().optional(),
     defaultCheckInAllPlayers: z.boolean().optional(),
     liveQueue: z.boolean().optional(),
+    gameMode: z.enum(["doubles", "singles"]).optional(),
+    matchingType: z
+      .enum(["auto-balanced", "winner-loser-groups", "mixed-doubles"])
+      .optional(),
   })
   .superRefine((data, ctx) => {
     const timeRangeValidation = validateOpenPlayTimeRangeString(data.openPlayTimeRange);
@@ -155,20 +164,49 @@ export const createGameSchema = z
       });
     }
 
+    const format = resolveGameFormatSettings(data);
+    const minPlayers = minPlayersForGameFormat(format.gameMode);
+
     if (data.registrationMode === "owner") {
-      const count =
-        data.preRegisteredPlayers?.length ?? data.preRegisteredPlayerNames?.length ?? 0;
-      if (count < 4) {
+      const players = data.preRegisteredPlayers ?? [];
+      const count = players.length > 0 ? players.length : (data.preRegisteredPlayerNames?.length ?? 0);
+      if (count < minPlayers) {
         ctx.addIssue({
           code: "custom",
-          message: "Add at least 4 players.",
+          message:
+            format.gameMode === "singles"
+              ? "Add at least 2 players for singles play."
+              : "Add at least 4 players.",
           path: ["preRegisteredPlayers"],
         });
       }
-    } else if (data.expectedPlayers < 4) {
+
+      if (
+        isMixedDoublesMatching(format.matchingType) &&
+        format.gameMode === "doubles" &&
+        players.length > 0
+      ) {
+        const mixedDoublesError = getMixedDoublesPlayersValidationError(
+          players.map((player) => ({
+            displayName: player.displayName,
+            gender: player.gender,
+          })),
+        );
+        if (mixedDoublesError) {
+          ctx.addIssue({
+            code: "custom",
+            message: mixedDoublesError,
+            path: ["preRegisteredPlayers"],
+          });
+        }
+      }
+    } else if (data.expectedPlayers < minPlayers) {
       ctx.addIssue({
         code: "custom",
-        message: "Expected players must be at least 4.",
+        message:
+          format.gameMode === "singles"
+            ? "Expected players must be at least 2 for singles play."
+            : "Expected players must be at least 4.",
         path: ["expectedPlayers"],
       });
     }

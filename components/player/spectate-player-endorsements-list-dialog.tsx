@@ -53,7 +53,7 @@ export function SpectatePlayerEndorsementsListDialog({
         {entry ? (
           <>
             <DialogHeader className="shrink-0 border-b px-5 py-4">
-              <DialogTitle>{endorsedPlayerName}&rsquo;s endorsements</DialogTitle>
+              <DialogTitle>{endorsedPlayerName}'s endorsements</DialogTitle>
               <DialogDescription>
                 {isLoading ? "Loading endorsements…" : countLabel}
               </DialogDescription>

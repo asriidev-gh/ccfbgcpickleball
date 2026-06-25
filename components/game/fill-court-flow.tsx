@@ -23,6 +23,7 @@ type FillCourtFlowProps = {
   onConfirmFill: (courtNumber: number) => void;
   onShuffle: () => Promise<void>;
   mixedDoubles?: boolean;
+  minQueueToFill?: number;
   onReplace: (sourceIndex: number, sourceEntry: QueueEntryView) => void;
   /** When true, only dialogs are rendered (for mounting outside tab panels). */
   hideTrigger?: boolean;
@@ -48,6 +49,7 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
       onConfirmFill,
       onShuffle,
       mixedDoubles = false,
+      minQueueToFill = 4,
       onReplace,
       hideTrigger = false,
     },
@@ -64,8 +66,10 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
 
   const openFillCourtConfirmDialog = useCallback(
     (courtNumber: number) => {
-      if (queuePlayerCount < 4) {
-        toast.error("Not enough players in the queue. At least 4 are required.");
+      if (queuePlayerCount < minQueueToFill) {
+        toast.error(
+          `Not enough players in the queue. At least ${minQueueToFill} are required.`,
+        );
         return;
       }
 
@@ -81,13 +85,15 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
       setFillCourtTarget(courtNumber);
       setFillCourtDialogOpen(true);
     },
-    [courtsClearingInProgress, emptyCourtNumbers, queuePlayerCount],
+    [courtsClearingInProgress, emptyCourtNumbers, minQueueToFill, queuePlayerCount],
   );
 
   const handleFillNextCourtClick = useCallback(() => {
     if (!canFillNextCourt) {
-      if (queuePlayerCount < 4) {
-        toast.error("Not enough players in the queue. At least 4 are required.");
+      if (queuePlayerCount < minQueueToFill) {
+        toast.error(
+          `Not enough players in the queue. At least ${minQueueToFill} are required.`,
+        );
       } else if (courtsClearingInProgress) {
         toast.info("A court is still clearing. Try again in a moment.");
       } else {
@@ -106,6 +112,7 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
     canFillNextCourt,
     courtsClearingInProgress,
     emptyCourtNumbers,
+    minQueueToFill,
     openFillCourtConfirmDialog,
     queuePlayerCount,
   ]);

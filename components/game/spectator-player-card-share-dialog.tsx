@@ -40,6 +40,8 @@ type SpectatorPlayerCardShareDialogProps = {
   leaderboardRankMap?: Map<string, number>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Organizer view: preview only, no share action. */
+  previewOnly?: boolean;
 };
 
 export function SpectatorPlayerCardShareDialog({
@@ -56,9 +58,18 @@ export function SpectatorPlayerCardShareDialog({
   leaderboardRankMap,
   open,
   onOpenChange,
+  previewOnly = false,
 }: SpectatorPlayerCardShareDialogProps) {
   const displayName =
     formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName) || "Player";
+  const sharedAtLabel = entry.cardSharedAt
+    ? new Date(entry.cardSharedAt).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
 
   const [shareContent, setShareContent] = useState<PlayerCardShareContent>("stats");
 
@@ -110,9 +121,21 @@ export function SpectatorPlayerCardShareDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(92vh,44rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <DialogHeader className="shrink-0 border-b px-5 py-4">
-          <DialogTitle>Share player card</DialogTitle>
+          <DialogTitle>
+            {previewOnly ? `${displayName}'s shared card` : "Share player card"}
+          </DialogTitle>
           <DialogDescription>
-            Preview what you&apos;ll share for {displayName}.
+            {previewOnly ? (
+              sharedAtLabel ? (
+                <>
+                  Shared {sharedAtLabel}. Preview of the card spectators can share.
+                </>
+              ) : (
+                "Preview of the card spectators can share."
+              )
+            ) : (
+              <>Preview what you'll share for {displayName}.</>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -148,24 +171,26 @@ export function SpectatorPlayerCardShareDialog({
             endorsementCount={endorsementCount}
             disabled={endorsementsLoading}
           />
-          <Button
-            type="button"
-            className="min-w-0 w-full flex-1 basis-0 whitespace-nowrap"
-            onClick={() => void handleShareNow()}
-            disabled={sharing || !canShare || endorsementsLoading}
-          >
-            {sharing ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
-                Preparing image…
-              </>
-            ) : (
-              <>
-                <Share2 className="mr-2 size-4" aria-hidden />
-                Share now
-              </>
-            )}
-          </Button>
+          {previewOnly ? null : (
+            <Button
+              type="button"
+              className="min-w-0 w-full flex-1 basis-0 whitespace-nowrap"
+              onClick={() => void handleShareNow()}
+              disabled={sharing || !canShare || endorsementsLoading}
+            >
+              {sharing ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                  Preparing image…
+                </>
+              ) : (
+                <>
+                  <Share2 className="mr-2 size-4" aria-hidden />
+                  Share now
+                </>
+              )}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

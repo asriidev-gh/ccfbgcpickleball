@@ -4,6 +4,7 @@ import { getAuthUserFromCookie } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import { getHomeSessionInsights } from "@/lib/home-session-insights";
 
+/** @deprecated Prefer GET /api/games?view=session-insights (nested route may 404 in some dev builds). */
 export async function GET() {
   try {
     return await runWithDatabase(async () => {

@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthMe } from "@/hooks/use-auth-me";
-import { buildHomeSessionInsightsMap, type HomeSessionInsightPoint, type HomeSessionInsights } from "@/lib/home-session-insights-shared";
+import { buildHomeSessionInsightsMap, type HomeSessionInsightPoint } from "@/lib/home-session-insights-shared";
+import { fetchGamesSessionInsights, gamesSessionInsightsQueryKey } from "@/lib/fetch-games-session-insights";
 import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
 import { formatOpenPlayDate } from "@/lib/open-play-time-range";
 import { cn } from "@/lib/utils";
@@ -128,14 +129,8 @@ export function HomeDashboard({
   const { data: authData, isLoading: isAuthLoading } = useAuthMe();
 
   const { data: sessionInsightsData } = useQuery({
-    queryKey: ["games-session-insights"],
-    queryFn: async () => {
-      const response = await fetch("/api/games/session-insights");
-      const payload = (await response.json()) as HomeSessionInsights & { message?: string };
-      if (response.status === 401) return null;
-      if (!response.ok) throw new Error(payload.message ?? "Failed to load session insights.");
-      return payload;
-    },
+    queryKey: gamesSessionInsightsQueryKey,
+    queryFn: fetchGamesSessionInsights,
     retry: 1,
     ...ownerHubQueryOptions,
   });

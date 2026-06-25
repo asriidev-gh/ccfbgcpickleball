@@ -17,7 +17,9 @@ import { GameSessionActionsMenu } from "@/components/game/game-session-actions-m
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
 import { LeaderboardSection } from "@/components/game/leaderboard-section";
 import { MatchHistoryList } from "@/components/game/match-history-list";
+import { PlayerSessionMatchHistoryDialog } from "@/components/game/player-session-match-history-dialog";
 import { OpenPlaySkillLevelPills } from "@/components/game/open-play-skill-level-pills";
+import { GameFormatHeaderBadges } from "@/components/game/game-format-header-badges";
 import { QueueCallNamesButton } from "@/components/game/queue-call-names-button";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
 import {
@@ -37,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuickGameSessionAfterMount } from "@/hooks/use-quick-game-session-after-mount";
+import { useSinglesOperatorSession } from "@/hooks/use-singles-operator-session";
 import {
   canCancelCourtAssignment,
   toCourtTimerClock,
@@ -59,8 +62,10 @@ import {
   attachSessionStatsToQueueEntry,
   buildPlayerSessionStatsMap,
   buildSessionLeaderboardRankMap,
+  isSessionUndefeated,
 } from "@/lib/games-played-map";
 import { addLocalCourt } from "@/lib/local-game-session";
+import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { isEphemeralQuickGame } from "@/lib/local-game-id";
 import { buildLocalLeaderboardRecap } from "@/lib/local-leaderboard-recap";
 import { prefetchLeaderboardRecap } from "@/lib/fetch-leaderboard";
@@ -70,7 +75,7 @@ import {
   seedLocalGameOperatorCache,
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
-import { useQuickGameSession, readQuickGamePayload } from "@/lib/quick-game-store";
+import { readQuickGamePayload } from "@/lib/quick-game-store";
 import { MAX_QUICK_PLAY_COURTS } from "@/lib/quick-play-wizard-shared";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
 import { buildSessionPlayerLookup } from "@/lib/session-player-lookup";
@@ -113,8 +118,12 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   const queryClient = useQueryClient();
   const gameId = String(params.id ?? "");
   const isEphemeralQuickSession = isEphemeralQuickGame(gameId);
-  const { mounted } = useQuickGameSessionAfterMount(gameId);
-  const payload = useQuickGameSession(gameId);
+  const {
+    payload,
+    isLoading: sessionLoading,
+    isQuickGameSession,
+  } = useSinglesOperatorSession(gameId);
+  const { mounted } = useQuickGameSessionAfterMount(isQuickGameSession ? gameId : "");
 
   const [mobileTab, setMobileTab] = useState<MobileTab>("courts");
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
@@ -125,6 +134,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   const [showMatchHistory, setShowMatchHistory] = useState(false);
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
+  const [undefeatedHistoryEntry, setUndefeatedHistoryEntry] = useState<QueueEntryView | null>(null);
 
   useEffect(() => {
     setShowMatchHistory(loadMatchHistoryVisible());
@@ -262,7 +272,19 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   };
 
   const fillMutation = useMutation({
-    mutationFn: async (courtNumber: number) => ({ courtNumber }),
+    mutationFn: async (courtNumber: number) => {
+      if (!isQuickGameSession) {
+        const response = await fetch(`/api/games/${gameId}/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courtNumber }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data;
+      }
+      return { courtNumber };
+    },
     onMutate: async (courtNumber) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
@@ -274,6 +296,11 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
     onSuccess: () => {
       toast.success("Court filled from the queue.");
     },
+    onSettled: () => {
+      if (!isQuickGameSession) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
+    },
     onError: (error, _, context) => {
       if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
       toastOperationError(error, "Failed to fill court.");
@@ -281,7 +308,19 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   });
 
   const endMutation = useMutation({
-    mutationFn: async (input: SinglesEndGameInput) => input,
+    mutationFn: async (input: SinglesEndGameInput) => {
+      if (!isQuickGameSession) {
+        const response = await fetch(`/api/games/${gameId}/end`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data as { message?: string };
+      }
+      return input;
+    },
     onMutate: async (input) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
@@ -291,12 +330,22 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       closeEndDialog();
       return { previous };
     },
-    onSuccess: (input) => {
+    onSuccess: (data, input) => {
+      const apiMessage =
+        data != null && typeof data === "object" && "message" in data
+          ? (data as { message?: string }).message
+          : undefined;
       toast.success(
-        input.rematch
-          ? `Court ${input.courtNumber} rematch started.`
-          : "Game ended and players returned to the queue.",
+        apiMessage ??
+          (input.rematch
+            ? `Court ${input.courtNumber} rematch started.`
+            : "Game ended and players returned to the queue."),
       );
+    },
+    onSettled: () => {
+      if (!isQuickGameSession) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
     },
     onError: (error, _, context) => {
       if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
@@ -305,10 +354,19 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   });
 
   const pauseMutation = useMutation({
-    mutationFn: async ({ courtNumber, paused }: { courtNumber: number; paused: boolean }) => ({
-      courtNumber,
-      paused,
-    }),
+    mutationFn: async ({ courtNumber, paused }: { courtNumber: number; paused: boolean }) => {
+      if (!isQuickGameSession) {
+        const response = await fetch(`/api/games/${gameId}/pause-court`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courtNumber, paused }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data;
+      }
+      return { courtNumber, paused };
+    },
     onMutate: async ({ courtNumber, paused }) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
@@ -321,10 +379,27 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
       toastOperationError(error, "Failed to update court pause.");
     },
+    onSettled: () => {
+      if (!isQuickGameSession) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
+    },
   });
 
   const reorderQueueMutation = useMutation({
-    mutationFn: async (_orderedEntryIds: string[]) => ({ message: "Queue order updated." }),
+    mutationFn: async (orderedEntryIds: string[]) => {
+      if (!isQuickGameSession) {
+        const response = await fetch(`/api/games/${gameId}/reorder-queue`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderedEntryIds }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data as { message?: string };
+      }
+      return { message: "Queue order updated." };
+    },
     onMutate: async (orderedEntryIds) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
@@ -332,6 +407,14 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       if (!optimistic) return { previous };
       writeOperatorGamePayload(queryClient, gameId, optimistic);
       return { previous };
+    },
+    onSuccess: (result) => {
+      toast.success(result.message ?? "Queue order updated.");
+    },
+    onSettled: () => {
+      if (!isQuickGameSession) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
     },
     onError: (error, _, context) => {
       if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
@@ -364,7 +447,19 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   });
 
   const removeMutation = useMutation({
-    mutationFn: async (_input: { queueEntryId: string }) => ({ message: "Player checked out." }),
+    mutationFn: async (input: { queueEntryId: string }) => {
+      if (!isQuickGameSession) {
+        const response = await fetch(`/api/games/${gameId}/remove-from-queue`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ queueEntryId: input.queueEntryId }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data as { message?: string };
+      }
+      return { message: "Player checked out." };
+    },
     onMutate: async (variables) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
@@ -374,7 +469,12 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       return { previous };
     },
     onSuccess: (result) => {
-      toast.success(result.message);
+      toast.success(result.message ?? "Player checked out.");
+    },
+    onSettled: () => {
+      if (!isQuickGameSession) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
     },
     onError: (error, _, context) => {
       if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
@@ -383,7 +483,19 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   });
 
   const removePlayerFromGameMutation = useMutation({
-    mutationFn: async (_input: { playerId: string }) => ({ message: "Player removed from session." }),
+    mutationFn: async (input: { playerId: string }) => {
+      if (!isQuickGameSession) {
+        const response = await fetch(`/api/games/${gameId}/remove-player`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerId: input.playerId }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data as { message?: string };
+      }
+      return { message: "Player removed from session." };
+    },
     onMutate: async (variables) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
@@ -393,7 +505,12 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       return { previous };
     },
     onSuccess: (result) => {
-      toast.success(result.message);
+      toast.success(result.message ?? "Player removed from session.");
+    },
+    onSettled: () => {
+      if (!isQuickGameSession) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
     },
     onError: (error, _, context) => {
       if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
@@ -421,7 +538,19 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   });
 
   const cancelCourtMutation = useMutation({
-    mutationFn: async (courtNumber: number) => courtNumber,
+    mutationFn: async (courtNumber: number) => {
+      if (!isQuickGameSession) {
+        const response = await fetch(`/api/games/${gameId}/cancel-court`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courtNumber }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data;
+      }
+      return courtNumber;
+    },
     onMutate: async (courtNumber) => {
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
@@ -431,6 +560,11 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       return { previous };
     },
     onSuccess: () => toast.success("Court assignment cancelled."),
+    onSettled: () => {
+      if (!isQuickGameSession) {
+        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      }
+    },
     onError: (error, _, context) => {
       if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
       toastOperationError(error, "Failed to cancel court assignment.");
@@ -439,6 +573,12 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
 
   const endOpenPlayMutation = useMutation({
     mutationFn: async () => {
+      if (!isQuickGameSession) {
+        const response = await fetch(`/api/games/${gameId}/end-open-play`, { method: "POST" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data as { message?: string };
+      }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) throw new Error("Session not found.");
       const ended = applyEndOpenPlayOptimistic(previous);
@@ -549,7 +689,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   const leaderboardHref = `/leaderboard/${gameId}`;
   const quickGameExitHref = "/play";
 
-  if (!mounted || !payload || !game) {
+  if (sessionLoading || (isQuickGameSession && !mounted) || !payload || !game) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -571,6 +711,16 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
     (game.registrationMode === "owner" || game.registrationMode == null);
 
   const canAddMoreCourts = courts.length < MAX_QUICK_PLAY_COURTS;
+
+  const openUndefeatedHistory = (entry: QueueEntryView) => {
+    const wins = entry.wins ?? 0;
+    const losses = entry.losses ?? 0;
+    if (!isSessionUndefeated({ wins, losses })) return;
+    setUndefeatedHistoryEntry(entry);
+  };
+
+  const showUndefeatedForEntry = (entry: QueueEntryView) =>
+    isSessionUndefeated({ wins: entry.wins ?? 0, losses: entry.losses ?? 0 });
 
   const renderQueueEntryRow = (
     entry: (typeof queueWithStats)[number],
@@ -614,6 +764,9 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
         }
         showLeaderboardRank
         leaderboardRankMap={leaderboardRankMap}
+        onUndefeatedClick={
+          showUndefeatedForEntry(entry) ? () => openUndefeatedHistory(entry) : undefined
+        }
         dragHandle={
           drag ? (
             <QueueDragHandle
@@ -897,9 +1050,10 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
                   <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
                     Courts: {game.courtCount}
                   </Badge>
-                  <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
-                    Singles · 1v1
-                  </Badge>
+                  <GameFormatHeaderBadges
+                    gameMode={game.gameMode}
+                    matchingType={game.matchingType}
+                  />
                   {isPastGame ? (
                     <Badge variant="destructive" className="game-dashboard-meta-badge w-fit">
                       Status: ended
@@ -1076,6 +1230,24 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
             open={addPlayerOpen}
             onOpenChange={setAddPlayerOpen}
             onPlayerAdded={() => setMobileTab("queue")}
+          />
+        ) : null}
+
+        {undefeatedHistoryEntry && queueEntryPlayerId(undefeatedHistoryEntry) ? (
+          <PlayerSessionMatchHistoryDialog
+            open
+            onOpenChange={(open) => {
+              if (!open) setUndefeatedHistoryEntry(null);
+            }}
+            gameId={gameId}
+            playerId={queueEntryPlayerId(undefeatedHistoryEntry)!}
+            playerName={formatPlayerDisplayName(
+              undefeatedHistoryEntry.playerId.firstName,
+              undefeatedHistoryEntry.playerId.lastName,
+            )}
+            wins={undefeatedHistoryEntry.wins ?? 0}
+            losses={undefeatedHistoryEntry.losses ?? 0}
+            matches={matches}
           />
         ) : null}
       </main>

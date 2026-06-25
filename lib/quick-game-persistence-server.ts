@@ -43,6 +43,8 @@ export function quickGamePayloadToListItem(
     status,
     openPlayDate: payload.game.openPlayDate ?? null,
     openPlayTimeRange: payload.game.openPlayTimeRange ?? null,
+    gameMode: payload.game.gameMode,
+    matchingType: payload.game.matchingType,
     isLocalGame: true,
     isSavedQuickGame: true,
     updatedAt: updatedAt?.toISOString(),
