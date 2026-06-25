@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Clock, Minus, TrendingDown, TrendingUp } from "lucide-react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
@@ -39,14 +40,18 @@ type LeaderboardPodiumShareProps = {
 
 export function FirstTimerPill({ className }: { className?: string }) {
   return (
-    <span
-      className={cn("leaderboard-first-timer-pill", className)}
+    <Badge
+      variant="outline"
+      className={cn(
+        "gap-0.5 whitespace-nowrap border-sky-500/35 bg-sky-500/10 text-sky-800 dark:text-sky-200",
+        className,
+      )}
       title="First session with this club"
       aria-label="1st timer — first session with this club"
     >
       1st
-      <Clock className="leaderboard-first-timer-pill-icon" aria-hidden />
-    </span>
+      <Clock className="size-3 shrink-0" aria-hidden />
+    </Badge>
   );
 }
 
@@ -58,34 +63,69 @@ function LeaderboardPlayerName({
   nameClassName,
   endorsementCounts,
   onEndorsementClick,
+  hideUndefeated = false,
+  pillsOnOwnRowFrom,
 }: {
   row: LeaderboardRow;
   rank: number;
   align?: "start" | "center";
   className?: string;
   nameClassName?: string;
+  hideUndefeated?: boolean;
+  pillsOnOwnRowFrom?: "md" | "lg";
 } & LeaderboardEndorsementProps) {
   const playerId = resolveLeaderboardPlayerId(row);
   const endorsementCount = endorsementCounts?.[playerId] ?? 0;
+  const showUndefeated =
+    !hideUndefeated && isSessionUndefeated({ wins: row.wins, losses: row.losses });
+  const hasPills = row.isFirstTimer || showUndefeated || endorsementCount > 0;
+  const stackMd = pillsOnOwnRowFrom === "md";
+  const stackLg = pillsOnOwnRowFrom === "lg";
 
   return (
     <span
       className={cn(
         "inline-flex max-w-full flex-wrap items-center gap-1",
-        align === "center" ? "justify-center" : "justify-start",
+        stackMd && "md:flex-col md:gap-1",
+        stackLg && "lg:flex-col lg:gap-1",
+        align === "center"
+          ? "justify-center"
+          : cn("justify-start", stackMd && "md:items-start", stackLg && "lg:items-start"),
+        stackMd && align === "center" && "md:items-center",
+        stackLg && align === "center" && "lg:items-center",
         className,
       )}
     >
-      <span className={cn("min-w-0 truncate", nameClassName)}>{displayLabel(row, rank)}</span>
-      {row.isFirstTimer ? <FirstTimerPill /> : null}
-      {isSessionUndefeated({ wins: row.wins, losses: row.losses }) ? (
-        <UndefeatedBadge className="leaderboard-undefeated-badge" />
-      ) : null}
-      {endorsementCount > 0 ? (
-        <PlayerEndorsementStatusBadge
-          count={endorsementCount}
-          onClick={onEndorsementClick ? () => onEndorsementClick(row) : undefined}
-        />
+      <span
+        className={cn(
+          "min-w-0 truncate",
+          stackMd && align === "center" && "md:w-full md:text-center",
+          stackLg && align === "center" && "lg:w-full lg:text-center",
+          stackMd && align === "start" && "md:w-full",
+          stackLg && align === "start" && "lg:w-full",
+          nameClassName,
+        )}
+      >
+        {displayLabel(row, rank)}
+      </span>
+      {hasPills ? (
+        <span
+          className={cn(
+            "inline-flex flex-wrap items-center gap-1",
+            align === "center" ? "justify-center" : "justify-start",
+            stackMd && "md:w-full md:justify-center",
+            stackLg && "lg:w-full lg:justify-center",
+          )}
+        >
+          {row.isFirstTimer ? <FirstTimerPill /> : null}
+          {showUndefeated ? <UndefeatedBadge className="leaderboard-undefeated-badge" /> : null}
+          {endorsementCount > 0 ? (
+            <PlayerEndorsementStatusBadge
+              count={endorsementCount}
+              onClick={onEndorsementClick ? () => onEndorsementClick(row) : undefined}
+            />
+          ) : null}
+        </span>
       ) : null}
     </span>
   );
@@ -183,6 +223,7 @@ function PodiumCard({
       : rank === 2
         ? "leaderboard-podium-card-silver"
         : "leaderboard-podium-card-bronze";
+  const showUndefeated = isSessionUndefeated({ wins: row.wins, losses: row.losses });
 
   return (
     <LeaderboardPodiumFrame
@@ -211,24 +252,34 @@ function PodiumCard({
           size={compact ? "sm" : "lg"}
           className="relative z-[1] mt-1"
         />
-        <PlayerAvatar
-          player={row}
+        <div
           className={cn(
-            "leaderboard-podium-avatar relative z-[1] shrink-0",
-            compact ? "mt-1" : "mt-2",
-            podiumAvatarClass(rank, compact),
+            "relative z-[1] flex flex-col items-center",
+            compact ? "mt-1 gap-1" : "mt-2 gap-2",
           )}
-        />
+        >
+          <PlayerAvatar
+            player={row}
+            className={cn("leaderboard-podium-avatar shrink-0", podiumAvatarClass(rank, compact))}
+          />
+          {showUndefeated ? (
+            <div className="leaderboard-podium-undefeated flex w-full justify-center">
+              <UndefeatedBadge className="leaderboard-undefeated-badge" />
+            </div>
+          ) : null}
+        </div>
         <p
           className={cn(
             "relative z-[1] w-full leading-tight",
-            compact ? "mt-1 px-0.5" : "mt-2 px-1",
+            compact ? "mt-1 px-0.5" : showUndefeated ? "mt-1.5 px-1" : "mt-2 px-1",
           )}
         >
           <LeaderboardPlayerName
             row={row}
             rank={rank}
             align="center"
+            hideUndefeated
+            pillsOnOwnRowFrom={compact ? undefined : "lg"}
             nameClassName={cn("font-semibold", compact ? "text-[11px]" : "body-lg")}
             endorsementCounts={endorsementCounts}
             onEndorsementClick={onEndorsementClick}

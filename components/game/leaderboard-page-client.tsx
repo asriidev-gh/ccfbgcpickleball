@@ -183,7 +183,9 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
   const sharePlayerId = shareTargetRow ? resolveLeaderboardPlayerId(shareTargetRow) : "";
 
   const shareGame = isQuickGameSession ? quickPayload?.game : spectatorLiveQuery.data?.game;
-  const canPodiumShare = isSpectatorView && shareGame?.status === "active";
+  const canPodiumShare =
+    isSpectatorView &&
+    (shareGame?.status === "active" || shareGame?.status === "ended");
   const openPlayScheduleLabel = shareGame
     ? formatOpenPlayScheduleLabel(shareGame.openPlayDate, shareGame.openPlayTimeRange)
     : null;

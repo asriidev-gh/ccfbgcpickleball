@@ -201,6 +201,7 @@ import {
   type OperatorShellPayload,
 } from "@/lib/operator-payload";
 import { prefetchLeaderboardRecap } from "@/lib/fetch-leaderboard";
+import { leaderboardRowToShareEntry } from "@/lib/leaderboard-share";
 import {
   fetchSpectateGame,
   isSpectatorViewUnavailableError,
@@ -2268,6 +2269,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     });
   };
 
+  const openLeaderboardPodiumShare = (row: LeaderboardRow) => {
+    setSpectatorSharePreviewEntry(leaderboardRowToShareEntry(row));
+  };
+
   const openOrganizerSharedPreview = (entry: QueueEntryView) => {
     if (!entry.cardSharedAt) return;
     setOrganizerSharedPreviewEntry(entry);
@@ -3260,6 +3265,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             rows={recap?.rows ?? []}
             endorsementCounts={gameEndorsementCounts}
             onEndorsementClick={openEndorseListForLeaderboardRow}
+            onPodiumShareClick={openLeaderboardPodiumShare}
           />
         ) : isLgViewport === true ? (
           <>

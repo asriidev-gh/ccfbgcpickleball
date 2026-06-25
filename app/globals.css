@@ -1256,6 +1256,10 @@
     z-index: 1;
   }
 
+  .leaderboard-podium-undefeated {
+    @apply px-1 pt-0.5;
+  }
+
   .leaderboard-standing-row-top {
     @apply shadow-sm;
   }
@@ -1292,21 +1296,8 @@
     @apply bg-muted text-muted-foreground;
   }
 
-  .leaderboard-first-timer-pill,
   .player-gender-pill {
-    @apply inline-flex shrink-0 items-center rounded-full border px-1 py-0 text-[8px] font-semibold leading-none tracking-wide sm:px-1.5 sm:text-[9px] lg:px-1 lg:text-[7px];
-  }
-
-  .leaderboard-first-timer-pill {
-    @apply gap-0.5 normal-case border-sky-500/35 bg-sky-500/10 text-sky-800 dark:text-sky-200;
-  }
-
-  .leaderboard-first-timer-pill-icon {
-    @apply size-2.5 shrink-0 sm:size-3 lg:size-2;
-  }
-
-  .player-gender-pill {
-    @apply uppercase;
+    @apply inline-flex shrink-0 items-center rounded-full border px-1 py-0 text-[8px] font-semibold uppercase leading-none tracking-wide sm:px-1.5 sm:text-[9px] lg:px-1 lg:text-[7px];
   }
 
   .player-gender-pill--with-age {
@@ -1315,11 +1306,8 @@
 
   @media (min-width: 1024px) {
     .player-identity .player-gender-pill,
-    .player-identity .leaderboard-first-timer-pill,
     .court-player-main .player-gender-pill,
-    .court-player-main .leaderboard-first-timer-pill,
-    .queue-deck-player .player-gender-pill,
-    .queue-deck-player .leaderboard-first-timer-pill {
+    .queue-deck-player .player-gender-pill {
       @apply px-1 py-0 text-[7px] tracking-normal;
     }
 
@@ -1327,12 +1315,6 @@
     .court-player-main .player-gender-pill--with-age,
     .queue-deck-player .player-gender-pill--with-age {
       @apply text-[6px];
-    }
-
-    .player-identity .leaderboard-first-timer-pill-icon,
-    .court-player-main .leaderboard-first-timer-pill-icon,
-    .queue-deck-player .leaderboard-first-timer-pill-icon {
-      @apply size-2;
     }
   }
 
