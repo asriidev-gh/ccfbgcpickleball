@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Cake, Loader2 } from "lucide-react";
+import { Balloon, Cake, Loader2, PartyPopper, Sparkles } from "lucide-react";
 import { useState } from "react";
 
 import { PlayerAvatar } from "@/components/game/player-avatar";
@@ -9,15 +9,34 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { GameBirthdaysThisMonth } from "@/lib/game-birthdays-this-month-shared";
-import { formatPlayerTableName, cn } from "@/lib/utils";
+import type { GameBirthdayPlayer, GameBirthdaysThisMonth } from "@/lib/game-birthdays-this-month-shared";
+import { cn, formatPlayerTableName } from "@/lib/utils";
 
 export function spectateBirthdaysThisMonthQueryKey(gameId: string) {
   return ["spectate-birthdays-this-month", gameId] as const;
+}
+
+function buildBirthdaysGreeting(players: GameBirthdayPlayer[]) {
+  if (players.length === 0) {
+    return "Players in this session celebrating a birthday this month.";
+  }
+
+  if (players.length === 1) {
+    const name =
+      players[0].firstName?.trim() ||
+      formatPlayerTableName(players[0].firstName, players[0].lastName);
+    return `Happy birthday, ${name}! Wishing you a wonderful day and an amazing year on and off the court.`;
+  }
+
+  return `Happy birthday to our ${players.length} birthday stars this month — let's shower them with cheers and good vibes!`;
+}
+
+function playerBirthdayGreeting(player: GameBirthdayPlayer) {
+  const name = player.firstName?.trim() || "friend";
+  return `Happy birthday, ${name}!`;
 }
 
 export function SpectateBirthdaysThisMonthBadge({
@@ -48,6 +67,7 @@ export function SpectateBirthdaysThisMonthBadge({
   if (count <= 0) return null;
 
   const players = data?.players ?? [];
+  const greeting = buildBirthdaysGreeting(players);
 
   return (
     <>
@@ -61,49 +81,67 @@ export function SpectateBirthdaysThisMonthBadge({
         aria-label={`Birthday this month: ${count}. Show players.`}
       >
         <Badge variant="outline" className="game-dashboard-meta-badge w-fit cursor-pointer hover:bg-muted/60">
-          <Cake className="mr-1 h-3 w-3 shrink-0 text-pink-600 dark:text-pink-300" aria-hidden />
+          <Cake className="birthdays-month-badge-icon mr-1 h-3 w-3 shrink-0 text-pink-600 dark:text-pink-300" aria-hidden />
           Birthday this Month: {count}
         </Badge>
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Birthdays this month</DialogTitle>
-            <DialogDescription>
-              Players in this session celebrating a birthday this month.
-            </DialogDescription>
-          </DialogHeader>
-
-          {isLoading ? (
-            <div className="flex min-h-32 items-center justify-center text-muted-foreground">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
-              Loading…
+        <DialogContent className="birthdays-month-dialog max-h-[85vh] max-w-lg overflow-hidden sm:max-w-xl">
+          <div className="birthdays-month-dialog-hero">
+            <div className="birthdays-month-dialog-icons" aria-hidden>
+              <Balloon className="birthdays-month-balloon birthdays-month-balloon--left" />
+              <Balloon className="birthdays-month-balloon birthdays-month-balloon--right" />
+              <PartyPopper className="birthdays-month-confetti birthdays-month-confetti--popper" />
+              <Sparkles className="birthdays-month-confetti birthdays-month-confetti--sparkles" />
             </div>
-          ) : error ? (
-            <p className="py-6 text-sm text-destructive">
-              {error instanceof Error ? error.message : "Failed to load birthdays."}
-            </p>
-          ) : players.length === 0 ? (
-            <p className="py-6 text-sm text-muted-foreground">No birthdays this month.</p>
-          ) : (
-            <ul className="space-y-2">
-              {players.map((player) => (
-                <li
-                  key={player.playerId}
-                  className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/30 px-3 py-2.5"
-                >
-                  <PlayerAvatar player={player} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">
-                      {formatPlayerTableName(player.firstName, player.lastName)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{player.birthdayLabel}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+
+            <DialogHeader className="relative z-10 gap-2 text-left">
+              <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
+                <Cake className="size-5 shrink-0 text-pink-600 dark:text-pink-300" aria-hidden />
+                Birthdays this month
+              </DialogTitle>
+              <p className="birthdays-month-greeting text-sm leading-relaxed text-foreground/90">
+                {isLoading ? "Loading birthday celebrations…" : greeting}
+              </p>
+            </DialogHeader>
+          </div>
+
+          <div className="birthdays-month-dialog-body">
+            {isLoading ? (
+              <div className="flex min-h-32 items-center justify-center text-muted-foreground">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
+                Loading…
+              </div>
+            ) : error ? (
+              <p className="py-6 text-sm text-destructive">
+                {error instanceof Error ? error.message : "Failed to load birthdays."}
+              </p>
+            ) : players.length === 0 ? (
+              <p className="py-6 text-sm text-muted-foreground">No birthdays this month.</p>
+            ) : (
+              <ul className="space-y-2">
+                {players.map((player) => (
+                  <li key={player.playerId} className="birthdays-month-player-card">
+                    <PlayerAvatar player={player} size="lg" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">
+                        {formatPlayerTableName(player.firstName, player.lastName)}
+                      </p>
+                      <p className="birthdays-month-player-greeting">
+                        {playerBirthdayGreeting(player)}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{player.birthdayLabel}</p>
+                    </div>
+                    <Cake
+                      className="size-4 shrink-0 text-pink-500/80 dark:text-pink-300/90"
+                      aria-hidden
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </>

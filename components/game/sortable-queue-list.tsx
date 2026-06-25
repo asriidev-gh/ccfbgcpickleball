@@ -205,16 +205,26 @@ export function QueueDragHandle({
   attributes,
   listeners,
   label,
-}: QueueDragHandleProps & { label: string }) {
+  slot,
+}: QueueDragHandleProps & { label: string; slot?: number }) {
   return (
     <button
       type="button"
-      className="queue-drag-handle"
-      aria-label={label}
+      className={cn(
+        "queue-drag-handle",
+        slot != null && "queue-drag-handle--with-rank",
+      )}
+      aria-label={
+        slot != null ? `Queue position ${slot}. ${label}` : label
+      }
       {...attributes}
       {...listeners}
     >
-      <GripVertical className="h-4 w-4" aria-hidden />
+      {slot != null ? <span className="queue-rank">{slot}</span> : null}
+      <GripVertical
+        className={cn("queue-drag-handle-grip", slot == null && "h-4 w-4")}
+        aria-hidden
+      />
     </button>
   );
 }

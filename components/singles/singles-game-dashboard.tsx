@@ -771,6 +771,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
           drag ? (
             <QueueDragHandle
               {...drag}
+              slot={displayIndex + 1}
               label={`Reorder ${formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)} in queue`}
             />
           ) : undefined

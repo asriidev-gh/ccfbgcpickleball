@@ -94,7 +94,7 @@ const FillCourtPlayerRow = memo(function FillCourtPlayerRow({
         )}
       >
         <span className="min-w-0 truncate text-sm font-medium">{name}</span>
-        <PlayerGenderPill gender={entry.playerId.gender} />
+        <PlayerGenderPill gender={entry.playerId.gender} birthdate={entry.playerId.birthdate} />
       </span>
       <Button
         type="button"

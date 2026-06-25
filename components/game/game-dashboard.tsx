@@ -2251,6 +2251,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           drag ? (
             <QueueDragHandle
               {...drag}
+              slot={index + 1}
               label={`Reorder ${formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)} in queue`}
             />
           ) : undefined

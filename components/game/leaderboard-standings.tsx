@@ -1,4 +1,4 @@
-import { Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Clock, Minus, TrendingDown, TrendingUp } from "lucide-react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
 import { LeaderboardPodiumFrame } from "@/components/game/leaderboard-podium-frame";
@@ -23,8 +23,13 @@ function displayLabel(row: LeaderboardRow, rank: number) {
 
 export function FirstTimerPill({ className }: { className?: string }) {
   return (
-    <span className={cn("leaderboard-first-timer-pill", className)} title="First session with this club">
-      1st timer
+    <span
+      className={cn("leaderboard-first-timer-pill", className)}
+      title="First session with this club"
+      aria-label="1st timer — first session with this club"
+    >
+      1st
+      <Clock className="leaderboard-first-timer-pill-icon" aria-hidden />
     </span>
   );
 }

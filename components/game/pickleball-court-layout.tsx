@@ -122,7 +122,7 @@ function ServiceBox({
                 {courtName}
               </span>
             </PlayerProfileTrigger>
-            <PlayerGenderPill gender={player.gender} />
+            <PlayerGenderPill gender={player.gender} birthdate={player.birthdate} />
           </span>
           {onReplacePlayer ? (
             <Button

@@ -181,7 +181,7 @@ function QueuePlayerLabel({
   return (
     <span className="inline-flex max-w-full flex-wrap items-center gap-1">
       <span className="min-w-0 truncate">{name}</span>
-      <PlayerGenderPill gender={entry.playerId.gender} />
+      <PlayerGenderPill gender={entry.playerId.gender} birthdate={entry.playerId.birthdate} />
       {entry.isFirstTimer ? <FirstTimerPill /> : null}
     </span>
   );
@@ -340,11 +340,11 @@ export function QueueEntryRow({
       <div className="queue-item-layout flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 xl:gap-3">
           {dragHandle}
-          {checkedOut ? null : (
-          <span className="queue-rank" aria-label={`Queue position ${slot}`}>
-            {slot}
-          </span>
-          )}
+          {!dragHandle && !checkedOut ? (
+            <span className="queue-rank" aria-label={`Queue position ${slot}`}>
+              {slot}
+            </span>
+          ) : null}
           <div className="min-w-0 flex-1">
             <div className={cn("min-w-0", isNextUp ? "text-sm font-medium xl:text-base" : "body-lg")}>
               <PlayerNameWithPhoto

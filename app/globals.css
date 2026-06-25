@@ -1292,8 +1292,283 @@
     @apply bg-muted text-muted-foreground;
   }
 
+  .leaderboard-first-timer-pill,
+  .player-gender-pill {
+    @apply inline-flex shrink-0 items-center rounded-full border px-1 py-0 text-[8px] font-semibold leading-none tracking-wide sm:px-1.5 sm:text-[9px] lg:px-1 lg:text-[7px];
+  }
+
   .leaderboard-first-timer-pill {
-    @apply inline-flex shrink-0 items-center rounded-full border border-sky-500/35 bg-sky-500/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200 sm:text-[10px];
+    @apply gap-0.5 normal-case border-sky-500/35 bg-sky-500/10 text-sky-800 dark:text-sky-200;
+  }
+
+  .leaderboard-first-timer-pill-icon {
+    @apply size-2.5 shrink-0 sm:size-3 lg:size-2;
+  }
+
+  .player-gender-pill {
+    @apply uppercase;
+  }
+
+  .player-gender-pill--with-age {
+    @apply normal-case;
+  }
+
+  @media (min-width: 1024px) {
+    .player-identity .player-gender-pill,
+    .player-identity .leaderboard-first-timer-pill,
+    .court-player-main .player-gender-pill,
+    .court-player-main .leaderboard-first-timer-pill,
+    .queue-deck-player .player-gender-pill,
+    .queue-deck-player .leaderboard-first-timer-pill {
+      @apply px-1 py-0 text-[7px] tracking-normal;
+    }
+
+    .player-identity .player-gender-pill--with-age,
+    .court-player-main .player-gender-pill--with-age,
+    .queue-deck-player .player-gender-pill--with-age {
+      @apply text-[6px];
+    }
+
+    .player-identity .leaderboard-first-timer-pill-icon,
+    .court-player-main .leaderboard-first-timer-pill-icon,
+    .queue-deck-player .leaderboard-first-timer-pill-icon {
+      @apply size-2;
+    }
+  }
+
+  .birthdays-month-badge-icon {
+    animation: birthdays-month-badge-wiggle 2.8s ease-in-out infinite;
+  }
+
+  .birthdays-month-dialog {
+    @apply gap-0 overflow-hidden p-0;
+  }
+
+  .birthdays-month-dialog-hero {
+    @apply relative overflow-hidden border-b border-pink-500/20 bg-gradient-to-br from-pink-500/15 via-rose-400/10 to-amber-300/15 px-5 pb-5 pt-4;
+  }
+
+  .birthdays-month-dialog-icons {
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
+  }
+
+  .birthdays-month-balloon {
+    @apply absolute text-pink-500/75 dark:text-pink-300/85;
+    animation: birthdays-month-balloon-float 4s ease-in-out infinite;
+  }
+
+  .birthdays-month-balloon--left {
+    @apply left-3 top-3 size-8;
+  }
+
+  .birthdays-month-balloon--right {
+    @apply right-10 top-1 size-7;
+    animation-delay: 1.2s;
+  }
+
+  .birthdays-month-confetti {
+    @apply absolute text-amber-500/85 dark:text-amber-300/90;
+    animation: birthdays-month-confetti-burst 2.6s ease-in-out infinite;
+  }
+
+  .birthdays-month-confetti--popper {
+    @apply right-4 top-4 size-7;
+  }
+
+  .birthdays-month-confetti--sparkles {
+    @apply left-[42%] top-2 size-5;
+    animation-delay: 0.65s;
+  }
+
+  .birthdays-month-greeting {
+    @apply max-w-[34ch];
+  }
+
+  .birthdays-month-dialog-body {
+    @apply overflow-y-auto p-4;
+    max-height: min(52vh, 28rem);
+  }
+
+  .birthdays-month-player-card {
+    @apply flex items-center gap-4 rounded-xl border border-pink-500/20 bg-gradient-to-r from-pink-500/8 via-rose-400/5 to-transparent px-3 py-3 shadow-sm;
+  }
+
+  .birthdays-month-player-card .player-avatar {
+    @apply !size-16 sm:!size-[4.5rem];
+  }
+
+  .birthdays-month-player-card [data-slot="avatar-fallback"] {
+    @apply text-base font-semibold;
+  }
+
+  .birthdays-month-player-greeting {
+    @apply text-sm font-medium text-pink-700 dark:text-pink-300;
+  }
+
+  @keyframes birthdays-month-balloon-float {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-5deg);
+    }
+
+    50% {
+      transform: translateY(-7px) rotate(5deg);
+    }
+  }
+
+  @keyframes birthdays-month-confetti-burst {
+    0%,
+    100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 0.8;
+    }
+
+    50% {
+      transform: scale(1.14) rotate(14deg);
+      opacity: 1;
+    }
+  }
+
+  @keyframes birthdays-month-badge-wiggle {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+
+    25% {
+      transform: rotate(-8deg);
+    }
+
+    75% {
+      transform: rotate(8deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .birthdays-month-badge-icon,
+    .birthdays-month-balloon,
+    .birthdays-month-confetti {
+      animation: none;
+    }
+  }
+
+  .first-timers-badge-icon {
+    animation: first-timers-badge-tick 2.4s ease-in-out infinite;
+  }
+
+  .first-timers-dialog {
+    @apply gap-0 overflow-hidden p-0;
+  }
+
+  .first-timers-dialog-hero {
+    @apply relative overflow-hidden border-b border-sky-500/20 bg-gradient-to-br from-sky-500/15 via-cyan-400/10 to-teal-300/15 px-5 pb-5 pt-4;
+  }
+
+  .first-timers-dialog-icons {
+    @apply pointer-events-none absolute inset-0 overflow-hidden;
+  }
+
+  .first-timers-welcome-icon {
+    @apply absolute text-sky-500/75 dark:text-sky-300/85;
+  }
+
+  .first-timers-welcome-icon--heart {
+    @apply left-3 top-3 size-8;
+    animation: first-timers-heart-pulse 3s ease-in-out infinite;
+  }
+
+  .first-timers-welcome-icon--user {
+    @apply right-10 top-1 size-7;
+    animation: first-timers-user-bob 3.6s ease-in-out infinite;
+    animation-delay: 0.8s;
+  }
+
+  .first-timers-welcome-icon--sparkles {
+    @apply right-4 top-4 size-5 text-amber-500/85 dark:text-amber-300/90;
+    animation: first-timers-sparkle-twinkle 2.5s ease-in-out infinite;
+    animation-delay: 0.4s;
+  }
+
+  .first-timers-greeting {
+    @apply max-w-[38ch];
+  }
+
+  .first-timers-dialog-body {
+    @apply overflow-y-auto p-4;
+    max-height: min(52vh, 28rem);
+  }
+
+  .first-timers-player-card {
+    @apply flex items-center gap-4 rounded-xl border border-sky-500/20 bg-gradient-to-r from-sky-500/8 via-cyan-400/5 to-transparent px-3 py-3 shadow-sm;
+  }
+
+  .first-timers-player-card .player-avatar {
+    @apply !size-16 sm:!size-[4.5rem];
+  }
+
+  .first-timers-player-card [data-slot="avatar-fallback"] {
+    @apply text-base font-semibold;
+  }
+
+  .first-timers-player-greeting {
+    @apply text-sm font-medium text-sky-700 dark:text-sky-300;
+  }
+
+  @keyframes first-timers-heart-pulse {
+    0%,
+    100% {
+      transform: scale(1) rotate(-4deg);
+    }
+
+    50% {
+      transform: scale(1.1) rotate(4deg);
+    }
+  }
+
+  @keyframes first-timers-user-bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+
+  @keyframes first-timers-sparkle-twinkle {
+    0%,
+    100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 0.75;
+    }
+
+    50% {
+      transform: scale(1.15) rotate(12deg);
+      opacity: 1;
+    }
+  }
+
+  @keyframes first-timers-badge-tick {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+
+    25% {
+      transform: rotate(-12deg);
+    }
+
+    75% {
+      transform: rotate(12deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .first-timers-badge-icon,
+    .first-timers-welcome-icon {
+      animation: none;
+    }
   }
 
   /* Undefeated badge on leaderboard — same component as queue, tuned for narrow rows */
@@ -1326,18 +1601,12 @@
     }
   }
 
-  .player-gender-pill {
-    @apply inline-flex shrink-0 items-center rounded-full border px-1.5 py-px text-[9px] font-semibold leading-none sm:text-[10px];
-    background-color: color-mix(in oklch, var(--card) 50%, transparent);
-    color: var(--card-foreground);
-  }
-
   .player-gender-pill--male {
-    @apply border-blue-600/80 dark:border-blue-400/90;
+    @apply border-blue-600/35 bg-blue-500/10 text-blue-800 dark:border-blue-400/90 dark:text-blue-200;
   }
 
   .player-gender-pill--female {
-    @apply border-rose-600/80 dark:border-rose-400/90;
+    @apply border-rose-600/35 bg-rose-500/10 text-rose-800 dark:border-rose-400/90 dark:text-rose-200;
   }
 
   .login-page,
@@ -2248,6 +2517,14 @@
     touch-action: none;
   }
 
+  .queue-drag-handle--with-rank {
+    @apply h-auto w-auto gap-0.5 rounded-lg px-0.5 py-0.5;
+  }
+
+  .queue-drag-handle-grip {
+    @apply h-3.5 w-3.5 shrink-0 opacity-70;
+  }
+
   .queue-drag-handle:focus-visible {
     @apply outline-2 outline-offset-2 outline-ring;
   }
@@ -2584,6 +2861,10 @@
 
   .queue-rank {
     @apply hidden;
+  }
+
+  .queue-drag-handle .queue-rank {
+    @apply flex;
   }
 
   [data-theme="material"] .queue-rank {

@@ -63,7 +63,7 @@ function CourtWinnerPlayerRow({
         <span className="min-w-0 text-left text-xs font-medium leading-snug">
           {formatPlayerDisplayName(displayPlayer.firstName, displayPlayer.lastName)}
         </span>
-        <PlayerGenderPill gender={displayPlayer.gender} />
+        <PlayerGenderPill gender={displayPlayer.gender} birthdate={displayPlayer.birthdate} />
       </span>
     </>
   );
@@ -240,7 +240,7 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                       <PlayerAvatar player={player} size="sm" className="!size-9 sm:!size-9" />
                       <span className="inline-flex items-center gap-1.5 font-medium">
                         {formatPlayerDisplayName(player.firstName, player.lastName)}
-                        <PlayerGenderPill gender={player.gender} />
+                        <PlayerGenderPill gender={player.gender} birthdate={player.birthdate} />
                       </span>
                     </li>
                   ))}

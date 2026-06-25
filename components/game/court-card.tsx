@@ -106,7 +106,7 @@ function TeamPlayers({
                       <span className="court-player-name--first">{firstName || courtName}</span>
                       <span className="court-player-name--full">{courtName}</span>
                     </PlayerProfileTrigger>
-                    <PlayerGenderPill gender={player.gender} />
+                    <PlayerGenderPill gender={player.gender} birthdate={player.birthdate} />
                   </span>
                 </div>
                 {onReplacePlayer ? (

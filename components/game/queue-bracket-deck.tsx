@@ -47,7 +47,7 @@ function DeckPlayer({
             <span className="min-w-0 truncate">
               {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
             </span>
-            <PlayerGenderPill gender={entry.playerId.gender} />
+            <PlayerGenderPill gender={entry.playerId.gender} birthdate={entry.playerId.birthdate} />
             {entry.isFirstTimer ? <FirstTimerPill /> : null}
           </span>
         </PlayerNameWithPhoto>

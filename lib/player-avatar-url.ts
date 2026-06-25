@@ -19,6 +19,7 @@ export type PlayerAvatarSeed = {
   personalQrCode?: string;
   _id?: string;
   gender?: string;
+  birthdate?: string | Date | null;
   openPlayLevel?: string;
   pickleballLevel?: string | null;
 };

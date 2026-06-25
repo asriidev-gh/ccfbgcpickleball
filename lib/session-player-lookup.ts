@@ -23,6 +23,7 @@ export function buildSessionPlayerLookup(input: {
       ...existing,
       ...player,
       gender: player.gender ?? existing.gender,
+      birthdate: player.birthdate ?? existing.birthdate,
     });
   };
 
@@ -55,6 +56,7 @@ export function resolveSessionPlayer(
     ...resolved,
     ...player,
     gender: player.gender ?? resolved.gender,
+    birthdate: player.birthdate ?? resolved.birthdate,
   };
 }
 
