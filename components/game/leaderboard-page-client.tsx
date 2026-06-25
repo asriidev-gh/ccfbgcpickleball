@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
+import { LeaderboardPageEyebrow } from "@/components/game/leaderboard-page-eyebrow";
+import { LeaderboardSpectatorSessionHeader } from "@/components/game/leaderboard-spectator-session-header";
 import { SpectatorPlayerCardShareDialog } from "@/components/game/spectator-player-card-share-dialog";
 import type { LeaderboardRow } from "@/components/game/leaderboard-standings";
 import { resolveLeaderboardPlayerId } from "@/components/game/leaderboard-standings";
@@ -39,15 +41,21 @@ import {
   isQuickGame,
 } from "@/lib/local-game-id";
 import { buildLocalLeaderboardRecap } from "@/lib/local-leaderboard-recap";
+import { parseSpectatorLeaderboardReturnGameId } from "@/lib/leaderboard-navigation";
 
 type LeaderboardPageClientProps = {
   gameId: string;
   isSpectatorView: boolean;
+  returnGameId?: string;
 };
 
 const QUICK_GAME_LOOKUP_TIMEOUT_MS = 750;
 
-export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPageClientProps) {
+export function LeaderboardPageClient({
+  gameId,
+  isSpectatorView,
+  returnGameId,
+}: LeaderboardPageClientProps) {
   const queryClient = useQueryClient();
   const [endorseListTargetRow, setEndorseListTargetRow] = useState<LeaderboardRow | null>(null);
   const [shareTargetRow, setShareTargetRow] = useState<LeaderboardRow | null>(null);
@@ -80,19 +88,26 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
     quickPayload?.game.status === "ended" &&
     !isSpectatorView;
 
-  const backHref = isSpectatorView
-    ? `/games/${gameId}/spectate`
-    : isEndedEphemeralPublic
-      ? "/play"
-      : isQuickGameSession || hasDashboardLease
-        ? getQuickGameDashboardPath(gameId)
-        : "/my-games";
+  const spectatorReturnGameId = parseSpectatorLeaderboardReturnGameId(returnGameId);
+  const isGameHistoryLeaderboard = isSpectatorView && Boolean(spectatorReturnGameId);
 
-  const backLabel = isEndedEphemeralPublic
-    ? "Exit"
-    : isSpectatorView || isQuickGameSession || hasDashboardLease
-      ? "Back to Game"
-      : "Back to Dashboard";
+  const backHref = isGameHistoryLeaderboard
+    ? `/games/${spectatorReturnGameId}/spectate`
+    : isSpectatorView
+      ? `/games/${gameId}/spectate`
+      : isEndedEphemeralPublic
+        ? "/play"
+        : isQuickGameSession || hasDashboardLease
+          ? getQuickGameDashboardPath(gameId)
+          : "/my-games";
+
+  const backLabel = isGameHistoryLeaderboard
+    ? "Go back to home"
+    : isEndedEphemeralPublic
+      ? "Exit"
+      : isSpectatorView || isQuickGameSession || hasDashboardLease
+        ? "Back to Game"
+        : "Back to Dashboard";
   const showBackButton =
     (isSpectatorView || leaseCheckState !== "loading") &&
     (!isQuickGameSession || quickSessionMounted);
@@ -182,7 +197,14 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
   );
   const sharePlayerId = shareTargetRow ? resolveLeaderboardPlayerId(shareTargetRow) : "";
 
-  const shareGame = isQuickGameSession ? quickPayload?.game : spectatorLiveQuery.data?.game;
+  const sessionGame = isQuickGameSession ? quickPayload?.game : spectatorLiveQuery.data?.game;
+  const sessionGameLoading =
+    isSpectatorView &&
+    (isQuickGameSession
+      ? quickSessionMounted && !quickPayload && !quickLookupTimedOut
+      : spectatorLiveQuery.isPending && !spectatorLiveQuery.data);
+
+  const shareGame = sessionGame;
   const canPodiumShare =
     isSpectatorView &&
     (shareGame?.status === "active" || shareGame?.status === "ended");
@@ -209,32 +231,51 @@ export function LeaderboardPageClient({ gameId, isSpectatorView }: LeaderboardPa
 
   return (
     <main className="min-h-screen p-6">
-      <section className="mx-auto flex max-w-7xl flex-col gap-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h1 className="page-title">Leaderboard</h1>
-            {isEphemeralQuickGame(gameId) ? (
-              <p className="caption text-muted-foreground">
-                Public quick play — standings live in this browser only.
-              </p>
-            ) : isQuickGameSession ? (
-              <p className="caption text-muted-foreground">
-                Quick game — standings sync to your account when the session ends.
-              </p>
-            ) : null}
-          </div>
-          {showBackButton ? (
-            <Link href={backHref}>
+      <section className="mx-auto flex max-w-7xl flex-col gap-1">
+        <div className="mb-4 flex flex-col gap-3">
+          {isGameHistoryLeaderboard && showBackButton ? (
+            <Link href={backHref} className="self-start">
               <Button variant="outline">
-                {isEndedEphemeralPublic ? (
-                  <LogOut className="mr-2 h-4 w-4" aria-hidden />
-                ) : (
-                  <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-                )}
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
                 {backLabel}
               </Button>
             </Link>
           ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              {isSpectatorView ? (
+                <LeaderboardSpectatorSessionHeader
+                  game={sessionGame}
+                  loading={sessionGameLoading}
+                />
+              ) : (
+                <div className="space-y-2">
+                  <LeaderboardPageEyebrow />
+                  {isEphemeralQuickGame(gameId) ? (
+                    <p className="caption text-muted-foreground">
+                      Public quick play — standings live in this browser only.
+                    </p>
+                  ) : isQuickGameSession ? (
+                    <p className="caption text-muted-foreground">
+                      Quick game — standings sync to your account when the session ends.
+                    </p>
+                  ) : null}
+                </div>
+              )}
+            </div>
+            {!isGameHistoryLeaderboard && showBackButton ? (
+              <Link href={backHref}>
+                <Button variant="outline">
+                  {isEndedEphemeralPublic ? (
+                    <LogOut className="mr-2 h-4 w-4" aria-hidden />
+                  ) : (
+                    <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+                  )}
+                  {backLabel}
+                </Button>
+              </Link>
+            ) : null}
+          </div>
         </div>
         {isEndedEphemeralPublic && quickPayload ? (
           <EphemeralLeaderboardSaveBanner gameId={gameId} payload={quickPayload} />

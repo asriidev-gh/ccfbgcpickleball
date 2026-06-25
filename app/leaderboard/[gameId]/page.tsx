@@ -5,10 +5,16 @@ export default async function LeaderboardPage({
   searchParams,
 }: {
   params: Promise<{ gameId: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; returnGame?: string }>;
 }) {
   const { gameId } = await params;
-  const { from } = await searchParams;
+  const { from, returnGame } = await searchParams;
 
-  return <LeaderboardPageClient gameId={gameId} isSpectatorView={from === "spectator"} />;
+  return (
+    <LeaderboardPageClient
+      gameId={gameId}
+      isSpectatorView={from === "spectator"}
+      returnGameId={returnGame}
+    />
+  );
 }

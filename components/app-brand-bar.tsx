@@ -11,7 +11,10 @@ import { ThemeMenu } from "@/components/theme-menu";
 import { UserHeaderGreeting } from "@/components/user-header-greeting";
 import { UserMenu } from "@/components/user-menu";
 import { useGameClubBranding } from "@/hooks/use-game-club-branding";
-import { getSpectateGameIdFromPath } from "@/lib/player-session";
+import {
+  getSpectatorMenuGameId,
+  getSpectatorViewedGameId,
+} from "@/lib/leaderboard-navigation";
 import { APP_NAME } from "@/lib/app-config";
 import {
   getBrandShellClasses,
@@ -121,10 +124,12 @@ export function AppBrandBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const fromParam = searchParams.get("from");
+  const returnGameParam = searchParams.get("returnGame");
   const clubBranding = useGameClubBranding(pathname, fromParam);
   const { pad, container } = getBrandShellClasses(pathname);
   const showThemeOnly = isPublicAppPath(pathname, fromParam);
-  const spectateGameId = getSpectateGameIdFromPath(pathname);
+  const menuGameId = getSpectatorMenuGameId(pathname, fromParam, returnGameParam);
+  const clubProfileGameId = getSpectatorViewedGameId(pathname, fromParam);
   const [clubProfileOpen, setClubProfileOpen] = useState(false);
 
   if (shouldHideAppBrandBar(pathname)) {
@@ -140,15 +145,15 @@ export function AppBrandBar() {
               pathname={pathname}
               fromParam={fromParam}
               clubBranding={clubBranding}
-              spectateGameId={spectateGameId}
+              spectateGameId={clubProfileGameId}
               onSpectateClubBrandClick={
-                spectateGameId ? () => setClubProfileOpen(true) : undefined
+                clubProfileGameId ? () => setClubProfileOpen(true) : undefined
               }
             />
             <div className="app-brand-actions flex shrink-0 items-center gap-2">
               {showThemeOnly ? (
-                spectateGameId ? (
-                  <PlayerSessionMenu gameId={spectateGameId} fallback={<ThemeMenu />} />
+                menuGameId ? (
+                  <PlayerSessionMenu gameId={menuGameId} fallback={<ThemeMenu />} />
                 ) : (
                   <ThemeMenu />
                 )
@@ -164,9 +169,9 @@ export function AppBrandBar() {
         </div>
       </header>
 
-      {spectateGameId ? (
+      {clubProfileGameId ? (
         <SpectateClubProfileDialog
-          gameId={spectateGameId}
+          gameId={clubProfileGameId}
           open={clubProfileOpen}
           onOpenChange={setClubProfileOpen}
         />

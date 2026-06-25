@@ -9,16 +9,21 @@ import {
   isGameDashboardPath,
   isSpectatorPath,
 } from "@/lib/app-shell";
+import { getLeaderboardGameIdFromPath } from "@/lib/leaderboard-navigation";
 import { isQuickGame } from "@/lib/local-game-id";
 import { fetchOperatorShell, operatorShellQueryKey } from "@/lib/fetch-operator-game";
 import { fetchSpectateGame, spectatorLiveQueryKey } from "@/lib/fetch-spectate-game";
 import type { SpectateLivePayload } from "@/lib/spectate-payload";
 
 export function useGameClubBranding(pathname: string, fromParam: string | null) {
+  const leaderboardGameId = getLeaderboardGameIdFromPath(pathname);
   const gameId =
-    getGameIdFromGamesPath(pathname) ?? getQuickPlayGameIdFromPath(pathname);
-  const isGamePath = isGameDashboardPath(pathname);
+    getGameIdFromGamesPath(pathname) ??
+    getQuickPlayGameIdFromPath(pathname) ??
+    leaderboardGameId;
   const isSpectator = isSpectatorPath(pathname, fromParam);
+  const isGamePath =
+    isGameDashboardPath(pathname) || (isSpectator && Boolean(leaderboardGameId));
   const isQuickGameSession = Boolean(gameId && isQuickGame(gameId));
 
   const operatorQuery = useQuery({

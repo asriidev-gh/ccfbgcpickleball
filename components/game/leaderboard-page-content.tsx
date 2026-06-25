@@ -90,10 +90,10 @@ export function LeaderboardPageContent({
 
       <div
         className={cn(
-          "leaderboard-page-sections gap-6",
+          "leaderboard-page-sections",
           isSplit
-            ? "grid grid-cols-1 items-start xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
-            : "flex flex-col",
+            ? "grid grid-cols-1 items-start gap-1 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
+            : "flex flex-col gap-1",
         )}
       >
         {loading ? (

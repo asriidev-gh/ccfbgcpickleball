@@ -1,12 +1,13 @@
 "use client";
 
-import { CircleUser, HeartHandshake, Megaphone, Store, UserPen, Users } from "lucide-react";
+import { CircleUser, HeartHandshake, History, Megaphone, Store, UserPen, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { SpectateAnnouncementsDialog } from "@/components/player/spectate-announcements-dialog";
 import { SpectateDgroupRequestDialog } from "@/components/player/spectate-dgroup-request-dialog";
+import { SpectatePlayerGameHistoryDialog } from "@/components/player/spectate-player-game-history-dialog";
 import { SpectatePrayerRequestDialog } from "@/components/player/spectate-prayer-request-dialog";
 import { ThemeMenuItems } from "@/components/theme-menu";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ export function PlayerSessionMenu({
   const queryClient = useQueryClient();
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
+  const [gameHistoryOpen, setGameHistoryOpen] = useState(false);
   const [prayerOpen, setPrayerOpen] = useState(false);
   const [prayerHistoryOnly, setPrayerHistoryOnly] = useState(false);
   const [dgroupOpen, setDgroupOpen] = useState(false);
@@ -110,6 +112,10 @@ export function PlayerSessionMenu({
             <UserPen />
             Update profile
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setGameHistoryOpen(true)}>
+            <History />
+            Game History
+          </DropdownMenuItem>
           {showMarketplace ? (
             <DropdownMenuItem onClick={() => router.push(marketplaceHref)}>
               <Store />
@@ -183,6 +189,13 @@ export function PlayerSessionMenu({
           <ThemeMenuItems />
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <SpectatePlayerGameHistoryDialog
+        gameId={gameId}
+        playerId={playerId}
+        open={gameHistoryOpen}
+        onOpenChange={setGameHistoryOpen}
+      />
 
       {showCommunityPosts ? (
         <SpectateAnnouncementsDialog
