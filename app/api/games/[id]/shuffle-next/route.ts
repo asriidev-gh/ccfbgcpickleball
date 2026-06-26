@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { runWithDatabase } from "@/lib/db";
 import { loadOperatorMatchHistory } from "@/lib/load-operator-game";
 import { loadQueueCourtsAndCheckedOut } from "@/lib/load-spectate-game";
+import { resolveDoublesRotationQueue } from "@/lib/doubles/doubles-queue-fill";
 import { buildSmartShuffleQueueOrder } from "@/lib/next-court-match-analysis";
 import { serializeQueueEntriesForPayload } from "@/lib/queue-first-timer";
 import { reorderQueuedPlayers } from "@/lib/queue-engine";
@@ -33,7 +34,12 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       queueState.queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
       new Set(),
     ) as Parameters<typeof buildSmartShuffleQueueOrder>[0];
-    const order = buildSmartShuffleQueueOrder(queue, history?.matches ?? [], { queue });
+    const matchingType = game.matchingType ?? null;
+    const ordered = resolveDoublesRotationQueue(queue, matchingType);
+    const order = buildSmartShuffleQueueOrder(ordered, history?.matches ?? [], {
+      queue: ordered,
+      matchingType,
+    });
     if (!order) {
       return NextResponse.json(
         { message: "Not enough queued players. At least 4 players are required." },

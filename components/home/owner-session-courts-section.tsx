@@ -37,7 +37,10 @@ import {
   DOUBLES_PLAYERS_PER_COURT,
   isDoublesWinnerLoserRotation,
   pickDoublesCourtFoursome,
+  resolveDoublesRotationQueue,
+  segmentDoublesQueueDisplay,
 } from "@/lib/doubles/doubles-queue-fill";
+import { isDoublesMatchupAnalysisMatchingType } from "@/lib/next-court-match-analysis";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import { isSinglesGameMode } from "@/lib/singles/singles-constants";
 import { pickSinglesCourtPair } from "@/lib/singles/singles-queue-fill";
@@ -152,6 +155,19 @@ export function OwnerSessionCourtsSection({
     }
     return queueWithStats.slice(DOUBLES_PLAYERS_PER_COURT);
   }, [isSingles, nextCourtFoursome, queueWithStats, usesWinnerLoserRotation]);
+
+  const matchupAnalysisQueue = useMemo(() => {
+    if (isSingles || !usesWinnerLoserRotation) return queueWithStats;
+    const rotationQueue = resolveDoublesRotationQueue(queueWithStats, matchingType);
+    const nextIds = new Set(nextCourtFoursome.map((entry) => entry._id));
+    const segments = segmentDoublesQueueDisplay(rotationQueue, nextIds);
+    return [
+      ...nextCourtFoursome,
+      ...segments.normalWaiting,
+      ...segments.winners,
+      ...segments.losers,
+    ];
+  }, [isSingles, matchingType, nextCourtFoursome, queueWithStats, usesWinnerLoserRotation]);
 
   const emptyCourtNumbers = useMemo(
     () =>
@@ -349,7 +365,7 @@ export function OwnerSessionCourtsSection({
         showLeaderboardRank
         summaryAddon={
           <SpectatorNextOnQueueButton
-            queue={queueWithStats}
+            queue={matchupAnalysisQueue}
             enableCallNames
             courtNumber={emptyCourtNumbers[0] ?? null}
             hasEmptyCourt={emptyCourtNumbers.length > 0}
@@ -369,7 +385,7 @@ export function OwnerSessionCourtsSection({
             matchingType={matchingType}
             matches={localPayload?.matches ?? []}
             enableMatchupAnalysis={
-              !isSingles && matchingType === "auto-balanced" && !usesWinnerLoserRotation
+              isDoublesMatchupAnalysisMatchingType(matchingType, gameMode)
             }
             onShuffleNext={
               canOperateSession
@@ -382,7 +398,7 @@ export function OwnerSessionCourtsSection({
             onSwapWaiting={
               canOperateSession
                 ? async () => {
-                    const order = buildQueueNextCourtWaitingSwapOrder(queueWithStats);
+                    const order = buildQueueNextCourtWaitingSwapOrder(matchupAnalysisQueue);
                     if (!order) {
                       toast.error("Need at least six players in the queue to swap.");
                       return;

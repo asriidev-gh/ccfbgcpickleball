@@ -116,7 +116,10 @@ import {
 import { formatOpenPlayDate, formatOpenPlayScheduleLabel, formatVenueShareLabel } from "@/lib/open-play-time-range";
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
 import { NextCourtMatchAnalysis } from "@/components/game/next-court-match-analysis";
-import { buildQueueNextCourtWaitingSwapOrder } from "@/lib/next-court-match-analysis";
+import {
+  buildQueueNextCourtWaitingSwapOrder,
+  isDoublesMatchupAnalysisMatchingType,
+} from "@/lib/next-court-match-analysis";
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
 import { LiveQueueOffBadge } from "@/components/home/live-queue-off-badge";
 import {
@@ -776,8 +779,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     operatorQueueQuery.data?.status ?? operatorShellQuery.data?.game.status;
   const nextCourtAnalysisPrefetchEnabled =
     !isSpectator &&
-    operatorShellQuery.data?.game.matchingType === "auto-balanced" &&
-    operatorShellQuery.data?.game.gameMode !== "singles" &&
+    isDoublesMatchupAnalysisMatchingType(
+      operatorShellQuery.data?.game.matchingType,
+      operatorShellQuery.data?.game.gameMode,
+    ) &&
     (operatorQueueQuery.data?.queue.length ?? 0) >= DOUBLES_PLAYERS_PER_COURT;
   const operatorMatchHistoryEnabled =
     !isSpectator &&
@@ -1805,6 +1810,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       ...rotationQueueSegments.losers,
     ];
   }, [nextCourtFoursome, queueWithStats, rotationQueueSegments, usesWinnerLoserRotation]);
+  const matchupAnalysisQueue = useMemo(
+    () => (usesWinnerLoserRotation ? queueDisplayEntries : queueWithStats),
+    [queueDisplayEntries, queueWithStats, usesWinnerLoserRotation],
+  );
   const queueDisplayEntryIds = useMemo(
     () => queueDisplayEntries.map((entry) => entry._id),
     [queueDisplayEntries],
@@ -1822,14 +1831,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   }, [queueWithStats, usesWinnerLoserRotation, nextCourtFoursomeIds]);
 
   const handleFillCourtQueueSwap = useCallback(async () => {
-    const order = buildQueueNextCourtWaitingSwapOrder(queueWithStats);
+    const order = buildQueueNextCourtWaitingSwapOrder(matchupAnalysisQueue);
     if (!order) {
       toast.error("Need at least six players in the queue to swap.");
       return;
     }
     await reorderQueueMutation.mutateAsync(order);
     toast.success("Swapped in the next two players from the waiting line.");
-  }, [queueWithStats, reorderQueueMutation]);
+  }, [matchupAnalysisQueue, reorderQueueMutation]);
 
   const sessionPlayerLookup = useMemo(
     () =>
@@ -2462,9 +2471,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const fillCourtTeamB = (nextCourtFoursome ?? queueWithStats.slice(0, 4)).slice(2, 4);
   const showNextCourtAnalysis =
     !isSpectator &&
-    matchingType === "auto-balanced" &&
-    !usesWinnerLoserRotation &&
-    game.gameMode !== "singles" &&
+    isDoublesMatchupAnalysisMatchingType(matchingType, game.gameMode) &&
     (nextCourtFoursome?.length ?? 0) === DOUBLES_PLAYERS_PER_COURT;
   const nextOnCourtPlayerCount =
     nextCourtFoursome?.length ?? Math.min(DOUBLES_PLAYERS_PER_COURT, queueWithStats.length);
@@ -2610,7 +2617,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                   {showNextCourtAnalysis && nextCourtFoursome ? (
                     <NextCourtMatchAnalysis
                       foursome={nextCourtFoursome}
-                      queue={queueWithStats}
+                      queue={matchupAnalysisQueue}
+                      matchingType={matchingType}
                       matches={matches}
                       matchesLoading={
                         !isQuickGameSession &&

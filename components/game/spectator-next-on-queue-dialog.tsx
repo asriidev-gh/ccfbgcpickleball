@@ -28,7 +28,10 @@ import {
   DOUBLES_PLAYERS_PER_COURT,
   formatDoublesNextOnCourtSubtitle,
   isDoublesWinnerLoserRotation,
+  resolveDoublesRotationQueue,
+  segmentDoublesQueueDisplay,
 } from "@/lib/doubles/doubles-queue-fill";
+import { isDoublesMatchupAnalysisMatchingType } from "@/lib/next-court-match-analysis";
 import {
   fetchOperatorMatchHistory,
   operatorMatchHistoryQueryKey,
@@ -110,9 +113,21 @@ export function SpectatorNextOnQueueButton({
   const showNextCourtAnalysis =
     enableMatchupAnalysis &&
     isDoubles &&
-    matchingType === "auto-balanced" &&
-    !usesWinnerLoserRotation &&
+    isDoublesMatchupAnalysisMatchingType(matchingType, gameMode) &&
     count === DOUBLES_PLAYERS_PER_COURT;
+
+  const analysisQueue = useMemo(() => {
+    if (!usesWinnerLoserRotation) return queue;
+    const ordered = resolveDoublesRotationQueue(queue, matchingType);
+    const nextIds = new Set(nextUp.map((entry) => entry._id));
+    const segments = segmentDoublesQueueDisplay(ordered, nextIds);
+    return [
+      ...nextUp,
+      ...segments.normalWaiting,
+      ...segments.winners,
+      ...segments.losers,
+    ];
+  }, [matchingType, nextUp, queue, usesWinnerLoserRotation]);
 
   const shouldLoadMatchHistory =
     open && showNextCourtAnalysis && Boolean(gameId) && !isQuickGame(gameId ?? "");
@@ -254,7 +269,8 @@ export function SpectatorNextOnQueueButton({
               {showNextCourtAnalysis ? (
                 <NextCourtMatchAnalysis
                   foursome={nextUp}
-                  queue={queue}
+                  queue={analysisQueue}
+                  matchingType={matchingType}
                   matches={matches}
                   matchesLoading={
                     shouldLoadMatchHistory &&

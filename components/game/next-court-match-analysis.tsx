@@ -5,6 +5,7 @@ import {
   ArrowDownUp,
   Check,
   CheckCircle2,
+  ChevronDown,
   CircleHelp,
   Lightbulb,
   Loader2,
@@ -17,17 +18,26 @@ import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { NextCourtMatchupHelpDialog } from "@/components/game/next-court-matchup-help-dialog";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  canSwapWaitingLinePlayers,
   computeNextCourtMatchSuggestions,
   formatLeastBalancedLineupNote,
   getQueueSwapSuggestion,
   nextCourtPlayerSetKey,
   type NextCourtMatchSuggestion,
 } from "@/lib/next-court-match-analysis";
+import type { QuickPlayMatchingType } from "@/lib/quick-play-wizard-shared";
 import { cn } from "@/lib/utils";
 
 type NextCourtMatchAnalysisProps = {
   foursome: QueueEntryView[];
   queue?: QueueEntryView[];
+  matchingType?: QuickPlayMatchingType | null;
   matches?: MatchHistoryView[];
   matchesLoading?: boolean;
   onShuffle?: () => void;
@@ -66,6 +76,7 @@ function nextCourtFoursomeKey(foursome: QueueEntryView[]) {
 export function NextCourtMatchAnalysis({
   foursome,
   queue = [],
+  matchingType = null,
   matches = [],
   matchesLoading = false,
   onShuffle,
@@ -90,26 +101,37 @@ export function NextCourtMatchAnalysis({
   }, [playerSetKey]);
 
   const suggestions = useMemo(
-    () => computeNextCourtMatchSuggestions(foursome, matches, { queue }),
-    [foursome, matches, queue],
+    () => computeNextCourtMatchSuggestions(foursome, matches, { queue, matchingType }),
+    [foursome, matches, queue, matchingType],
   );
 
   const hasActionableWarnings = suggestions.some((item) => item.tone !== "balanced");
   const isBalanced = !hasActionableWarnings;
   const balancedAcknowledged = acknowledgedBalancedKey === foursomeKey;
   const queueSwapSuggestion = getQueueSwapSuggestion(suggestions);
-  const showSwap = Boolean(onSwapWaiting) && queueSwapSuggestion != null;
-  const showShuffle =
-    Boolean(onShuffle) &&
-    !shuffleExhausted &&
-    suggestions.some((item) => item.suggestsShuffle) &&
-    suggestions.every((item) => item.tone !== "balanced");
-  const showFooter = !warningsDismissed && hasActionableWarnings;
-  const showBalancedFooter = isBalanced && !balancedAcknowledged;
+  const waitingLineSwapAvailable = canSwapWaitingLinePlayers(queue);
+  const shuffleOptionalOnly =
+    hasActionableWarnings &&
+    suggestions.filter((item) => item.tone !== "balanced").every((item) => item.tone === "tip");
   const leastBalanceNote =
     shuffleExhausted && hasActionableWarnings
-      ? formatLeastBalancedLineupNote(suggestions)
+      ? formatLeastBalancedLineupNote(suggestions, {
+          canSwapWaiting: waitingLineSwapAvailable,
+        })
       : null;
+  const showSwap =
+    Boolean(onSwapWaiting) &&
+    (queueSwapSuggestion != null ||
+      (waitingLineSwapAvailable &&
+        (Boolean(leastBalanceNote) || (shuffleOptionalOnly && suggestions.some((item) => item.suggestsShuffle)))));
+  const showShuffle =
+    Boolean(onShuffle) &&
+    suggestions.some((item) => item.suggestsShuffle) &&
+    suggestions.every((item) => item.tone !== "balanced") &&
+    (!shuffleExhausted || shuffleOptionalOnly);
+  const showFooter = !warningsDismissed && hasActionableWarnings;
+  const showBalancedFooter = isBalanced && !balancedAcknowledged;
+  const showBothActions = showShuffle && showSwap;
   const showQueueSwapAfterShuffle = shuffleExhausted && queueSwapSuggestion != null;
 
   const handleShuffleClick = async () => {
@@ -218,11 +240,17 @@ export function NextCourtMatchAnalysis({
       {showFooter ? (
         <div className="next-court-analysis__footer">
           <p className="next-court-analysis__footer-hint">
-            {showSwap
-              ? "Swap in waiting players, or accept to keep this lineup."
-              : shuffleExhausted
-                ? "Accept to proceed with this lineup."
-                : "Shuffle finds the best balance once, or accept to keep this lineup."}
+            {showBothActions
+              ? "Shuffle partners, swap in waiting players (5th and 6th), or accept to keep this lineup."
+              : showSwap
+                ? "Swap in waiting players, or accept to keep this lineup."
+                : shuffleExhausted
+                  ? shuffleOptionalOnly
+                    ? "Shuffle is optional, or accept to keep this lineup."
+                    : "Accept to proceed with this lineup."
+                  : shuffleOptionalOnly
+                    ? "Shuffle is optional, or accept to keep this lineup."
+                    : "Shuffle finds the best balance once, or accept to keep this lineup."}
           </p>
           <div className="next-court-analysis__actions">
             <Button
@@ -235,7 +263,47 @@ export function NextCourtMatchAnalysis({
               <Check className="h-3.5 w-3.5" aria-hidden />
               Accept
             </Button>
-            {showSwap ? (
+            {showBothActions ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="next-court-analysis__adjust-btn h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+                      disabled={shufflePending || swapWaitingPending}
+                    />
+                  }
+                >
+                  {shufflePending || swapWaitingPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  ) : (
+                    <Shuffle className="h-3.5 w-3.5" aria-hidden />
+                  )}
+                  Adjust
+                  <ChevronDown className="h-3.5 w-3.5 opacity-70" aria-hidden />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[11rem]">
+                  <DropdownMenuItem
+                    className="gap-2 text-xs"
+                    disabled={shufflePending}
+                    onClick={() => void handleShuffleClick()}
+                  >
+                    <Shuffle className="h-3.5 w-3.5" aria-hidden />
+                    Shuffle partners
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="gap-2 text-xs"
+                    disabled={swapWaitingPending}
+                    onClick={() => void onSwapWaiting?.()}
+                  >
+                    <ArrowDownUp className="h-3.5 w-3.5" aria-hidden />
+                    Swap in (5th & 6th)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : showSwap ? (
               <Button
                 type="button"
                 variant="outline"
@@ -251,8 +319,7 @@ export function NextCourtMatchAnalysis({
                 )}
                 Swap in
               </Button>
-            ) : null}
-            {showShuffle ? (
+            ) : showShuffle ? (
               <Button
                 type="button"
                 variant="outline"

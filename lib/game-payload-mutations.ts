@@ -854,7 +854,10 @@ export function applyCancelRematchOptimistic(
 
 export function applyShuffleNextOptimistic(payload: GamePayload): GamePayload | null {
   const ordered = resolveDoublesRotationQueue(payload.queue, payload.game.matchingType);
-  const smartOrder = buildSmartShuffleQueueOrder(ordered, payload.matches ?? [], { queue: ordered });
+  const smartOrder = buildSmartShuffleQueueOrder(ordered, payload.matches ?? [], {
+    queue: ordered,
+    matchingType: payload.game.matchingType,
+  });
   if (smartOrder) {
     return applyQueueReorderOptimistic(payload, smartOrder);
   }

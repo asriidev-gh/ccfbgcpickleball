@@ -1981,6 +1981,7 @@
   }
 
   .next-court-analysis__shuffle-btn,
+  .next-court-analysis__adjust-btn,
   .next-court-analysis__accept-btn,
   .next-court-analysis__acknowledge-btn {
     @apply w-full sm:w-auto;

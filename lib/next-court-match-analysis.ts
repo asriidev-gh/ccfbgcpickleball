@@ -2,7 +2,9 @@ import type { MatchHistoryView } from "@/components/game/match-history-list";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { resolvePlayerId } from "@/lib/resolve-player-id";
 import { isSessionUndefeated } from "@/lib/games-played-map";
+import { isDoublesWinnerLoserRotation } from "@/lib/doubles/doubles-queue-fill";
 import { normalizeShuffleGender } from "@/lib/doubles/mixed-doubles-shuffle";
+import type { QuickPlayMatchingType } from "@/lib/quick-play-wizard-shared";
 import { formatPlayerDisplayName } from "@/lib/utils";
 
 export type NextCourtMatchSuggestion = {
@@ -116,6 +118,10 @@ function countHeadToHead(matches: AnalysisMatch[], id1: string, id2: string) {
   return matches.filter((match) => wereOpponentsInMatch(match, id1, id2)).length;
 }
 
+function countTeammateMatches(matches: AnalysisMatch[], id1: string, id2: string) {
+  return matches.filter((match) => wereTeammatesInMatch(match, id1, id2)).length;
+}
+
 function countFoursomeMatches(matches: AnalysisMatch[], playerIds: string[]) {
   if (playerIds.length !== 4) return 0;
   return matches.filter((match) => {
@@ -149,6 +155,61 @@ function pushSuggestion(
   suggestion: Omit<NextCourtMatchSuggestion, "priority"> & { priority?: number },
 ) {
   suggestions.push({ priority: suggestion.priority ?? 50, ...suggestion });
+}
+
+export function isDoublesMatchupAnalysisMatchingType(
+  matchingType?: QuickPlayMatchingType | null,
+  gameMode?: "doubles" | "singles",
+) {
+  if (gameMode === "singles") return false;
+  return matchingType === "auto-balanced" || matchingType === "winner-loser-groups";
+}
+
+function pushRepeatPartnerSuggestions(
+  suggestions: NextCourtMatchSuggestion[],
+  team: AnalysisPlayer[],
+  teamKey: "a" | "b",
+  analysisMatches: AnalysisMatch[],
+  isRotation: boolean,
+) {
+  const partnerCount = countTeammateMatches(analysisMatches, team[0]!.id, team[1]!.id);
+  if (partnerCount === 0) return;
+
+  const sharedMatch = findMostRecentSharedMatch(analysisMatches, team[0]!.id, team[1]!.id);
+  const lastMatchTogether =
+    sharedMatch != null && wereTeammatesInMatch(sharedMatch, team[0]!.id, team[1]!.id);
+
+  if (partnerCount >= 2) {
+    pushSuggestion(suggestions, {
+      id: `repeat-partners-count-${teamKey}`,
+      tone: "tip",
+      message: `${teamPairLabel(team)} have partnered ${formatSharedCourtCount(partnerCount)} this session. Shuffling partners is optional.`,
+      suggestsShuffle: true,
+      priority: 78,
+    });
+    return;
+  }
+
+  if (isRotation && lastMatchTogether) {
+    pushSuggestion(suggestions, {
+      id: `repeat-partners-count-${teamKey}`,
+      tone: "tip",
+      message: `${teamPairLabel(team)} partnered in their last match. Shuffling partners is optional.`,
+      suggestsShuffle: true,
+      priority: 76,
+    });
+    return;
+  }
+
+  if (lastMatchTogether) {
+    pushSuggestion(suggestions, {
+      id: `repeat-partners-${teamKey}`,
+      tone: "caution",
+      message: `${teamPairLabel(team)} played together in their last shared match. Consider shuffling for fresh partners.`,
+      suggestsShuffle: true,
+      priority: 90,
+    });
+  }
 }
 
 function stringifyQueueEntryId(id: string | { toString(): string } | null | undefined) {
@@ -290,7 +351,7 @@ function collectBalancedLineupReasons(input: {
 export function computeNextCourtMatchSuggestions(
   foursome: QueueEntryView[],
   matches: MatchHistoryView[] = [],
-  options?: { queue?: QueueEntryView[] },
+  options?: { queue?: QueueEntryView[]; matchingType?: QuickPlayMatchingType | null },
 ): NextCourtMatchSuggestion[] {
   const players = foursome.map(toAnalysisPlayer).filter((player): player is AnalysisPlayer => player != null);
   if (players.length !== 4) return [];
@@ -299,28 +360,26 @@ export function computeNextCourtMatchSuggestions(
   const teamB = players.slice(2, 4);
   const analysisMatches = toAnalysisMatches(matches);
   const suggestions: NextCourtMatchSuggestion[] = [];
+  const isRotation = isDoublesWinnerLoserRotation(options?.matchingType);
 
-  const sharedMatchA = findMostRecentSharedMatch(analysisMatches, teamA[0]!.id, teamA[1]!.id);
-  if (sharedMatchA && wereTeammatesInMatch(sharedMatchA, teamA[0]!.id, teamA[1]!.id)) {
-    pushSuggestion(suggestions, {
-      id: "repeat-partners-a",
-      tone: "caution",
-      message: `${teamPairLabel(teamA)} played together in their last shared match. Consider shuffling for fresh partners.`,
-      suggestsShuffle: true,
-      priority: 90,
-    });
+  if (isRotation) {
+    const queueLineTypes = new Set(
+      foursome.map((entry) => entry.queueType ?? "normal"),
+    );
+    if (queueLineTypes.size > 1) {
+      pushSuggestion(suggestions, {
+        id: "rotation-line-mix",
+        tone: "tip",
+        message:
+          "This on-deck foursome combines players from different queue lines (often after checkouts). Confirm slots 1–2 vs 3–4 look right.",
+        suggestsShuffle: true,
+        priority: 82,
+      });
+    }
   }
 
-  const sharedMatchB = findMostRecentSharedMatch(analysisMatches, teamB[0]!.id, teamB[1]!.id);
-  if (sharedMatchB && wereTeammatesInMatch(sharedMatchB, teamB[0]!.id, teamB[1]!.id)) {
-    pushSuggestion(suggestions, {
-      id: "repeat-partners-b",
-      tone: "caution",
-      message: `${teamPairLabel(teamB)} played together in their last shared match. Consider shuffling for fresh partners.`,
-      suggestsShuffle: true,
-      priority: 90,
-    });
-  }
+  pushRepeatPartnerSuggestions(suggestions, teamA, "a", analysisMatches, isRotation);
+  pushRepeatPartnerSuggestions(suggestions, teamB, "b", analysisMatches, isRotation);
 
   const maleCount = players.filter((player) => player.gender === "male").length;
   const femaleCount = players.filter((player) => player.gender === "female").length;
@@ -440,7 +499,7 @@ export function computeNextCourtMatchSuggestions(
     }
   }
 
-  if (foursomeTogetherCount >= 2) {
+  if (!isRotation && foursomeTogetherCount >= 2) {
     const waitingFifth = options?.queue?.[4];
     const waitingSixth = options?.queue?.[5];
     const fifthPlayer = waitingFifth ? toAnalysisPlayer(waitingFifth) : null;
@@ -548,10 +607,14 @@ export function getQueueSwapSuggestion(suggestions: NextCourtMatchSuggestion[]) 
   return suggestions.find((item) => item.suggestsQueueSwap) ?? null;
 }
 
+export function canSwapWaitingLinePlayers(queue: QueueEntryView[]) {
+  return queue.length >= 6;
+}
+
 export function scoreNextCourtMatchup(
   foursome: QueueEntryView[],
   matches: MatchHistoryView[] = [],
-  options?: { queue?: QueueEntryView[] },
+  options?: { queue?: QueueEntryView[]; matchingType?: QuickPlayMatchingType | null },
 ) {
   const suggestions = computeNextCourtMatchSuggestions(foursome, matches, options);
   const warnings = shuffleRelevantWarnings(suggestions);
@@ -591,6 +654,20 @@ function teamSplitKey(foursome: QueueEntryView[]) {
   return [teamA, teamB].sort().join("|");
 }
 
+function foursomeSlotOrderKey(foursome: QueueEntryView[]) {
+  return foursome.map((entry) => stringifyQueueEntryId(entry._id)).join("|");
+}
+
+function isBetterMatchupScore(
+  candidate: { warningCount: number; totalPriority: number },
+  best: { warningCount: number; totalPriority: number },
+) {
+  if (candidate.warningCount !== best.warningCount) {
+    return candidate.warningCount < best.warningCount;
+  }
+  return candidate.totalPriority < best.totalPriority;
+}
+
 function isBetterArrangementScore(
   candidate: { warningCount: number; totalPriority: number; changedSplit: boolean },
   best: { warningCount: number; totalPriority: number; changedSplit: boolean },
@@ -611,7 +688,7 @@ function isBetterArrangementScore(
 export function pickBestNextCourtFoursomeOrder(
   foursome: QueueEntryView[],
   matches: MatchHistoryView[] = [],
-  options?: { queue?: QueueEntryView[] },
+  options?: { queue?: QueueEntryView[]; matchingType?: QuickPlayMatchingType | null },
 ): QueueEntryView[] {
   if (foursome.length !== 4) return foursome;
 
@@ -639,26 +716,110 @@ export function pickBestNextCourtFoursomeOrder(
   return bestOrder;
 }
 
+/** Best slot order among permutations that pair different teammates than the current lineup. */
+export function pickAlternatePartnerFoursomeOrder(
+  foursome: QueueEntryView[],
+  matches: MatchHistoryView[] = [],
+  options?: { queue?: QueueEntryView[]; matchingType?: QuickPlayMatchingType | null },
+): QueueEntryView[] | null {
+  if (foursome.length !== 4) return null;
+
+  const currentSplit = teamSplitKey(foursome);
+  const currentSlotKey = foursomeSlotOrderKey(foursome);
+  let bestOrder: QueueEntryView[] | null = null;
+  let bestScore = {
+    warningCount: Number.POSITIVE_INFINITY,
+    totalPriority: Number.POSITIVE_INFINITY,
+  };
+  let bestSlotKey: string | null = null;
+
+  for (const perm of permutations(foursome)) {
+    if (teamSplitKey(perm) === currentSplit) continue;
+
+    const scored = scoreNextCourtMatchup(perm, matches, options);
+    const candidate = {
+      warningCount: scored.warningCount,
+      totalPriority: scored.totalPriority,
+    };
+    const slotKey = foursomeSlotOrderKey(perm);
+    const isBetter =
+      bestOrder == null ||
+      isBetterMatchupScore(candidate, bestScore) ||
+      (candidate.warningCount === bestScore.warningCount &&
+        candidate.totalPriority === bestScore.totalPriority &&
+        slotKey !== currentSlotKey &&
+        bestSlotKey === currentSlotKey);
+
+    if (isBetter) {
+      bestOrder = perm;
+      bestScore = candidate;
+      bestSlotKey = slotKey;
+    }
+  }
+
+  return bestOrder;
+}
+
+/** Smart shuffle, but cycle partner pairings when the best-scoring lineup keeps the same teams. */
+export function resolveShuffleNextFoursomeOrder(
+  foursome: QueueEntryView[],
+  matches: MatchHistoryView[] = [],
+  options?: { queue?: QueueEntryView[]; matchingType?: QuickPlayMatchingType | null },
+): QueueEntryView[] {
+  const matchupOptions = {
+    queue: options?.queue,
+    matchingType: options?.matchingType,
+  };
+  const suggestions = computeNextCourtMatchSuggestions(foursome, matches, matchupOptions);
+  const actionable = suggestions.filter((item) => item.tone !== "balanced");
+  const optionalOnly =
+    actionable.length > 0 && actionable.every((item) => item.tone === "tip");
+
+  if (optionalOnly) {
+    return (
+      pickAlternatePartnerFoursomeOrder(foursome, matches, matchupOptions) ??
+      pickBestNextCourtFoursomeOrder(foursome, matches, matchupOptions)
+    );
+  }
+
+  const best = pickBestNextCourtFoursomeOrder(foursome, matches, matchupOptions);
+  const currentSplit = teamSplitKey(foursome);
+
+  if (teamSplitKey(best) !== currentSplit) {
+    return best;
+  }
+
+  return pickAlternatePartnerFoursomeOrder(foursome, matches, matchupOptions) ?? best;
+}
+
 export function buildSmartShuffleQueueOrder(
   queue: QueueEntryView[],
   matches: MatchHistoryView[] = [],
-  options?: { queue?: QueueEntryView[] },
+  options?: { queue?: QueueEntryView[]; matchingType?: QuickPlayMatchingType | null },
 ): string[] | null {
   if (queue.length < 4) return null;
   const nextUp = queue.slice(0, 4);
-  const best = pickBestNextCourtFoursomeOrder(nextUp, matches, {
+  const chosen = resolveShuffleNextFoursomeOrder(nextUp, matches, {
     queue: options?.queue ?? queue,
+    matchingType: options?.matchingType,
   });
   return [
-    ...best.map((entry) => stringifyQueueEntryId(entry._id)),
+    ...chosen.map((entry) => stringifyQueueEntryId(entry._id)),
     ...queue.slice(4).map((entry) => stringifyQueueEntryId(entry._id)),
   ].filter(Boolean);
 }
 
-export function formatLeastBalancedLineupNote(suggestions: NextCourtMatchSuggestion[]) {
+export function formatLeastBalancedLineupNote(
+  suggestions: NextCourtMatchSuggestion[],
+  options?: { canSwapWaiting?: boolean },
+) {
   const topWarning = shuffleRelevantWarnings(suggestions)[0];
   if (!topWarning) return null;
-  return `System finds that this is the least balance we can do. Just note that ${topWarning.message}`;
+  let note = `System finds that this is the least balance we can do. Just note that ${topWarning.message}`;
+  if (options?.canSwapWaiting) {
+    note += " Shuffle partners or swap in players 5 and 6 from the waiting line.";
+  }
+  return note;
 }
 
 export type MatchupCheckGuideScenario = {
@@ -668,13 +829,21 @@ export type MatchupCheckGuideScenario = {
   tone: NextCourtMatchSuggestion["tone"];
 };
 
-/** Reference list for the matchup-check help dialog (auto-balanced doubles). */
+/** Reference list for the matchup-check help dialog (auto-balanced and winner/loser doubles). */
 export const MATCHUP_CHECK_GUIDE_SCENARIOS: MatchupCheckGuideScenario[] = [
   {
     id: "repeat-partners",
     title: "Repeat partners",
-    description: "Two players were teammates in their last shared match.",
+    description:
+      "Two players were teammates in their last shared match, or have partnered multiple times (optional shuffle in winner/loser rotation).",
     tone: "caution",
+  },
+  {
+    id: "rotation-line-mix",
+    title: "Mixed queue lines",
+    description:
+      "Winner/loser rotation: the on-deck four combines main line, winners, or losers after checkouts — confirm teams look right.",
+    tone: "tip",
   },
   {
     id: "gender-split",
