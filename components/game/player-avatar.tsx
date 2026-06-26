@@ -10,14 +10,11 @@ import { PlayerProfileViewDialog } from "@/components/game/player-profile-view-d
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { isLocalSessionPlayerId, isPersistedPlayerId } from "@/lib/player-id";
 import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
+import { resolvePlayerId } from "@/lib/resolve-player-id";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type { PlayerPhotoRef };
-
-export function resolvePlayerId(player: PlayerPhotoRef): string | null {
-  if (player._id == null) return null;
-  return String(player._id);
-}
+export { resolvePlayerId };
 
 function getInitials(firstName: string, lastName: string) {
   const display = formatPlayerDisplayName(firstName, lastName);

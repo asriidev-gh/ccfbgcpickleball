@@ -6,13 +6,15 @@ import {
   loadSpectateDetails,
   loadSpectateFull,
   loadSpectateLive,
+  loadSpectateMatchHistory,
+  loadSpectateRecap,
   type SpectateScope,
 } from "@/lib/load-spectate-game";
 import { getSpectateClubProfile } from "@/lib/spectate-club-profile";
 import { SPECTATOR_VIEW_UNAVAILABLE_MESSAGE } from "@/lib/spectator-availability-shared";
 
 function parseScope(value: string | null): SpectateScope {
-  if (value === "live" || value === "details" || value === "full") {
+  if (value === "live" || value === "details" || value === "history" || value === "recap" || value === "full") {
     return value;
   }
   return "full";
@@ -47,6 +49,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         const payload = await loadSpectateDetails(id);
         if (!payload) return NextResponse.json({ message: "Game not found." }, { status: 404 });
         return NextResponse.json(payload);
+      }
+
+      if (scope === "history") {
+        const payload = await loadSpectateMatchHistory(id);
+        if (!payload) return NextResponse.json({ message: "Game not found." }, { status: 404 });
+        return NextResponse.json(payload);
+      }
+
+      if (scope === "recap") {
+        const recap = await loadSpectateRecap(id);
+        if (recap === null) {
+          return NextResponse.json({ message: "Game not found." }, { status: 404 });
+        }
+        return NextResponse.json({ recap });
       }
 
       const payload = await loadSpectateFull(id);

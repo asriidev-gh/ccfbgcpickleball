@@ -3,6 +3,7 @@
 import { ArrowRight, Gauge, Loader2, Pause, Play } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
 import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
@@ -42,6 +43,7 @@ import { isSinglesGameMode } from "@/lib/singles/singles-constants";
 import { pickSinglesCourtPair } from "@/lib/singles/singles-queue-fill";
 import { SINGLES_MIN_QUEUE_TO_FILL } from "@/lib/singles/singles-constants";
 import { COURTS_VIEW_QUERY_KEY } from "@/lib/courts-view-cache";
+import { buildQueueNextCourtWaitingSwapOrder } from "@/lib/next-court-match-analysis";
 import { buildSessionPlayerLookup } from "@/lib/session-player-lookup";
 import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
@@ -360,6 +362,36 @@ export function OwnerSessionCourtsSection({
             }
             showLeaderboardRank
             leaderboard={session.leaderboard}
+            nextUpEntries={nextCourtFoursome.length > 0 ? nextCourtFoursome : undefined}
+            courtPlayerCount={minQueueToFill}
+            gameId={session.gameId}
+            gameMode={gameMode}
+            matchingType={matchingType}
+            matches={localPayload?.matches ?? []}
+            enableMatchupAnalysis={
+              !isSingles && matchingType === "auto-balanced" && !usesWinnerLoserRotation
+            }
+            onShuffleNext={
+              canOperateSession
+                ? async () => {
+                    await courtActions.shuffleNextMutation.mutateAsync();
+                  }
+                : undefined
+            }
+            shuffleNextPending={courtActions.shuffleNextMutation.isPending}
+            onSwapWaiting={
+              canOperateSession
+                ? async () => {
+                    const order = buildQueueNextCourtWaitingSwapOrder(queueWithStats);
+                    if (!order) {
+                      toast.error("Need at least six players in the queue to swap.");
+                      return;
+                    }
+                    await courtActions.swapNextWaitingMutation.mutateAsync(order);
+                  }
+                : undefined
+            }
+            swapWaitingPending={courtActions.swapNextWaitingMutation.isPending}
           />
         }
         getCourtCardProps={getCourtCardProps}

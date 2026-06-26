@@ -8,6 +8,7 @@ import { getGameRegistrationCount } from "@/lib/game-registration-limit";
 import {
   loadOperatorDetails,
   loadOperatorFull,
+  loadOperatorMatchHistory,
   loadOperatorQueueState,
   loadOperatorShell,
   type OperatorScope,
@@ -36,6 +37,7 @@ function parseOperatorScope(value: string | null): OperatorScope {
     value === "queue" ||
     value === "live" ||
     value === "details" ||
+    value === "history" ||
     value === "full"
   ) {
     return value;
@@ -81,6 +83,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
       if (scope === "details") {
         const payload = await loadOperatorDetails(id, authUser.userId);
+        if (!payload) return NextResponse.json({ message: "Game not found." }, { status: 404 });
+        return NextResponse.json(payload);
+      }
+
+      if (scope === "history") {
+        const payload = await loadOperatorMatchHistory(id, authUser.userId);
         if (!payload) return NextResponse.json({ message: "Game not found." }, { status: 404 });
         return NextResponse.json(payload);
       }

@@ -1,6 +1,7 @@
+import { logoutAccount } from "@/lib/logout-action";
 import { clearBrowserSessionsOnLogout } from "@/lib/logout-session-cleanup";
 
-export async function performClientLogout() {
+export function performClientLogout() {
   clearBrowserSessionsOnLogout();
-  await fetch("/api/auth/logout", { method: "POST" });
+  void logoutAccount();
 }

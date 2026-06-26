@@ -1,7 +1,7 @@
 "use client";
 
 import { Building2, House, LayoutGrid, LogOut, Plus, Store } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 
 import { MobileBottomNavButton, MobileBottomNavShell } from "@/components/mobile-bottom-nav";
@@ -12,7 +12,6 @@ type HomeMobileNavProps = {
 };
 
 export function HomeMobileNav({ onCreateGame }: HomeMobileNavProps) {
-  const router = useRouter();
   const pathname = usePathname();
 
   const isHome = pathname === "/";
@@ -20,11 +19,9 @@ export function HomeMobileNav({ onCreateGame }: HomeMobileNavProps) {
   const isMyClub = pathname === "/my-club";
   const isMarketplace = pathname === "/marketplace";
 
-  const logout = async () => {
-    await performClientLogout();
+  const logout = () => {
     toast.success("Logged out.");
-    router.push("/login");
-    router.refresh();
+    performClientLogout();
   };
 
   return (

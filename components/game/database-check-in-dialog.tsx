@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Loader2, Search, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -78,14 +78,12 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [checkingInPlayerId, setCheckingInPlayerId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setPage(1);
     setSearchInput("");
     setSearchQuery("");
-    setCheckingInPlayerId(null);
   }, [open, gameId]);
 
   useEffect(() => {
@@ -101,7 +99,8 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
     queryKey: databaseCheckInQueryKey(gameId, page, searchQuery),
     queryFn: () => fetchDatabaseCheckInPlayers(gameId, page, searchQuery),
     enabled: open && Boolean(gameId),
-    staleTime: 10_000,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
   });
 
   const checkInMutation = useMutation({
@@ -115,27 +114,51 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
       if (!response.ok) throw new Error(data.message ?? "Failed to check in player.");
       return data;
     },
+    onMutate: async (playerId: string) => {
+      const queryKey = databaseCheckInQueryKey(gameId, page, searchQuery);
+      await queryClient.cancelQueries({ queryKey });
+
+      const previous = queryClient.getQueryData<DatabaseCheckInPlayersPage>(queryKey);
+      if (previous) {
+        const nextTotal = Math.max(0, previous.total - 1);
+        const nextTotalPages = nextTotal === 0 ? 0 : Math.ceil(nextTotal / PAGE_SIZE);
+
+        queryClient.setQueryData<DatabaseCheckInPlayersPage>(queryKey, {
+          ...previous,
+          players: previous.players.filter((player) => player.id !== playerId),
+          total: nextTotal,
+          totalPages: nextTotalPages,
+        });
+      }
+
+      return { previous, queryKey };
+    },
     onSuccess: (payload) => {
       toast.success(payload.message ?? "Player added to queue.");
       void queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      void queryClient.invalidateQueries({ queryKey: ["database-check-in-players", gameId] });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _playerId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
       toastOperationError(error, "Failed to check in player.");
     },
-    onSettled: () => {
-      setCheckingInPlayerId(null);
+    onSettled: (_data, _error, _playerId, context) => {
+      if (context?.queryKey) {
+        void queryClient.invalidateQueries({ queryKey: context.queryKey });
+      }
     },
   });
 
   const handleCheckIn = (player: DatabaseCheckInPlayerItem) => {
-    if (!player.canCheckIn || checkInMutation.isPending) return;
-    setCheckingInPlayerId(player.id);
+    if (!player.canCheckIn) return;
     checkInMutation.mutate(player.id);
   };
 
   const totalPages = playersQuery.data?.totalPages ?? 0;
   const total = playersQuery.data?.total ?? 0;
+  const showInitialLoading = playersQuery.isLoading && !playersQuery.data;
+  const isRefreshing = playersQuery.isFetching && !showInitialLoading;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -162,12 +185,24 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
               placeholder="Search by name, email, or mobile"
               className="pl-9"
               aria-label="Search registered players"
+              aria-busy={isRefreshing}
             />
+            {isRefreshing ? (
+              <Loader2
+                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+                aria-hidden
+              />
+            ) : null}
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
-          {playersQuery.isLoading ? (
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto px-5 py-3 transition-opacity",
+            isRefreshing && "opacity-70",
+          )}
+        >
+          {showInitialLoading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               Loading players…
@@ -193,7 +228,6 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
             <ul className="flex flex-col gap-2">
               {playersQuery.data?.players.map((player) => {
                 const statusLabel = queueStatusLabel(player.queueStatus);
-                const isCheckingIn = checkingInPlayerId === player.id;
 
                 return (
                   <li
@@ -230,15 +264,10 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
                       size="sm"
                       variant={player.canCheckIn ? "default" : "outline"}
                       className={cn("shrink-0", !player.canCheckIn && "pointer-events-none opacity-60")}
-                      disabled={!player.canCheckIn || isCheckingIn}
+                      disabled={!player.canCheckIn}
                       onClick={() => handleCheckIn(player)}
                     >
-                      {isCheckingIn ? (
-                        <>
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
-                          Adding…
-                        </>
-                      ) : player.queueStatus === "checked_out" ? (
+                      {player.queueStatus === "checked_out" ? (
                         "Check back in"
                       ) : (
                         "Check in"

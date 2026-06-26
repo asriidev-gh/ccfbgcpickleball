@@ -66,6 +66,12 @@ function LoginForm() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (searchParams.get("loggedOut") !== "1") return;
+    queryClient.setQueryData(["auth-me"], { user: null });
+    router.replace("/login");
+  }, [queryClient, router, searchParams]);
+
   const submit = async () => {
     try {
       setLoading(true);

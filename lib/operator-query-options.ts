@@ -21,3 +21,10 @@ export const operatorDetailsQueryOptions = {
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
 } as const;
+
+export const operatorMatchHistoryQueryOptions = {
+  staleTime: OPERATOR_QUEUE_STALE_TIME_MS,
+  gcTime: 10 * 60_000,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+} as const;

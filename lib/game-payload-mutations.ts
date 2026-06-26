@@ -21,6 +21,7 @@ import {
   resolveDoublesRotationQueue,
 } from "@/lib/doubles/doubles-queue-fill";
 import { shuffleDoublesIntoNewHalves, randomMixedDoublesTeamSplit } from "@/lib/doubles/mixed-doubles-shuffle";
+import { buildSmartShuffleQueueOrder } from "@/lib/next-court-match-analysis";
 import { appendMixedDoublesRequeueEntries } from "@/lib/doubles/mixed-doubles-requeue";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import { isSinglesGameMode } from "@/lib/singles/singles-constants";
@@ -853,6 +854,11 @@ export function applyCancelRematchOptimistic(
 
 export function applyShuffleNextOptimistic(payload: GamePayload): GamePayload | null {
   const ordered = resolveDoublesRotationQueue(payload.queue, payload.game.matchingType);
+  const smartOrder = buildSmartShuffleQueueOrder(ordered, payload.matches ?? [], { queue: ordered });
+  if (smartOrder) {
+    return applyQueueReorderOptimistic(payload, smartOrder);
+  }
+
   const nextUp = ordered.slice(0, DOUBLES_PLAYERS_PER_COURT);
   if (nextUp.length < DOUBLES_PLAYERS_PER_COURT) return null;
 

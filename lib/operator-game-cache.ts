@@ -4,12 +4,14 @@ import type { GamePayload } from "@/lib/game-payload-mutations";
 import { isQuickGame } from "@/lib/local-game-id";
 import {
   operatorDetailsQueryKey,
+  operatorMatchHistoryQueryKey,
   operatorQueueQueryKey,
   operatorShellQueryKey,
 } from "@/lib/fetch-operator-game";
 import {
   mergeOperatorGamePayload,
   type OperatorDetailsPayload,
+  type OperatorMatchHistoryPayload,
   type OperatorQueuePayload,
   type OperatorShellPayload,
 } from "@/lib/operator-payload";
@@ -27,7 +29,10 @@ export function readOperatorGamePayload(
   if (!shell) return undefined;
   const queue = queryClient.getQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId));
   const details = queryClient.getQueryData<OperatorDetailsPayload>(operatorDetailsQueryKey(gameId));
-  return mergeOperatorGamePayload(shell, queue, details);
+  const matchHistory = queryClient.getQueryData<OperatorMatchHistoryPayload>(
+    operatorMatchHistoryQueryKey(gameId),
+  );
+  return mergeOperatorGamePayload(shell, queue, details, matchHistory);
 }
 
 export function writeOperatorGamePayload(
@@ -56,6 +61,9 @@ export function writeOperatorGamePayload(
     firstTimerCount: next.firstTimerCount ?? existingQueue?.firstTimerCount ?? 0,
     birthdayThisMonthCount:
       next.birthdayThisMonthCount ?? existingQueue?.birthdayThisMonthCount ?? 0,
+  });
+  queryClient.setQueryData<OperatorMatchHistoryPayload>(operatorMatchHistoryQueryKey(gameId), {
+    matches: next.matches ?? [],
   });
   queryClient.setQueryData<OperatorDetailsPayload>(operatorDetailsQueryKey(gameId), {
     leaderboard: next.leaderboard ?? [],
@@ -86,6 +94,9 @@ export function seedLocalGameOperatorCache(queryClient: QueryClient, gameId: str
     leaderboard: payload.leaderboard ?? [],
     firstTimerCount: payload.firstTimerCount ?? 0,
     birthdayThisMonthCount: payload.birthdayThisMonthCount ?? 0,
+  });
+  queryClient.setQueryData<OperatorMatchHistoryPayload>(operatorMatchHistoryQueryKey(gameId), {
+    matches: payload.matches ?? [],
   });
   queryClient.setQueryData<OperatorDetailsPayload>(operatorDetailsQueryKey(gameId), {
     leaderboard: payload.leaderboard ?? [],

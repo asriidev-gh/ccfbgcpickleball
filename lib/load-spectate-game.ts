@@ -26,7 +26,7 @@ import "@/models/Player";
 const LIVE_GAME_FIELDS =
   "title openPlayType courtCount gameId status openPlayDate openPlayTimeRange venueName venueAddress ownerId";
 
-export type SpectateScope = "live" | "details" | "full";
+export type SpectateScope = "live" | "details" | "history" | "recap" | "full";
 
 type CourtDoc = {
   toObject?: () => Record<string, unknown>;
@@ -126,6 +126,29 @@ export async function loadSpectateLive(gameId: string): Promise<SpectateLivePayl
     birthdayThisMonthCount: birthdaysThisMonth.count,
     clubBranding: owner ? resolveClubBranding(owner) : null,
   };
+}
+
+export async function loadSpectateMatchHistory(
+  gameId: string,
+): Promise<{ matches: SpectateDetailsPayload["matches"] } | null> {
+  const game = await PickleGame.findOne({ gameId }).select("gameId").lean();
+  if (!game) return null;
+
+  const matches = await MatchHistory.find({ gameId })
+    .sort({ endedAt: -1 })
+    .populate(["teamAPlayerIds", "teamBPlayerIds"]);
+
+  return {
+    matches: matches as unknown as SpectateDetailsPayload["matches"],
+  };
+}
+
+export async function loadSpectateRecap(gameId: string): Promise<SpectateDetailsPayload["recap"] | null> {
+  const game = await PickleGame.findOne({ gameId }).select("status").lean();
+  if (!game) return null;
+  if (game.status !== "ended") return undefined;
+
+  return (await loadGameLeaderboardRecap(gameId)) ?? undefined;
 }
 
 export async function loadSpectateDetails(gameId: string): Promise<SpectateDetailsPayload | null> {

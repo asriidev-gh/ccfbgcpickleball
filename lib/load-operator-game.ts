@@ -28,7 +28,7 @@ import "@/models/Player";
 const OPERATOR_LIVE_GAME_FIELDS =
   "title openPlayType courtCount gameId status openPlayDate openPlayTimeRange allowQrRegistration registrationMode allowManualPlayerAdd gameMode matchingType expectedPlayers strictPlayerCount registerUrl publicQrCodeDataUrl";
 
-export type OperatorScope = "shell" | "queue" | "live" | "details" | "full";
+export type OperatorScope = "shell" | "queue" | "live" | "details" | "history" | "full";
 
 export async function loadOperatorShell(
   gameId: string,
@@ -89,6 +89,22 @@ export async function loadOperatorQueueState(
     leaderboard: leaderboardRows as unknown as OperatorQueuePayload["leaderboard"],
     firstTimerCount: firstTimerIdentityKeys.size,
     birthdayThisMonthCount: birthdaysThisMonth.count,
+  };
+}
+
+export async function loadOperatorMatchHistory(
+  gameId: string,
+  ownerId: string,
+): Promise<{ matches: OperatorDetailsPayload["matches"] } | null> {
+  const game = await PickleGame.findOne({ gameId, ownerId }).select("gameId").lean();
+  if (!game) return null;
+
+  const matches = await MatchHistory.find({ gameId })
+    .sort({ endedAt: -1 })
+    .populate(["teamAPlayerIds", "teamBPlayerIds"]);
+
+  return {
+    matches: matches as unknown as OperatorDetailsPayload["matches"],
   };
 }
 

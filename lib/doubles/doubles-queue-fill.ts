@@ -4,6 +4,23 @@ import type { QuickPlayMatchingType } from "@/lib/quick-play-wizard-shared";
 
 export const DOUBLES_PLAYERS_PER_COURT = 4;
 
+export function formatDoublesNextOnCourtSubtitle(
+  nextUpCount: number,
+  options?: { canReorder?: boolean },
+): string {
+  const target = DOUBLES_PLAYERS_PER_COURT;
+  const count = Math.min(target, Math.max(0, nextUpCount));
+  const reorderSuffix = options?.canReorder ? " · drag to reorder" : "";
+
+  if (count >= target) {
+    return `Next ${target} players ready to play${reorderSuffix}`;
+  }
+
+  const remaining = target - count;
+  const remainingLabel = remaining === 1 ? "1 more player" : `${remaining} more players`;
+  return `${remainingLabel} needed to complete the four${reorderSuffix}`;
+}
+
 export type DoublesQueueSegments = {
   normals: QueueEntryView[];
   winners: QueueEntryView[];

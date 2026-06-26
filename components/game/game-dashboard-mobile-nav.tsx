@@ -1,8 +1,10 @@
 "use client";
 
-import { Flag, House, Loader2, LogOut, MoreHorizontal, QrCode, RotateCcw, Trophy, UserPlus } from "lucide-react";
+import { House, Loader2, LogOut, QrCode, Trophy } from "lucide-react";
 import { usePathname } from "next/navigation";
 
+import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
+import { buildSpectatorLeaderboardHref } from "@/lib/leaderboard-navigation";
 import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
 import { MobileBottomNavButton, MobileBottomNavShell } from "@/components/mobile-bottom-nav";
 
@@ -17,12 +19,14 @@ type GameDashboardMobileNavProps = {
   onQrClick: () => void;
   showDatabaseCheckIn: boolean;
   onDatabaseCheckInClick: () => void;
+  showAddPlayer?: boolean;
+  onAddPlayerClick?: () => void;
+  showResetOpenPlay: boolean;
+  resetOpenPlayPending: boolean;
+  onResetOpenPlay: () => void;
   showEndOpenPlay: boolean;
   endOpenPlayPending: boolean;
   onEndOpenPlay: () => void;
-  showReset: boolean;
-  resetPending: boolean;
-  onReset: () => void;
 };
 
 export function GameDashboardMobileNav({
@@ -36,16 +40,18 @@ export function GameDashboardMobileNav({
   onQrClick,
   showDatabaseCheckIn,
   onDatabaseCheckInClick,
+  showAddPlayer = false,
+  onAddPlayerClick,
+  showResetOpenPlay,
+  resetOpenPlayPending,
+  onResetOpenPlay,
   showEndOpenPlay,
   endOpenPlayPending,
   onEndOpenPlay,
-  showReset,
-  resetPending,
-  onReset,
 }: GameDashboardMobileNavProps) {
   const pathname = usePathname();
-  const leaderboardHref = `/leaderboard/${gameId}`;
-  const isLeaderboard = pathname === leaderboardHref;
+  const leaderboardHref = buildSpectatorLeaderboardHref(gameId);
+  const isLeaderboard = pathname === `/leaderboard/${gameId}`;
   const notificationBell = (
     <GameCheckoutNotificationBell gameId={gameId} variant="mobileNav" iconOnly />
   );
@@ -86,43 +92,19 @@ export function GameDashboardMobileNav({
           }
         />
       ) : null}
-      {showDatabaseCheckIn ? (
-        <MobileBottomNavButton
-          label="Check in"
-          onClick={onDatabaseCheckInClick}
-          icon={<UserPlus className="h-5 w-5 shrink-0" aria-hidden />}
-        />
-      ) : null}
-      {showEndOpenPlay ? (
-        <MobileBottomNavButton
-          label={endOpenPlayPending ? "Ending…" : "End Open Play"}
-          disabled={endOpenPlayPending}
-          destructive
-          onClick={onEndOpenPlay}
-          icon={
-            endOpenPlayPending ? (
-              <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden />
-            ) : (
-              <Flag className="h-5 w-5 shrink-0" aria-hidden />
-            )
-          }
-        />
-      ) : null}
-      {showReset ? (
-        <MobileBottomNavButton
-          label={resetPending ? "Resetting…" : "Reset"}
-          disabled={resetPending}
-          destructive
-          onClick={onReset}
-          icon={
-            resetPending ? (
-              <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden />
-            ) : (
-              <RotateCcw className="h-5 w-5 shrink-0" aria-hidden />
-            )
-          }
-        />
-      ) : null}
+      <GameSessionActionsMenu
+        mobileNav
+        showDatabaseCheckIn={showDatabaseCheckIn}
+        onDatabaseCheckIn={onDatabaseCheckInClick}
+        showAddPlayer={showAddPlayer}
+        onAddPlayer={onAddPlayerClick}
+        showResetOpenPlay={showResetOpenPlay}
+        resetOpenPlayPending={resetOpenPlayPending}
+        onResetOpenPlay={onResetOpenPlay}
+        showEndOpenPlay={showEndOpenPlay}
+        endOpenPlayPending={endOpenPlayPending}
+        onEndOpenPlay={onEndOpenPlay}
+      />
       {!isQuickGameSession ? notificationBell : null}
     </MobileBottomNavShell>
   );

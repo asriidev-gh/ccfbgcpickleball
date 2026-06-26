@@ -38,7 +38,6 @@ import { COURTS_VIEW_DESKTOP_MEDIA } from "@/lib/courts-view-viewport";
 import {
   fetchSpectateGame,
   isSpectatorViewUnavailableError,
-  spectatorDetailsQueryKey,
   spectatorLiveQueryKey,
 } from "@/lib/fetch-spectate-game";
 import {
@@ -115,17 +114,11 @@ export function SpectatorCourtsView() {
     refetchOnWindowFocus: true,
   });
 
-  const detailsQuery = useQuery({
-    queryKey: spectatorDetailsQueryKey(gameId),
-    queryFn: () => fetchSpectateGame(gameId, "details"),
-    enabled: Boolean(gameId) && liveQuery.isSuccess,
-    refetchInterval: SPECTATOR_LIVE_POLL_MS,
-    refetchOnWindowFocus: true,
-  });
+  const liveLeaderboard = liveQuery.data?.leaderboard ?? [];
 
   const playerSessionStats = useMemo(
-    () => buildPlayerSessionStatsMap(detailsQuery.data?.leaderboard ?? []),
-    [detailsQuery.data?.leaderboard],
+    () => buildPlayerSessionStatsMap(liveLeaderboard),
+    [liveLeaderboard],
   );
 
   const queueWithStats = useMemo(
@@ -279,7 +272,7 @@ export function SpectatorCourtsView() {
           <CardContent className="dashboard-panel-content">
             <GameCourtsGrid
               courts={courts}
-              leaderboard={detailsQuery.data?.leaderboard ?? []}
+              leaderboard={liveLeaderboard}
               playerSessionStats={playerSessionStats}
               gameId={gameId}
               layout={displayLayout}
@@ -291,7 +284,7 @@ export function SpectatorCourtsView() {
                 <SpectatorNextOnQueueButton
                   queue={queueWithStats}
                   showLeaderboardRank
-                  leaderboard={detailsQuery.data?.leaderboard ?? []}
+                  leaderboard={liveLeaderboard}
                 />
               }
               getCourtCardProps={() => ({

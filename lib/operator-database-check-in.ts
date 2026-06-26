@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { Types, type PipelineStage } from "mongoose";
 
 import { connectToDatabase } from "@/lib/db";
 import {
@@ -6,23 +6,165 @@ import {
   getPlayerQueueStatusForGame,
   RegistrationLimitError,
 } from "@/lib/game-registration-limit";
-import { getOwnerRegisteredPlayers } from "@/lib/owner-registered-players";
+import { getBlockedEmailsForOrganizer } from "@/lib/organizer-blocked-player";
 import type {
   DatabaseCheckInPlayerItem,
   DatabaseCheckInPlayersPage,
   DatabaseCheckInQueueStatus,
 } from "@/lib/operator-database-check-in-shared";
 import type { OwnerRegisteredPlayerItem } from "@/lib/owner-registered-players-shared";
-import { OWNER_REGISTERED_PLAYERS_PAGE_SIZE } from "@/lib/owner-registered-players-shared";
 import { recordPlayerRegisteredNotification } from "@/lib/organizer-notifications";
 import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
-import { formatPlayerDisplayName } from "@/lib/utils";
+import { formatPlayerDisplayName, formatPlayerTableName } from "@/lib/utils";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 
 const ACTIVE_SESSION_QUEUE_STATUSES = ["queued", "on_court", "done"] as const;
+
+function escapeRegexLiteral(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+type DatabaseCheckInRosterRow = {
+  _id: Types.ObjectId;
+  lastRegisteredAt?: Date;
+  gameIds?: string[];
+  player: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    mobileNumber?: string;
+    photoUrl?: string | null;
+    photoPublicId?: string | null;
+    personalQrCode?: string;
+    welcomeEmailStatus?: string;
+    welcomeEmailError?: string;
+    welcomeEmailSentAt?: Date | null;
+  };
+};
+
+function mapRosterRowToPlayerItem(
+  row: DatabaseCheckInRosterRow,
+  blockedEmails: Set<string>,
+): OwnerRegisteredPlayerItem {
+  const player = row.player;
+  const email = player.email ?? "—";
+  const name = formatPlayerTableName(player.firstName ?? "", player.lastName ?? "") || "—";
+
+  return {
+    id: row._id.toString(),
+    name,
+    firstName: player.firstName ?? "",
+    lastName: player.lastName ?? "",
+    email,
+    mobileNumber: player.mobileNumber ?? "—",
+    photoUrl: player.photoUrl,
+    photoPublicId: player.photoPublicId,
+    personalQrCode: player.personalQrCode,
+    sessionsCount: row.gameIds?.length ?? 0,
+    lastRegisteredAt: row.lastRegisteredAt ? row.lastRegisteredAt.toISOString() : null,
+    isBlocked: blockedEmails.has(email.trim().toLowerCase()),
+    welcomeEmailStatus: (player.welcomeEmailStatus ?? "") as OwnerRegisteredPlayerItem["welcomeEmailStatus"],
+    welcomeEmailError: player.welcomeEmailError?.trim() ?? "",
+    welcomeEmailSentAt: player.welcomeEmailSentAt
+      ? new Date(player.welcomeEmailSentAt).toISOString()
+      : null,
+  };
+}
+
+async function queryDatabaseCheckInRoster(
+  ownerGameIds: string[],
+  activePlayerIds: Set<string>,
+  options: { page: number; pageSize: number; query?: string },
+) {
+  const page = Math.max(1, options.page);
+  const pageSize = Math.min(50, Math.max(1, options.pageSize));
+  const searchQuery = options.query?.trim() ?? "";
+  const start = (page - 1) * pageSize;
+
+  const activeObjectIds = [...activePlayerIds].map((playerId) => new Types.ObjectId(playerId));
+  const pipeline: PipelineStage[] = [
+    { $match: { gameId: { $in: ownerGameIds } } },
+    {
+      $group: {
+        _id: "$playerId",
+        lastRegisteredAt: { $max: "$registeredAt" },
+        gameIds: { $addToSet: "$gameId" },
+      },
+    },
+  ];
+
+  if (activeObjectIds.length > 0) {
+    pipeline.push({ $match: { _id: { $nin: activeObjectIds } } });
+  }
+
+  pipeline.push(
+    {
+      $lookup: {
+        from: "players",
+        localField: "_id",
+        foreignField: "_id",
+        as: "player",
+      },
+    },
+    { $unwind: "$player" },
+    {
+      $addFields: {
+        searchableText: {
+          $concat: [
+            { $ifNull: ["$player.firstName", ""] },
+            " ",
+            { $ifNull: ["$player.lastName", ""] },
+            " ",
+            { $ifNull: ["$player.email", ""] },
+            " ",
+            { $ifNull: ["$player.mobileNumber", ""] },
+          ],
+        },
+      },
+    },
+  );
+
+  if (searchQuery) {
+    pipeline.push({
+      $match: {
+        searchableText: {
+          $regex: escapeRegexLiteral(searchQuery),
+          $options: "i",
+        },
+      },
+    });
+  }
+
+  pipeline.push(
+    { $sort: { lastRegisteredAt: -1 } },
+    {
+      $facet: {
+        metadata: [{ $count: "total" }],
+        data: [{ $skip: start }, { $limit: pageSize }],
+      },
+    },
+  );
+
+  const [facetResult] = await QueueEntry.aggregate<{
+    metadata: Array<{ total: number }>;
+    data: DatabaseCheckInRosterRow[];
+  }>(pipeline);
+
+  const total = facetResult?.metadata[0]?.total ?? 0;
+  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+  const safePage = totalPages === 0 ? 1 : Math.min(page, totalPages);
+
+  return {
+    rows: facetResult?.data ?? [],
+    total,
+    page: safePage,
+    pageSize,
+    totalPages,
+  };
+}
 
 async function getActiveSessionPlayerIds(gameId: string) {
   const playerIds = await QueueEntry.distinct("playerId", {
@@ -111,32 +253,38 @@ export async function getDatabaseCheckInPlayersForGame(
 ): Promise<DatabaseCheckInPlayersPage> {
   await connectToDatabase();
 
-  const game = await PickleGame.findOne({ gameId, ownerId }).select("gameId").lean();
+  const page = Math.max(1, options.page ?? 1);
+  const pageSize = Math.min(50, Math.max(1, options.pageSize ?? 10));
+
+  const [game, ownerGames, blockedEmails, activePlayerIds] = await Promise.all([
+    PickleGame.findOne({ gameId, ownerId }).select("gameId").lean(),
+    PickleGame.find({ ownerId }).select("gameId").lean<Array<{ gameId: string }>>(),
+    getBlockedEmailsForOrganizer(ownerId),
+    getActiveSessionPlayerIds(gameId),
+  ]);
+
   if (!game) {
     throw new Error("Game not found.");
   }
 
-  const page = Math.max(1, options.page ?? 1);
-  const pageSize = Math.min(
-    50,
-    Math.max(1, options.pageSize ?? OWNER_REGISTERED_PLAYERS_PAGE_SIZE),
-  );
+  const ownerGameIds = ownerGames.map((entry) => entry.gameId);
+  if (ownerGameIds.length === 0) {
+    return {
+      players: [],
+      total: 0,
+      page: 1,
+      pageSize,
+      totalPages: 0,
+    };
+  }
 
-  const [activePlayerIds, result] = await Promise.all([
-    getActiveSessionPlayerIds(gameId),
-    getOwnerRegisteredPlayers(ownerId, {
-      query: options.query,
-      exportAll: true,
-    }),
-  ]);
+  const roster = await queryDatabaseCheckInRoster(ownerGameIds, activePlayerIds, {
+    page,
+    pageSize,
+    query: options.query,
+  });
 
-  const eligiblePlayers = result.players.filter((player) => !activePlayerIds.has(player.id));
-  const total = eligiblePlayers.length;
-  const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
-  const safePage = totalPages === 0 ? 1 : Math.min(page, totalPages);
-  const start = (safePage - 1) * pageSize;
-  const pagePlayers = eligiblePlayers.slice(start, start + pageSize);
-
+  const pagePlayers = roster.rows.map((row) => mapRosterRowToPlayerItem(row, blockedEmails));
   const statusMap = await getQueueStatusMapForGame(
     gameId,
     pagePlayers.map((player) => player.id),
@@ -144,10 +292,10 @@ export async function getDatabaseCheckInPlayersForGame(
 
   return {
     players: enrichPlayersWithQueueStatus(pagePlayers, statusMap),
-    total,
-    page: safePage,
-    pageSize,
-    totalPages,
+    total: roster.total,
+    page: roster.page,
+    pageSize: roster.pageSize,
+    totalPages: roster.totalPages,
   };
 }
 

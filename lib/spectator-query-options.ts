@@ -10,6 +10,22 @@ export const spectatorLiveQueryOptions = {
   refetchIntervalInBackground: false,
 } as const;
 
+export const spectatorMatchHistoryQueryOptions = {
+  staleTime: SPECTATOR_LIVE_STALE_TIME_MS,
+  gcTime: 5 * 60_000,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  refetchIntervalInBackground: false,
+} as const;
+
+export const spectatorRecapQueryOptions = {
+  staleTime: SPECTATOR_LIVE_STALE_TIME_MS,
+  gcTime: 5 * 60_000,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  refetchIntervalInBackground: false,
+} as const;
+
 export const spectatorDetailsQueryOptions = {
   staleTime: SPECTATOR_LIVE_STALE_TIME_MS,
   gcTime: 5 * 60_000,

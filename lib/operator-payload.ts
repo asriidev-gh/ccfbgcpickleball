@@ -74,10 +74,15 @@ export type OperatorFullPayload = {
   birthdayThisMonthCount?: number;
 };
 
+export type OperatorMatchHistoryPayload = {
+  matches: MatchHistoryView[];
+};
+
 export function mergeOperatorGamePayload(
   shell: OperatorShellPayload,
   queue?: OperatorQueuePayload | null,
   details?: OperatorDetailsPayload | null,
+  matchHistory?: OperatorMatchHistoryPayload | null,
 ): OperatorFullPayload {
   const status = queue?.status ?? shell.game.status;
 
@@ -92,7 +97,7 @@ export function mergeOperatorGamePayload(
     checkedOut: queue?.checkedOut ?? [],
     courts: queue?.courts ?? [],
     leaderboard: details?.leaderboard ?? queue?.leaderboard ?? [],
-    matches: details?.matches ?? [],
+    matches: matchHistory?.matches ?? details?.matches ?? [],
     recap: details?.recap,
     firstTimerCount: queue?.firstTimerCount ?? 0,
     birthdayThisMonthCount: queue?.birthdayThisMonthCount ?? 0,

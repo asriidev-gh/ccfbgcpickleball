@@ -19,6 +19,7 @@ import {
   applyEndGameOptimistic,
   applyEndGameWithHistoryOptimistic,
   applyFillNextCourtOptimistic,
+  applyQueueReorderOptimistic,
   applyQueueSwapOptimistic,
   applyShuffleNextOptimistic,
   applySwapCourtTeamsOptimistic,
@@ -31,6 +32,7 @@ import {
 } from "@/lib/courts-view-cache";
 import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { isQuickGame } from "@/lib/local-game-id";
+import { buildQueueNextCourtWaitingSwapOrder } from "@/lib/next-court-match-analysis";
 import {
   readOperatorGamePayload,
   writeOperatorGamePayload,
@@ -431,7 +433,7 @@ export function useOperatorCourtActions({
           applyShuffleNextOptimistic,
           "Not enough queued players.",
         );
-        return { message: "Next four players shuffled into new teams." };
+        return { message: "Optimized next four for best balance." };
       }
 
       const response = await fetch(`/api/games/${gameId}/shuffle-next`, { method: "POST" });
@@ -461,6 +463,52 @@ export function useOperatorCourtActions({
         writeCachedGamePayload(context.previous);
       }
       toastOperationError(error, "Failed to shuffle queue.");
+    },
+  });
+
+  const swapNextWaitingMutation = useMutation({
+    mutationFn: async (orderedEntryIds: string[]) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyQueueReorderOptimistic(payload, orderedEntryIds),
+          "Need at least six players in the queue to swap.",
+        );
+        return { message: "Swapped in the next two players from the waiting line." };
+      }
+
+      const response = await fetch(`/api/games/${gameId}/reorder-queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedEntryIds }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return { message: "Swapped in the next two players from the waiting line." };
+    },
+    onMutate: (orderedEntryIds) => {
+      if (isLocalGame) return {};
+
+      const previous = readCachedGamePayload();
+      if (previous) {
+        const optimistic = applyQueueReorderOptimistic(previous, orderedEntryIds);
+        if (optimistic) {
+          writeCachedGamePayload(optimistic);
+        }
+      }
+      void queryClient.cancelQueries({ queryKey: invalidateQueryKey });
+      return { previous };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+      invalidate();
+    },
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous) {
+        writeCachedGamePayload(context.previous);
+      }
+      toastOperationError(error, "Failed to swap waiting players.");
     },
   });
 
@@ -701,6 +749,7 @@ export function useOperatorCourtActions({
     startMutation,
     endMutation,
     shuffleNextMutation,
+    swapNextWaitingMutation,
     replaceMutation,
     pauseAllCourtsMutation,
     cancelCourtMutation,

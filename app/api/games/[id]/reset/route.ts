@@ -8,6 +8,7 @@ import { MatchHistory } from "@/models/MatchHistory";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
 import { getAuthUserFromCookie } from "@/lib/auth";
+import { isSuperAdmin } from "@/lib/superadmin";
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -16,9 +17,12 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     const authUser = await getAuthUserFromCookie();
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
     const { id: gameId } = await params;
-    const game = await PickleGame.findOne({ gameId, ownerId: authUser.userId });
+    const superAdmin = isSuperAdmin(authUser.email);
+    const game = await PickleGame.findOne(
+      superAdmin ? { gameId } : { gameId, ownerId: authUser.userId },
+    );
     if (!game) return NextResponse.json({ message: "Game not found." }, { status: 404 });
-    if (!isDemoOpenPlayTitle(game.title)) {
+    if (!superAdmin && !isDemoOpenPlayTitle(game.title)) {
       return NextResponse.json(
         { message: "Reset is only available for demo open play." },
         { status: 403 },
@@ -35,7 +39,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       QueueEntry.deleteMany({ gameId }),
       MatchHistory.deleteMany({ gameId }),
       LeaderboardStats.deleteMany({ gameId }),
-      PickleGame.updateOne({ gameId, ownerId: authUser.userId }, { $set: { status: "active" } }),
+      PickleGame.updateOne({ gameId }, { $set: { status: "active" } }),
       Court.updateMany(
         { gameId },
         {

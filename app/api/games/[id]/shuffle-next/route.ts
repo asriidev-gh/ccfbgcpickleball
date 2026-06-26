@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { runWithDatabase } from "@/lib/db";
-import { shuffleNextOnCourtInQueue } from "@/lib/queue-engine";
+import { loadOperatorMatchHistory } from "@/lib/load-operator-game";
+import { loadQueueCourtsAndCheckedOut } from "@/lib/load-spectate-game";
+import { buildSmartShuffleQueueOrder } from "@/lib/next-court-match-analysis";
+import { serializeQueueEntriesForPayload } from "@/lib/queue-first-timer";
+import { reorderQueuedPlayers } from "@/lib/queue-engine";
 import { PickleGame } from "@/models/PickleGame";
 import { getAuthUserFromCookie } from "@/lib/auth";
 
@@ -21,9 +25,25 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       );
     }
 
-    await shuffleNextOnCourtInQueue(gameId);
+    const [history, queueState] = await Promise.all([
+      loadOperatorMatchHistory(gameId, authUser.userId),
+      loadQueueCourtsAndCheckedOut(gameId),
+    ]);
+    const queue = serializeQueueEntriesForPayload(
+      queueState.queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
+      new Set(),
+    ) as Parameters<typeof buildSmartShuffleQueueOrder>[0];
+    const order = buildSmartShuffleQueueOrder(queue, history?.matches ?? [], { queue });
+    if (!order) {
+      return NextResponse.json(
+        { message: "Not enough queued players. At least 4 players are required." },
+        { status: 400 },
+      );
+    }
 
-    return NextResponse.json({ message: "Shuffled players into new teams." });
+    await reorderQueuedPlayers(gameId, order);
+
+    return NextResponse.json({ message: "Optimized next four for best balance." });
 
     });} catch (error) {
     return NextResponse.json(

@@ -49,11 +49,9 @@ export function UserMenu() {
     },
   });
 
-  const logout = async () => {
-    await performClientLogout();
+  const logout = () => {
     toast.success("Logged out.");
-    router.push("/login");
-    router.refresh();
+    performClientLogout();
   };
 
   return (

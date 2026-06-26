@@ -59,6 +59,21 @@ export function getAuthCookieName() {
   return AUTH_COOKIE;
 }
 
+export function authCookieClearOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  };
+}
+
+export async function clearAuthSessionCookie() {
+  const cookieStore = await cookies();
+  cookieStore.set(getAuthCookieName(), "", authCookieClearOptions());
+}
+
 const IMPERSONATE_PURPOSE = "impersonate";
 
 export function signImpersonationToken(targetUserId: string, adminUserId: string) {

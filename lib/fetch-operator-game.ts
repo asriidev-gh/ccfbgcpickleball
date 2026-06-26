@@ -10,11 +10,12 @@ import {
 } from "@/lib/operator-query-options";
 import type {
   OperatorDetailsPayload,
+  OperatorMatchHistoryPayload,
   OperatorQueuePayload,
   OperatorShellPayload,
 } from "@/lib/operator-payload";
 
-export type OperatorGameScope = "shell" | "queue" | "live" | "details" | "full";
+export type OperatorGameScope = "shell" | "queue" | "live" | "details" | "history" | "full";
 
 export function operatorShellQueryKey(gameId: string) {
   return ["game", gameId, "operator", "shell"] as const;
@@ -26,6 +27,10 @@ export function operatorQueueQueryKey(gameId: string) {
 
 export function operatorDetailsQueryKey(gameId: string) {
   return ["game", gameId, "operator", "details"] as const;
+}
+
+export function operatorMatchHistoryQueryKey(gameId: string) {
+  return ["game", gameId, "operator", "history"] as const;
 }
 
 /** Warm shell + queue cache before navigating to the operator dashboard. */
@@ -68,6 +73,10 @@ export async function fetchOperatorQueue(gameId: string) {
 
 export async function fetchOperatorDetails(gameId: string) {
   return (await fetchOperatorGame(gameId, "details")) as OperatorDetailsPayload;
+}
+
+export async function fetchOperatorMatchHistory(gameId: string) {
+  return (await fetchOperatorGame(gameId, "history")) as OperatorMatchHistoryPayload;
 }
 
 export async function refetchOperatorQueueData(

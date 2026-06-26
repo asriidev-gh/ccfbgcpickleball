@@ -6,7 +6,6 @@ import {
   QrCode,
   Play,
   Pause,
-  RotateCcw,
   RefreshCw,
   House,
   Zap,
@@ -64,6 +63,7 @@ import {
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
 import { useAccountQuickGameCheckpoint } from "@/hooks/use-account-quick-game-checkpoint";
+import { useAuthMe } from "@/hooks/use-auth-me";
 import { useQuickGameSessionAfterMount } from "@/hooks/use-quick-game-session-after-mount";
 import {
   ensureAccountQuickGameHydrated,
@@ -74,6 +74,7 @@ import { addLocalCourt } from "@/lib/local-game-session";
 import { MAX_QUICK_PLAY_COURTS, isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import {
   DOUBLES_PLAYERS_PER_COURT,
+  formatDoublesNextOnCourtSubtitle,
   isDoublesWinnerLoserRotation,
   pickDoublesCourtFoursome,
   resolveDoublesRotationQueue,
@@ -114,6 +115,8 @@ import {
 } from "@/components/game/match-history-list";
 import { formatOpenPlayDate, formatOpenPlayScheduleLabel, formatVenueShareLabel } from "@/lib/open-play-time-range";
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
+import { NextCourtMatchAnalysis } from "@/components/game/next-court-match-analysis";
+import { buildQueueNextCourtWaitingSwapOrder } from "@/lib/next-court-match-analysis";
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
 import { LiveQueueOffBadge } from "@/components/home/live-queue-off-badge";
 import {
@@ -122,6 +125,7 @@ import {
   type ReplacePlayerDialogState,
 } from "@/components/game/replace-player-dialog";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
+import { QueueNextUpSlots } from "@/components/game/queue-next-up-slots";
 import {
   QueueDndZone,
   QueueDragHandle,
@@ -182,43 +186,44 @@ import {
 import { dispatchSpectatorCheckoutNotification } from "@/lib/spectator-checkout-notifications";
 import {
   mergeSpectatorGamePayload,
-  type SpectateDetailsPayload,
   type SpectateLivePayload,
 } from "@/lib/spectate-payload";
 import {
-  fetchOperatorDetails,
+  fetchOperatorMatchHistory,
   fetchOperatorQueue,
   fetchOperatorShell,
-  operatorDetailsQueryKey,
+  operatorMatchHistoryQueryKey,
   operatorQueueQueryKey,
   operatorShellQueryKey,
 } from "@/lib/fetch-operator-game";
 import {
   mergeOperatorGamePayload,
-  type OperatorDetailsPayload,
   type OperatorFullPayload,
   type OperatorQueuePayload,
   type OperatorShellPayload,
 } from "@/lib/operator-payload";
 import { prefetchLeaderboardRecap } from "@/lib/fetch-leaderboard";
+import { buildSpectatorLeaderboardHref } from "@/lib/leaderboard-navigation";
 import { leaderboardRowToShareEntry } from "@/lib/leaderboard-share";
 import {
   fetchSpectateGame,
   isSpectatorViewUnavailableError,
-  spectatorDetailsQueryKey,
   spectatorLiveQueryKey,
+  spectatorMatchHistoryQueryKey,
+  spectatorRecapQueryKey,
 } from "@/lib/fetch-spectate-game";
 import { SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
 import {
-  operatorDetailsQueryOptions,
+  operatorMatchHistoryQueryOptions,
   OPERATOR_QUEUE_STALE_TIME_MS,
   operatorQueueQueryOptions,
   operatorShellQueryOptions,
 } from "@/lib/operator-query-options";
 import {
-  spectatorDetailsQueryOptions,
   spectatorEndorsementQueryOptions,
   spectatorLiveQueryOptions,
+  spectatorMatchHistoryQueryOptions,
+  spectatorRecapQueryOptions,
 } from "@/lib/spectator-query-options";
 import { SPECTATOR_VIEW_UNAVAILABLE_MESSAGE } from "@/lib/spectator-availability-shared";
 
@@ -325,11 +330,6 @@ function loadShowCheckedOutList() {
 
 function saveShowCheckedOutList(show: boolean) {
   localStorage.setItem(CHECKED_OUT_LIST_STORAGE_KEY, show ? "true" : "false");
-}
-
-function loadShowMatchHistory() {
-  if (typeof window === "undefined") return false;
-  return localStorage.getItem(MATCH_HISTORY_STORAGE_KEY) === "true";
 }
 
 function saveShowMatchHistory(show: boolean) {
@@ -533,6 +533,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const isAccountQuickSession = isAccountQuickGame(gameId);
   const { payload: quickSession } = useQuickGameSessionAfterMount(isQuickGameSession ? gameId : "");
   const queryClient = useQueryClient();
+  const { data: authData } = useAuthMe();
+  const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
   const [pendingWinner, setPendingWinner] = useState<"A" | "B" | null>(null);
   const [endGameRematch, setEndGameRematch] = useState(false);
@@ -600,7 +602,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     setShowWaitingList(loadShowWaitingList());
     setWaitingLineView(loadWaitingLineViewMode());
     setShowCheckedOutList(loadShowCheckedOutList());
-    setShowMatchHistory(loadShowMatchHistory());
     setShowCourts(loadShowCourts());
     setUiPrefsHydrated(true);
   }, []);
@@ -773,22 +774,27 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
   const operatorGameStatus =
     operatorQueueQuery.data?.status ?? operatorShellQuery.data?.game.status;
-  const operatorHistoryDataEnabled =
+  const nextCourtAnalysisPrefetchEnabled =
     !isSpectator &&
-    (operatorGameStatus === "ended" ||
-      showMatchHistory ||
+    operatorShellQuery.data?.game.matchingType === "auto-balanced" &&
+    operatorShellQuery.data?.game.gameMode !== "singles" &&
+    (operatorQueueQuery.data?.queue.length ?? 0) >= DOUBLES_PLAYERS_PER_COURT;
+  const operatorMatchHistoryEnabled =
+    !isSpectator &&
+    (showMatchHistory ||
       mobileDashboardTab === "history" ||
-      undefeatedHistoryEntry != null);
+      undefeatedHistoryEntry != null ||
+      nextCourtAnalysisPrefetchEnabled);
 
-  const operatorDetailsQuery = useQuery({
-    queryKey: operatorDetailsQueryKey(gameId),
-    queryFn: () => fetchOperatorDetails(gameId),
+  const operatorMatchHistoryQuery = useQuery({
+    queryKey: operatorMatchHistoryQueryKey(gameId),
+    queryFn: () => fetchOperatorMatchHistory(gameId),
     enabled:
       !!gameId &&
       !isQuickGameSession &&
       Boolean(operatorShellQuery.data) &&
-      operatorHistoryDataEnabled,
-    ...operatorDetailsQueryOptions,
+      operatorMatchHistoryEnabled,
+    ...operatorMatchHistoryQueryOptions,
   });
 
   useOperatorQueueRegistrationSync({
@@ -801,8 +807,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       operatorQueueQuery.data?.status !== "ended" &&
       operatorQueueQuery.data?.status !== "draft",
     queueQuery: operatorQueueQuery,
-    detailsQuery: operatorDetailsQuery,
-    refreshDetails: operatorHistoryDataEnabled,
   });
 
   const spectatorLiveQuery = useQuery({
@@ -825,23 +829,25 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   });
 
   const spectatorGameStatus = spectatorLiveQuery.data?.game?.status;
-  const spectatorHistoryDataEnabled =
+  const spectatorMatchHistoryEnabled =
     isSpectator &&
-    (spectatorGameStatus === "ended" ||
-      showMatchHistory ||
+    (showMatchHistory ||
       (isLgViewport === false && mobileDashboardTab === "history") ||
       undefeatedHistoryEntry != null);
+  const spectatorRecapEnabled = isSpectator && spectatorGameStatus === "ended";
 
-  const spectatorDetailsQuery = useQuery({
-    queryKey: spectatorDetailsQueryKey(gameId),
-    queryFn: () => fetchSpectateGame(gameId, "details") as Promise<SpectateDetailsPayload>,
-    enabled: !!gameId && spectatorHistoryDataEnabled,
-    ...spectatorDetailsQueryOptions,
-    refetchInterval: () => {
-      if (!spectatorHistoryDataEnabled) return false;
-      if (spectatorGameStatus === "ended") return false;
-      return SPECTATOR_LIVE_POLL_MS;
-    },
+  const spectatorMatchHistoryQuery = useQuery({
+    queryKey: spectatorMatchHistoryQueryKey(gameId),
+    queryFn: () => fetchSpectateGame(gameId, "history"),
+    enabled: !!gameId && spectatorMatchHistoryEnabled,
+    ...spectatorMatchHistoryQueryOptions,
+  });
+
+  const spectatorRecapQuery = useQuery({
+    queryKey: spectatorRecapQueryKey(gameId),
+    queryFn: () => fetchSpectateGame(gameId, "recap"),
+    enabled: !!gameId && spectatorRecapEnabled,
+    ...spectatorRecapQueryOptions,
   });
 
   const data = useMemo((): GamePayload | undefined => {
@@ -852,24 +858,28 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!spectatorLiveQuery.data) return undefined;
       return mergeSpectatorGamePayload(
         spectatorLiveQuery.data,
-        spectatorDetailsQuery.data,
+        null,
+        spectatorMatchHistoryQuery.data,
+        spectatorRecapQuery.data,
       ) as GamePayload;
     }
     const shell = operatorShellQuery.data ?? operatorPlaceholderShell(gameId);
     return mergeOperatorGamePayload(
       shell,
       operatorQueueQuery.data,
-      operatorDetailsQuery.data,
+      null,
+      operatorMatchHistoryQuery.data,
     );
   }, [
     gameId,
     isQuickGameSession,
     isSpectator,
     quickSession,
-    operatorDetailsQuery.data,
+    operatorMatchHistoryQuery.data,
     operatorQueueQuery.data,
     operatorShellQuery.data,
-    spectatorDetailsQuery.data,
+    spectatorMatchHistoryQuery.data,
+    spectatorRecapQuery.data,
     spectatorLiveQuery.data,
   ]);
 
@@ -897,12 +907,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     });
   }, [spectatorLiveQuery]);
 
-  const handleSpectatorDetailsRefresh = useCallback(() => {
+  const handleSpectatorMatchHistoryRefresh = useCallback(() => {
     setSpectatorManualDetailsRefresh(true);
-    void spectatorDetailsQuery.refetch().finally(() => {
+    void spectatorMatchHistoryQuery.refetch().finally(() => {
       setSpectatorManualDetailsRefresh(false);
     });
-  }, [spectatorDetailsQuery]);
+  }, [spectatorMatchHistoryQuery]);
 
   const startMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
@@ -1028,8 +1038,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     onSettled: () => {
       if (!isQuickGameSession) {
         void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-        if (operatorHistoryDataEnabled) {
-          void queryClient.refetchQueries({ queryKey: operatorDetailsQueryKey(gameId) });
+        if (operatorMatchHistoryEnabled) {
+          void queryClient.refetchQueries({ queryKey: operatorMatchHistoryQueryKey(gameId) });
         }
       }
     },
@@ -1068,7 +1078,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         const optimistic = applyShuffleNextOptimistic(previous);
         if (!optimistic) throw new Error("Not enough queued players.");
         writeOperatorGamePayload(queryClient, gameId, optimistic);
-        return { message: "Next four players shuffled into new teams." };
+        return { message: "Optimized next four for best balance." };
       }
 
       const response = await fetch(`/api/games/${gameId}/shuffle-next`, { method: "POST" });
@@ -1810,6 +1820,17 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     }
     return queueWithStats.slice(DOUBLES_PLAYERS_PER_COURT);
   }, [queueWithStats, usesWinnerLoserRotation, nextCourtFoursomeIds]);
+
+  const handleFillCourtQueueSwap = useCallback(async () => {
+    const order = buildQueueNextCourtWaitingSwapOrder(queueWithStats);
+    if (!order) {
+      toast.error("Need at least six players in the queue to swap.");
+      return;
+    }
+    await reorderQueueMutation.mutateAsync(order);
+    toast.success("Swapped in the next two players from the waiting line.");
+  }, [queueWithStats, reorderQueueMutation]);
+
   const sessionPlayerLookup = useMemo(
     () =>
       buildSessionPlayerLookup({
@@ -2075,7 +2096,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
   const operatorMatchHistoryCaption = (() => {
     if (!showMatchHistory) return "Expand to view match history";
-    if (operatorDetailsQuery.isLoading && !operatorDetailsQuery.data) {
+    if (operatorMatchHistoryQuery.isLoading && !operatorMatchHistoryQuery.data) {
       return "Loading match history…";
     }
     return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
@@ -2091,7 +2112,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     if (!spectatorMatchHistoryPanelOpen && game.status !== "ended") {
       return "Expand to view match history";
     }
-    if (spectatorDetailsQuery.isLoading && !spectatorDetailsQuery.data) {
+    if (spectatorMatchHistoryQuery.isLoading && !spectatorMatchHistoryQuery.data) {
       return "Loading match history…";
     }
     return `${matches.length} ${matches.length === 1 ? "match" : "matches"} recorded`;
@@ -2100,7 +2121,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const spectatorMatchHistoryEmptyMessage = "No matches recorded for this session yet.";
 
   const quickGameHomeHref = isEphemeralQuickSession ? "/play" : "/";
-  const leaderboardHref = `/leaderboard/${game.gameId}`;
+  const leaderboardHref = buildSpectatorLeaderboardHref(game.gameId);
 
   const isCourtRematch = (court: CourtView) =>
     court.isRematch === true || rematchCourtNumbers.has(court.courtNumber);
@@ -2120,7 +2141,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     ? (spectatorLiveQuery.data?.firstTimerCount ?? 0)
     : (operatorQueueQuery.data?.firstTimerCount ?? 0);
   const showSpectatorEndedRecap = isSpectator && isPastGame;
-  const canResetGame = isDemoOpenPlayTitle(game.title);
+  const canResetGame =
+    !isQuickGameSession &&
+    !isPastGame &&
+    (isDemoOpenPlayTitle(game.title) || isSuperAdmin);
   const hideControls =
     readOnly ||
     isPastGame ||
@@ -2181,7 +2205,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const handleResetGame = async () => {
     const result = await Swal.fire({
       ...alertBaseOptions,
-      title: "Reset Game?",
+      title: "Reset Open Play?",
       text: "This clears matches and the leaderboard, then rebuilds the queue.",
       icon: "warning",
       showCancelButton: true,
@@ -2436,6 +2460,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     pickDoublesCourtFoursome(data.queue, game.matchingType) != null && nextEmptyCourt != null;
   const fillCourtTeamA = (nextCourtFoursome ?? queueWithStats.slice(0, 2)).slice(0, 2);
   const fillCourtTeamB = (nextCourtFoursome ?? queueWithStats.slice(0, 4)).slice(2, 4);
+  const showNextCourtAnalysis =
+    !isSpectator &&
+    matchingType === "auto-balanced" &&
+    !usesWinnerLoserRotation &&
+    game.gameMode !== "singles" &&
+    (nextCourtFoursome?.length ?? 0) === DOUBLES_PLAYERS_PER_COURT;
+  const nextOnCourtPlayerCount =
+    nextCourtFoursome?.length ?? Math.min(DOUBLES_PLAYERS_PER_COURT, queueWithStats.length);
   const fillingCourtNumber =
     startMutation.isPending && startMutation.variables != null ? startMutation.variables : null;
   const endCourt =
@@ -2551,37 +2583,55 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               >
                 <QueueDndZone zone="next-up" className="queue-next-up-group">
                   <div className="queue-next-up-banner">
-                    <div className="flex items-center gap-2">
-                      <span className="queue-next-up-icon">
+                    <div className="queue-next-up-banner__header">
+                      <span className="queue-next-up-icon" aria-hidden>
                         <Zap className="h-4 w-4" />
                       </span>
-                      <div>
+                      <div className="queue-next-up-banner__heading">
                         <p className="queue-next-up-title">
                           <span className="xl:hidden">Next</span>
                           <span className="hidden xl:inline">Next on court</span>
                         </p>
-                        <p className="caption hidden xl:block">
-                          {usesWinnerLoserRotation
-                            ? "Next four in queue order — complete bracket foursomes move to the end of the main line"
-                            : `Top ${Math.min(DOUBLES_PLAYERS_PER_COURT, queueWithStats.length)} ${
-                                Math.min(DOUBLES_PLAYERS_PER_COURT, queueWithStats.length) === 1
-                                  ? "player"
-                                  : "players"
-                              } — ready to play`}
-                          {canReorderQueue ? " · drag to reorder" : ""}
+                        <p className="queue-next-up-subtitle caption">
+                          {showNextCourtAnalysis
+                            ? `Slots 1–2 vs 3–4${canReorderQueue ? " · drag to reorder" : ""}`
+                            : usesWinnerLoserRotation
+                              ? "Next four in queue order — complete bracket foursomes move to the end of the main line"
+                              : formatDoublesNextOnCourtSubtitle(nextOnCourtPlayerCount, {
+                                  canReorder: canReorderQueue,
+                                })}
                         </p>
                       </div>
+                      <Badge className="badge-next-up-count shrink-0 self-start sm:self-center">
+                        {nextCourtFoursome?.length ?? 0} / {DOUBLES_PLAYERS_PER_COURT}
+                      </Badge>
                     </div>
-                    <Badge className="badge-next-up-count shrink-0">
-                      {nextCourtFoursome?.length ?? 0} / {DOUBLES_PLAYERS_PER_COURT}
-                    </Badge>
                   </div>
-                  <div className="queue-next-up-slots">
-                    {(nextCourtFoursome ?? queueWithStats.slice(0, DOUBLES_PLAYERS_PER_COURT)).map(
-                      (entry, index) =>
-                        renderQueuedEntry(entry, index, { compactName: compactQueue }),
-                    )}
-                  </div>
+                  {showNextCourtAnalysis && nextCourtFoursome ? (
+                    <NextCourtMatchAnalysis
+                      foursome={nextCourtFoursome}
+                      queue={queueWithStats}
+                      matches={matches}
+                      matchesLoading={
+                        !isQuickGameSession &&
+                        operatorMatchHistoryQuery.isLoading &&
+                        !operatorMatchHistoryQuery.data
+                      }
+                      onShuffle={canReorderQueue ? handleFillCourtShuffle : undefined}
+                      shufflePending={shuffleNextMutation.isPending}
+                      onSwapWaiting={canReorderQueue ? handleFillCourtQueueSwap : undefined}
+                      swapWaitingPending={reorderQueueMutation.isPending}
+                      maxVisible={compactQueue ? 1 : 2}
+                    />
+                  ) : null}
+                  <QueueNextUpSlots
+                    entries={nextCourtFoursome ?? queueWithStats.slice(0, DOUBLES_PLAYERS_PER_COURT)}
+                    showDoublesTeamPreview={game.gameMode !== "singles"}
+                    compactName={compactQueue}
+                    renderEntry={(entry, index, options) =>
+                      renderQueuedEntry(entry, index, options)
+                    }
+                  />
                 </QueueDndZone>
                 {usesWinnerLoserRotation && rotationQueueSegments ? (
                   <QueueDndZone zone="waiting" className="queue-waiting-group">
@@ -2981,12 +3031,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const renderMatchHistoryPanel = (inSpectatorMobileTab = false) => {
     const historyMatches = matches;
     const panelVisible = inSpectatorMobileTab || showMatchHistory;
-    const detailsQuery = isSpectator ? spectatorDetailsQuery : operatorDetailsQuery;
+    const historyQuery = isSpectator ? spectatorMatchHistoryQuery : operatorMatchHistoryQuery;
     const spectatorHistoryRefreshStatus =
       isSpectator && panelVisible
         ? getSpectatorPanelRefreshStatus(
-            detailsQuery.isFetching,
-            detailsQuery.isLoading,
+            historyQuery.isFetching,
+            historyQuery.isLoading,
             spectatorManualDetailsRefresh,
           )
         : null;
@@ -3016,16 +3066,16 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                   className="match-history-refresh"
                   onClick={() => {
                     if (isSpectator) {
-                      handleSpectatorDetailsRefresh();
+                      handleSpectatorMatchHistoryRefresh();
                     } else {
-                      void detailsQuery.refetch();
+                      void historyQuery.refetch();
                     }
                   }}
-                  disabled={detailsQuery.isFetching}
+                  disabled={historyQuery.isFetching}
                   aria-label="Refresh match history"
                 >
                   <RefreshCw
-                    className={cn("h-4 w-4", detailsQuery.isFetching && "animate-spin")}
+                    className={cn("h-4 w-4", historyQuery.isFetching && "animate-spin")}
                   />
                 </Button>
               ) : null}
@@ -3068,7 +3118,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             id={inSpectatorMobileTab ? "match-history-list-mobile" : "match-history-list"}
             className="dashboard-panel-content"
           >
-            {detailsQuery.isLoading && !detailsQuery.data ? (
+            {historyQuery.isLoading && !historyQuery.data ? (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
                 Loading match history…
@@ -3213,8 +3263,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               )}
               <Link
                 href={leaderboardHref}
-                onMouseEnter={() => prefetchLeaderboardRecap(queryClient, gameId, false)}
-                onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, false)}
+                onMouseEnter={() => prefetchLeaderboardRecap(queryClient, gameId, true)}
+                onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, true)}
               >
                 <Button size="lg" variant="outline">
                   <Trophy className="mr-2 h-4 w-4" /> Leaderboard
@@ -3236,21 +3286,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 onDatabaseCheckIn={() => setDatabaseCheckInOpen(true)}
                 showAddPlayer={showManualAddPlayer}
                 onAddPlayer={() => setAddPlayerOpen(true)}
+                showResetOpenPlay={!readOnly && canResetGame}
+                resetOpenPlayPending={resetMutation.isPending}
+                onResetOpenPlay={handleResetGame}
                 showEndOpenPlay={!readOnly && !isPastGame}
                 endOpenPlayPending={endOpenPlayMutation.isPending}
                 onEndOpenPlay={handleEndOpenPlay}
               />
-              {!readOnly && canResetGame ? (
-                <Button
-                  size="lg"
-                  variant="destructive"
-                  onClick={handleResetGame}
-                  disabled={resetMutation.isPending}
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  {resetMutation.isPending ? "Resetting..." : "Reset"}
-                </Button>
-              ) : null}
               {!isQuickGameSession ? (
                 <GameCheckoutNotificationBell gameId={gameId} iconOnly />
               ) : null}
@@ -3289,7 +3331,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                   {
                     id: "history" as const,
                     label: "History",
-                    count: (isSpectator ? spectatorDetailsQuery.data : operatorDetailsQuery.data)
+                    count: (isSpectator ? spectatorMatchHistoryQuery.data : operatorMatchHistoryQuery.data)
                       ? matches.length
                       : undefined,
                   },
@@ -3544,12 +3586,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           onQrClick={openQrRegistrationDialog}
           showDatabaseCheckIn={!readOnly && !isPastGame && !isQuickGameSession}
           onDatabaseCheckInClick={() => setDatabaseCheckInOpen(true)}
+          showAddPlayer={showManualAddPlayer}
+          onAddPlayerClick={() => setAddPlayerOpen(true)}
+          showResetOpenPlay={!readOnly && canResetGame}
+          resetOpenPlayPending={resetMutation.isPending}
+          onResetOpenPlay={handleResetGame}
           showEndOpenPlay={!readOnly && !isPastGame}
           endOpenPlayPending={endOpenPlayMutation.isPending}
           onEndOpenPlay={handleEndOpenPlay}
-          showReset={!readOnly && canResetGame}
-          resetPending={resetMutation.isPending}
-          onReset={handleResetGame}
         />
       ) : null}
 
@@ -3633,8 +3677,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           isLoading={
             !isQuickGameSession &&
             (isSpectator
-              ? spectatorDetailsQuery.isFetching
-              : operatorDetailsQuery.isFetching) &&
+              ? spectatorMatchHistoryQuery.isFetching
+              : operatorMatchHistoryQuery.isFetching) &&
             matches.length === 0
           }
         />

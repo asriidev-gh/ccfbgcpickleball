@@ -1,10 +1,14 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Loader2, Play, Users, Volume2, VolumeX, Zap } from "lucide-react";
 import { toast } from "sonner";
 
+import type { MatchHistoryView } from "@/components/game/match-history-list";
+import { NextCourtMatchAnalysis } from "@/components/game/next-court-match-analysis";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
+import { QueueNextUpSlots } from "@/components/game/queue-next-up-slots";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,9 +25,21 @@ import {
   isCallNamesSpeechSupported,
 } from "@/lib/call-names-speech";
 import {
+  DOUBLES_PLAYERS_PER_COURT,
+  formatDoublesNextOnCourtSubtitle,
+  isDoublesWinnerLoserRotation,
+} from "@/lib/doubles/doubles-queue-fill";
+import {
+  fetchOperatorMatchHistory,
+  operatorMatchHistoryQueryKey,
+} from "@/lib/fetch-operator-game";
+import {
   buildPlayerLeaderboardRankMap,
   type LeaderboardGamesPlayedRow,
 } from "@/lib/games-played-map";
+import { isQuickGame } from "@/lib/local-game-id";
+import { operatorMatchHistoryQueryOptions } from "@/lib/operator-query-options";
+import type { QuickPlayMatchingType } from "@/lib/quick-play-wizard-shared";
 import { cn } from "@/lib/utils";
 
 type SpectatorNextOnQueueButtonProps = {
@@ -41,6 +57,16 @@ type SpectatorNextOnQueueButtonProps = {
   nextUpEntries?: QueueEntryView[];
   /** Players required per court — used for labels (default 4). */
   courtPlayerCount?: number;
+  /** Auto-balanced doubles matchup check (owner courts view / operator). */
+  enableMatchupAnalysis?: boolean;
+  gameId?: string;
+  matchingType?: QuickPlayMatchingType | null;
+  gameMode?: "doubles" | "singles";
+  matches?: MatchHistoryView[];
+  onShuffleNext?: () => void | Promise<void>;
+  shuffleNextPending?: boolean;
+  onSwapWaiting?: () => void | Promise<void>;
+  swapWaitingPending?: boolean;
 };
 
 export function SpectatorNextOnQueueButton({
@@ -56,10 +82,23 @@ export function SpectatorNextOnQueueButton({
   leaderboard = [],
   nextUpEntries,
   courtPlayerCount = 4,
+  enableMatchupAnalysis = false,
+  gameId,
+  matchingType,
+  gameMode = "doubles",
+  matches: matchesProp = [],
+  onShuffleNext,
+  shuffleNextPending = false,
+  onSwapWaiting,
+  swapWaitingPending = false,
 }: SpectatorNextOnQueueButtonProps) {
   const [open, setOpen] = useState(false);
   const [callingNames, setCallingNames] = useState(false);
   const callNamesRunIdRef = useRef(0);
+
+  const isDoubles = gameMode !== "singles" && courtPlayerCount === DOUBLES_PLAYERS_PER_COURT;
+  const usesWinnerLoserRotation = isDoublesWinnerLoserRotation(matchingType);
+
   const nextUp = useMemo(
     () => nextUpEntries ?? queue.slice(0, courtPlayerCount),
     [courtPlayerCount, nextUpEntries, queue],
@@ -67,13 +106,49 @@ export function SpectatorNextOnQueueButton({
   const teamA = useMemo(() => nextUp.slice(0, 2), [nextUp]);
   const teamB = useMemo(() => nextUp.slice(2, courtPlayerCount), [courtPlayerCount, nextUp]);
   const count = nextUp.length;
+
+  const showNextCourtAnalysis =
+    enableMatchupAnalysis &&
+    isDoubles &&
+    matchingType === "auto-balanced" &&
+    !usesWinnerLoserRotation &&
+    count === DOUBLES_PLAYERS_PER_COURT;
+
+  const shouldLoadMatchHistory =
+    open && showNextCourtAnalysis && Boolean(gameId) && !isQuickGame(gameId ?? "");
+
+  const operatorMatchHistoryQuery = useQuery({
+    queryKey: operatorMatchHistoryQueryKey(gameId ?? ""),
+    queryFn: () => fetchOperatorMatchHistory(gameId!),
+    enabled: shouldLoadMatchHistory,
+    ...operatorMatchHistoryQueryOptions,
+  });
+
+  const matches = useMemo(() => {
+    if (gameId && isQuickGame(gameId)) return matchesProp;
+    return operatorMatchHistoryQuery.data?.matches ?? matchesProp;
+  }, [gameId, matchesProp, operatorMatchHistoryQuery.data?.matches]);
+
   const leaderboardRankMap = useMemo(
     () => (showLeaderboardRank ? buildPlayerLeaderboardRankMap(leaderboard) : new Map()),
     [leaderboard, showLeaderboardRank],
   );
+
   const showCallNames = enableCallNames && isCallNamesSpeechSupported() && count > 0;
   const showFillNextCourt = Boolean(onFillNextCourt && hasEmptyCourt);
   const showFooter = showCallNames || showFillNextCourt;
+
+  const queueSubtitle = useMemo(() => {
+    if (count === 0) return null;
+    if (showNextCourtAnalysis) return "Slots 1–2 vs 3–4";
+    if (usesWinnerLoserRotation) {
+      return "Next four in queue order — complete bracket foursomes move to the end of the main line";
+    }
+    if (isDoubles) {
+      return formatDoublesNextOnCourtSubtitle(count);
+    }
+    return `Top ${count} ${count === 1 ? "player" : "players"} ready to play`;
+  }, [count, isDoubles, showNextCourtAnalysis, usesWinnerLoserRotation]);
 
   const cancelPlayerAnnouncement = useCallback(() => {
     callNamesRunIdRef.current += 1;
@@ -150,7 +225,9 @@ export function SpectatorNextOnQueueButton({
             <DialogDescription>
               {count === 0
                 ? "No players are waiting in the queue right now."
-                : `Top ${count} ${count === 1 ? "player" : "players"} waiting for the next open court.`}
+                : isDoubles
+                  ? queueSubtitle
+                  : `Top ${count} ${count === 1 ? "player" : "players"} waiting for the next open court.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -159,23 +236,42 @@ export function SpectatorNextOnQueueButton({
           ) : (
             <div className="queue-next-up-group">
               <div className="queue-next-up-banner">
-                <div className="flex items-center gap-2">
-                  <span className="queue-next-up-icon">
-                    <Zap className="h-4 w-4" aria-hidden />
+                <div className="queue-next-up-banner__header">
+                  <span className="queue-next-up-icon" aria-hidden>
+                    <Zap className="h-4 w-4" />
                   </span>
-                  <div>
+                  <div className="queue-next-up-banner__heading">
                     <p className="queue-next-up-title">Next on court</p>
-                    <p className="caption">
-                      Top {count} {count === 1 ? "player" : "players"} — ready to play
-                    </p>
+                    {queueSubtitle ? (
+                      <p className="queue-next-up-subtitle caption">{queueSubtitle}</p>
+                    ) : null}
                   </div>
+                  <Badge className="badge-next-up-count shrink-0 self-start sm:self-center">
+                    {count} / {courtPlayerCount}
+                  </Badge>
                 </div>
-                <Badge className="badge-next-up-count shrink-0">
-                  {count} / {courtPlayerCount}
-                </Badge>
               </div>
-              <div className="queue-next-up-slots">
-                {nextUp.map((entry, index) => (
+              {showNextCourtAnalysis ? (
+                <NextCourtMatchAnalysis
+                  foursome={nextUp}
+                  queue={queue}
+                  matches={matches}
+                  matchesLoading={
+                    shouldLoadMatchHistory &&
+                    operatorMatchHistoryQuery.isLoading &&
+                    !operatorMatchHistoryQuery.data
+                  }
+                  onShuffle={onShuffleNext}
+                  shufflePending={shuffleNextPending}
+                  onSwapWaiting={onSwapWaiting}
+                  swapWaitingPending={swapWaitingPending}
+                  maxVisible={2}
+                />
+              ) : null}
+              <QueueNextUpSlots
+                entries={nextUp}
+                showDoublesTeamPreview={isDoubles}
+                renderEntry={(entry, index) => (
                   <QueueEntryRow
                     key={entry._id}
                     entry={entry}
@@ -187,8 +283,8 @@ export function SpectatorNextOnQueueButton({
                     showLeaderboardRank={showLeaderboardRank}
                     leaderboardRankMap={leaderboardRankMap}
                   />
-                ))}
-              </div>
+                )}
+              />
             </div>
           )}
 

@@ -163,11 +163,12 @@ export async function reorderQueuedPlayers(gameId: string, orderedEntryIds: stri
   const byId = new Map(queue.map((entry) => [entry._id.toString(), entry]));
   const seen = new Set<string>();
   const reordered = orderedEntryIds.map((entryId) => {
-    if (seen.has(entryId)) {
+    const normalizedId = String(entryId);
+    if (seen.has(normalizedId)) {
       throw new Error("Queue order must include every queued player exactly once.");
     }
-    seen.add(entryId);
-    const entry = byId.get(entryId);
+    seen.add(normalizedId);
+    const entry = byId.get(normalizedId);
     if (!entry) {
       throw new Error("Invalid queue entry in reorder request.");
     }

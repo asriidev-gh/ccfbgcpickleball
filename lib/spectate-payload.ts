@@ -31,6 +31,14 @@ export type SpectateLivePayload = {
   clubBranding?: ClubBranding | null;
 };
 
+export type SpectateMatchHistoryPayload = {
+  matches: MatchHistoryView[];
+};
+
+export type SpectateRecapPayload = {
+  recap?: SpectateDetailsPayload["recap"];
+};
+
 export type SpectateDetailsPayload = {
   leaderboard: LeaderboardGamesPlayedRow[];
   matches: MatchHistoryView[];
@@ -48,11 +56,13 @@ export type SpectateFullPayload = SpectateLivePayload &
 export function mergeSpectatorGamePayload(
   live: SpectateLivePayload,
   details?: SpectateDetailsPayload | null,
+  matchHistory?: SpectateMatchHistoryPayload | null,
+  recapPayload?: SpectateRecapPayload | null,
 ): SpectateFullPayload {
   return {
     ...live,
     leaderboard: details?.leaderboard ?? live.leaderboard ?? [],
-    matches: details?.matches ?? [],
-    recap: details?.recap,
+    matches: matchHistory?.matches ?? details?.matches ?? [],
+    recap: recapPayload?.recap ?? details?.recap,
   };
 }

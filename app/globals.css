@@ -1857,7 +1857,133 @@
   }
 
   .queue-next-up-banner {
-    @apply mb-0 flex shrink-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted px-2.5 py-2 xl:gap-3 xl:px-3 xl:py-2.5;
+    @apply mb-0 shrink-0 rounded-lg border border-border bg-muted px-3 py-2.5;
+  }
+
+  .queue-next-up-banner__header {
+    @apply flex items-start gap-2.5 sm:items-center;
+  }
+
+  .queue-next-up-banner__heading {
+    @apply min-w-0 flex-1;
+  }
+
+  .queue-next-up-subtitle {
+    @apply mt-0.5 leading-snug text-muted-foreground;
+  }
+
+  .queue-next-up-analysis {
+    @apply rounded-lg border border-border/80 bg-background/70 px-3 py-2.5;
+  }
+
+  .next-court-analysis__header {
+    @apply mb-2 flex items-center justify-between gap-2;
+  }
+
+  .next-court-analysis__label {
+    @apply mb-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+  }
+
+  .next-court-analysis__help-btn {
+    @apply size-6 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground;
+  }
+
+  .matchup-guide-list {
+    @apply list-none p-0;
+  }
+
+  .matchup-guide-row {
+    @apply flex items-start gap-2.5 rounded-lg border px-3 py-2.5;
+  }
+
+  .matchup-guide-row--balanced {
+    @apply border-emerald-500/25 bg-emerald-500/5;
+  }
+
+  .matchup-guide-row--caution {
+    @apply border-amber-500/30 bg-amber-500/5;
+  }
+
+  .matchup-guide-row--tip {
+    @apply border-sky-500/25 bg-sky-500/5;
+  }
+
+  .matchup-guide-row__icon {
+    @apply mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-background/80;
+  }
+
+  .matchup-guide-row__title {
+    @apply text-sm font-medium leading-snug text-foreground;
+  }
+
+  .matchup-guide-row__description {
+    @apply mt-0.5 text-xs leading-relaxed text-muted-foreground;
+  }
+
+  .next-court-analysis__list {
+    @apply flex flex-col gap-1.5;
+  }
+
+  .next-court-analysis__item {
+    @apply flex items-start gap-2 rounded-md border px-2.5 py-2;
+  }
+
+  .next-court-analysis__item--balanced {
+    @apply border-emerald-500/25 bg-emerald-500/5;
+  }
+
+  .next-court-analysis__item--caution {
+    @apply border-amber-500/30 bg-amber-500/5;
+  }
+
+  .next-court-analysis__item--tip {
+    @apply border-sky-500/25 bg-sky-500/5;
+  }
+
+  .next-court-analysis__icon {
+    @apply mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-background/80;
+  }
+
+  .next-court-analysis__text {
+    @apply text-xs leading-relaxed text-foreground/90;
+  }
+
+  .next-court-analysis__text-block {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+
+  .next-court-analysis__bullets {
+    @apply list-disc space-y-1 pl-4 text-xs leading-relaxed text-foreground/85;
+  }
+
+  .next-court-analysis__ready {
+    @apply mt-0.5;
+  }
+
+  .next-court-analysis__loading {
+    @apply flex items-center gap-1.5 text-xs text-muted-foreground;
+  }
+
+  .next-court-analysis__footer {
+    @apply mt-2.5 flex flex-col gap-2 border-t border-border/60 pt-2.5 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .next-court-analysis__footer-hint {
+    @apply text-[11px] leading-snug text-muted-foreground;
+  }
+
+  .next-court-analysis__actions {
+    @apply flex w-full shrink-0 flex-wrap items-center justify-end gap-1.5 sm:w-auto;
+  }
+
+  .next-court-analysis__accepted {
+    @apply flex items-center gap-1.5 text-xs leading-snug text-muted-foreground;
+  }
+
+  .next-court-analysis__shuffle-btn,
+  .next-court-analysis__accept-btn,
+  .next-court-analysis__acknowledge-btn {
+    @apply w-full sm:w-auto;
   }
 
   .queue-next-up-title {
@@ -1992,6 +2118,42 @@
 
   .queue-next-up-slots {
     @apply flex flex-col gap-1.5 xl:gap-2;
+  }
+
+  .queue-next-up-matchup__teams {
+    @apply flex flex-col gap-1.5 xl:flex-row xl:items-stretch xl:gap-2;
+  }
+
+  .queue-next-up-team {
+    @apply flex min-w-0 flex-1 flex-col gap-1 rounded-lg border border-border/60 bg-muted/15 p-1.5;
+  }
+
+  .queue-next-up-team__label {
+    @apply px-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground;
+  }
+
+  .queue-next-up-team__slots {
+    @apply flex flex-col gap-1.5;
+  }
+
+  .queue-next-up-vs {
+    @apply flex shrink-0 items-center justify-center gap-2 py-0.5 xl:w-10 xl:flex-col xl:gap-1.5 xl:py-2;
+  }
+
+  .queue-next-up-vs__rule {
+    @apply h-px flex-1 bg-border/70 xl:h-auto xl:w-px xl:self-stretch;
+  }
+
+  .queue-next-up-vs__puck {
+    @apply flex h-7 min-w-[2.35rem] shrink-0 items-center justify-center rounded-full border border-border bg-background px-2 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground shadow-sm;
+  }
+
+  .queue-next-up-matchup .queue-next-up-team--a .queue-item {
+    @apply border-amber-400/20;
+  }
+
+  .queue-next-up-matchup .queue-next-up-team--b .queue-item {
+    @apply border-sky-500/20;
   }
 
   /* Denser next-on-court rows — phones, tablets, and 1024×768 */
@@ -4805,7 +4967,8 @@
     }
   }
 
-  [data-theme="cupertino"] .queue-next-up-banner .caption {
+  [data-theme="cupertino"] .queue-next-up-banner .caption,
+  [data-theme="cupertino"] .queue-next-up-subtitle {
     font-size: 13px;
     line-height: 18px;
     color: var(--cupertino-slate-mid);
@@ -5479,7 +5642,8 @@
     @apply font-bold text-primary-foreground normal-case;
   }
 
-  [data-theme="cosmos"] .queue-next-up-banner .caption {
+  [data-theme="cosmos"] .queue-next-up-banner .caption,
+  [data-theme="cosmos"] .queue-next-up-subtitle {
     @apply text-primary-foreground/80;
   }
 
@@ -5793,7 +5957,8 @@
     @apply text-sm font-bold tracking-wide text-primary uppercase;
   }
 
-  [data-theme="session"] .queue-next-up-banner .caption {
+  [data-theme="session"] .queue-next-up-banner .caption,
+  [data-theme="session"] .queue-next-up-subtitle {
     @apply text-[color:var(--session-muted)];
   }
 
@@ -6750,7 +6915,8 @@
     @apply text-[10px] font-extrabold tracking-[0.2em] text-primary uppercase;
   }
 
-  [data-theme="makati"] .queue-next-up-banner .caption {
+  [data-theme="makati"] .queue-next-up-banner .caption,
+  [data-theme="makati"] .queue-next-up-subtitle {
     @apply text-[color:var(--makati-text-muted)];
   }
 

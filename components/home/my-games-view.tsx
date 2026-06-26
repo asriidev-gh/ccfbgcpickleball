@@ -216,8 +216,6 @@ function GameTitle({
   );
 }
 
-const metaIconClass = "h-3.5 w-3.5 shrink-0 text-muted-foreground/75 md:h-4 md:w-4";
-
 function GameListInfoGrouped({
   game,
   variant,
@@ -226,77 +224,18 @@ function GameListInfoGrouped({
   variant: "active" | "past" | "quick";
 }) {
   return (
-    <div className="game-list-info-grouped grid min-w-0 grid-cols-[1.25rem_1fr] gap-x-2.5 gap-y-1">
-      <CalendarDays
-        className={cn(metaIconClass, "col-start-1 row-start-1 mt-0.5 text-primary/70")}
-        aria-hidden
-      />
-      <div className="col-start-2 row-start-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-lg font-semibold leading-snug md:text-xl">{game.title}</span>
-          {isDemoOpenPlayTitle(game.title) ? <DemoOnlyBadge /> : null}
-          {game.isLocalGame ? <LiveQueueOffBadge /> : null}
-          <GameFormatHeaderBadges gameMode={game.gameMode} matchingType={game.matchingType} />
-          {variant === "past" || game.status === "ended" ? (
-            <Badge variant="outline" className="shrink-0">
-              Ended
-            </Badge>
-          ) : null}
+    <div className="game-list-info-grouped min-w-0 space-y-2">
+      <div className="flex flex-wrap items-start gap-2">
+        <div className="min-w-0 flex-1 text-lg font-semibold md:text-xl">
+          <GameTitle title={game.title} isLocalGame={game.isLocalGame} />
         </div>
-      </div>
-      <Gauge className={cn(metaIconClass, "col-start-1 row-start-2 self-center")} aria-hidden />
-      <span className="col-start-2 row-start-2 text-xs text-muted-foreground md:text-sm">
-        {game.openPlayType}
-      </span>
-      <LayoutGrid
-        className={cn(metaIconClass, "col-start-1 row-start-3 self-center")}
-        aria-hidden
-      />
-      <span className="col-start-2 row-start-3 text-xs text-muted-foreground md:text-sm">
-        Courts: {game.courtCount}
-      </span>
-      <Users className={cn(metaIconClass, "col-start-1 row-start-4 self-center")} aria-hidden />
-      <span className="col-start-2 row-start-4 text-xs text-muted-foreground md:text-sm">
-        {game.isLocalGame ? "Players" : "Expected"}: {game.expectedPlayers}
-        {game.strictPlayerCount === true ? " (strict)" : ""}
-      </span>
-      {game.isLocalGame ? null : (
-        <>
-          {game.registrationMode === "owner" ? (
-            <ClipboardList
-              className={cn(metaIconClass, "col-start-1 row-start-5 self-center")}
-              aria-hidden
-            />
-          ) : (
-            <QrCode
-              className={cn(metaIconClass, "col-start-1 row-start-5 self-center")}
-              aria-hidden
-            />
-          )}
-          <span className="col-start-2 row-start-5 text-xs text-muted-foreground md:text-sm">
-            Registration: {getGameRegistrationTypeLabel(game.registrationMode)}
-          </span>
-        </>
-      )}
-      {variant === "past" || game.status === "ended" ? (
-        <>
-          <Clock
-            className={cn(metaIconClass, "col-start-1 row-start-6 self-center")}
-            aria-hidden
-          />
-          <span className="col-start-2 row-start-6 text-xs text-muted-foreground md:text-sm">
+        {variant === "past" || game.status === "ended" ? (
+          <Badge variant="outline" className="shrink-0">
             Ended
-            {game.updatedAt ? (
-              <>
-                {" "}
-                <span suppressHydrationWarning>
-                  {formatDistanceToNow(new Date(game.updatedAt), { addSuffix: true })}
-                </span>
-              </>
-            ) : null}
-          </span>
-        </>
-      ) : null}
+          </Badge>
+        ) : null}
+      </div>
+      <GameMeta game={game} variant={variant} />
     </div>
   );
 }
@@ -900,10 +839,6 @@ function GameList({
                         Ended
                       </Badge>
                     ) : null}
-                    <GameFormatHeaderBadges
-                      gameMode={game.gameMode}
-                      matchingType={game.matchingType}
-                    />
                   </div>
                   <GameMeta game={game} variant={variant} />
                 </div>

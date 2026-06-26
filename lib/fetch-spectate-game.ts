@@ -5,11 +5,16 @@ import {
   SPECTATOR_VIEW_UNAVAILABLE_MESSAGE,
   SpectatorViewUnavailableError,
 } from "@/lib/spectator-availability-shared";
-import type { SpectateDetailsPayload, SpectateLivePayload } from "@/lib/spectate-payload";
+import type {
+  SpectateDetailsPayload,
+  SpectateLivePayload,
+  SpectateMatchHistoryPayload,
+  SpectateRecapPayload,
+} from "@/lib/spectate-payload";
 
 export { SpectatorViewUnavailableError, isSpectatorViewUnavailableError } from "@/lib/spectator-availability-shared";
 
-export type SpectateScope = "live" | "details";
+export type SpectateScope = "live" | "details" | "history" | "recap";
 
 export function spectatorLiveQueryKey(gameId: string) {
   return ["game", gameId, "spectator", "live"] as const;
@@ -19,12 +24,30 @@ export function spectatorDetailsQueryKey(gameId: string) {
   return ["game", gameId, "spectator", "details"] as const;
 }
 
+export function spectatorMatchHistoryQueryKey(gameId: string) {
+  return ["game", gameId, "spectator", "history"] as const;
+}
+
+export function spectatorRecapQueryKey(gameId: string) {
+  return ["game", gameId, "spectator", "recap"] as const;
+}
+
 export async function fetchSpectateGame(gameId: string, scope: "live"): Promise<SpectateLivePayload>;
 export async function fetchSpectateGame(gameId: string, scope: "details"): Promise<SpectateDetailsPayload>;
 export async function fetchSpectateGame(
   gameId: string,
+  scope: "history",
+): Promise<SpectateMatchHistoryPayload>;
+export async function fetchSpectateGame(
+  gameId: string,
+  scope: "recap",
+): Promise<SpectateRecapPayload>;
+export async function fetchSpectateGame(
+  gameId: string,
   scope: SpectateScope,
-): Promise<SpectateLivePayload | SpectateDetailsPayload> {
+): Promise<
+  SpectateLivePayload | SpectateDetailsPayload | SpectateMatchHistoryPayload | SpectateRecapPayload
+> {
   const response = await fetch(`/api/games/${gameId}/spectate?scope=${scope}`);
   const data = await response.json();
   if (!response.ok) {

@@ -816,29 +816,29 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
             nextUpCount={SINGLES_MIN_QUEUE_TO_FILL}
             onReorder={(orderedEntryIds) => reorderQueueMutation.mutate(orderedEntryIds)}
           >
-            <QueueDndZone zone="next-up" className="space-y-3">
+                <QueueDndZone zone="next-up" className="space-y-3">
               <div className="queue-next-up-banner">
-                <div className="flex items-center gap-2">
-                  <span className="queue-next-up-icon">
+                <div className="queue-next-up-banner__header">
+                  <span className="queue-next-up-icon" aria-hidden>
                     <Zap className="h-4 w-4" />
                   </span>
-                  <div>
+                  <div className="queue-next-up-banner__heading">
                     <p className="queue-next-up-title">Next on court</p>
-                    <p className="caption">
+                    <p className="queue-next-up-subtitle caption">
                       {usesWinnerLoserRotation
                         ? "Queue order first — paired winners/losers join the end of the line"
                         : `Top ${Math.min(SINGLES_MIN_QUEUE_TO_FILL, queueWithStats.length)} player${
                             Math.min(SINGLES_MIN_QUEUE_TO_FILL, queueWithStats.length) === 1
                               ? ""
                               : "s"
-                          }`}
+                          } ready to play`}
                       {canReorderQueue ? " · drag to reorder" : ""}
                     </p>
                   </div>
+                  <Badge className="badge-next-up-count shrink-0 self-start sm:self-center">
+                    {nextCourtPair?.length ?? 0} / {SINGLES_MIN_QUEUE_TO_FILL}
+                  </Badge>
                 </div>
-                <Badge className="badge-next-up-count shrink-0">
-                  {nextCourtPair?.length ?? 0} / {SINGLES_MIN_QUEUE_TO_FILL}
-                </Badge>
               </div>
               <div className="space-y-2">
                 {(nextCourtPair ?? []).map((entry) => renderQueuedEntry(entry))}
@@ -1180,9 +1180,9 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
             showEndOpenPlay
             endOpenPlayPending={endOpenPlayMutation.isPending}
             onEndOpenPlay={() => void handleEndOpenPlay()}
-            showReset={false}
-            resetPending={false}
-            onReset={() => {}}
+            showResetOpenPlay={false}
+            resetOpenPlayPending={false}
+            onResetOpenPlay={() => {}}
           />
         ) : null}
 
