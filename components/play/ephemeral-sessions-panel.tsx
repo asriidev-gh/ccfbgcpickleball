@@ -95,6 +95,13 @@ export function EphemeralSessionsPanel({ className }: { className?: string }) {
           <p className="text-xs text-foreground/80">
             End this session before starting a new one. Resume to continue or end it here.
           </p>
+          <p className="text-xs text-foreground/80">
+            Or{" "}
+            <Link href="/login" className="font-medium text-primary underline-offset-2 hover:underline">
+              log in
+            </Link>{" "}
+            to create multiple session!
+          </p>
         </div>
       </div>
       <ul className="space-y-3">
