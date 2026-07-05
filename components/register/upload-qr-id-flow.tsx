@@ -485,7 +485,7 @@ export function UploadQrIdFlow({
         </div>
       ) : null}
 
-      <Button type="button" variant="outline" size="sm" className="register-back" onClick={onBack}>
+      <Button type="button" variant="outline" className="register-back" onClick={onBack}>
         ← Back
       </Button>
 
@@ -515,7 +515,7 @@ export function UploadQrIdFlow({
               <Button
                 type="button"
                 variant="outline"
-                className="w-full sm:flex-1"
+                className="register-qr-action-btn"
                 disabled={lookupLoading}
                 onClick={() => galleryInputRef.current?.click()}
               >
@@ -525,7 +525,7 @@ export function UploadQrIdFlow({
               <Button
                 type="button"
                 variant="outline"
-                className="w-full sm:flex-1"
+                className="register-qr-action-btn"
                 disabled={lookupLoading}
                 onClick={() => cameraInputRef.current?.click()}
               >
@@ -636,7 +636,7 @@ export function UploadQrIdFlow({
                   type="button"
                   variant="outline"
                   size="lg"
-                  className="w-full border-2 border-dashed"
+                  className="register-qr-action-btn border-2 border-dashed"
                   onClick={() => {
                     setPlayer(null);
                     resetFlowState();
@@ -646,25 +646,27 @@ export function UploadQrIdFlow({
                   Use a different QR
                 </Button>
 
-                <Button
-                  type="button"
-                  size="lg"
-                  className="register-submit w-full"
-                  disabled={submitting || navigating || player.queueStatus === "checked_out"}
-                  onClick={() => void submit()}
-                >
-                  {submitting || navigating ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                      {navigating ? "Loading queue…" : "Please wait.."}
-                    </>
-                  ) : (
-                    <>
-                      <Eye className="mr-2 h-5 w-5" aria-hidden />
-                      Proceed to the Game Queue!
-                    </>
-                  )}
-                </Button>
+                <div className="register-submit-bar">
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="register-submit w-full"
+                    disabled={submitting || navigating || player.queueStatus === "checked_out"}
+                    onClick={() => void submit()}
+                  >
+                    {submitting || navigating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                        {navigating ? "Loading queue…" : "Please wait.."}
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="mr-2 h-5 w-5" aria-hidden />
+                        Proceed to the Game Queue!
+                      </>
+                    )}
+                  </Button>
+                </div>
               </>
             ) : null}
           </>

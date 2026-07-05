@@ -1,9 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 
 import { RegistrationForm } from "@/components/register/registration-form";
-import { connectToDatabase } from "@/lib/db";
-import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
-import { PickleGame } from "@/models/PickleGame";
+import { runWithDatabase } from "@/lib/db";
+import { getGameRegistrationPagePayload } from "@/lib/game-registration-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,26 +13,22 @@ export default async function RegisterPage({
   params: Promise<{ gameId: string }>;
   searchParams: Promise<{ mode?: string }>;
 }) {
-  await connectToDatabase();
   const { gameId } = await params;
   const { mode } = await searchParams;
-  const game = await PickleGame.findOne({ gameId }).select(
-    "gameId title status allowQrRegistration",
-  );
-  if (!game) notFound();
 
-  if (game.allowQrRegistration === false) {
+  const payload = await runWithDatabase(() => getGameRegistrationPagePayload(gameId));
+  if (!payload) notFound();
+
+  if (payload.allowQrRegistration === false) {
     redirect(`/games/${gameId}/spectate`);
   }
-
-  const formVariant = await resolveGameRegistrationFormVariant(gameId);
-  if (!formVariant) notFound();
 
   return (
     <RegistrationForm
       gameId={gameId}
-      gameTitle={game.title}
-      formVariant={formVariant}
+      gameTitle={payload.gameTitle}
+      formVariant={payload.formVariant}
+      initialRegistrationStatus={payload}
       initialMode={mode === "upload-qr" ? "upload-qr" : undefined}
     />
   );

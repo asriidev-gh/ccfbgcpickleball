@@ -45,6 +45,7 @@ import {
   buildPlayerSessionStatsMap,
 } from "@/lib/games-played-map";
 import { SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
+import { spectatorLiveQueryOptions } from "@/lib/spectator-query-options";
 import { cn } from "@/lib/utils";
 
 function SpectatorCourtViewExitLinkContent({
@@ -110,6 +111,7 @@ export function SpectatorCourtsView() {
     queryKey: spectatorLiveQueryKey(gameId),
     queryFn: () => fetchSpectateGame(gameId, "live"),
     enabled: Boolean(gameId),
+    ...spectatorLiveQueryOptions,
     refetchInterval: SPECTATOR_LIVE_POLL_MS,
     refetchOnWindowFocus: true,
   });

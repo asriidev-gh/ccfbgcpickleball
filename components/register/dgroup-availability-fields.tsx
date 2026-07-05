@@ -48,10 +48,9 @@ export function DgroupAvailabilityFields({
               <label
                 key={day}
                 className={cn(
-                  "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
-                  checked
-                    ? "border-primary/40 bg-primary/10"
-                    : "border-border/70 bg-background/50",
+                  "register-checklist-item min-h-11 py-2.5 text-sm",
+                  checked && "is-checked border-primary/40 bg-primary/10",
+                  !checked && "border-border/70 bg-background/50",
                   fieldErrors.dgroupAvailableDays && !checked && "border-destructive/40",
                 )}
               >
@@ -83,7 +82,7 @@ export function DgroupAvailabilityFields({
             disabled={disabled}
             aria-invalid={Boolean(fieldErrors.dgroupAvailableTimeFrom || timeRangeError)}
             className={cn(
-              "h-11 bg-background",
+              "register-input bg-background",
               (fieldErrors.dgroupAvailableTimeFrom || timeRangeError) &&
                 "border-destructive focus-visible:ring-destructive/30",
             )}
@@ -100,7 +99,7 @@ export function DgroupAvailabilityFields({
             disabled={disabled}
             aria-invalid={Boolean(fieldErrors.dgroupAvailableTimeTo || timeRangeError)}
             className={cn(
-              "h-11 bg-background",
+              "register-input bg-background",
               (fieldErrors.dgroupAvailableTimeTo || timeRangeError) &&
                 "border-destructive focus-visible:ring-destructive/30",
             )}

@@ -47,7 +47,7 @@ function ProfileSelectField({
       <SelectTrigger
         id={id}
         aria-invalid={invalid}
-        className="h-11 w-full bg-background text-foreground"
+        className="register-input h-12 w-full bg-background text-foreground md:h-11"
       >
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
@@ -103,7 +103,7 @@ export function QrUploadProfileSection({
           value={values.birthdate}
           disabled={disabled}
           aria-invalid={Boolean(fieldErrors.birthdate)}
-          className={cn(fieldErrors.birthdate && "border-destructive")}
+          className={cn("register-input", fieldErrors.birthdate && "border-destructive")}
           onChange={(event) => onChange({ birthdate: event.target.value })}
         />
         {fieldErrors.birthdate ? (

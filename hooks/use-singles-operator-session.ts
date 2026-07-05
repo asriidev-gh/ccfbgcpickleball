@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { useOperatorDashboardLease } from "@/hooks/use-operator-dashboard-lease";
+import { useOperatorQueueRegistrationSync } from "@/hooks/use-operator-queue-registration-sync";
 import {
   fetchOperatorDetails,
   fetchOperatorQueue,
@@ -17,6 +18,7 @@ import { mergeOperatorGamePayload } from "@/lib/operator-payload";
 import type { OperatorFullPayload, OperatorShellPayload } from "@/lib/operator-payload";
 import {
   operatorDetailsQueryOptions,
+  operatorQueueLiveRefetchInterval,
   operatorQueueQueryOptions,
   operatorShellQueryOptions,
 } from "@/lib/operator-query-options";
@@ -62,6 +64,24 @@ export function useSinglesOperatorSession(gameId: string) {
     queryFn: () => fetchOperatorQueue(gameId),
     enabled: Boolean(gameId) && operatorCanLoadData,
     ...operatorQueueQueryOptions,
+    refetchInterval: (query) =>
+      operatorQueueLiveRefetchInterval(
+        hasDashboardLease && !isQuickGameSession,
+        query.state.data?.status,
+      ),
+    refetchIntervalInBackground: false,
+  });
+
+  useOperatorQueueRegistrationSync({
+    gameId,
+    enabled:
+      operatorCanLoadData &&
+      !isQuickGameSession &&
+      Boolean(gameId) &&
+      hasDashboardLease &&
+      operatorQueueQuery.data?.status !== "ended" &&
+      operatorQueueQuery.data?.status !== "draft",
+    queueQuery: operatorQueueQuery,
   });
 
   const operatorDetailsQuery = useQuery({

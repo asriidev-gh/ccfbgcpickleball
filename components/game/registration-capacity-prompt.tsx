@@ -102,6 +102,11 @@ function buildRegistrationStatusFromSession(input: {
 }
 
 /** Returns true if registration can proceed; false if user dismissed a full-session prompt. */
+export async function promptIfRegistrationFullFromStatus(status: GameRegistrationStatus) {
+  return promptIfRegistrationCapacityBlocked(status);
+}
+
+/** Returns true if registration can proceed; false if user dismissed a full-session prompt. */
 export async function promptIfRegistrationFull(gameId: string) {
   const status = await fetchGameRegistrationStatus(gameId);
   return promptIfRegistrationCapacityBlocked(status);

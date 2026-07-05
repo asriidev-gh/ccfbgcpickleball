@@ -86,6 +86,7 @@ export function OwnerCourtsView() {
     queryKey: COURTS_VIEW_QUERY_KEY,
     queryFn: fetchOwnerCourtsView,
     refetchInterval: OWNER_COURTS_VIEW_POLL_MS,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 

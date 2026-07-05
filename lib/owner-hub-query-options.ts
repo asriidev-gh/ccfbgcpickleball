@@ -6,4 +6,5 @@ export const ownerHubQueryOptions = {
   gcTime: 30 * 60_000,
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
+  refetchIntervalInBackground: false,
 } as const;

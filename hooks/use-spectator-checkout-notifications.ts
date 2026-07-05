@@ -93,6 +93,7 @@ export function useSpectatorCheckoutNotifications(
     queryFn: () => fetchOrganizerNotifications(gameId!),
     enabled: enabled && pollOrganizerNotifications,
     refetchInterval: ORGANIZER_NOTIFICATIONS_POLL_MS,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });
 

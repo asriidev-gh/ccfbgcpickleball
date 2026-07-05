@@ -1,5 +1,15 @@
+import { OPERATOR_QUEUE_LIVE_POLL_MS } from "@/lib/spectator-polling";
+
 /** React Query defaults for the operator game dashboard. */
 export const OPERATOR_QUEUE_STALE_TIME_MS = 30_000;
+
+export function operatorQueueLiveRefetchInterval(
+  enabled: boolean,
+  status: "draft" | "active" | "ended" | undefined,
+) {
+  if (!enabled || status === "ended" || status === "draft") return false;
+  return OPERATOR_QUEUE_LIVE_POLL_MS;
+}
 
 export const operatorShellQueryOptions = {
   staleTime: Number.POSITIVE_INFINITY,
@@ -13,6 +23,7 @@ export const operatorQueueQueryOptions = {
   gcTime: 10 * 60_000,
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
+  refetchIntervalInBackground: false,
 } as const;
 
 export const operatorDetailsQueryOptions = {

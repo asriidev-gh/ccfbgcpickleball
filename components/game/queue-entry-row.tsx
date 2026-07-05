@@ -58,6 +58,25 @@ function NextOnCourtSessionRecordBadge({ label }: { label: string }) {
   );
 }
 
+function QueueEntrySessionStatsRow({
+  sessionRecordLabel,
+  showUndefeated,
+  onUndefeatedClick,
+  className,
+}: {
+  sessionRecordLabel: string;
+  showUndefeated: boolean;
+  onUndefeatedClick?: () => void;
+  className?: string;
+}) {
+  return (
+    <div className={cn("queue-entry-session-stats flex flex-wrap items-center gap-1", className)}>
+      {showUndefeated ? <UndefeatedBadge onClick={onUndefeatedClick} /> : null}
+      <NextOnCourtSessionRecordBadge label={sessionRecordLabel} />
+    </div>
+  );
+}
+
 function formatLastMatchResult(result: QueueEntryView["lastMatchResult"]) {
   if (result === "win") return "Win";
   if (result === "loss") return "Loss";
@@ -100,7 +119,7 @@ function QueueEntryStatusLine({
         <span className="queue-entry-status__value">{lastMatchLabel}</span>
       </span>
       <QueueEntryStatusDivider />
-      <span className="queue-entry-status__record max-[1019px]:hidden">
+      <span className="queue-entry-status__record hidden xl:inline-flex">
         <NextOnCourtSessionRecordBadge label={sessionRecordLabel} />
       </span>
     </div>
@@ -402,10 +421,20 @@ export function QueueEntryRow({
                   onEndorsementClick={showEndorsedInPlayerLabel ? onEndorsementClick : undefined}
                 />
               </PlayerNameWithPhoto>
-              {isNextUp && showSessionRecordBelowName ? (
-                <div className="queue-next-up-inline-record mt-1">
-                  <NextOnCourtSessionRecordBadge label={sessionRecordLabel} />
-                </div>
+              {!checkedOut && !hideSessionStats ? (
+                <QueueEntrySessionStatsRow
+                  sessionRecordLabel={sessionRecordLabel}
+                  showUndefeated={showUndefeated}
+                  onUndefeatedClick={onUndefeatedClick}
+                  className="mt-1 xl:hidden"
+                />
+              ) : null}
+              {isNextUp && showSessionRecordBelowName && !hideSessionStats ? (
+                <QueueEntrySessionStatsRow
+                  sessionRecordLabel={sessionRecordLabel}
+                  showUndefeated={false}
+                  className="queue-next-up-inline-record mt-1 hidden xl:flex"
+                />
               ) : null}
             </div>
           </div>
@@ -413,15 +442,6 @@ export function QueueEntryRow({
         <div className="flex shrink-0 flex-col items-end gap-1.5 xl:flex-row xl:items-center">
           {checkedOut ? null : isNextUp ? (
             <>
-              <QueueSessionStatsBadges
-                wins={sessionStats.wins}
-                losses={sessionStats.losses}
-                rank={leaderboardRank}
-                showLeaderboardRank={showLeaderboardRank}
-                hideRecordOnLargeScreens
-                onUndefeatedClick={onUndefeatedClick}
-                className="xl:hidden"
-              />
               {sharedBadge ? <span className="xl:hidden">{sharedBadge}</span> : null}
               {endorsedBadge ? <span className="xl:hidden">{endorsedBadge}</span> : null}
               <div className="hidden items-center gap-1.5 xl:flex">
@@ -437,26 +457,20 @@ export function QueueEntryRow({
                 )}
               </div>
             </>
-          ) : hideSessionStats ? (
-            <>
-              {sharedBadge}
-              {endorsedBadge}
-            </>
           ) : (
             <div className="flex flex-wrap items-center justify-end gap-1">
               {sharedBadge}
               {endorsedBadge}
-              <QueueSessionStatsBadges
-                wins={sessionStats.wins}
-                losses={sessionStats.losses}
-                rank={leaderboardRank}
-                showLeaderboardRank={showLeaderboardRank}
-                hideRecordOnLargeScreens
-                onUndefeatedClick={onUndefeatedClick}
-                className="min-[1020px]:hidden"
-              />
-              {undefeatedBadge ? (
-                <span className="hidden min-[1020px]:inline-flex">{undefeatedBadge}</span>
+              {!hideSessionStats ? (
+                <QueueSessionStatsBadges
+                  wins={sessionStats.wins}
+                  losses={sessionStats.losses}
+                  rank={leaderboardRank}
+                  showLeaderboardRank={showLeaderboardRank}
+                  hideRecordOnLargeScreens
+                  onUndefeatedClick={onUndefeatedClick}
+                  className="hidden xl:flex"
+                />
               ) : null}
             </div>
           )}

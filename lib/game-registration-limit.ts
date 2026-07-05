@@ -1,10 +1,16 @@
-import type { RegistrationFeature } from "@/lib/registration-feature";
-import type { RegistrationFormVariant } from "@/lib/registration-variant";
+import {
+  normalizeRegistrationFeature,
+  REGISTRATION_FEATURE_DEFAULT,
+  type RegistrationFeature,
+} from "@/lib/registration-feature";
+import {
+  getRegistrationFormVariant,
+  type RegistrationFormVariant,
+} from "@/lib/registration-variant";
 import { connectToDatabase } from "@/lib/db";
-import { resolveGameRegistrationFeature } from "@/lib/resolve-game-registration-feature";
-import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
+import { User } from "@/models/User";
 import { isEmailBlockedForGame, ORGANIZER_BLOCKED_REGISTRATION_MESSAGE } from "@/lib/organizer-blocked-player";
 import {
   ALREADY_REGISTERED_MESSAGE,
@@ -63,8 +69,12 @@ export class RegistrationLimitError extends Error {
 }
 
 export async function getGameRegistrationCount(gameId: string) {
-  const playerIds = await QueueEntry.distinct("playerId", { gameId });
-  return playerIds.length;
+  const [result] = await QueueEntry.aggregate<{ count: number }>([
+    { $match: { gameId } },
+    { $group: { _id: "$playerId" } },
+    { $count: "count" },
+  ]);
+  return result?.count ?? 0;
 }
 
 export type GameRegistrationStatus = {
@@ -80,43 +90,108 @@ export type GameRegistrationStatus = {
   status: "draft" | "active" | "ended";
 };
 
-export async function getGameRegistrationStatus(
-  gameId: string,
-): Promise<GameRegistrationStatus | null> {
-  await connectToDatabase();
+export type GameRegistrationPagePayload = GameRegistrationStatus & {
+  gameTitle: string;
+};
 
-  const game = await PickleGame.findOne({ gameId }).select(
-    "gameId expectedPlayers strictPlayerCount allowQrRegistration status",
-  );
-  if (!game) return null;
+type LoadedRegistrationGame = {
+  gameId: string;
+  title?: string;
+  expectedPlayers?: number;
+  strictPlayerCount?: boolean;
+  allowQrRegistration?: boolean;
+  status?: "draft" | "active" | "ended";
+  ownerId?: unknown;
+};
 
-  const [formVariant, registrationFeature] = await Promise.all([
-    resolveGameRegistrationFormVariant(gameId),
-    resolveGameRegistrationFeature(gameId),
-  ]);
-  if (!formVariant || !registrationFeature) return null;
+function resolveOwnerRegistrationSettings(owner: {
+  userType?: string;
+  registrationFeature?: string;
+} | null) {
+  const userType =
+    owner && typeof owner === "object" && typeof owner.userType === "string"
+      ? owner.userType
+      : undefined;
 
-  const registeredCount = await getGameRegistrationCount(gameId);
+  return {
+    formVariant: getRegistrationFormVariant(userType),
+    registrationFeature: owner
+      ? normalizeRegistrationFeature(
+          typeof owner.registrationFeature === "string"
+            ? owner.registrationFeature
+            : undefined,
+        )
+      : REGISTRATION_FEATURE_DEFAULT,
+  };
+}
+
+function buildGameRegistrationStatus(
+  game: LoadedRegistrationGame,
+  registeredCount: number,
+  settings: {
+    formVariant: RegistrationFormVariant;
+    registrationFeature: RegistrationFeature;
+  },
+): GameRegistrationStatus {
   const strict = game.strictPlayerCount === true;
   const allowQrRegistration = game.allowQrRegistration !== false;
-  const isFull =
-    game.status === "ended" ||
-    (strict && registeredCount >= game.expectedPlayers);
+  const expectedPlayers = game.expectedPlayers ?? 0;
+  const status = game.status ?? "draft";
+  const isFull = status === "ended" || (strict && registeredCount >= expectedPlayers);
 
   return {
     gameId: game.gameId,
-    formVariant,
-    registrationFeature,
+    formVariant: settings.formVariant,
+    registrationFeature: settings.registrationFeature,
     strictPlayerCount: strict,
     allowQrRegistration,
-    expectedPlayers: game.expectedPlayers,
+    expectedPlayers,
     registeredCount,
     isFull,
-    spotsRemaining: strict
-      ? Math.max(0, game.expectedPlayers - registeredCount)
-      : null,
-    status: game.status,
+    spotsRemaining: strict ? Math.max(0, expectedPlayers - registeredCount) : null,
+    status,
   };
+}
+
+export async function getGameRegistrationPagePayload(
+  gameId: string,
+): Promise<GameRegistrationPagePayload | null> {
+  await connectToDatabase();
+
+  const game = await PickleGame.findOne({ gameId })
+    .select(
+      "gameId title expectedPlayers strictPlayerCount allowQrRegistration status ownerId",
+    )
+    .lean<LoadedRegistrationGame | null>();
+  if (!game) return null;
+
+  const [owner, registeredCount] = await Promise.all([
+    game.ownerId
+      ? User.findById(game.ownerId).select("userType registrationFeature").lean<{
+          userType?: string;
+          registrationFeature?: string;
+        } | null>()
+      : Promise.resolve(null),
+    getGameRegistrationCount(gameId),
+  ]);
+
+  const settings = resolveOwnerRegistrationSettings(owner);
+  const status = buildGameRegistrationStatus(game, registeredCount, settings);
+
+  return {
+    ...status,
+    gameTitle: game.title ?? "",
+  };
+}
+
+export async function getGameRegistrationStatus(
+  gameId: string,
+): Promise<GameRegistrationStatus | null> {
+  const payload = await getGameRegistrationPagePayload(gameId);
+  if (!payload) return null;
+
+  const { gameTitle: _gameTitle, ...status } = payload;
+  return status;
 }
 
 export async function assertGameRegistrationAllowed(

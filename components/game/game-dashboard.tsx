@@ -226,6 +226,7 @@ import { SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
 import {
   operatorMatchHistoryQueryOptions,
   OPERATOR_QUEUE_STALE_TIME_MS,
+  operatorQueueLiveRefetchInterval,
   operatorQueueQueryOptions,
   operatorShellQueryOptions,
 } from "@/lib/operator-query-options";
@@ -697,6 +698,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     queryFn: () => fetchOperatorQueue(gameId),
     enabled: !!gameId && operatorCanLoadData,
     ...operatorQueueQueryOptions,
+    refetchInterval: (query) =>
+      operatorQueueLiveRefetchInterval(
+        hasDashboardLease && !isQuickGameSession,
+        query.state.data?.status,
+      ),
+    refetchIntervalInBackground: false,
   });
 
   const openQrRegistrationDialog = useCallback(async () => {

@@ -132,7 +132,7 @@ export function RegistrationPhotoField({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-full bg-background/70 backdrop-blur"
+                    className="register-photo-clear-btn"
                     disabled={inputsDisabled}
                     aria-label="Cancel selected upload"
                     onClick={clearPhoto}
