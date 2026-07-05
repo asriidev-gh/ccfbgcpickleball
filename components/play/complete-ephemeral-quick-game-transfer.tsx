@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
@@ -10,11 +10,14 @@ import {
   readPendingEphemeralQuickGameTransfer,
 } from "@/lib/ephemeral-quick-game-transfer";
 import { getQuickGameDashboardPath } from "@/lib/local-game-id";
+import { shouldHideAppBrandBar } from "@/lib/app-shell";
 
 export function CompleteEphemeralQuickGameTransfer() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const pathname = usePathname();
   const runningRef = useRef(false);
+  const isAuthPage = shouldHideAppBrandBar(pathname);
 
   const { data: authData } = useQuery({
     queryKey: ["auth-me"],
@@ -23,6 +26,7 @@ export function CompleteEphemeralQuickGameTransfer() {
       return (await response.json()) as { user: unknown | null };
     },
     staleTime: 60_000,
+    enabled: !isAuthPage,
   });
 
   useEffect(() => {

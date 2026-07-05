@@ -1,4 +1,4 @@
-import { Share2 } from "lucide-react";
+import { Clock, Share2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
@@ -46,10 +46,65 @@ function NextOnCourtLabel() {
   );
 }
 
+function NextOnCourtSessionRecordBadge({ label }: { label: string }) {
+  return (
+    <Badge
+      variant="outline"
+      className="badge-next-up-record whitespace-nowrap tabular-nums"
+      aria-label={`Session record ${label}`}
+    >
+      {label}
+    </Badge>
+  );
+}
+
 function formatLastMatchResult(result: QueueEntryView["lastMatchResult"]) {
   if (result === "win") return "Win";
   if (result === "loss") return "Loss";
   return "None";
+}
+
+function QueueEntryStatusDivider() {
+  return <span className="queue-entry-status__divider" aria-hidden />;
+}
+
+function QueueEntryStatusLine({
+  primaryLabel,
+  lastMatchResult,
+  sessionRecordLabel,
+}: {
+  primaryLabel: string;
+  lastMatchResult: QueueEntryView["lastMatchResult"];
+  sessionRecordLabel: string;
+}) {
+  const lastMatchLabel = formatLastMatchResult(lastMatchResult);
+
+  return (
+    <div
+      className="queue-entry-status"
+      aria-label={`${primaryLabel}. Last match: ${lastMatchLabel}. Session record ${sessionRecordLabel}.`}
+    >
+      <span className="queue-entry-status__segment queue-entry-status__wait">
+        <Clock className="queue-entry-status__icon" aria-hidden />
+        <span>{primaryLabel}</span>
+      </span>
+      <QueueEntryStatusDivider />
+      <span
+        className={cn(
+          "queue-entry-status__segment queue-entry-status__last-match",
+          lastMatchResult === "win" && "queue-entry-status__last-match--win",
+          lastMatchResult === "loss" && "queue-entry-status__last-match--loss",
+        )}
+      >
+        <span className="queue-entry-status__label">Last match</span>
+        <span className="queue-entry-status__value">{lastMatchLabel}</span>
+      </span>
+      <QueueEntryStatusDivider />
+      <span className="queue-entry-status__record max-[1019px]:hidden">
+        <NextOnCourtSessionRecordBadge label={sessionRecordLabel} />
+      </span>
+    </div>
+  );
 }
 
 function SharedStatusBadge({
@@ -185,6 +240,10 @@ type QueueEntryRowProps = {
   compactName?: boolean;
   /** Hide win/loss badges (e.g. compact group view). */
   hideSessionStats?: boolean;
+  /** Show compact (W/L/R) under the name in split next-on-court layout. */
+  showSessionRecordBelowName?: boolean;
+  /** Replace the Next on court pill with (W/L/R) in stacked layout. */
+  showSessionRecordInPillSlot?: boolean;
   /** When set, superadmins can open this player's spectate view. */
   gameId?: string;
   allowCheckInAsPlayer?: boolean;
@@ -229,6 +288,8 @@ export function QueueEntryRow({
   dragHandle,
   compactName = false,
   hideSessionStats = false,
+  showSessionRecordBelowName = false,
+  showSessionRecordInPillSlot = false,
   gameId,
   allowCheckInAsPlayer = true,
   showLeaderboardRank = false,
@@ -341,6 +402,11 @@ export function QueueEntryRow({
                   onEndorsementClick={showEndorsedInPlayerLabel ? onEndorsementClick : undefined}
                 />
               </PlayerNameWithPhoto>
+              {isNextUp && showSessionRecordBelowName ? (
+                <div className="queue-next-up-inline-record mt-1">
+                  <NextOnCourtSessionRecordBadge label={sessionRecordLabel} />
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -362,9 +428,13 @@ export function QueueEntryRow({
                 {sharedBadge}
                 {endorsedBadge}
                 {undefeatedBadge}
-                <Badge className="badge-next-up" aria-label="Next on court">
-                  <NextOnCourtLabel />
-                </Badge>
+                {showSessionRecordInPillSlot ? (
+                  <NextOnCourtSessionRecordBadge label={sessionRecordLabel} />
+                ) : showSessionRecordBelowName ? null : (
+                  <Badge className="badge-next-up" aria-label="Next on court">
+                    <NextOnCourtLabel />
+                  </Badge>
+                )}
               </div>
             </>
           ) : hideSessionStats ? (
@@ -383,35 +453,39 @@ export function QueueEntryRow({
                 showLeaderboardRank={showLeaderboardRank}
                 hideRecordOnLargeScreens
                 onUndefeatedClick={onUndefeatedClick}
+                className="min-[1020px]:hidden"
               />
+              {undefeatedBadge ? (
+                <span className="hidden min-[1020px]:inline-flex">{undefeatedBadge}</span>
+              ) : null}
             </div>
           )}
         </div>
       </div>
 
-      <p
+      <div
         className={cn(
           "queue-entry-meta",
           isNextUp && "queue-entry-meta--next-up",
+          inWaitingLine && "queue-entry-meta--waiting-line",
           checkedOut && "text-muted-foreground/90",
         )}
         suppressHydrationWarning
       >
         {checkedOut && checkedOutTime ? (
-          <>
-            Checked out {formatRelativeTimeForCard(checkedOutTime, { addSuffix: true })} | Last match:{" "}
-            {formatLastMatchResult(entry.lastMatchResult)} | {sessionRecordLabel}
-            {showUndefeated ? (
-              <UndefeatedBadge className="ml-1 align-middle" onClick={onUndefeatedClick} />
-            ) : null}
-          </>
+          <QueueEntryStatusLine
+            primaryLabel={`Checked out ${formatRelativeTimeForCard(checkedOutTime, { addSuffix: true })}`}
+            lastMatchResult={entry.lastMatchResult}
+            sessionRecordLabel={sessionRecordLabel}
+          />
         ) : (
-          <>
-            Waiting for {formatRelativeTimeForCard(new Date(entry.registeredAt))} | Last match:{" "}
-            {formatLastMatchResult(entry.lastMatchResult)} | {sessionRecordLabel}
-          </>
+          <QueueEntryStatusLine
+            primaryLabel={`Waiting for ${formatRelativeTimeForCard(new Date(entry.registeredAt))}`}
+            lastMatchResult={entry.lastMatchResult}
+            sessionRecordLabel={sessionRecordLabel}
+          />
         )}
-      </p>
+      </div>
 
       {(showActionsMenu || shareAction || endorseAction) ? (
         <div

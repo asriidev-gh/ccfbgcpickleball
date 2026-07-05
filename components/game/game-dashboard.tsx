@@ -128,7 +128,13 @@ import {
   type ReplacePlayerDialogState,
 } from "@/components/game/replace-player-dialog";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
-import { QueueNextUpSlots } from "@/components/game/queue-next-up-slots";
+import {
+  QueueNextUpSlots,
+  NextOnCourtLayoutToggle,
+  loadNextOnCourtLayoutMode,
+  saveNextOnCourtLayoutMode,
+  type NextOnCourtLayoutMode,
+} from "@/components/game/queue-next-up-slots";
 import {
   QueueDndZone,
   QueueDragHandle,
@@ -552,6 +558,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const [uiPrefsHydrated, setUiPrefsHydrated] = useState(false);
   const [isLgViewport, setIsLgViewport] = useState<boolean | null>(null);
   const [compactQueue, setCompactQueue] = useState(false);
+  const [nextOnCourtLayout, setNextOnCourtLayout] = useState<NextOnCourtLayoutMode>("stacked");
   const [endorseTargetEntry, setEndorseTargetEntry] = useState<QueueEntryView | null>(null);
   const [endorseListTargetEntry, setEndorseListTargetEntry] = useState<QueueEntryView | null>(null);
   const [spectatorSharePreviewEntry, setSpectatorSharePreviewEntry] =
@@ -606,6 +613,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     setWaitingLineView(loadWaitingLineViewMode());
     setShowCheckedOutList(loadShowCheckedOutList());
     setShowCourts(loadShowCourts());
+    setNextOnCourtLayout(loadNextOnCourtLayoutMode());
     setUiPrefsHydrated(true);
   }, []);
 
@@ -2325,7 +2333,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     entry: QueueEntryView,
     index: number,
     drag?: QueueDragHandleProps,
-    options?: { compactName?: boolean; hideSessionStats?: boolean },
+    options?: {
+      compactName?: boolean;
+      hideSessionStats?: boolean;
+      showSessionRecordBelowName?: boolean;
+      showSessionRecordInPillSlot?: boolean;
+    },
   ) => {
     const isNextUp = nextCourtFoursomeIds.has(entry._id);
     const queueIndex = queueIndexById.get(entry._id) ?? index;
@@ -2376,6 +2389,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         }
         compactName={options?.compactName}
         hideSessionStats={options?.hideSessionStats}
+        showSessionRecordBelowName={options?.showSessionRecordBelowName}
+        showSessionRecordInPillSlot={options?.showSessionRecordInPillSlot}
         dragHandle={
           drag ? (
             <QueueDragHandle
@@ -2412,7 +2427,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const renderQueuedEntry = (
     entry: QueueEntryView,
     index: number,
-    options?: { sortable?: boolean; compactName?: boolean; hideSessionStats?: boolean },
+    options?: {
+      sortable?: boolean;
+      compactName?: boolean;
+      hideSessionStats?: boolean;
+      showSessionRecordBelowName?: boolean;
+      showSessionRecordInPillSlot?: boolean;
+    },
   ) => {
     if (options?.sortable === false) {
       return (
@@ -2609,9 +2630,21 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                                 })}
                         </p>
                       </div>
-                      <Badge className="badge-next-up-count shrink-0 self-start sm:self-center">
-                        {nextCourtFoursome?.length ?? 0} / {DOUBLES_PLAYERS_PER_COURT}
-                      </Badge>
+                      <div className="flex shrink-0 flex-col items-end gap-2 self-start sm:flex-row sm:items-center">
+                        {game.gameMode !== "singles" ? (
+                          <NextOnCourtLayoutToggle
+                            layout={nextOnCourtLayout}
+                            onLayoutChange={(mode) => {
+                              setNextOnCourtLayout(mode);
+                              saveNextOnCourtLayoutMode(mode);
+                            }}
+                            className="hidden xl:inline-flex"
+                          />
+                        ) : null}
+                        <Badge className="badge-next-up-count">
+                          {nextCourtFoursome?.length ?? 0} / {DOUBLES_PLAYERS_PER_COURT}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                   {showNextCourtAnalysis && nextCourtFoursome ? (
@@ -2635,6 +2668,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                   <QueueNextUpSlots
                     entries={nextCourtFoursome ?? queueWithStats.slice(0, DOUBLES_PLAYERS_PER_COURT)}
                     showDoublesTeamPreview={game.gameMode !== "singles"}
+                    layout={nextOnCourtLayout}
                     compactName={compactQueue}
                     renderEntry={(entry, index, options) =>
                       renderQueuedEntry(entry, index, options)
@@ -2745,7 +2779,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                             renderQueuedEntry(entry, queueIndex, {
                               sortable: false,
                               compactName: true,
-                              hideSessionStats: compactQueue,
+                              hideSessionStats: compactQueue && isLgViewport !== true,
                             })
                           }
                         />

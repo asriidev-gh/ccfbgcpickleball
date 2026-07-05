@@ -12,6 +12,7 @@ type MongooseCache = {
   suppressDisconnectReset: boolean;
   dbOperationChain: Promise<unknown>;
   dbWorkDepth: number;
+  readyPromise: Promise<void> | null;
 };
 
 declare global {
@@ -29,6 +30,7 @@ function createMongooseCache(): MongooseCache {
     suppressDisconnectReset: false,
     dbOperationChain: Promise.resolve(),
     dbWorkDepth: 0,
+    readyPromise: null,
   };
 }
 
@@ -46,6 +48,10 @@ function ensureMongooseCache(): MongooseCache {
   if (existing) {
     next.conn = existing.conn ?? null;
     next.promise = existing.promise ?? null;
+    next.readyPromise =
+      "readyPromise" in existing && existing.readyPromise instanceof Promise
+        ? existing.readyPromise
+        : null;
   }
   global.mongooseCache = next;
   return next;
@@ -133,6 +139,18 @@ function resetCachedConnection() {
   cached.conn = null;
   cached.promise = null;
   cached.connectedDatabaseName = null;
+  cached.readyPromise = null;
+}
+
+/** Wait until MongoDB is connected — shared by nested handlers and logging during cold start. */
+export async function waitForDatabaseConnection(dbNameOverride?: string): Promise<void> {
+  if (!cached.readyPromise) {
+    cached.readyPromise = ensureDatabaseReady(dbNameOverride).catch((error) => {
+      cached.readyPromise = null;
+      throw error;
+    });
+  }
+  await cached.readyPromise;
 }
 
 function getMongoUri() {
@@ -274,11 +292,12 @@ export async function connectToDatabase(
   dbNameOverride?: string,
 ): Promise<typeof mongoose> {
   if (cached.dbWorkDepth > 0) {
+    await waitForDatabaseConnection(dbNameOverride);
     return mongoose;
   }
 
   return runQueuedDatabaseWork(async () => {
-    await ensureDatabaseReady(dbNameOverride);
+    await waitForDatabaseConnection(dbNameOverride);
     return mongoose;
   });
 }
@@ -292,7 +311,7 @@ async function runWithDatabaseOnce<T>(
 
   for (let attempt = 0; attempt < RUN_WITH_DATABASE_ATTEMPTS; attempt++) {
     try {
-      await ensureDatabaseReady(dbNameOverride);
+      await waitForDatabaseConnection(dbNameOverride);
       return await fn();
     } catch (error) {
       lastError = error;
@@ -334,6 +353,7 @@ export async function runWithDatabase<T>(
   dbNameOverride?: string,
 ): Promise<T> {
   if (cached.dbWorkDepth > 0) {
+    await waitForDatabaseConnection(dbNameOverride);
     return fn();
   }
   return runQueuedDatabaseWork(() => runWithDatabaseOnce(fn, dbNameOverride));

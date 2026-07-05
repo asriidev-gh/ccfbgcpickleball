@@ -126,8 +126,11 @@ export function recordSystemLog(input: RecordSystemLogInput) {
     if (shouldSkipDatabasePersist(input)) return;
 
     try {
-      const { isInDatabaseContext, runWithDatabase } = await import("@/lib/db");
+      const { isInDatabaseContext, runWithDatabase, waitForDatabaseConnection } = await import(
+        "@/lib/db"
+      );
       if (isInDatabaseContext()) {
+        await waitForDatabaseConnection();
         await SystemLog.create(payload);
       } else {
         await runWithDatabase(async () => {
@@ -183,8 +186,11 @@ export function logApiError(input: {
     if (shouldSkipDatabasePersist(payload)) return;
 
     try {
-      const { isInDatabaseContext, runWithDatabase } = await import("@/lib/db");
+      const { isInDatabaseContext, runWithDatabase, waitForDatabaseConnection } = await import(
+        "@/lib/db"
+      );
       if (isInDatabaseContext()) {
+        await waitForDatabaseConnection();
         await SystemLog.create(payload);
       } else {
         await runWithDatabase(async () => {
