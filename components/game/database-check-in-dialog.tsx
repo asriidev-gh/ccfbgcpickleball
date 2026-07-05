@@ -1,11 +1,12 @@
 "use client";
 
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Loader2, Search, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { getPublicErrorMessage, shouldSuppressUserNotification } from "@/lib/infrastructure-error";
+import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { toastOperationError } from "@/lib/toast-error";
 
 import { PlayerAvatar } from "@/components/game/player-avatar";
@@ -23,6 +24,7 @@ import type {
   DatabaseCheckInPlayerItem,
   DatabaseCheckInPlayersPage,
 } from "@/lib/operator-database-check-in-shared";
+import { databaseCheckInPlayersQueryKey } from "@/lib/operator-database-check-in-shared";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
@@ -99,8 +101,13 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
     queryKey: databaseCheckInQueryKey(gameId, page, searchQuery),
     queryFn: () => fetchDatabaseCheckInPlayers(gameId, page, searchQuery),
     enabled: open && Boolean(gameId),
-    staleTime: 30_000,
-    placeholderData: keepPreviousData,
+    staleTime: 0,
+    refetchOnMount: "always",
+    placeholderData: (previousData, previousQuery) => {
+      const previousKey = previousQuery?.queryKey;
+      if (!previousKey) return undefined;
+      return previousKey[2] === page && previousKey[3] === searchQuery ? previousData : undefined;
+    },
   });
 
   const checkInMutation = useMutation({
@@ -135,18 +142,14 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
     },
     onSuccess: (payload) => {
       toast.success(payload.message ?? "Player added to queue.");
-      void queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      void queryClient.invalidateQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      void queryClient.invalidateQueries({ queryKey: databaseCheckInPlayersQueryKey(gameId) });
     },
     onError: (error: Error, _playerId, context) => {
       if (context?.previous) {
         queryClient.setQueryData(context.queryKey, context.previous);
       }
       toastOperationError(error, "Failed to check in player.");
-    },
-    onSettled: (_data, _error, _playerId, context) => {
-      if (context?.queryKey) {
-        void queryClient.invalidateQueries({ queryKey: context.queryKey });
-      }
     },
   });
 

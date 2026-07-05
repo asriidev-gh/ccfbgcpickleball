@@ -20,3 +20,7 @@ export type DatabaseCheckInPlayersPage = {
   pageSize: number;
   totalPages: number;
 };
+
+export function databaseCheckInPlayersQueryKey(gameId: string) {
+  return ["database-check-in-players", gameId] as const;
+}

@@ -21,20 +21,14 @@ export async function getPlayerQueueStatusForGame(
 ): Promise<PlayerQueueStatusForGame> {
   await connectToDatabase();
 
-  const activeEntry = await QueueEntry.exists({
-    gameId,
-    playerId,
-    status: { $in: ACTIVE_QUEUE_STATUSES },
-  });
-  if (activeEntry) return "active";
+  const entry = await QueueEntry.findOne({ gameId, playerId })
+    .sort({ registeredAt: -1 })
+    .select("status")
+    .lean<{ status?: string } | null>();
 
-  const checkedOutEntry = await QueueEntry.exists({
-    gameId,
-    playerId,
-    status: "checked_out",
-  });
-  if (checkedOutEntry) return "checked_out";
-
+  if (!entry?.status) return null;
+  if ((ACTIVE_QUEUE_STATUSES as readonly string[]).includes(entry.status)) return "active";
+  if (entry.status === "checked_out") return "checked_out";
   return null;
 }
 

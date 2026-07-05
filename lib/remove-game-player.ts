@@ -65,7 +65,17 @@ export async function removePlayerFromGame(input: {
   }
 
   await Promise.all([
-    QueueEntry.deleteMany({ gameId: input.gameId, playerId: playerObjectId }),
+    QueueEntry.updateMany(
+      { gameId: input.gameId, playerId: playerObjectId },
+      {
+        $set: {
+          status: "checked_out",
+          removedFromSession: true,
+          queueType: "normal",
+          pairGroupId: null,
+        },
+      },
+    ),
     LeaderboardStats.deleteOne({ gameId: input.gameId, playerId: playerObjectId }),
     Volunteer.deleteOne({ gameId: input.gameId, playerId: playerObjectId }),
     Court.updateMany(

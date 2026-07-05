@@ -54,10 +54,10 @@ function serializeCourtForPayload(court: CourtDoc) {
 
 export async function loadQueueCourtsAndCheckedOut(gameId: string) {
   const [queue, checkedOut, courts] = await Promise.all([
-    QueueEntry.find({ gameId, status: "queued" })
+    QueueEntry.find({ gameId, status: "queued", removedFromSession: { $ne: true } })
       .sort({ registeredAt: 1 })
       .populate("playerId"),
-    QueueEntry.find({ gameId, status: "checked_out" })
+    QueueEntry.find({ gameId, status: "checked_out", removedFromSession: { $ne: true } })
       .sort({ updatedAt: -1 })
       .populate("playerId"),
     Court.find({ gameId }).sort({ courtNumber: 1 }).populate([

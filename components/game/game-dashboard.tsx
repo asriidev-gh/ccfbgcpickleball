@@ -103,6 +103,7 @@ import { SpectatorPlayerEndorseButton } from "@/components/game/spectator-player
 import { SpectatePlayerEndorseDialog } from "@/components/player/spectate-player-endorse-dialog";
 import { SpectatePlayerEndorsementsListDialog } from "@/components/player/spectate-player-endorsements-list-dialog";
 import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
+import { databaseCheckInPlayersQueryKey } from "@/lib/operator-database-check-in-shared";
 import { AddCourtButton } from "@/components/game/add-court-button";
 import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
 import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
@@ -1626,6 +1627,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       toast.success(payload.message);
       if (!isQuickGameSession) {
         queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+        void queryClient.invalidateQueries({ queryKey: databaseCheckInPlayersQueryKey(gameId) });
       }
     },
     onError: (error, _variables, context) => {

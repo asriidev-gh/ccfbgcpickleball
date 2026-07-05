@@ -23,11 +23,15 @@ const queueEntrySchema = new Schema(
     lastMatchResult: { type: String, enum: ["win", "loss", "none"], default: "none" },
     /** Set when a spectator shares this player's stats card. */
     cardSharedAt: { type: Date, default: null },
+    /** Full session removal — hidden from live queue UI but kept for database check-in roster. */
+    removedFromSession: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
 queueEntrySchema.index({ gameId: 1, status: 1, registeredAt: 1 });
+queueEntrySchema.index({ gameId: 1, playerId: 1, registeredAt: -1 });
+queueEntrySchema.index({ gameId: 1, playerId: 1 });
 
 /** Re-register in dev so schema enum changes (e.g. checked_out) apply without a full restart. */
 if (models.QueueEntry) {
