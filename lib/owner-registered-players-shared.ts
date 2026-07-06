@@ -25,6 +25,10 @@ export type OwnerRegisteredPlayerItem = {
   personalQrCode?: string;
   /** Distinct open play sessions you created that this player joined. */
   sessionsCount: number;
+  /** Player records merged for the same name and email. */
+  accountCount: number;
+  /** Stable key for grouping duplicate accounts (name + email). */
+  accountGroupKey: string;
   lastRegisteredAt: string | null;
   isBlocked: boolean;
   welcomeEmailStatus: WelcomeEmailStatus | "";

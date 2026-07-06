@@ -353,6 +353,8 @@ export function OwnerRegisteredPlayersView() {
   const [notAttendedCcfFilter, setNotAttendedCcfFilter] = useState(false);
   const [withDgroupFilter, setWithDgroupFilter] = useState(false);
   const [noDgroupYetFilter, setNoDgroupYetFilter] = useState(false);
+  const [duplicateAccountsFilter, setDuplicateAccountsFilter] = useState(false);
+  const [expandedAccountGroup, setExpandedAccountGroup] = useState("");
   const [page, setPage] = useState(1);
   const [sessionsPlayer, setSessionsPlayer] = useState<{ id: string; name: string } | null>(null);
   const [detailsPlayer, setDetailsPlayer] = useState<{ id: string; name: string } | null>(null);
@@ -422,6 +424,8 @@ export function OwnerRegisteredPlayersView() {
       notAttendedCcfFilter,
       withDgroupFilter,
       noDgroupYetFilter,
+      duplicateAccountsFilter,
+      expandedAccountGroup,
     ),
     queryFn: async () => {
       const payload = await fetchOwnerRegisteredPlayersPage(
@@ -433,6 +437,8 @@ export function OwnerRegisteredPlayersView() {
         notAttendedCcfFilter,
         withDgroupFilter,
         noDgroupYetFilter,
+        duplicateAccountsFilter,
+        expandedAccountGroup,
       );
       if (payload.page !== page) setPage(payload.page);
       return payload;
@@ -448,7 +454,8 @@ export function OwnerRegisteredPlayersView() {
       return payload;
     },
     onSuccess: (payload) => {
-      toast.success(payload.message ?? "Player removed.");
+      toast.success(payload.message ?? "Player deleted.");
+      setExpandedAccountGroup("");
       queryClient.invalidateQueries({ queryKey: ["owner-registered-players"] });
     },
     onError: (error) => {
@@ -517,13 +524,17 @@ export function OwnerRegisteredPlayersView() {
   });
 
   const handleDelete = async (player: OwnerRegisteredPlayerItem) => {
+    const transferNote =
+      player.accountCount > 1
+        ? " Their session history will be transferred to the latest account with the same name and email."
+        : "";
     const result = await Swal.fire({
       ...alertOptions,
-      title: "Remove player?",
-      html: `<strong>${player.name}</strong> (${player.email}) will be removed from <strong>all of your open play sessions</strong>. Match and queue records in your games will be deleted.`,
+      title: "Delete player account?",
+      html: `<strong>${player.name}</strong> (${player.email}) will be permanently deleted from the database. Queue records for this account will be removed.${transferNote}`,
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Yes, remove",
+      confirmButtonText: "Yes, delete",
       cancelButtonText: "Cancel",
     });
     if (!result.isConfirmed) return;
@@ -553,7 +564,7 @@ export function OwnerRegisteredPlayersView() {
   const totalPages = data?.totalPages ?? 0;
   const currentPage = data?.page ?? page;
 
-  const countLabel = debouncedSearch || sessionGameId || insightFilter || attendedCcfFilter || notAttendedCcfFilter
+  const countLabel = debouncedSearch || sessionGameId || insightFilter || attendedCcfFilter || notAttendedCcfFilter || duplicateAccountsFilter || expandedAccountGroup
     ? `${total} matching`
     : String(total);
   const hasActiveFilters = Boolean(
@@ -563,8 +574,13 @@ export function OwnerRegisteredPlayersView() {
       attendedCcfFilter ||
       notAttendedCcfFilter ||
       withDgroupFilter ||
-      noDgroupYetFilter,
+      noDgroupYetFilter ||
+      duplicateAccountsFilter ||
+      expandedAccountGroup,
   );
+  const expandedAccountGroupLabel = expandedAccountGroup
+    ? players[0]?.name ?? "this player"
+    : "";
 
   const pendingDeleteId = deleteMutation.isPending ? deleteMutation.variables : null;
   const pendingBlockId = blockMutation.isPending ? blockMutation.variables?.id : null;
@@ -581,6 +597,8 @@ export function OwnerRegisteredPlayersView() {
     if (notAttendedCcfFilter) params.set("notAttendedCcf", "true");
     if (withDgroupFilter) params.set("withDgroup", "true");
     if (noDgroupYetFilter) params.set("noDgroupYet", "true");
+    if (duplicateAccountsFilter) params.set("duplicateAccounts", "true");
+    if (expandedAccountGroup) params.set("accountGroup", expandedAccountGroup);
     return `/api/owner/registered-players/export?${params.toString()}`;
   };
 
@@ -632,6 +650,26 @@ export function OwnerRegisteredPlayersView() {
             }}
           />
         </div>
+        <label
+          htmlFor="registered-players-duplicate-accounts"
+          className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 p-3"
+        >
+          <Checkbox
+            id="registered-players-duplicate-accounts"
+            checked={duplicateAccountsFilter}
+            disabled={isLoading}
+            onCheckedChange={(value) => {
+              setDuplicateAccountsFilter(Boolean(value));
+              setPage(1);
+            }}
+          />
+          <span className="min-w-0 space-y-0.5">
+            <span className="block text-sm font-medium text-foreground">Multiple accounts (2+)</span>
+            <span className="block text-xs text-muted-foreground">
+              Players registered more than once with the same name and email.
+            </span>
+          </span>
+        </label>
         {showCcfInsights ? (
           <div className="space-y-2 border-t border-border/60 pt-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -748,6 +786,25 @@ export function OwnerRegisteredPlayersView() {
             </Button>
           </div>
         ) : null}
+        {expandedAccountGroup ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="rounded-full">
+              {total} accounts for {expandedAccountGroupLabel}
+            </Badge>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+              onClick={() => {
+                setExpandedAccountGroup("");
+                setPage(1);
+              }}
+            >
+              Back to grouped list
+            </Button>
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -766,7 +823,11 @@ export function OwnerRegisteredPlayersView() {
           </div>
         ) : total === 0 ? (
           <p className="py-6 text-muted-foreground">
-            {sessionGameId || insightFilter
+            {duplicateAccountsFilter
+              ? "No players with multiple accounts match your filters."
+              : expandedAccountGroup
+              ? "No individual accounts match your filters."
+              : sessionGameId || insightFilter
               ? "No players registered for this session match your filters."
               : "No players match your search."}
           </p>
@@ -780,13 +841,14 @@ export function OwnerRegisteredPlayersView() {
                 {isSuperAdmin ? <TableHead>Email status</TableHead> : null}
                 <TableHead>Mobile</TableHead>
                 <TableHead className="text-right">Sessions</TableHead>
+                <TableHead className="text-right">Accounts</TableHead>
                 <TableHead>Last registered</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {players.map((player) => (
-                <TableRow key={`${player.id}-${player.email}`}>
+                <TableRow key={player.id}>
                   <TableCell>
                     <div className="flex items-center gap-2.5">
                       <PlayerAvatar
@@ -814,6 +876,24 @@ export function OwnerRegisteredPlayersView() {
                             Blocked
                           </Badge>
                         ) : null}
+                        {player.accountCount > 1 && !expandedAccountGroup ? (
+                          <button
+                            type="button"
+                            className="ml-2 inline-flex align-middle outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-md"
+                            onClick={() => {
+                              setExpandedAccountGroup(player.accountGroupKey);
+                              setPage(1);
+                            }}
+                            aria-label={`Show all ${player.accountCount} accounts for ${player.name}`}
+                          >
+                            <Badge
+                              variant="outline"
+                              className="cursor-pointer text-[0.625rem] hover:bg-muted"
+                            >
+                              {player.accountCount} accounts
+                            </Badge>
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </TableCell>
@@ -840,6 +920,11 @@ export function OwnerRegisteredPlayersView() {
                       <CalendarDays className="h-3.5 w-3.5" aria-hidden />
                       {player.sessionsCount}
                     </Button>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <span className={player.accountCount > 1 ? "font-medium text-amber-700 dark:text-amber-400" : ""}>
+                      {player.accountCount}
+                    </span>
                   </TableCell>
                   <TableCell className="text-muted-foreground" suppressHydrationWarning>
                     {player.lastRegisteredAt
@@ -894,7 +979,7 @@ export function OwnerRegisteredPlayersView() {
                           )}
                         </Button>
                       </SimpleTooltip>
-                      <SimpleTooltip label="Remove player from all your open plays">
+                      <SimpleTooltip label="Delete player account">
                         <Button
                           type="button"
                           variant="ghost"

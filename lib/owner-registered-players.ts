@@ -57,8 +57,45 @@ export type OwnerRegisteredPlayersQuery = {
   gameId?: string;
   insight?: OwnerSessionInsightFilter;
   ccfFilter?: OwnerRegisteredPlayersCcfFilter;
+  duplicateAccountsOnly?: boolean;
+  expandAccountGroup?: string;
   exportAll?: boolean;
 };
+
+export function buildOwnerRegisteredPlayerAccountGroupKey(name: string, email: string) {
+  return `${name.toLowerCase()}|${email.toLowerCase()}`;
+}
+
+function mapIndividualOwnerRegisteredPlayer(
+  doc: PlayerDoc,
+  entry: PlayerEntryAgg,
+  accountGroupKey: string,
+  blockedEmails: Set<string>,
+): OwnerRegisteredPlayerItem {
+  const name = formatPlayerTableName(doc.firstName ?? "", doc.lastName ?? "") || "—";
+  const email = doc.email ?? "—";
+  const lastRegistered = entry.lastRegisteredAt ? new Date(entry.lastRegisteredAt) : null;
+
+  return {
+    id: doc._id.toString(),
+    name,
+    firstName: doc.firstName ?? "",
+    lastName: doc.lastName ?? "",
+    email,
+    mobileNumber: doc.mobileNumber ?? "—",
+    photoUrl: doc.photoUrl,
+    photoPublicId: doc.photoPublicId,
+    personalQrCode: doc.personalQrCode,
+    sessionsCount: new Set(entry.gameIds ?? []).size,
+    accountCount: 1,
+    accountGroupKey,
+    lastRegisteredAt: lastRegistered ? lastRegistered.toISOString() : null,
+    isBlocked: blockedEmails.has(email.trim().toLowerCase()),
+    welcomeEmailStatus: doc.welcomeEmailStatus ?? "",
+    welcomeEmailError: doc.welcomeEmailError?.trim() ?? "",
+    welcomeEmailSentAt: doc.welcomeEmailSentAt ? new Date(doc.welcomeEmailSentAt).toISOString() : null,
+  };
+}
 
 function matchesOwnerPlayerSearch(
   player: Pick<OwnerRegisteredPlayerItem, "name" | "firstName" | "lastName" | "email" | "mobileNumber">,
@@ -200,6 +237,7 @@ export async function getOwnerRegisteredPlayers(
     photoPublicId?: string | null;
     personalQrCode?: string;
     sessions: Set<string>;
+    playerIds: Set<string>;
     lastRegisteredAt: Date | null;
     welcomeEmailStatus: WelcomeEmailStatus | "";
     welcomeEmailError: string;
@@ -216,7 +254,7 @@ export async function getOwnerRegisteredPlayers(
 
     const name = formatPlayerTableName(doc.firstName ?? "", doc.lastName ?? "") || "—";
     const email = doc.email ?? "—";
-    const key = `${name.toLowerCase()}|${email.toLowerCase()}`;
+    const key = buildOwnerRegisteredPlayerAccountGroupKey(name, email);
 
     let group = groups.get(key);
     if (!group) {
@@ -231,6 +269,7 @@ export async function getOwnerRegisteredPlayers(
         photoPublicId: doc.photoPublicId,
         personalQrCode: doc.personalQrCode,
         sessions: new Set<string>(),
+        playerIds: new Set([doc._id.toString()]),
         lastRegisteredAt: null,
         welcomeEmailStatus: doc.welcomeEmailStatus ?? "",
         welcomeEmailError: doc.welcomeEmailError?.trim() ?? "",
@@ -239,6 +278,8 @@ export async function getOwnerRegisteredPlayers(
         isPartOfDgroup: doc.isPartOfDgroup === true,
       };
       groups.set(key, group);
+    } else {
+      group.playerIds.add(doc._id.toString());
     }
 
     if (doc.photoUrl?.trim()) {
@@ -302,31 +343,90 @@ export async function getOwnerRegisteredPlayers(
     );
   }
 
-  const allPlayers = groupList
-    .sort((a, b) => {
-      const at = a.lastRegisteredAt ? a.lastRegisteredAt.getTime() : 0;
-      const bt = b.lastRegisteredAt ? b.lastRegisteredAt.getTime() : 0;
-      return bt - at;
-    })
-    .map((group) => ({
-      id: group.id,
-      name: group.name,
-      firstName: group.firstName,
-      lastName: group.lastName,
-      email: group.email,
-      mobileNumber: group.mobileNumber,
-      photoUrl: group.photoUrl,
-      photoPublicId: group.photoPublicId,
-      personalQrCode: group.personalQrCode,
-      sessionsCount: group.sessions.size,
-      lastRegisteredAt: group.lastRegisteredAt ? group.lastRegisteredAt.toISOString() : null,
-      isBlocked: blockedEmails.has(group.email.trim().toLowerCase()),
-      welcomeEmailStatus: group.welcomeEmailStatus,
-      welcomeEmailError: group.welcomeEmailError,
-      welcomeEmailSentAt: group.welcomeEmailSentAt
-        ? group.welcomeEmailSentAt.toISOString()
-        : null,
-    }));
+  const expandAccountGroup = options.expandAccountGroup?.trim().toLowerCase() ?? "";
+  const playerDocById = new Map(playerDocs.map((doc) => [doc._id.toString(), doc]));
+
+  let allPlayers: OwnerRegisteredPlayerItem[];
+
+  if (expandAccountGroup) {
+    const group = groups.get(expandAccountGroup);
+    if (!group || group.playerIds.size < 2) {
+      allPlayers = [];
+    } else {
+      allPlayers = [...group.playerIds]
+        .map((playerId) => {
+          const doc = playerDocById.get(playerId);
+          const entry = entryByPlayerId.get(playerId);
+          if (!doc || !entry) return null;
+          if (sessionGameId && !(entry.gameIds ?? []).includes(sessionGameId)) return null;
+          if (insightIdentityKeys) {
+            const identityKey = getPlayerIdentityKey({
+              _id: { toString: () => playerId },
+              email: doc.email ?? "",
+              firstName: doc.firstName ?? "",
+              lastName: doc.lastName ?? "",
+            });
+            if (!insightIdentityKeys.has(identityKey)) return null;
+          }
+          if (
+            hasOwnerRegisteredPlayersCcfFilter(ccfFilter) &&
+            !matchesOwnerRegisteredPlayersCcfFilter(
+              {
+                attendedEvents: doc.attendedEvents ?? [],
+                isPartOfDgroup: doc.isPartOfDgroup === true,
+              },
+              ccfFilter,
+            )
+          ) {
+            return null;
+          }
+          return mapIndividualOwnerRegisteredPlayer(
+            doc,
+            entry,
+            expandAccountGroup,
+            blockedEmails,
+          );
+        })
+        .filter((player): player is OwnerRegisteredPlayerItem => player !== null)
+        .sort((a, b) => {
+          const at = a.lastRegisteredAt ? new Date(a.lastRegisteredAt).getTime() : 0;
+          const bt = b.lastRegisteredAt ? new Date(b.lastRegisteredAt).getTime() : 0;
+          return bt - at;
+        });
+    }
+  } else {
+    allPlayers = groupList
+      .sort((a, b) => {
+        const at = a.lastRegisteredAt ? a.lastRegisteredAt.getTime() : 0;
+        const bt = b.lastRegisteredAt ? b.lastRegisteredAt.getTime() : 0;
+        return bt - at;
+      })
+      .map((group) => ({
+        id: group.id,
+        name: group.name,
+        firstName: group.firstName,
+        lastName: group.lastName,
+        email: group.email,
+        mobileNumber: group.mobileNumber,
+        photoUrl: group.photoUrl,
+        photoPublicId: group.photoPublicId,
+        personalQrCode: group.personalQrCode,
+        sessionsCount: group.sessions.size,
+        accountCount: group.playerIds.size,
+        accountGroupKey: buildOwnerRegisteredPlayerAccountGroupKey(group.name, group.email),
+        lastRegisteredAt: group.lastRegisteredAt ? group.lastRegisteredAt.toISOString() : null,
+        isBlocked: blockedEmails.has(group.email.trim().toLowerCase()),
+        welcomeEmailStatus: group.welcomeEmailStatus,
+        welcomeEmailError: group.welcomeEmailError,
+        welcomeEmailSentAt: group.welcomeEmailSentAt
+          ? group.welcomeEmailSentAt.toISOString()
+          : null,
+      }));
+
+    if (options.duplicateAccountsOnly) {
+      allPlayers = allPlayers.filter((player) => player.accountCount >= 2);
+    }
+  }
 
   const filtered = searchQuery
     ? allPlayers.filter((player) => matchesOwnerPlayerSearch(player, searchQuery))

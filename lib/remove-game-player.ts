@@ -1,10 +1,12 @@
 import { Types } from "mongoose";
 
 import { deleteMatchFromHistory } from "@/lib/match-history-delete";
+import { isPastOpenPlaySession } from "@/lib/open-play-time-range";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
+import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 import { Volunteer } from "@/models/Volunteer";
@@ -28,7 +30,14 @@ export async function removePlayerFromGame(input: {
     throw new Error("Player not found.");
   }
 
-  const onCourt = await isPlayerOnActiveCourt(input.gameId, playerObjectId);
+  const game = await PickleGame.findOne({ gameId: input.gameId })
+    .select("status openPlayDate")
+    .lean<{ status?: string; openPlayDate?: Date | null } | null>();
+
+  const onCourt =
+    game && !isPastOpenPlaySession(game)
+      ? await isPlayerOnActiveCourt(input.gameId, playerObjectId)
+      : false;
   if (onCourt) {
     throw new Error(
       `${formatPlayerDisplayName(player.firstName, player.lastName)} is currently on a court. Replace them or cancel the court assignment before removing.`,

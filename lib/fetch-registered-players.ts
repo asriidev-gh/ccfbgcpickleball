@@ -31,6 +31,8 @@ export function ownerRegisteredPlayersQueryKey(
   notAttendedCcf: boolean,
   withDgroup: boolean,
   noDgroupYet: boolean,
+  duplicateAccounts: boolean,
+  expandAccountGroup: string,
 ) {
   return [
     "owner-registered-players",
@@ -42,6 +44,8 @@ export function ownerRegisteredPlayersQueryKey(
     notAttendedCcf,
     withDgroup,
     noDgroupYet,
+    duplicateAccounts,
+    expandAccountGroup,
   ] as const;
 }
 
@@ -64,6 +68,8 @@ async function fetchOwnerRegisteredPlayersPage(
   notAttendedCcf: boolean,
   withDgroup: boolean,
   noDgroupYet: boolean,
+  duplicateAccounts: boolean,
+  expandAccountGroup: string,
 ) {
   const params = new URLSearchParams({
     page: String(page),
@@ -75,6 +81,8 @@ async function fetchOwnerRegisteredPlayersPage(
   if (notAttendedCcf) params.set("notAttendedCcf", "true");
   if (withDgroup) params.set("withDgroup", "true");
   if (noDgroupYet) params.set("noDgroupYet", "true");
+  if (duplicateAccounts) params.set("duplicateAccounts", "true");
+  if (expandAccountGroup) params.set("accountGroup", expandAccountGroup);
 
   const response = await fetch(`/api/owner/registered-players?${params.toString()}`);
   const payload = (await response.json()) as OwnerRegisteredPlayersPage & {
@@ -106,8 +114,8 @@ export function prefetchRegisteredPlayersInsight(
   });
 
   void queryClient.prefetchQuery({
-    queryKey: ownerRegisteredPlayersQueryKey(1, "", gameId, insight, false, false, false, false),
-    queryFn: () => fetchOwnerRegisteredPlayersPage(1, "", gameId, insight, false, false, false, false),
+    queryKey: ownerRegisteredPlayersQueryKey(1, "", gameId, insight, false, false, false, false, false, ""),
+    queryFn: () => fetchOwnerRegisteredPlayersPage(1, "", gameId, insight, false, false, false, false, false, ""),
     ...ownerHubQueryOptions,
   });
 }

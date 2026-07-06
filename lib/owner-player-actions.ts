@@ -1,5 +1,4 @@
 import { connectToDatabase } from "@/lib/db";
-import { removePlayerFromGame } from "@/lib/remove-game-player";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { PickleGame } from "@/models/PickleGame";
@@ -59,32 +58,4 @@ export async function assertPlayerRegisteredWithOwner(
     email: resolved.player.email ?? "",
     name: formatPlayerDisplayName(resolved.player.firstName ?? "", resolved.player.lastName ?? ""),
   };
-}
-
-/** Removes a player from every open play session owned by this organizer. */
-export async function removePlayerFromOwnerGames(ownerId: string, playerId: string) {
-  await connectToDatabase();
-  const resolved = await resolvePlayerSiblings(playerId);
-  if (!resolved) return false;
-
-  const ownerGames = await PickleGame.find({ ownerId }).select("gameId title").lean<
-    Array<{ gameId: string; title: string }>
-  >();
-
-  for (const game of ownerGames) {
-    for (const siblingId of resolved.playerObjectIds) {
-      const hasQueue = await QueueEntry.exists({ gameId: game.gameId, playerId: siblingId });
-      const hasStats = await LeaderboardStats.exists({ gameId: game.gameId, playerId: siblingId });
-      if (!hasQueue && !hasStats) continue;
-
-      try {
-        await removePlayerFromGame({ gameId: game.gameId, playerId: siblingId });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to remove player.";
-        throw new Error(`${game.title}: ${message}`);
-      }
-    }
-  }
-
-  return true;
 }

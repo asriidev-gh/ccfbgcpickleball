@@ -11,6 +11,7 @@ import {
 } from "@/lib/owner-session-insight-filter-shared";
 import {
   hasOwnerRegisteredPlayersCcfFilter,
+  parseOwnerRegisteredPlayersDuplicateAccountsFilter,
 } from "@/lib/owner-registered-players-filter-shared";
 import { PickleGame } from "@/models/PickleGame";
 
@@ -23,6 +24,7 @@ const EXPORT_HEADERS = [
   "Mobile",
   "Personal QR Code",
   "Sessions",
+  "Accounts",
   "Last Registered At",
   "Blocked",
 ] as const;
@@ -49,6 +51,8 @@ function hasRegisteredPlayersExportFilter(options: OwnerRegisteredPlayersQuery) 
     options.query?.trim() ||
       options.gameId?.trim() ||
       options.insight ||
+      options.duplicateAccountsOnly ||
+      options.expandAccountGroup ||
       hasOwnerRegisteredPlayersCcfFilter(options.ccfFilter),
   );
 }
@@ -76,6 +80,7 @@ export async function buildOwnerRegisteredPlayersExportWorkbook(
     Mobile: player.mobileNumber,
     "Personal QR Code": player.personalQrCode ?? "",
     Sessions: player.sessionsCount,
+    Accounts: player.accountCount,
     "Last Registered At": formatExportDateTime(player.lastRegisteredAt),
     Blocked: player.isBlocked ? "Yes" : "No",
   }));
@@ -108,6 +113,8 @@ export async function buildOwnerRegisteredPlayersExportWorkbook(
   if (options.ccfFilter?.notAttendedCcf) filenameParts.push("ccf-not-attended");
   if (options.ccfFilter?.withDgroup) filenameParts.push("with-dgroup");
   if (options.ccfFilter?.noDgroupYet) filenameParts.push("no-dgroup-yet");
+  if (options.duplicateAccountsOnly) filenameParts.push("duplicate-accounts");
+  if (options.expandAccountGroup) filenameParts.push("account-group");
 
   const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
 

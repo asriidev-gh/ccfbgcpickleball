@@ -18,6 +18,19 @@ export function parseOwnerRegisteredPlayersCcfFilter(
   };
 }
 
+export function parseOwnerRegisteredPlayersDuplicateAccountsFilter(
+  searchParams: Pick<URLSearchParams, "get">,
+) {
+  return searchParams.get("duplicateAccounts") === "true";
+}
+
+export function parseOwnerRegisteredPlayersExpandAccountGroup(
+  searchParams: Pick<URLSearchParams, "get">,
+) {
+  const value = searchParams.get("accountGroup")?.trim();
+  return value ? value.toLowerCase() : undefined;
+}
+
 export function hasOwnerRegisteredPlayersCcfFilter(
   filter: OwnerRegisteredPlayersCcfFilter | undefined,
 ) {

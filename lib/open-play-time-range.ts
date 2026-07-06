@@ -163,6 +163,26 @@ export function formatOpenPlayDate(value: string | Date | null | undefined): str
   });
 }
 
+/** Ended games, or sessions before today, are treated as already checked out. */
+export function isPastOpenPlaySession(input: {
+  status?: string | null;
+  openPlayDate?: string | Date | null;
+}) {
+  if (input.status === "ended") return true;
+  if (!input.openPlayDate) return false;
+
+  const sessionDate = input.openPlayDate instanceof Date ? input.openPlayDate : new Date(input.openPlayDate);
+  if (Number.isNaN(sessionDate.getTime())) return false;
+
+  const sessionDay = new Date(sessionDate);
+  sessionDay.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return sessionDay < today;
+}
+
 /** e.g. "7PM - 10PM" → "7PM-10PM" */
 export function formatOpenPlayTimeRangeCompact(timeRange: string): string {
   return timeRange.trim().replace(/\s*-\s*/g, "-");

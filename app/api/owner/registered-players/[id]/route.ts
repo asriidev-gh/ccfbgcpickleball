@@ -5,8 +5,8 @@ import { getAuthUserFromCookie } from "@/lib/auth";
 import { formatZodError } from "@/lib/format-zod-error";
 import {
   assertPlayerRegisteredWithOwner,
-  removePlayerFromOwnerGames,
 } from "@/lib/owner-player-actions";
+import { deleteOwnerRegisteredPlayerAccount } from "@/lib/owner-registered-player-delete";
 import { setOrganizerPlayerBlocked } from "@/lib/organizer-blocked-player";
 
 const patchSchema = z.object({
@@ -49,10 +49,12 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
 
     const { id } = await params;
     const player = await assertPlayerRegisteredWithOwner(authUser.userId, id);
-    await removePlayerFromOwnerGames(authUser.userId, id);
+    const result = await deleteOwnerRegisteredPlayerAccount(authUser.userId, id);
 
     return NextResponse.json({
-      message: `${player.name} was removed from all of your open play sessions.`,
+      message: result.transferredToId
+        ? `${player.name} was deleted. Session history was transferred to the latest account.`
+        : `${player.name} was permanently deleted.`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to remove player.";
