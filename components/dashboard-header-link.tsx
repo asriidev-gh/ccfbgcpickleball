@@ -1,23 +1,22 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
+import { useAuthMe } from "@/hooks/use-auth-me";
 import { cn } from "@/lib/utils";
 
 export function DashboardHeaderLink() {
-  const { data } = useQuery({
-    queryKey: ["auth-me"],
-    queryFn: async () => {
-      const response = await fetch("/api/auth/me");
-      if (!response.ok) return null;
-      return (await response.json()) as { user: { name: string; email: string } | null };
-    },
-  });
+  const [mounted, setMounted] = useState(false);
+  const { data } = useAuthMe();
 
-  if (!data?.user) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !data?.user) return null;
 
   return (
     <Link
