@@ -13,6 +13,7 @@ import type {
   DatabaseCheckInQueueStatus,
 } from "@/lib/operator-database-check-in-shared";
 import type { OwnerRegisteredPlayerItem } from "@/lib/owner-registered-players-shared";
+import { buildOwnerRegisteredPlayerAccountGroupKey } from "@/lib/owner-registered-players";
 import { recordPlayerRegisteredNotification } from "@/lib/organizer-notifications";
 import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
 import { formatPlayerDisplayName, formatPlayerTableName } from "@/lib/utils";
@@ -68,6 +69,8 @@ function mapRosterRowToPlayerItem(
     photoPublicId: player.photoPublicId,
     personalQrCode: player.personalQrCode,
     sessionsCount: row.gameIds?.length ?? 0,
+    accountCount: 1,
+    accountGroupKey: buildOwnerRegisteredPlayerAccountGroupKey(name, email),
     lastRegisteredAt: row.lastRegisteredAt ? row.lastRegisteredAt.toISOString() : null,
     isBlocked: blockedEmails.has(email.trim().toLowerCase()),
     welcomeEmailStatus: (player.welcomeEmailStatus ?? "") as OwnerRegisteredPlayerItem["welcomeEmailStatus"],
