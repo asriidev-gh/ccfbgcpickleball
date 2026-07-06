@@ -1,6 +1,7 @@
 import type { OpenPlayType } from "@/lib/open-play-types";
 import { PLAYER_OPEN_PLAY_LEVELS, type PlayerOpenPlayLevel } from "@/lib/open-play-types";
 import type { GenderOption } from "@/lib/player-profile-shared";
+import { isCcfUserType } from "@/lib/registration-variant";
 
 export const QUICK_PLAY_TOTAL_STEPS = 3;
 
@@ -63,6 +64,18 @@ export const QUICK_PLAY_MATCHING_TYPE_OPTIONS: Array<{
   },
 ];
 
+const CCF_HIDDEN_DOUBLES_MATCHING_TYPES: ReadonlyArray<QuickPlayMatchingType> = [
+  "winner-loser-groups",
+  "mixed-doubles",
+];
+
+export function getQuickPlayMatchingTypeOptions(userType?: string | null) {
+  if (!isCcfUserType(userType)) return QUICK_PLAY_MATCHING_TYPE_OPTIONS;
+  return QUICK_PLAY_MATCHING_TYPE_OPTIONS.filter(
+    (option) => !CCF_HIDDEN_DOUBLES_MATCHING_TYPES.includes(option.value),
+  );
+}
+
 /** Matching options shown when game mode is singles. */
 export const QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS: Array<{
   value: QuickPlayMatchingType;
@@ -82,6 +95,24 @@ export const QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS: Array<{
       "Keep queue order first (1, 2, 3…). Winners and losers wait at the end until a pair forms, then join the main line.",
   },
 ];
+
+export function getQuickPlaySinglesMatchingTypeOptions(userType?: string | null) {
+  if (!isCcfUserType(userType)) return QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS;
+  return QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS.filter(
+    (option) => option.value !== "winner-loser-groups",
+  );
+}
+
+export function resolveMatchingTypeForUserType(
+  matchingType: QuickPlayMatchingType,
+  userType?: string | null,
+): QuickPlayMatchingType {
+  if (!isCcfUserType(userType)) return matchingType;
+  if (matchingType === "winner-loser-groups" || matchingType === "mixed-doubles") {
+    return "auto-balanced";
+  }
+  return matchingType;
+}
 
 export type QuickPlayWizardPlayerEntry = {
   name: string;

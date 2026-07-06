@@ -52,6 +52,7 @@ import {
   getMinExpectedPlayersForGameMode,
   getMixedDoublesPlayersValidationError,
   isMixedDoublesMatching,
+  resolveMatchingTypeForUserType,
   resolvePlayerOpenPlayLevel,
   syncQuickPlayWizardPlayerEntryCount,
   type QuickPlayGameMode,
@@ -122,7 +123,7 @@ function createInitialForm(userType?: string | null): CreateGameForm {
     expectedPlayers: 24,
     strictPlayerCount: false,
     gameMode: "doubles",
-    matchingType: "auto-balanced",
+    matchingType: resolveMatchingTypeForUserType("auto-balanced", userType),
   };
 }
 
@@ -653,6 +654,7 @@ export function CreateGameWizard() {
                   key={`create-quick-format-${wizardInstanceId}`}
                   idPrefix="create-quick"
                   form={form}
+                  userType={gamesData?.userType}
                   onFormChange={(patch) =>
                     setForm((prev) => {
                       const next = { ...prev, ...patch };
@@ -665,6 +667,10 @@ export function CreateGameWizard() {
                           next.matchingType = "auto-balanced";
                         }
                       }
+                      next.matchingType = resolveMatchingTypeForUserType(
+                        next.matchingType,
+                        gamesData?.userType,
+                      );
                       return next;
                     })
                   }
@@ -768,6 +774,7 @@ export function CreateGameWizard() {
               <Separator />
               <QuickPlayGameFormatFields
                 form={form}
+                userType={gamesData?.userType}
                 onFormChange={(patch) =>
                   setForm((prev) => {
                     const next = { ...prev, ...patch };
@@ -780,6 +787,10 @@ export function CreateGameWizard() {
                         next.matchingType = "auto-balanced";
                       }
                     }
+                    next.matchingType = resolveMatchingTypeForUserType(
+                      next.matchingType,
+                      gamesData?.userType,
+                    );
                     return next;
                   })
                 }

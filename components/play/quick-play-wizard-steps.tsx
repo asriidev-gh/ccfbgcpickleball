@@ -16,9 +16,9 @@ import {
   MIN_EXPECTED_PLAYERS,
   QUICK_PLAY_GAME_MODE_OPTIONS,
   getMinExpectedPlayersForGameMode,
+  getQuickPlayMatchingTypeOptions,
+  getQuickPlaySinglesMatchingTypeOptions,
   isMixedDoublesMatching,
-  QUICK_PLAY_MATCHING_TYPE_OPTIONS,
-  QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS,
   QUICK_PLAY_STEP_HEADINGS,
   QUICK_PLAY_TOTAL_STEPS,
   QUICK_PLAY_WIZARD_STEPS,
@@ -167,10 +167,18 @@ export function QuickPlayFormatOptionButton({
 export function QuickPlayGameFormatFields({
   form,
   onFormChange,
+  userType,
 }: {
   form: Pick<QuickPlayWizardFormFields, "gameMode" | "matchingType">;
   onFormChange: (patch: Partial<Pick<QuickPlayWizardFormFields, "gameMode" | "matchingType">>) => void;
+  userType?: string | null;
 }) {
+  const doublesMatchingOptions = getQuickPlayMatchingTypeOptions(userType);
+  const singlesMatchingOptions = getQuickPlaySinglesMatchingTypeOptions(userType);
+  const matchingOptions =
+    form.gameMode === "singles" ? singlesMatchingOptions : doublesMatchingOptions;
+  const matchingSectionLabel = form.gameMode === "singles" ? "Queue matching" : "Matching type";
+
   return (
     <>
       <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
@@ -189,14 +197,15 @@ export function QuickPlayGameFormatFields({
         </div>
       </div>
 
-      {form.gameMode === "singles" ? (
+      {matchingOptions.length > 1 ? (
         <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
-          <Label className="text-base">Queue matching</Label>
+          <Label className="text-base">{matchingSectionLabel}</Label>
           <div className="grid grid-cols-1 gap-3">
-            {QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS.map((option) => (
+            {matchingOptions.map((option) => (
               <QuickPlayFormatOptionButton
                 key={option.value}
                 selected={form.matchingType === option.value}
+                disabled={"disabled" in option ? option.disabled : false}
                 label={option.label}
                 description={option.description}
                 onClick={() => onFormChange({ matchingType: option.value })}
@@ -204,23 +213,7 @@ export function QuickPlayGameFormatFields({
             ))}
           </div>
         </div>
-      ) : (
-        <div className={cn("space-y-3 rounded-xl border p-4", WIZARD_PANEL_BORDER)}>
-          <Label className="text-base">Matching type</Label>
-          <div className="grid grid-cols-1 gap-3">
-            {QUICK_PLAY_MATCHING_TYPE_OPTIONS.map((option) => (
-              <QuickPlayFormatOptionButton
-                key={option.value}
-                selected={form.matchingType === option.value}
-                disabled={option.disabled}
-                label={option.label}
-                description={option.description}
-                onClick={() => onFormChange({ matchingType: option.value })}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      ) : null}
     </>
   );
 }
@@ -230,11 +223,13 @@ export function QuickPlayFormatStep({
   form,
   onFormChange,
   onOpenPlayTypeChange,
+  userType,
 }: {
   idPrefix: string;
   form: QuickPlayWizardFormFields;
   onFormChange: (patch: Partial<QuickPlayWizardFormFields>) => void;
   onOpenPlayTypeChange: (openPlayType: string) => void;
+  userType?: string | null;
 }) {
   const minExpectedPlayers = getMinExpectedPlayersForGameMode(form.gameMode);
 
@@ -267,6 +262,7 @@ export function QuickPlayFormatStep({
 
       <QuickPlayGameFormatFields
         form={form}
+        userType={userType}
         onFormChange={(patch) => {
           const next = { ...patch };
           if (patch.gameMode === "singles" && form.matchingType === "mixed-doubles") {
