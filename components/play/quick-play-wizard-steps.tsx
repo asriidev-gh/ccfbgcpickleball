@@ -205,7 +205,7 @@ export function QuickPlayGameFormatFields({
               <QuickPlayFormatOptionButton
                 key={option.value}
                 selected={form.matchingType === option.value}
-                disabled={"disabled" in option ? option.disabled : false}
+                disabled={option.disabled}
                 label={option.label}
                 description={option.description}
                 onClick={() => onFormChange({ matchingType: option.value })}

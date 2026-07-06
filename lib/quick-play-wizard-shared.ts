@@ -38,12 +38,14 @@ export const QUICK_PLAY_GAME_MODE_OPTIONS: Array<{
   },
 ];
 
-export const QUICK_PLAY_MATCHING_TYPE_OPTIONS: Array<{
+export type QuickPlayMatchingTypeOption = {
   value: QuickPlayMatchingType;
   label: string;
   description: string;
   disabled?: boolean;
-}> = [
+};
+
+export const QUICK_PLAY_MATCHING_TYPE_OPTIONS: QuickPlayMatchingTypeOption[] = [
   {
     value: "auto-balanced",
     label: "Auto-balanced",
@@ -69,7 +71,9 @@ const CCF_HIDDEN_DOUBLES_MATCHING_TYPES: ReadonlyArray<QuickPlayMatchingType> = 
   "mixed-doubles",
 ];
 
-export function getQuickPlayMatchingTypeOptions(userType?: string | null) {
+export function getQuickPlayMatchingTypeOptions(
+  userType?: string | null,
+): QuickPlayMatchingTypeOption[] {
   if (!isCcfUserType(userType)) return QUICK_PLAY_MATCHING_TYPE_OPTIONS;
   return QUICK_PLAY_MATCHING_TYPE_OPTIONS.filter(
     (option) => !CCF_HIDDEN_DOUBLES_MATCHING_TYPES.includes(option.value),
@@ -77,11 +81,7 @@ export function getQuickPlayMatchingTypeOptions(userType?: string | null) {
 }
 
 /** Matching options shown when game mode is singles. */
-export const QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS: Array<{
-  value: QuickPlayMatchingType;
-  label: string;
-  description: string;
-}> = [
+export const QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS: QuickPlayMatchingTypeOption[] = [
   {
     value: "auto-balanced",
     label: "Queue order",
@@ -96,7 +96,9 @@ export const QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS: Array<{
   },
 ];
 
-export function getQuickPlaySinglesMatchingTypeOptions(userType?: string | null) {
+export function getQuickPlaySinglesMatchingTypeOptions(
+  userType?: string | null,
+): QuickPlayMatchingTypeOption[] {
   if (!isCcfUserType(userType)) return QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS;
   return QUICK_PLAY_SINGLES_MATCHING_TYPE_OPTIONS.filter(
     (option) => option.value !== "winner-loser-groups",
