@@ -285,6 +285,8 @@ type QueueEntryRowProps = {
   shareAction?: ReactNode;
   /** Spectator: endorse another player in the queue. */
   endorseAction?: ReactNode;
+  /** Hide replace / checkout / share actions for a denser queue list. */
+  hideActions?: boolean;
 };
 
 export function QueueEntryRow({
@@ -323,6 +325,7 @@ export function QueueEntryRow({
   onEndorsementClick,
   shareAction,
   endorseAction,
+  hideActions = false,
 }: QueueEntryRowProps) {
   const slot = index + 1;
   const playerMongoId = resolvePlayerId(entry.playerId);
@@ -501,7 +504,7 @@ export function QueueEntryRow({
         )}
       </div>
 
-      {(showActionsMenu || shareAction || endorseAction) ? (
+      {(showActionsMenu || shareAction || endorseAction) && !hideActions ? (
         <div
           className={cn(
             showReplace ? "queue-swap-panel" : "mt-2",

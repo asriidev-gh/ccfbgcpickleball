@@ -130,6 +130,11 @@ import {
 } from "@/components/game/replace-player-dialog";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
 import {
+  QueueEntryActionsToggle,
+  loadShowQueueEntryActions,
+  saveShowQueueEntryActions,
+} from "@/components/game/queue-entry-actions-toggle";
+import {
   QueueNextUpSlots,
   NextOnCourtLayoutToggle,
   loadNextOnCourtLayoutMode,
@@ -552,6 +557,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const [teamAScore, setTeamAScore] = useState("");
   const [teamBScore, setTeamBScore] = useState("");
   const [showWaitingList, setShowWaitingList] = useState(true);
+  const [showQueueEntryActions, setShowQueueEntryActions] = useState(false);
   const [waitingLineView, setWaitingLineView] = useState<WaitingLineViewMode>("list");
   const [showCheckedOutList, setShowCheckedOutList] = useState(true);
   const [showMatchHistory, setShowMatchHistory] = useState(false);
@@ -612,6 +618,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
   useEffect(() => {
     setShowWaitingList(loadShowWaitingList());
+    setShowQueueEntryActions(loadShowQueueEntryActions());
     setWaitingLineView(loadWaitingLineViewMode());
     setShowCheckedOutList(loadShowCheckedOutList());
     setShowCourts(loadShowCourts());
@@ -2429,6 +2436,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         }
         endorseAction={renderSpectatorEndorseAction(entry, options?.compactName)}
         shareAction={renderSpectatorShareAction(entry, options?.compactName)}
+        hideActions={!showQueueEntryActions}
       />
     );
   };
@@ -2531,6 +2539,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             spectatorManualLiveRefresh,
           )
         : null;
+    const showQueueEntryActionsToggle =
+      queueWithStats.length > 0 &&
+      ((isSpectator && !isPastGame) || !hideControls);
 
     return (
     <Card ref={queuePanelRef} className="glass-panel dashboard-panel dashboard-panel--queue">
@@ -2566,6 +2577,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                   className={cn("h-4 w-4", operatorQueueQuery.isFetching && "animate-spin")}
                 />
               </Button>
+            ) : null}
+            {showQueueEntryActionsToggle ? (
+              <QueueEntryActionsToggle
+                showActions={showQueueEntryActions}
+                onShowActionsChange={(show) => {
+                  setShowQueueEntryActions(show);
+                  saveShowQueueEntryActions(show);
+                }}
+              />
             ) : null}
           </div>
           {spectatorQueueRefreshStatus ? (
