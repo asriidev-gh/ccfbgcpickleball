@@ -5,7 +5,9 @@ export const SPECTATOR_NAV_STALE_TIME_MS = 10 * 60_000;
 export const spectatorLiveQueryOptions = {
   staleTime: SPECTATOR_LIVE_STALE_TIME_MS,
   gcTime: 5 * 60_000,
-  refetchOnWindowFocus: false,
+  /** Fresh queue/courts when returning from another route, browser tab, or mobile app. */
+  refetchOnMount: "always",
+  refetchOnWindowFocus: "always",
   refetchOnReconnect: false,
   refetchIntervalInBackground: false,
 } as const;

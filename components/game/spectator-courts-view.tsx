@@ -113,7 +113,6 @@ export function SpectatorCourtsView() {
     enabled: Boolean(gameId),
     ...spectatorLiveQueryOptions,
     refetchInterval: SPECTATOR_LIVE_POLL_MS,
-    refetchOnWindowFocus: true,
   });
 
   const liveLeaderboard = liveQuery.data?.leaderboard ?? [];
