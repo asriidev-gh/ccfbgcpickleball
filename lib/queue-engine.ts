@@ -16,7 +16,11 @@ import {
   minPlayersForGameFormat,
   resolveGameFormatSettings,
 } from "@/lib/game-format-settings";
-import { resolveCourtAssignmentFromQueue, type QueueEntryLike } from "@/lib/queue-court-assignment";
+import {
+  assignCourtTeams,
+  resolveCourtAssignmentFromQueue,
+  type QueueEntryLike,
+} from "@/lib/queue-court-assignment";
 import { requeuePlayersAfterCourtEnd } from "@/lib/queue-end-requeue";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
@@ -52,7 +56,11 @@ async function findEmptyCourt(gameId: string, courtNumber?: number) {
   }
 }
 
-export async function startGameOnCourt(gameId: string, courtNumber?: number) {
+export async function startGameOnCourt(
+  gameId: string,
+  courtNumber?: number,
+  options?: { queueEntryIds?: string[] },
+) {
   const game = await PickleGame.findOne({ gameId }).select("gameMode matchingType");
   if (!game) throw new Error("Game not found.");
 
@@ -72,9 +80,26 @@ export async function startGameOnCourt(gameId: string, courtNumber?: number) {
     .sort({ registeredAt: 1 })
     .populate("playerId");
 
-  const assignment = resolveCourtAssignmentFromQueue(entries as QueueEntryLike[], format);
-  if (!assignment) {
-    throw new Error(`Not enough queued players. At least ${minPlayers} players are required.`);
+  let assignment: ReturnType<typeof resolveCourtAssignmentFromQueue>;
+  const requestedEntryIds = options?.queueEntryIds?.map(String);
+  if (requestedEntryIds?.length === minPlayers) {
+    const byId = new Map(entries.map((entry) => [String(entry._id), entry as QueueEntryLike]));
+    const picked = requestedEntryIds.map((entryId) => {
+      const entry = byId.get(entryId);
+      if (!entry) {
+        throw new Error("One or more selected queue entries are no longer available.");
+      }
+      return entry;
+    });
+    assignment = assignCourtTeams(picked, format);
+    if (!assignment) {
+      throw new Error(`Not enough queued players. At least ${minPlayers} players are required.`);
+    }
+  } else {
+    assignment = resolveCourtAssignmentFromQueue(entries as QueueEntryLike[], format);
+    if (!assignment) {
+      throw new Error(`Not enough queued players. At least ${minPlayers} players are required.`);
+    }
   }
 
   const resolvePlayerObjectId = (entry: QueueEntryLike) => {

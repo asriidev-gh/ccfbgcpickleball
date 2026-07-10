@@ -1,4 +1,6 @@
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
+import { queueEntryPlayerId } from "@/lib/queue-highlight";
+import { removeQueueEntriesForPlayerIds } from "@/lib/queue-dedupe";
 import type { PlayerPhotoRef } from "@/components/game/player-avatar";
 import type { QuickPlayMatchingType } from "@/lib/quick-play-wizard-shared";
 
@@ -99,7 +101,11 @@ export function appendDoublesRequeueEntries(
   queue: QueueEntryView[],
   requeueEntries: QueueEntryView[],
 ): QueueEntryView[] {
-  const { normals, winners, losers } = segmentDoublesQueue(queue);
+  const filteredQueue = removeQueueEntriesForPlayerIds(
+    queue,
+    requeueEntries.map(queueEntryPlayerId).filter(Boolean),
+  );
+  const { normals, winners, losers } = segmentDoublesQueue(filteredQueue);
   const addedWinners = requeueEntries.filter((entry) => entry.queueType === "winner");
   const addedLosers = requeueEntries.filter((entry) => entry.queueType === "loser");
 

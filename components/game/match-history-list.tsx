@@ -20,7 +20,8 @@ import { Input } from "@/components/ui/input";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
 import {
-  getMatchScoreInputError,
+  getEditableMatchScoreInputError,
+  inferWinnerTeamFromScores,
   MAX_MATCH_SCORE,
   sanitizeScoreInput,
 } from "@/lib/match-score-validation";
@@ -29,6 +30,12 @@ import {
   formatMatchTimeRange,
 } from "@/lib/match-history-display";
 import { filterMatchesByPlayerName } from "@/lib/match-history-filter";
+import type { GamePayload } from "@/lib/game-payload-mutations";
+import { operatorMatchHistoryQueryKey } from "@/lib/fetch-operator-game";
+import {
+  readOperatorGamePayload,
+  writeOperatorGamePayload,
+} from "@/lib/operator-game-cache";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
 export type MatchHistoryPlayer = {
@@ -68,22 +75,29 @@ type EditMatchScoreInput = {
   teamBScore: number;
 };
 
-type GameMatchCachePayload = {
-  matches: MatchHistoryView[];
-};
+function matchIdsEqual(left: string, right: string) {
+  return String(left) === String(right);
+}
 
 /** Instant UI while the edit-score API request is in flight. */
 function applyEditMatchScoreOptimistic(
-  payload: GameMatchCachePayload,
+  payload: GamePayload,
   input: EditMatchScoreInput,
-): GameMatchCachePayload | null {
-  if (!payload.matches.some((match) => match._id === input.matchId)) return null;
+): GamePayload | null {
+  const winnerTeam = inferWinnerTeamFromScores(input.teamAScore, input.teamBScore);
+  if (!winnerTeam) return null;
+  if (!payload.matches.some((match) => matchIdsEqual(match._id, input.matchId))) return null;
 
   return {
     ...payload,
     matches: payload.matches.map((match) =>
-      match._id === input.matchId
-        ? { ...match, teamAScore: input.teamAScore, teamBScore: input.teamBScore }
+      matchIdsEqual(match._id, input.matchId)
+        ? {
+            ...match,
+            teamAScore: input.teamAScore,
+            teamBScore: input.teamBScore,
+            winnerTeam,
+          }
         : match,
     ),
   };
@@ -274,27 +288,31 @@ export function MatchHistoryList({
       return data as { message: string };
     },
     onMutate: async (variables) => {
-      if (!gameId) return { previous: undefined as GameMatchCachePayload | undefined };
+      closeEditScore();
 
-      const gameQueryKey = ["game", gameId, "operator"] as const;
+      if (!gameId) return { previous: undefined as GamePayload | undefined };
+
       await queryClient.cancelQueries({ queryKey: ["game", gameId] });
-      const previous = queryClient.getQueryData<GameMatchCachePayload>(gameQueryKey);
-      if (!previous) return { previous: undefined as GameMatchCachePayload | undefined };
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
 
       const optimistic = applyEditMatchScoreOptimistic(previous, variables);
       if (!optimistic) return { previous };
 
-      queryClient.setQueryData(gameQueryKey, optimistic);
-      closeEditScore();
-      return { previous, gameQueryKey };
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      return { previous };
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      if (gameId) queryClient.invalidateQueries({ queryKey: ["game", gameId] });
+      if (gameId) {
+        void queryClient.invalidateQueries({ queryKey: operatorMatchHistoryQueryKey(gameId) });
+        void queryClient.invalidateQueries({ queryKey: ["game", gameId, "operator", "details"] });
+        void queryClient.invalidateQueries({ queryKey: ["game", gameId, "operator", "queue"] });
+      }
     },
     onError: (error, _variables, context) => {
-      if (context?.previous && context.gameQueryKey) {
-        queryClient.setQueryData(context.gameQueryKey, context.previous);
+      if (context?.previous && gameId) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toast.error(error instanceof Error ? error.message : "Failed to update score.");
     },
@@ -367,18 +385,19 @@ export function MatchHistoryList({
   const trimmedNameFilter = nameFilter.trim();
 
   const editScoreError = editingMatch
-    ? getMatchScoreInputError(editingMatch.winnerTeam, editTeamAScore, editTeamBScore)
+    ? getEditableMatchScoreInputError(editTeamAScore, editTeamBScore)
     : null;
-  const editWinnerScoreRaw =
-    editingMatch?.winnerTeam === "A" ? editTeamAScore : editTeamBScore;
-  const editWinnerScoreParsed =
-    editWinnerScoreRaw?.trim() === "" ? undefined : Number(editWinnerScoreRaw);
-  const editLoserScoreMax =
-    editWinnerScoreParsed !== undefined &&
-    Number.isInteger(editWinnerScoreParsed) &&
-    editWinnerScoreParsed >= 0
-      ? Math.max(0, editWinnerScoreParsed - 1)
-      : undefined;
+  const parsedEditTeamAScore =
+    editTeamAScore.trim() === "" ? null : Number(editTeamAScore);
+  const parsedEditTeamBScore =
+    editTeamBScore.trim() === "" ? null : Number(editTeamBScore);
+  const editInferredWinner =
+    parsedEditTeamAScore != null &&
+    parsedEditTeamBScore != null &&
+    Number.isInteger(parsedEditTeamAScore) &&
+    Number.isInteger(parsedEditTeamBScore)
+      ? inferWinnerTeamFromScores(parsedEditTeamAScore, parsedEditTeamBScore)
+      : null;
 
   return (
     <div className="match-history-list space-y-2.5">
@@ -535,13 +554,15 @@ export function MatchHistoryList({
                     htmlFor="edit-team-a-score"
                     className={cn(
                       "text-sm font-medium",
-                      editingMatch.winnerTeam === "A" && "text-primary",
+                      editInferredWinner === "A" && "text-primary",
                     )}
                   >
                     Team A
-                    {editingMatch.winnerTeam === "A"
+                    {editInferredWinner === "A"
                       ? " (winner)"
-                      : " (loser)"}
+                      : editInferredWinner === "B"
+                        ? " (loser)"
+                        : ""}
                   </label>
                   <Input
                     id="edit-team-a-score"
@@ -550,16 +571,12 @@ export function MatchHistoryList({
                     autoComplete="off"
                     maxLength={2}
                     min={0}
-                    max={
-                      editingMatch.winnerTeam === "A"
-                        ? MAX_MATCH_SCORE
-                        : editLoserScoreMax ?? MAX_MATCH_SCORE
-                    }
+                    max={MAX_MATCH_SCORE}
                     value={editTeamAScore}
                     onChange={(event) =>
                       setEditTeamAScore(sanitizeScoreInput(event.target.value))
                     }
-                    aria-invalid={editScoreError != null && editingMatch.winnerTeam === "B"}
+                    aria-invalid={editScoreError != null && editInferredWinner === "B"}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -567,13 +584,15 @@ export function MatchHistoryList({
                     htmlFor="edit-team-b-score"
                     className={cn(
                       "text-sm font-medium",
-                      editingMatch.winnerTeam === "B" && "text-primary",
+                      editInferredWinner === "B" && "text-primary",
                     )}
                   >
                     Team B
-                    {editingMatch.winnerTeam === "B"
+                    {editInferredWinner === "B"
                       ? " (winner)"
-                      : " (loser)"}
+                      : editInferredWinner === "A"
+                        ? " (loser)"
+                        : ""}
                   </label>
                   <Input
                     id="edit-team-b-score"
@@ -582,16 +601,12 @@ export function MatchHistoryList({
                     autoComplete="off"
                     maxLength={2}
                     min={0}
-                    max={
-                      editingMatch.winnerTeam === "B"
-                        ? MAX_MATCH_SCORE
-                        : editLoserScoreMax ?? MAX_MATCH_SCORE
-                    }
+                    max={MAX_MATCH_SCORE}
                     value={editTeamBScore}
                     onChange={(event) =>
                       setEditTeamBScore(sanitizeScoreInput(event.target.value))
                     }
-                    aria-invalid={editScoreError != null && editingMatch.winnerTeam === "A"}
+                    aria-invalid={editScoreError != null && editInferredWinner === "A"}
                   />
                 </div>
               </div>

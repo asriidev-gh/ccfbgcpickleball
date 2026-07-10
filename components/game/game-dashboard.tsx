@@ -118,6 +118,7 @@ import { formatOpenPlayDate, formatOpenPlayScheduleLabel, formatVenueShareLabel 
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
 import { NextCourtMatchAnalysis } from "@/components/game/next-court-match-analysis";
 import {
+  applyRepeatLastMatchFoursomeAdjustment,
   buildQueueNextCourtWaitingSwapOrder,
   isDoublesMatchupAnalysisMatchingType,
 } from "@/lib/next-court-match-analysis";
@@ -235,6 +236,12 @@ import {
   operatorQueueQueryOptions,
   operatorShellQueryOptions,
 } from "@/lib/operator-query-options";
+import {
+  beginOperatorQueueMutation,
+  endOperatorQueueMutation,
+  isQueueMutationLocked,
+} from "@/lib/operator-queue-mutation-lock";
+import { dedupeQueueEntriesByPlayerId } from "@/lib/queue-dedupe";
 import {
   spectatorEndorsementQueryOptions,
   spectatorLiveQueryOptions,
@@ -579,6 +586,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const courtsPanelRef = useRef<HTMLDivElement>(null);
   const courtsListContentRef = useRef<HTMLDivElement>(null);
   const pendingScrollToAvailableCourtsRef = useRef(false);
+  const queueMutationLockRef = useRef(0);
   const matchHistoryPanelRef = useRef<HTMLDivElement>(null);
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);
@@ -705,11 +713,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     queryFn: () => fetchOperatorQueue(gameId),
     enabled: !!gameId && operatorCanLoadData,
     ...operatorQueueQueryOptions,
-    refetchInterval: (query) =>
-      operatorQueueLiveRefetchInterval(
+    refetchInterval: (query) => {
+      if (queueMutationLockRef.current > 0) return false;
+      return operatorQueueLiveRefetchInterval(
         hasDashboardLease && !isQuickGameSession,
         query.state.data?.status,
-      ),
+      );
+    },
     refetchIntervalInBackground: false,
   });
 
@@ -835,6 +845,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       operatorQueueQuery.data?.status !== "ended" &&
       operatorQueueQuery.data?.status !== "draft",
     queueQuery: operatorQueueQuery,
+    shouldDeferRefresh: () => isQueueMutationLocked(queueMutationLockRef),
   });
 
   const spectatorLiveQuery = useQuery({
@@ -943,7 +954,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   }, [spectatorMatchHistoryQuery]);
 
   const startMutation = useMutation({
-    mutationFn: async (courtNumber: number) => {
+    mutationFn: async (input: { courtNumber: number; queueEntryIds?: string[] }) => {
       if (isQuickGameSession) return { ok: true };
 
       const maxAttempts = 3;
@@ -953,7 +964,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         const response = await fetch(`/api/games/${gameId}/start`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ courtNumber }),
+          body: JSON.stringify(input),
         });
         const data = await response.json();
         if (response.ok) return data;
@@ -970,24 +981,38 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
       throw new Error(lastMessage);
     },
-    onMutate: (courtNumber) => {
+    onMutate: async (input) => {
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (previous) {
-        const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
+        let foursomeOverride: QueueEntryView[] | undefined;
+        if (input.queueEntryIds?.length === DOUBLES_PLAYERS_PER_COURT) {
+          const byId = new Map(previous.queue.map((entry) => [String(entry._id), entry]));
+          foursomeOverride = input.queueEntryIds
+            .map((entryId) => byId.get(String(entryId)))
+            .filter((entry): entry is QueueEntryView => entry != null);
+          if (foursomeOverride.length !== DOUBLES_PLAYERS_PER_COURT) {
+            foursomeOverride = undefined;
+          }
+        }
+        const optimistic = applyFillNextCourtOptimistic(
+          previous,
+          input.courtNumber,
+          foursomeOverride,
+        );
         if (optimistic) {
           writeOperatorGamePayload(queryClient, gameId, optimistic);
         }
       }
-      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous };
     },
     onSuccess: () => {
       toast.success("Next court filled from the queue.");
     },
     onSettled: () => {
-      if (!isQuickGameSession) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      }
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+      });
     },
     onError: (error, _, context) => {
       if (context?.previous) {
@@ -1033,7 +1058,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message?: string; rematch?: boolean };
     },
-    onMutate: (variables) => {
+    onMutate: async (variables) => {
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (previous) {
         const optimistic = isQuickGameSession
@@ -1056,7 +1082,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       }
 
       closeEndDialog();
-      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous, previousRematchCourtNumbers };
     },
     onSuccess: (data, variables) => {
@@ -1064,12 +1089,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       void announceCourtEnded(variables.courtNumber);
     },
     onSettled: () => {
-      if (!isQuickGameSession) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-        if (operatorMatchHistoryEnabled) {
-          void queryClient.refetchQueries({ queryKey: operatorMatchHistoryQueryKey(gameId) });
-        }
-      }
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+        refetchHistory: !isQuickGameSession && operatorMatchHistoryEnabled,
+      });
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
@@ -1101,11 +1124,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const shuffleNextMutation = useMutation({
     mutationFn: async () => {
       if (isQuickGameSession) {
-        const previous = readOperatorGamePayload(queryClient, gameId);
-        if (!previous) throw new Error("Session not found.");
-        const optimistic = applyShuffleNextOptimistic(previous);
-        if (!optimistic) throw new Error("Not enough queued players.");
-        writeOperatorGamePayload(queryClient, gameId, optimistic);
         return { message: "Optimized next four for best balance." };
       }
 
@@ -1114,24 +1132,46 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: async () => {
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applyShuffleNextOptimistic(previous);
+      if (!optimistic) {
+        throw new Error("Not enough queued players.");
+      }
+
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      return { previous };
+    },
     onSuccess: (data) => {
       toast.success(data.message);
-      if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      }
     },
-    onError: (error) => toastOperationError(error, "Failed to shuffle teams."),
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+      });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
+      toastOperationError(error, "Failed to shuffle teams.");
+    },
   });
 
   const handleFillCourtConfirm = useCallback(
-    (courtNumber: number) => {
-      startMutation.mutate(courtNumber);
+    (courtNumber: number, queueEntryIds?: string[]) => {
+      startMutation.mutate({ courtNumber, queueEntryIds });
     },
     [startMutation],
   );
 
-  const handleFillCourtShuffle = useCallback(async () => {
-    await shuffleNextMutation.mutateAsync();
+  const fillCourtFoursomeRef = useRef<QueueEntryView[] | null>(null);
+
+  const handleFillCourtShuffle = useCallback(() => {
+    shuffleNextMutation.mutate();
   }, [shuffleNextMutation]);
 
   const handleFillCourtReplace = useCallback(
@@ -1265,7 +1305,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onMutate: (courtNumber) => {
+    onMutate: async (courtNumber) => {
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (previous) {
         const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
@@ -1281,16 +1322,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         return next;
       });
       setCancelCourtTarget(null);
-      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous, previousRematchCourtNumbers };
     },
     onSuccess: (data) => {
       toast.success(data.message);
     },
     onSettled: () => {
-      if (!isQuickGameSession) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      }
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+      });
     },
     onError: (error, _courtNumber, context) => {
       if (context?.previous) {
@@ -1318,7 +1358,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onMutate: (courtNumber) => {
+    onMutate: async (courtNumber) => {
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (previous) {
         const optimistic = applyCancelRematchOptimistic(previous, courtNumber);
@@ -1332,16 +1373,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         return next;
       });
       setCancelRematchTarget(null);
-      void queryClient.cancelQueries({ queryKey: ["game", gameId] });
       return { previous };
     },
     onSuccess: (data) => {
       toast.success(data.message);
     },
     onSettled: () => {
-      if (!isQuickGameSession) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      }
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+      });
     },
     onError: (error, _courtNumber, context) => {
       if (context?.previous) {
@@ -1409,7 +1449,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       return data as { message: string };
     },
     onMutate: async (orderedEntryIds) => {
-      await queryClient.cancelQueries({ queryKey: operatorQueueQueryKey(gameId) });
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
@@ -1418,6 +1458,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
       writeOperatorGamePayload(queryClient, gameId, optimistic);
       return { previous };
+    },
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: true,
+      });
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
@@ -1465,7 +1510,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       return data as { message: string };
     },
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
@@ -1487,6 +1532,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!isQuickGameSession) {
         queryClient.invalidateQueries({ queryKey: ["game", gameId] });
       }
+    },
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: true,
+      });
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
@@ -1510,7 +1560,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       return data as { message: string };
     },
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
@@ -1526,6 +1576,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!isQuickGameSession) {
         queryClient.invalidateQueries({ queryKey: ["game", gameId] });
       }
+    },
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: true,
+      });
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
@@ -1575,7 +1630,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       return data as { message: string };
     },
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
@@ -1602,6 +1657,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         });
       }
     },
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: true,
+      });
+    },
     onError: (error, _variables, context) => {
       if (context?.previous) {
         writeOperatorGamePayload(queryClient, gameId, context.previous);
@@ -1624,7 +1684,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       return data as { message: string };
     },
     onMutate: async (variables) => {
-      await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined as GamePayload | undefined };
 
@@ -1643,6 +1703,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         queryClient.invalidateQueries({ queryKey: ["game", gameId] });
         void queryClient.invalidateQueries({ queryKey: databaseCheckInPlayersQueryKey(gameId) });
       }
+    },
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: true,
+      });
     },
     onError: (error, _variables, context) => {
       if (context?.previous) {
@@ -1672,11 +1737,19 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: async () => {
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+    },
     onSuccess: (payload) => {
       toast.success(payload.message);
       if (!isQuickGameSession) {
         queryClient.invalidateQueries({ queryKey: ["game", gameId] });
       }
+    },
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+      });
     },
   });
 
@@ -1771,12 +1844,16 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     () => buildPlayerSessionStatsMap(data?.leaderboard),
     [data?.leaderboard],
   );
+  const dedupedQueue = useMemo(
+    () => dedupeQueueEntriesByPlayerId(data?.queue ?? []),
+    [data?.queue],
+  );
   const queueWithStats = useMemo(
     () =>
-      (data?.queue ?? []).map((entry) =>
+      dedupedQueue.map((entry) =>
         attachSessionStatsToQueueEntry(entry, playerSessionStats),
       ),
-    [data?.queue, playerSessionStats],
+    [dedupedQueue, playerSessionStats],
   );
   const checkedOutWithStats = useMemo(
     () =>
@@ -1798,20 +1875,46 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const usesMixedDoubles = isMixedDoublesMatching(matchingType);
   const rotationQueue = useMemo(
     () =>
-      usesWinnerLoserRotation && data?.queue
-        ? resolveDoublesRotationQueue(data.queue, matchingType)
-        : (data?.queue ?? []),
-    [data?.queue, matchingType, usesWinnerLoserRotation],
+      usesWinnerLoserRotation && dedupedQueue.length > 0
+        ? resolveDoublesRotationQueue(dedupedQueue, matchingType)
+        : dedupedQueue,
+    [dedupedQueue, matchingType, usesWinnerLoserRotation],
   );
-  const nextCourtFoursome = useMemo(() => {
-    if (!data?.queue) return null;
-    const foursome = pickDoublesCourtFoursome(data.queue, matchingType);
+  const applyOnDeckRepeatLastMatchFilter =
+    !isSpectator &&
+    isDoublesMatchupAnalysisMatchingType(matchingType, data?.game?.gameMode) &&
+    !usesWinnerLoserRotation;
+  const naturalCourtFoursome = useMemo(() => {
+    if (dedupedQueue.length === 0) return null;
+    const foursome = pickDoublesCourtFoursome(dedupedQueue, matchingType);
     if (!foursome) return null;
     const byId = new Map(queueWithStats.map((entry) => [entry._id, entry]));
     return foursome
       .map((entry) => byId.get(entry._id))
       .filter((entry): entry is (typeof queueWithStats)[number] => entry != null);
-  }, [data?.queue, matchingType, queueWithStats]);
+  }, [dedupedQueue, matchingType, queueWithStats]);
+  const onCourtWaitingLine = useMemo(() => {
+    if (!naturalCourtFoursome) return [];
+    const naturalIds = new Set(naturalCourtFoursome.map((entry) => entry._id));
+    return queueWithStats.filter((entry) => !naturalIds.has(entry._id));
+  }, [naturalCourtFoursome, queueWithStats]);
+  const nextCourtFoursome = useMemo(() => {
+    if (!naturalCourtFoursome) return null;
+    if (!applyOnDeckRepeatLastMatchFilter || (data?.matches ?? []).length === 0) {
+      return naturalCourtFoursome;
+    }
+    return applyRepeatLastMatchFoursomeAdjustment(
+      naturalCourtFoursome,
+      onCourtWaitingLine,
+      data?.matches ?? [],
+    );
+  }, [
+    applyOnDeckRepeatLastMatchFilter,
+    data?.matches,
+    naturalCourtFoursome,
+    onCourtWaitingLine,
+  ]);
+  fillCourtFoursomeRef.current = nextCourtFoursome;
   const nextCourtFoursomeIds = useMemo(
     () => new Set(nextCourtFoursome?.map((entry) => entry._id) ?? []),
     [nextCourtFoursome],
@@ -1847,12 +1950,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     rotationQueue.forEach((entry, index) => map.set(entry._id, index));
     return map;
   }, [rotationQueue]);
-  const waitingLineEntries = useMemo(() => {
-    if (usesWinnerLoserRotation) {
-      return queueWithStats.filter((entry) => !nextCourtFoursomeIds.has(entry._id));
-    }
-    return queueWithStats.slice(DOUBLES_PLAYERS_PER_COURT);
-  }, [queueWithStats, usesWinnerLoserRotation, nextCourtFoursomeIds]);
+  const waitingLineEntries = useMemo(
+    () => queueWithStats.filter((entry) => !nextCourtFoursomeIds.has(entry._id)),
+    [queueWithStats, nextCourtFoursomeIds],
+  );
 
   const handleFillCourtQueueSwap = useCallback(async () => {
     const order = buildQueueNextCourtWaitingSwapOrder(matchupAnalysisQueue);
@@ -1863,6 +1964,17 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     await reorderQueueMutation.mutateAsync(order);
     toast.success("Swapped in the next two players from the waiting line.");
   }, [matchupAnalysisQueue, reorderQueueMutation]);
+
+  const handleFillCourtConfirmWithSelection = useCallback(
+    (courtNumber: number) => {
+      const foursome = fillCourtFoursomeRef.current;
+      handleFillCourtConfirm(
+        courtNumber,
+        foursome?.map((entry) => String(entry._id)),
+      );
+    },
+    [handleFillCourtConfirm],
+  );
 
   const sessionPlayerLookup = useMemo(
     () =>
@@ -2113,6 +2225,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       </div>
     );
   }
+
   if (!data) {
     if (isQuickGameSession && !isSpectator) {
       return (
@@ -2514,7 +2627,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const nextOnCourtPlayerCount =
     nextCourtFoursome?.length ?? Math.min(DOUBLES_PLAYERS_PER_COURT, queueWithStats.length);
   const fillingCourtNumber =
-    startMutation.isPending && startMutation.variables != null ? startMutation.variables : null;
+    startMutation.isPending && startMutation.variables != null
+      ? startMutation.variables.courtNumber
+      : null;
   const endCourt =
     endTargetCourt != null ? courts.find((c) => c.courtNumber === endTargetCourt) : undefined;
   const endGameScoreError =
@@ -2679,6 +2794,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                   {showNextCourtAnalysis && nextCourtFoursome ? (
                     <NextCourtMatchAnalysis
                       foursome={nextCourtFoursome}
+                      naturalFoursome={naturalCourtFoursome ?? undefined}
+                      waitingLine={onCourtWaitingLine}
                       queue={matchupAnalysisQueue}
                       matchingType={matchingType}
                       matches={matches}
@@ -3077,7 +3194,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               pickDoublesCourtFoursome(data.queue, game.matchingType) != null
             }
             fillCourtPending={
-              startMutation.isPending && startMutation.variables === court.courtNumber
+              startMutation.isPending &&
+              startMutation.variables?.courtNumber === court.courtNumber
             }
             showEndorsementInPlayerLabel={showSpectatorEndorsementInPlayerLabel}
             getPlayerEndorsementCount={(playerId) => gameEndorsementCounts[playerId] ?? 0}
@@ -3486,7 +3604,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               replacePendingSourceIndex={
                 replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
               }
-              onConfirmFill={handleFillCourtConfirm}
+              onConfirmFill={handleFillCourtConfirmWithSelection}
               onShuffle={handleFillCourtShuffle}
               mixedDoubles={usesMixedDoubles}
               onReplace={handleFillCourtReplace}

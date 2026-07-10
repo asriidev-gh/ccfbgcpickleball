@@ -22,16 +22,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     let courtNumber: number | undefined;
+    let queueEntryIds: string[] | undefined;
     const body = await request.json().catch(() => null);
-    if (body != null && typeof body === "object" && "courtNumber" in body) {
-      const parsed = Number((body as { courtNumber: unknown }).courtNumber);
-      if (!Number.isInteger(parsed) || parsed < 1) {
-        return NextResponse.json({ message: "Invalid court number." }, { status: 400 });
+    if (body != null && typeof body === "object") {
+      if ("courtNumber" in body) {
+        const parsed = Number((body as { courtNumber: unknown }).courtNumber);
+        if (!Number.isInteger(parsed) || parsed < 1) {
+          return NextResponse.json({ message: "Invalid court number." }, { status: 400 });
+        }
+        courtNumber = parsed;
       }
-      courtNumber = parsed;
+      if ("queueEntryIds" in body) {
+        const raw = (body as { queueEntryIds: unknown }).queueEntryIds;
+        if (!Array.isArray(raw) || raw.some((id) => typeof id !== "string" || !id.trim())) {
+          return NextResponse.json({ message: "Invalid queue entry selection." }, { status: 400 });
+        }
+        queueEntryIds = raw.map(String);
+      }
     }
 
-    const court = await startGameOnCourt(id, courtNumber);
+    const court = await startGameOnCourt(id, courtNumber, { queueEntryIds });
     return NextResponse.json({ court });
 
     });} catch (error) {

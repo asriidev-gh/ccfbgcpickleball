@@ -227,6 +227,203 @@ export function buildQueueNextCourtWaitingSwapOrder(
   return [ids[0]!, ids[1]!, ids[4]!, ids[5]!, ids[2]!, ids[3]!, ...ids.slice(6)];
 }
 
+/** Swap only the 3rd on-deck player (index 2) with the 5th in queue (index 4). */
+export function buildQueueThirdWithFifthSwapOrder(
+  queue: Array<{ _id: string | { toString(): string } }>,
+): string[] | null {
+  if (queue.length < 5) return null;
+  const ids = queue.map((entry) => stringifyQueueEntryId(entry._id)).filter(Boolean);
+  if (ids.length < 5) return null;
+  return [ids[0]!, ids[1]!, ids[4]!, ids[3]!, ids[2]!, ...ids.slice(5)];
+}
+
+function getPlayerLastMatch(matches: AnalysisMatch[], playerId: string): AnalysisMatch | null {
+  for (const match of matches) {
+    if ([...match.teamAIds, ...match.teamBIds].includes(playerId)) {
+      return match;
+    }
+  }
+  return null;
+}
+
+function matchEndedAtKey(match: AnalysisMatch) {
+  return match.endedAt;
+}
+
+function playersInMatch(match: AnalysisMatch) {
+  return new Set([...match.teamAIds, ...match.teamBIds]);
+}
+
+export type AutoRepeatLastMatchSwapKind = "four" | "three";
+
+export type AutoRepeatLastMatchSwapPlan = {
+  kind: AutoRepeatLastMatchSwapKind;
+  sharedMatchEndedAt: string;
+  playerIds: string[];
+};
+
+/** Detect when the natural on-deck four shared their last match. */
+export function detectRepeatLastMatchSwapPlanFromFoursome(
+  naturalFoursome: QueueEntryView[],
+  matches: MatchHistoryView[] = [],
+): AutoRepeatLastMatchSwapPlan | null {
+  if (naturalFoursome.length !== 4) return null;
+
+  const players = naturalFoursome
+    .map(toAnalysisPlayer)
+    .filter((player): player is AnalysisPlayer => player != null);
+  if (players.length !== 4) return null;
+
+  const analysisMatches = toAnalysisMatches(matches);
+  if (analysisMatches.length === 0) return null;
+
+  const lastMatches = players.map((player) => getPlayerLastMatch(analysisMatches, player.id));
+  if (lastMatches.filter(Boolean).length < 3) return null;
+
+  const groupByLastMatch = new Map<string, AnalysisPlayer[]>();
+  for (let index = 0; index < players.length; index += 1) {
+    const player = players[index]!;
+    const lastMatch = lastMatches[index];
+    if (!lastMatch) continue;
+    if (!playersInMatch(lastMatch).has(player.id)) continue;
+
+    const key = matchEndedAtKey(lastMatch);
+    const group = groupByLastMatch.get(key) ?? [];
+    group.push(player);
+    groupByLastMatch.set(key, group);
+  }
+
+  let largestGroup: AnalysisPlayer[] = [];
+  let largestKey = "";
+  for (const [key, group] of groupByLastMatch) {
+    if (group.length > largestGroup.length) {
+      largestGroup = group;
+      largestKey = key;
+    }
+  }
+
+  if (largestGroup.length === 4) {
+    return {
+      kind: "four",
+      sharedMatchEndedAt: largestKey,
+      playerIds: largestGroup.map((player) => player.id),
+    };
+  }
+
+  if (largestGroup.length === 3) {
+    return {
+      kind: "three",
+      sharedMatchEndedAt: largestKey,
+      playerIds: largestGroup.map((player) => player.id),
+    };
+  }
+
+  return null;
+}
+
+/** Detect when on-deck players shared their last match (legacy full-queue helper). */
+export function detectAutoRepeatLastMatchSwapPlan(
+  queue: QueueEntryView[],
+  matches: MatchHistoryView[] = [],
+): AutoRepeatLastMatchSwapPlan | null {
+  if (queue.length < 4) return null;
+  const plan = detectRepeatLastMatchSwapPlanFromFoursome(queue.slice(0, 4), matches);
+  if (!plan) return null;
+  if (plan.kind === "four" && queue.length < 6) return null;
+  if (plan.kind === "three" && queue.length < 5) return null;
+  return plan;
+}
+
+/**
+ * Adjust only the next-on-court four — does not reorder the full queue.
+ * Waiting-line players stay in queue order (requeued players remain at the tail).
+ */
+export function applyRepeatLastMatchFoursomeAdjustment(
+  naturalFoursome: QueueEntryView[],
+  waitingLine: QueueEntryView[],
+  matches: MatchHistoryView[] = [],
+): QueueEntryView[] {
+  if (naturalFoursome.length !== 4) return naturalFoursome;
+
+  const plan = detectRepeatLastMatchSwapPlanFromFoursome(naturalFoursome, matches);
+  if (!plan) return naturalFoursome;
+
+  if (plan.kind === "four") {
+    if (waitingLine.length < 2) return naturalFoursome;
+    return [
+      naturalFoursome[0]!,
+      naturalFoursome[1]!,
+      waitingLine[0]!,
+      waitingLine[1]!,
+    ];
+  }
+
+  if (waitingLine.length < 1) return naturalFoursome;
+  return [
+    naturalFoursome[0]!,
+    naturalFoursome[1]!,
+    waitingLine[0]!,
+    naturalFoursome[3]!,
+  ];
+}
+
+export function buildAutoRepeatLastMatchSwapOrder(
+  queue: QueueEntryView[],
+  matches: MatchHistoryView[] = [],
+): string[] | null {
+  const plan = detectAutoRepeatLastMatchSwapPlan(queue, matches);
+  if (!plan) return null;
+
+  if (plan.kind === "four") {
+    return buildQueueNextCourtWaitingSwapOrder(queue);
+  }
+
+  return buildQueueThirdWithFifthSwapOrder(queue);
+}
+
+function pushAutoRepeatLastMatchSuggestions(
+  suggestions: NextCourtMatchSuggestion[],
+  naturalFoursome: QueueEntryView[],
+  waitingLine: QueueEntryView[],
+  matches: MatchHistoryView[],
+) {
+  const plan = detectRepeatLastMatchSwapPlanFromFoursome(naturalFoursome, matches);
+  if (!plan) return;
+
+  if (plan.kind === "four") {
+    if (waitingLine.length < 2) return;
+    const fifthPlayer = toAnalysisPlayer(waitingLine[0]!);
+    const sixthPlayer = toAnalysisPlayer(waitingLine[1]!);
+    const waitingLabel =
+      fifthPlayer && sixthPlayer
+        ? pairLabel(fifthPlayer, sixthPlayer)
+        : "the first two players in the waiting line";
+
+    pushSuggestion(suggestions, {
+      id: "last-match-foursome-repeat",
+      tone: "caution",
+      message: `All four on deck shared their last match. On-deck slots 3–4 use ${waitingLabel} from the waiting line instead (queue order unchanged).`,
+      suggestsShuffle: false,
+      suggestsQueueSwap: true,
+      priority: 97,
+    });
+    return;
+  }
+
+  if (waitingLine.length < 1) return;
+  const fifthPlayer = toAnalysisPlayer(waitingLine[0]!);
+  pushSuggestion(suggestions, {
+    id: "last-match-trio-repeat",
+    tone: "caution",
+    message: fifthPlayer
+      ? `Three on deck shared their last match. On-deck slot 3 uses ${fifthPlayer.shortName} from the waiting line instead (queue order unchanged).`
+      : "Three on deck shared their last match. On-deck slot 3 uses the next waiting-line player instead (queue order unchanged).",
+    suggestsShuffle: false,
+    suggestsQueueSwap: true,
+    priority: 95,
+  });
+}
+
 function capitalizeBullet(text: string) {
   if (!text) return text;
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -351,7 +548,12 @@ function collectBalancedLineupReasons(input: {
 export function computeNextCourtMatchSuggestions(
   foursome: QueueEntryView[],
   matches: MatchHistoryView[] = [],
-  options?: { queue?: QueueEntryView[]; matchingType?: QuickPlayMatchingType | null },
+  options?: {
+    queue?: QueueEntryView[];
+    matchingType?: QuickPlayMatchingType | null;
+    naturalFoursome?: QueueEntryView[];
+    waitingLine?: QueueEntryView[];
+  },
 ): NextCourtMatchSuggestion[] {
   const players = foursome.map(toAnalysisPlayer).filter((player): player is AnalysisPlayer => player != null);
   if (players.length !== 4) return [];
@@ -361,6 +563,18 @@ export function computeNextCourtMatchSuggestions(
   const analysisMatches = toAnalysisMatches(matches);
   const suggestions: NextCourtMatchSuggestion[] = [];
   const isRotation = isDoublesWinnerLoserRotation(options?.matchingType);
+  const naturalFoursome = options?.naturalFoursome ?? foursome;
+  const waitingLine =
+    options?.waitingLine ??
+    (options?.queue
+      ? options.queue.filter(
+          (entry) => !new Set(naturalFoursome.map((row) => row._id)).has(entry._id),
+        )
+      : []);
+
+  if (naturalFoursome.length === 4 && waitingLine.length > 0) {
+    pushAutoRepeatLastMatchSuggestions(suggestions, naturalFoursome, waitingLine, matches);
+  }
 
   if (isRotation) {
     const queueLineTypes = new Set(
@@ -608,7 +822,7 @@ export function getQueueSwapSuggestion(suggestions: NextCourtMatchSuggestion[]) 
 }
 
 export function canSwapWaitingLinePlayers(queue: QueueEntryView[]) {
-  return queue.length >= 6;
+  return queue.length >= 5;
 }
 
 export function scoreNextCourtMatchup(
@@ -875,6 +1089,20 @@ export const MATCHUP_CHECK_GUIDE_SCENARIOS: MatchupCheckGuideScenario[] = [
     title: "First-timer stack",
     description: "Two first-timers are paired together while the other side has session experience.",
     tone: "tip",
+  },
+  {
+    id: "last-match-foursome-repeat",
+    title: "Last-match foursome",
+    description:
+      "All four on deck were in the same match last time. Swap players 5 and 6 from the waiting line into slots 3 and 4.",
+    tone: "caution",
+  },
+  {
+    id: "last-match-trio-repeat",
+    title: "Last-match trio",
+    description:
+      "Three on deck shared their last match. Swap player 3 with the 5th player in the waiting line.",
+    tone: "caution",
   },
   {
     id: "frequent-rivals",

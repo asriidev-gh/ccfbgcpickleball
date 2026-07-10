@@ -58,6 +58,21 @@ async function markCourtEntriesDone(court: CourtDoc) {
   );
 }
 
+async function clearStaleQueuedEntriesForPlayers(
+  gameId: string,
+  playerIds: Types.ObjectId[],
+) {
+  if (playerIds.length === 0) return;
+  await QueueEntry.updateMany(
+    {
+      gameId,
+      playerId: { $in: playerIds },
+      status: "queued",
+    },
+    { $set: { status: "done" } },
+  );
+}
+
 async function insertRequeueEntries(
   gameId: string,
   specs: Array<{
@@ -69,6 +84,10 @@ async function insertRequeueEntries(
   }>,
 ) {
   if (specs.length === 0) return;
+  await clearStaleQueuedEntriesForPlayers(
+    gameId,
+    specs.map((spec) => spec.playerId),
+  );
   await QueueEntry.insertMany(
     specs.map((spec) => ({
       gameId,
@@ -166,10 +185,16 @@ async function requeueDoublesCourtWithRotation(input: {
 
   await markCourtEntriesDone(input.court);
 
+  const courtPlayerObjectIds = [
+    ...input.court.teamA.playerIds,
+    ...input.court.teamB.playerIds,
+  ];
+  await clearStaleQueuedEntriesForPlayers(input.gameId, courtPlayerObjectIds);
+
   const now = Date.now();
   const newEntriesByPlayerId = new Map<string, (typeof queued)[number]>();
 
-  for (const playerId of [...input.court.teamA.playerIds, ...input.court.teamB.playerIds]) {
+  for (const playerId of courtPlayerObjectIds) {
     const playerKey = playerId.toString();
     const isWinner = input.winnerPlayerIdSet.has(playerKey);
     const entry = await QueueEntry.create({

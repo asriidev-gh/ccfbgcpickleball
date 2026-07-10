@@ -3,6 +3,9 @@ export const MAX_MATCH_SCORE = 99;
 export const LOSER_SCORE_TOO_HIGH_MESSAGE =
   "Loser score must be less than the winner score.";
 
+export const TIED_MATCH_SCORE_MESSAGE =
+  "Scores can't be tied — the winner must have the higher score.";
+
 export const SCORE_OUT_OF_RANGE_MESSAGE = "Scores must be between 0 and 99.";
 
 /** Keep at most two numeric digits (0–99) while typing. */
@@ -19,6 +22,14 @@ export function parseEndGameScoreField(raw: string): number {
     return 0;
   }
   return value;
+}
+
+export function inferWinnerTeamFromScores(
+  teamAScore: number,
+  teamBScore: number,
+): "A" | "B" | null {
+  if (teamAScore === teamBScore) return null;
+  return teamAScore > teamBScore ? "A" : "B";
 }
 
 export function loserScoreExceedsWinner(
@@ -63,6 +74,30 @@ export function getMatchScoreInputError(
 
   if (loserScoreExceedsWinner(winnerTeam, teamAScore, teamBScore)) {
     return LOSER_SCORE_TOO_HIGH_MESSAGE;
+  }
+
+  return null;
+}
+
+/** Validates score fields when editing an existing match (winner inferred from scores). */
+export function getEditableMatchScoreInputError(
+  teamAScoreRaw: string,
+  teamBScoreRaw: string,
+): string | null {
+  const aTrim = teamAScoreRaw.trim();
+  const bTrim = teamBScoreRaw.trim();
+  if (aTrim === "" || bTrim === "") {
+    return "Enter scores for both teams.";
+  }
+
+  const teamAScore = parseScoreField(teamAScoreRaw);
+  const teamBScore = parseScoreField(teamBScoreRaw);
+  if (teamAScore === null || teamBScore === null) {
+    return SCORE_OUT_OF_RANGE_MESSAGE;
+  }
+
+  if (inferWinnerTeamFromScores(teamAScore, teamBScore) === null) {
+    return TIED_MATCH_SCORE_MESSAGE;
   }
 
   return null;

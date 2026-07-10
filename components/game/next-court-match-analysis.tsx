@@ -36,6 +36,8 @@ import { cn } from "@/lib/utils";
 
 type NextCourtMatchAnalysisProps = {
   foursome: QueueEntryView[];
+  naturalFoursome?: QueueEntryView[];
+  waitingLine?: QueueEntryView[];
   queue?: QueueEntryView[];
   matchingType?: QuickPlayMatchingType | null;
   matches?: MatchHistoryView[];
@@ -75,6 +77,8 @@ function nextCourtFoursomeKey(foursome: QueueEntryView[]) {
 
 export function NextCourtMatchAnalysis({
   foursome,
+  naturalFoursome,
+  waitingLine,
   queue = [],
   matchingType = null,
   matches = [],
@@ -101,8 +105,14 @@ export function NextCourtMatchAnalysis({
   }, [playerSetKey]);
 
   const suggestions = useMemo(
-    () => computeNextCourtMatchSuggestions(foursome, matches, { queue, matchingType }),
-    [foursome, matches, queue, matchingType],
+    () =>
+      computeNextCourtMatchSuggestions(foursome, matches, {
+        queue,
+        matchingType,
+        naturalFoursome,
+        waitingLine,
+      }),
+    [foursome, matches, queue, matchingType, naturalFoursome, waitingLine],
   );
 
   const hasActionableWarnings = suggestions.some((item) => item.tone !== "balanced");

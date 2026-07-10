@@ -21,6 +21,7 @@ import type {
 } from "@/lib/operator-payload";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
+import { dedupeQueueEntriesByPlayerId } from "@/lib/queue-dedupe";
 import { PickleGame } from "@/models/PickleGame";
 import { User } from "@/models/User";
 import "@/models/Player";
@@ -77,10 +78,12 @@ export async function loadOperatorQueueState(
 
   return {
     status: game.status as OperatorQueuePayload["status"],
-    queue: serializeQueueEntriesForPayload(
-      queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
-      firstTimerIdentityKeys,
-    ) as unknown as OperatorQueuePayload["queue"],
+    queue: dedupeQueueEntriesByPlayerId(
+      serializeQueueEntriesForPayload(
+        queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
+        firstTimerIdentityKeys,
+      ) as unknown as OperatorQueuePayload["queue"],
+    ),
     checkedOut: serializeQueueEntriesForPayload(
       checkedOut as Parameters<typeof serializeQueueEntriesForPayload>[0],
       firstTimerIdentityKeys,

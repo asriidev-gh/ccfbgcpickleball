@@ -16,6 +16,7 @@ export function useOperatorQueueRegistrationSync(input: {
   queueQuery: QueueQuery;
   detailsQuery?: DetailsQuery;
   refreshDetails?: boolean;
+  shouldDeferRefresh?: () => boolean;
 }) {
   const knownRegistrationIdsRef = useRef<Set<string>>(new Set());
   const initializedRef = useRef(false);
@@ -55,6 +56,7 @@ export function useOperatorQueueRegistrationSync(input: {
     }
 
     if (!hasQueueChange) return;
+    if (input.shouldDeferRefresh?.()) return;
 
     void input.queueQuery.refetch();
     if (input.refreshDetails) {
@@ -65,6 +67,7 @@ export function useOperatorQueueRegistrationSync(input: {
     input.refreshDetails,
     input.queueQuery,
     input.detailsQuery,
+    input.shouldDeferRefresh,
     notificationsQuery.data?.notifications,
   ]);
 

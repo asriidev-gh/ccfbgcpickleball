@@ -58,6 +58,7 @@ import {
   applyRemovePlayerOptimistic,
   type ReplaceQueueMutationInput,
 } from "@/lib/game-payload-mutations";
+import { dedupeQueueEntriesByPlayerId } from "@/lib/queue-dedupe";
 import {
   attachSessionStatsToQueueEntry,
   buildPlayerSessionStatsMap,
@@ -172,7 +173,10 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   );
 
   const queueWithStats = useMemo(
-    () => (payload?.queue ?? []).map((entry) => attachSessionStatsToQueueEntry(entry, playerSessionStats)),
+    () =>
+      dedupeQueueEntriesByPlayerId(payload?.queue ?? []).map((entry) =>
+        attachSessionStatsToQueueEntry(entry, playerSessionStats),
+      ),
     [payload?.queue, playerSessionStats],
   );
 

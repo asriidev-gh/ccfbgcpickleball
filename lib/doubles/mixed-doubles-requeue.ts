@@ -46,9 +46,23 @@ export function appendMixedDoublesRequeueEntries(
   requeueEntries: QueueEntryView[],
   baseTime: number,
 ): QueueEntryView[] {
-  const ordered = orderMixedDoublesRequeueEntries(queue, requeueEntries);
+  const requeuePlayerIds = new Set(
+    requeueEntries
+      .map((entry) => {
+        const id = entry.playerId._id;
+        if (id == null) return "";
+        return typeof id === "string" ? id : id.toString();
+      })
+      .filter(Boolean),
+  );
+  const filteredQueue = queue.filter((entry) => {
+    const id = entry.playerId._id;
+    const playerId = id == null ? "" : typeof id === "string" ? id : id.toString();
+    return !playerId || !requeuePlayerIds.has(playerId);
+  });
+  const ordered = orderMixedDoublesRequeueEntries(filteredQueue, requeueEntries);
   return [
-    ...queue,
+    ...filteredQueue,
     ...ordered.map((entry, index) => ({
       ...entry,
       registeredAt: new Date(baseTime + index).toISOString(),

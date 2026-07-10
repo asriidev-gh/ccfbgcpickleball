@@ -8,6 +8,13 @@ import { getCourtEffectiveElapsedMs } from "@/lib/court-cancel-grace";
 import type { LeaderboardGamesPlayedRow } from "@/lib/games-played-map";
 import type { OperatorFullPayload } from "@/lib/operator-payload";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
+import {
+  appendRequeueEntriesWithoutDuplicates,
+  dedupeQueueEntriesByPlayerId,
+  playerIdsFromCourtPlayers,
+  prependRequeueEntriesWithoutDuplicates,
+  removeQueueEntriesForPlayerIds,
+} from "@/lib/queue-dedupe";
 import { shouldUseRotationRequeue } from "@/lib/rotation-requeue-shared";
 import {
   appendDoublesRequeueEntries,
@@ -211,12 +218,15 @@ function swapQueueEntriesAt(
 export function applyFillNextCourtOptimistic(
   payload: GamePayload,
   courtNumber: number,
+  foursomeOverride?: QueueEntryView[],
 ): GamePayload | null {
   if (isSinglesGameMode(payload.game.gameMode)) {
     return applySinglesFillCourtOptimistic(payload, courtNumber);
   }
 
-  const foursome = pickDoublesCourtFoursome(payload.queue, payload.game.matchingType);
+  const foursome =
+    foursomeOverride ??
+    pickDoublesCourtFoursome(payload.queue, payload.game.matchingType);
   if (!foursome || foursome.length < DOUBLES_PLAYERS_PER_COURT) return null;
 
   let teamAEntries = foursome.slice(0, 2);
@@ -359,8 +369,10 @@ export function applyEndGameOptimistic(
     teamA.length === 2 &&
     teamB.length === 2
   ) {
-    const withoutLastTwo = payload.queue.slice(0, -2);
-    const lastTwo = payload.queue.slice(-2);
+    const courtPlayerIds = playerIdsFromCourtPlayers(teamA, teamB);
+    const queueWithoutCourtPlayers = removeQueueEntriesForPlayerIds(payload.queue, courtPlayerIds);
+    const withoutLastTwo = queueWithoutCourtPlayers.slice(0, -2);
+    const lastTwo = queueWithoutCourtPlayers.slice(-2);
     const rotationEntries = buildRotationOptimisticRequeueEntries(
       teamA,
       teamB,
@@ -369,11 +381,11 @@ export function applyEndGameOptimistic(
     );
     const pairAEntries = rotationEntries.slice(0, 2);
     const pairBEntries = rotationEntries.slice(2, 4);
-    const mergedQueue = [...withoutLastTwo, ...pairAEntries, ...lastTwo, ...pairBEntries].map(
-      (entry, index) => ({
+    const mergedQueue = dedupeQueueEntriesByPlayerId(
+      [...withoutLastTwo, ...pairAEntries, ...lastTwo, ...pairBEntries].map((entry, index) => ({
         ...entry,
         registeredAt: new Date(baseTime + index).toISOString(),
-      }),
+      })),
     );
 
     return {
@@ -400,7 +412,7 @@ export function applyEndGameOptimistic(
 
   return {
     ...payload,
-    queue: [...payload.queue, ...requeueEntries],
+    queue: appendRequeueEntriesWithoutDuplicates(payload.queue, requeueEntries),
     courts: payload.courts.map((c) =>
       c.courtNumber === input.courtNumber
         ? {
@@ -602,14 +614,13 @@ export function applyCheckBackInOptimistic(
   return {
     ...payload,
     checkedOut: (payload.checkedOut ?? []).filter((item) => item._id !== queueEntryId),
-    queue: [
-      ...payload.queue,
+    queue: appendRequeueEntriesWithoutDuplicates(payload.queue, [
       {
         ...rest,
         registeredAt,
         lastMatchResult: entry.lastMatchResult ?? "none",
       },
-    ],
+    ]),
   };
 }
 
@@ -782,8 +793,10 @@ export function applyCancelCourtAssignmentOptimistic(
   }));
 
   const nextQueue = isDoublesWinnerLoserRotation(payload.game.matchingType)
-    ? rebuildDoublesQueueOrder([...requeuedEntries, ...payload.queue])
-    : [...requeuedEntries, ...payload.queue];
+    ? rebuildDoublesQueueOrder(
+        prependRequeueEntriesWithoutDuplicates(payload.queue, requeuedEntries),
+      )
+    : prependRequeueEntriesWithoutDuplicates(payload.queue, requeuedEntries);
 
   return {
     ...payload,
@@ -834,7 +847,7 @@ export function applyCancelRematchOptimistic(
 
   return {
     ...payload,
-    queue: [...payload.queue, ...requeuedEntries],
+    queue: appendRequeueEntriesWithoutDuplicates(payload.queue, requeuedEntries),
     courts: payload.courts.map((item) =>
       item.courtNumber === courtNumber
         ? {

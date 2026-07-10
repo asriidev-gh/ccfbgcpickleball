@@ -15,6 +15,10 @@ import {
   removeQueueEntriesById,
 } from "@/lib/singles/singles-queue-fill";
 import {
+  appendRequeueEntriesWithoutDuplicates,
+  prependRequeueEntriesWithoutDuplicates,
+} from "@/lib/queue-dedupe";
+import {
   SINGLES_MIN_QUEUE_TO_FILL,
   SINGLES_PLAYERS_PER_COURT,
 } from "@/lib/singles/singles-constants";
@@ -160,7 +164,7 @@ export function applySinglesEndGameOptimistic(
 
   const baseTime = Date.now();
   const requeueEntries = buildSinglesRequeueEntries(teamA, teamB, input.winnerTeam, baseTime);
-  let nextQueue = [...payload.queue, ...requeueEntries];
+  let nextQueue = appendRequeueEntriesWithoutDuplicates(payload.queue, requeueEntries);
   if (isSinglesWinnerLoserRotation(payload.game.matchingType)) {
     nextQueue = rebuildSinglesQueueOrder(nextQueue);
   }
@@ -286,8 +290,10 @@ export function applySinglesCancelCourtAssignmentOptimistic(
   return {
     ...payload,
     queue: isSinglesWinnerLoserRotation(payload.game.matchingType)
-      ? rebuildSinglesQueueOrder([...requeuedEntries, ...payload.queue])
-      : [...requeuedEntries, ...payload.queue],
+      ? rebuildSinglesQueueOrder(
+          prependRequeueEntriesWithoutDuplicates(payload.queue, requeuedEntries),
+        )
+      : prependRequeueEntriesWithoutDuplicates(payload.queue, requeuedEntries),
     courts: payload.courts.map((item) =>
       item.courtNumber === courtNumber
         ? {

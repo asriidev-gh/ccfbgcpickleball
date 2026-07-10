@@ -18,6 +18,7 @@ import { normalizePlayerPhotoRef } from "@/lib/player-avatar-url";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
+import { dedupeQueueEntriesByPlayerId } from "@/lib/queue-dedupe";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
 import { User } from "@/models/User";
@@ -111,10 +112,12 @@ export async function loadSpectateLive(gameId: string): Promise<SpectateLivePayl
 
   return {
     game: game.toObject() as SpectateLivePayload["game"],
-    queue: serializeQueueEntriesForPayload(
-      queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
-      firstTimerIdentityKeys,
-    ) as unknown as SpectateLivePayload["queue"],
+    queue: dedupeQueueEntriesByPlayerId(
+      serializeQueueEntriesForPayload(
+        queue as Parameters<typeof serializeQueueEntriesForPayload>[0],
+        firstTimerIdentityKeys,
+      ) as unknown as SpectateLivePayload["queue"],
+    ),
     checkedOut: serializeQueueEntriesForPayload(
       checkedOut as Parameters<typeof serializeQueueEntriesForPayload>[0],
       firstTimerIdentityKeys,
