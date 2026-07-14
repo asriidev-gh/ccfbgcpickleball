@@ -34,6 +34,20 @@ type EndOperatorQueueMutationOptions = {
   skipRefetch?: boolean;
 };
 
+/** Run sync only when this is the last in-flight queue mutation. */
+export async function endQueuedMutationLock(
+  lockRef: MutableRefObject<number>,
+  onLastSettled?: () => void | Promise<void>,
+) {
+  try {
+    if (lockRef.current === 1 && onLastSettled) {
+      await onLastSettled();
+    }
+  } finally {
+    releaseQueueMutationLock(lockRef);
+  }
+}
+
 /** Refetch authoritative queue state, then resume live polling. */
 export async function endOperatorQueueMutation(
   queryClient: QueryClient,
@@ -41,16 +55,13 @@ export async function endOperatorQueueMutation(
   lockRef: MutableRefObject<number>,
   options?: EndOperatorQueueMutationOptions,
 ) {
-  try {
-    if (!options?.skipRefetch) {
-      await queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      if (options?.refetchHistory) {
-        await queryClient.refetchQueries({ queryKey: operatorMatchHistoryQueryKey(gameId) });
-      }
+  await endQueuedMutationLock(lockRef, async () => {
+    if (options?.skipRefetch) return;
+    await queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+    if (options?.refetchHistory) {
+      await queryClient.refetchQueries({ queryKey: operatorMatchHistoryQueryKey(gameId) });
     }
-  } finally {
-    releaseQueueMutationLock(lockRef);
-  }
+  });
 }
 
 type MutationHandler<TArgs extends unknown[], TResult> = (...args: TArgs) => TResult;

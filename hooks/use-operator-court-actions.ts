@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { toastOperationError } from "@/lib/toast-error";
 
@@ -32,6 +32,10 @@ import {
 } from "@/lib/courts-view-cache";
 import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { isQuickGame } from "@/lib/local-game-id";
+import {
+  beginOperatorQueueMutation,
+  endQueuedMutationLock,
+} from "@/lib/operator-queue-mutation-lock";
 import { buildQueueNextCourtWaitingSwapOrder } from "@/lib/next-court-match-analysis";
 import {
   readOperatorGamePayload,
@@ -52,6 +56,7 @@ export function useOperatorCourtActions({
   invalidateQueryKey,
 }: UseOperatorCourtActionsOptions) {
   const queryClient = useQueryClient();
+  const queueMutationLockRef = useRef(0);
   const isLocalGame = isQuickGame(gameId);
 
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
@@ -87,14 +92,18 @@ export function useOperatorCourtActions({
     [gameId, invalidateQueryKey, queryClient],
   );
 
-  const syncAfterMutation = useCallback(() => {
+  const syncAfterMutation = useCallback(async () => {
     if (isLocalGame) return;
     if (isCourtsViewQueryKey(invalidateQueryKey)) {
-      void queryClient.invalidateQueries({ queryKey: invalidateQueryKey });
+      await queryClient.invalidateQueries({ queryKey: invalidateQueryKey });
       return;
     }
-    void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+    await queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
   }, [gameId, invalidateQueryKey, isLocalGame, queryClient]);
+
+  const finishQueueMutation = useCallback(() => {
+    void endQueuedMutationLock(queueMutationLockRef, syncAfterMutation);
+  }, [syncAfterMutation]);
 
   const closeEndDialog = useCallback(() => {
     setEndTargetCourt(null);
@@ -140,9 +149,10 @@ export function useOperatorCourtActions({
 
       throw new Error(lastMessage);
     },
-    onMutate: (courtNumber) => {
+    onMutate: async (courtNumber) => {
       if (isLocalGame) return {};
 
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
@@ -150,14 +160,13 @@ export function useOperatorCourtActions({
           writeCachedGamePayload(optimistic);
         }
       }
-      void queryClient.cancelQueries({ queryKey: invalidateQueryKey });
       return { previous };
     },
     onSuccess: () => {
       toast.success("Court filled from the queue.");
     },
     onSettled: () => {
-      syncAfterMutation();
+      finishQueueMutation();
     },
     onError: (error, _, context) => {
       if (!isLocalGame && context?.previous) {
@@ -202,9 +211,10 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message?: string; rematch?: boolean };
     },
-    onMutate: (variables) => {
+    onMutate: async (variables) => {
       if (isLocalGame) return {};
 
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyEndGameOptimistic(previous, variables);
@@ -224,14 +234,13 @@ export function useOperatorCourtActions({
         });
       }
       closeEndDialog();
-      void queryClient.cancelQueries({ queryKey: invalidateQueryKey });
       return { previous, previousRematchCourtNumbers };
     },
     onSuccess: (data) => {
       toast.success(data.message ?? "Court updated.");
     },
     onSettled: () => {
-      syncAfterMutation();
+      finishQueueMutation();
     },
     onError: (error, _, context) => {
       if (!isLocalGame && context?.previous) {
@@ -355,9 +364,10 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onMutate: (courtNumber) => {
+    onMutate: async (courtNumber) => {
       if (isLocalGame) return {};
 
+      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
@@ -371,14 +381,13 @@ export function useOperatorCourtActions({
         return next;
       });
       setCancelCourtTarget(null);
-      void queryClient.cancelQueries({ queryKey: invalidateQueryKey });
       return { previous };
     },
     onSuccess: (data) => {
       toast.success(data.message);
     },
     onSettled: () => {
-      syncAfterMutation();
+      finishQueueMutation();
     },
     onError: (error, _, context) => {
       if (!isLocalGame && context?.previous) {

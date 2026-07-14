@@ -24,11 +24,8 @@ import {
   getAuthUserFromCookie,
   readAuthTokenPayload,
 } from "@/lib/auth";
-import { Court } from "@/models/Court";
-import { LeaderboardStats } from "@/models/LeaderboardStats";
-import { MatchHistory } from "@/models/MatchHistory";
+import { deleteOwnerGame } from "@/lib/delete-owner-game";
 import { PickleGame } from "@/models/PickleGame";
-import { QueueEntry } from "@/models/QueueEntry";
 import "@/models/Player";
 
 function parseOperatorScope(value: string | null): OperatorScope {
@@ -256,16 +253,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!authUser) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
     const { id: gameId } = await params;
 
-    const game = await PickleGame.findOne({ gameId, ownerId: authUser.userId });
-    if (!game) return NextResponse.json({ message: "Game not found." }, { status: 404 });
-
-    await Promise.all([
-      QueueEntry.deleteMany({ gameId }),
-      MatchHistory.deleteMany({ gameId }),
-      LeaderboardStats.deleteMany({ gameId }),
-      Court.deleteMany({ gameId }),
-      PickleGame.deleteOne({ _id: game._id }),
-    ]);
+    const deleted = await deleteOwnerGame(authUser.userId, gameId);
+    if (!deleted) return NextResponse.json({ message: "Game not found." }, { status: 404 });
 
     return NextResponse.json({ message: "Game deleted." });
     });

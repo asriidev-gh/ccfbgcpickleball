@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, CalendarDays, Clock, Loader2, LogOut, Trophy, UserPlus, Zap } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import Swal from "sweetalert2";
 
@@ -66,6 +66,10 @@ import {
   isSessionUndefeated,
 } from "@/lib/games-played-map";
 import { addLocalCourt } from "@/lib/local-game-session";
+import {
+  beginOperatorQueueMutation,
+  endOperatorQueueMutation,
+} from "@/lib/operator-queue-mutation-lock";
 import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { isEphemeralQuickGame } from "@/lib/local-game-id";
 import { buildLocalLeaderboardRecap } from "@/lib/local-leaderboard-recap";
@@ -117,6 +121,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const queueMutationLockRef = useRef(0);
   const gameId = String(params.id ?? "");
   const isEphemeralQuickSession = isEphemeralQuickGame(gameId);
   const {
@@ -290,6 +295,9 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       return { courtNumber };
     },
     onMutate: async (courtNumber) => {
+      if (!isQuickGameSession) {
+        await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
       const optimistic = applySinglesFillCourtOptimistic(previous, courtNumber);
@@ -301,9 +309,9 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       toast.success("Court filled from the queue.");
     },
     onSettled: () => {
-      if (!isQuickGameSession) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      }
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+      });
     },
     onError: (error, _, context) => {
       if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
@@ -326,6 +334,9 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       return input;
     },
     onMutate: async (input) => {
+      if (!isQuickGameSession) {
+        await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
       const optimistic = applySinglesEndGameWithHistoryOptimistic(previous, input);
@@ -347,9 +358,9 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       );
     },
     onSettled: () => {
-      if (!isQuickGameSession) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      }
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+      });
     },
     onError: (error, _, context) => {
       if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);

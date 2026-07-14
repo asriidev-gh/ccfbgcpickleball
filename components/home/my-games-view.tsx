@@ -75,7 +75,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { prefetchOperatorDashboard } from "@/lib/fetch-operator-game";
 import { getClientSpectatorShareUrl } from "@/lib/app-url";
-import { useGamesList } from "@/hooks/use-games-list";
+import { useGamesList, type GamesListPayload } from "@/hooks/use-games-list";
 import { useAuthMe } from "@/hooks/use-auth-me";
 import { useUiStore, type CreateGameWizardPreset } from "@/store/ui-store";
 import {
@@ -381,7 +381,11 @@ function GameListIconToolbar({
         disabled={deletingGameId === game.gameId}
         onClick={() => onDelete(game)}
       >
-        <Trash2 className="h-4 w-4" />
+        {deletingGameId === game.gameId ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        ) : (
+          <Trash2 className="h-4 w-4" />
+        )}
       </Button>
     </div>
   );
@@ -614,7 +618,11 @@ function GameListActionsMenu({
               disabled={deletingGameId === game.gameId}
               onClick={() => onDelete(game)}
             >
-              <Trash2 aria-hidden />
+              {deletingGameId === game.gameId ? (
+                <Loader2 className="animate-spin" aria-hidden />
+              ) : (
+                <Trash2 aria-hidden />
+              )}
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -1088,14 +1096,31 @@ export function MyGamesView() {
       if (!response.ok) throw new Error(payload.message);
       return payload as { message: string };
     },
+    onMutate: async (gameId) => {
+      await queryClient.cancelQueries({ queryKey: ["games"] });
+      const previous = queryClient.getQueryData<GamesListPayload>(["games"]);
+      if (previous) {
+        queryClient.setQueryData<GamesListPayload>(["games"], {
+          ...previous,
+          games: previous.games.filter((game) => game.gameId !== gameId),
+        });
+      }
+      queryClient.removeQueries({ queryKey: ["game", gameId] });
+      return { previous };
+    },
     onSuccess: (payload) => {
       toast.success(payload.message);
-      queryClient.invalidateQueries({ queryKey: ["games"] });
     },
-    onError: (error) => {
+    onError: (error, _gameId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["games"], context.previous);
+      }
       toast.error(error instanceof Error ? error.message : "Failed to delete game.");
     },
-    onSettled: () => setDeletingGameId(null),
+    onSettled: () => {
+      setDeletingGameId(null);
+      void queryClient.invalidateQueries({ queryKey: ["games"] });
+    },
   });
 
   const handleGenerateDemo = (params: {
