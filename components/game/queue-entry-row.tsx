@@ -1,4 +1,4 @@
-import { Clock, Medal, Share2 } from "lucide-react";
+import { Clock, Share2, Trophy } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
@@ -12,6 +12,7 @@ import {
   formatSessionRecordLabel,
   formatSessionRecordWithRankLabel,
   getPlayerLeaderboardRank,
+  isSessionRecordEmpty,
   isSessionUndefeated,
 } from "@/lib/games-played-map";
 import { cn, formatPlayerCourtName, formatPlayerDisplayName } from "@/lib/utils";
@@ -59,7 +60,11 @@ function SessionRecordBadgeContent({
 }) {
   const recordText = `W${wins}/L${losses}`;
   const showTopRank =
-    showRank && rank != null && rank >= 1 && rank <= TOP_SESSION_RANK_TO_SHOW;
+    showRank &&
+    !isSessionRecordEmpty({ wins, losses }) &&
+    rank != null &&
+    rank >= 1 &&
+    rank <= TOP_SESSION_RANK_TO_SHOW;
 
   if (showTopRank) {
     return (
@@ -68,7 +73,7 @@ function SessionRecordBadgeContent({
         <span className="badge-session-record-sep" aria-hidden>
           -
         </span>
-        <Medal className="badge-session-record-medal" aria-hidden />
+        <Trophy className="badge-session-record-medal" aria-hidden />
         <span>{rank}</span>
       </>
     );
@@ -101,6 +106,7 @@ function NextOnCourtSessionRecordBadge({
       const recordText = `W${winsValue}/L${lossesValue}`;
       if (
         showRank &&
+        !isSessionRecordEmpty({ wins: winsValue, losses: lossesValue }) &&
         rank != null &&
         rank >= 1 &&
         rank <= TOP_SESSION_RANK_TO_SHOW

@@ -62,12 +62,12 @@ export function isSessionRecordEmpty(stats: {
   return gamesPlayed === 0 && stats.wins === 0 && stats.losses === 0;
 }
 
-/** e.g. "(W1/L1/R1)" when rank is known; "(R0)" when no session record yet. */
+/** e.g. "(W1/L1/R1)" when rank is known; plain record when no session games yet. */
 export function formatSessionRecordWithRankLabel(
   stats: PlayerSessionStats,
   rank?: number | null,
 ) {
-  if (isSessionRecordEmpty(stats)) return "(R0)";
+  if (isSessionRecordEmpty(stats)) return formatSessionRecordLabel(stats);
 
   const { wins, losses } = stats;
   if (rank == null) return formatSessionRecordLabel(stats);
