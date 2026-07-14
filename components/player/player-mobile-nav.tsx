@@ -161,7 +161,7 @@ export function PlayerMobileNav({ gameId }: { gameId: string }) {
           icon={<LayoutDashboard className="h-5 w-5 shrink-0" aria-hidden />}
         />
         <MobileBottomNavButton
-          label="Community Posts"
+          label="Community"
           onPrefetch={prefetchPlayerFeatures}
           onClick={() => {
             prefetchPlayerFeatures();
@@ -172,7 +172,7 @@ export function PlayerMobileNav({ gameId }: { gameId: string }) {
         {showMarketplace ? (
           <MobileBottomNavButton
             href={marketplaceHref}
-            label="Marketplace"
+            label="Shop"
             active={isMarketplace}
             onPrefetch={prefetchPlayerFeatures}
             icon={<Store className="h-5 w-5 shrink-0" aria-hidden />}

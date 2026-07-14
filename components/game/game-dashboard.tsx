@@ -2777,8 +2777,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <CardTitle>Queue</CardTitle>
-            <Badge variant="secondary" className="tabular-nums">
+            <CardTitle className="hidden lg:block">Queue</CardTitle>
+            <Badge variant="secondary" className="hidden tabular-nums lg:inline-flex">
               {queueWithStats.length}
             </Badge>
             {isSpectator && !isPastGame ? (
@@ -2786,7 +2786,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 type="button"
                 variant="outline"
                 size="sm"
-                className="queue-refresh-btn h-8 w-8 shrink-0 px-0"
+                className="queue-refresh-btn h-8 shrink-0 gap-1.5 px-2.5"
                 onClick={handleSpectatorLiveRefresh}
                 disabled={spectatorLiveQuery.isFetching}
                 aria-label="Refresh queue"
@@ -2794,13 +2794,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 <RefreshCw
                   className={cn("h-4 w-4", spectatorLiveQuery.isFetching && "animate-spin")}
                 />
+                <span>Refresh</span>
               </Button>
             ) : !hideControls ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="queue-refresh-btn h-8 w-8 shrink-0 px-0"
+                className="queue-refresh-btn h-8 shrink-0 gap-1.5 px-2.5"
                 onClick={() => void operatorQueueQuery.refetch()}
                 disabled={operatorQueueQuery.isFetching}
                 aria-label="Refresh queue"
@@ -2808,6 +2809,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 <RefreshCw
                   className={cn("h-4 w-4", operatorQueueQuery.isFetching && "animate-spin")}
                 />
+                <span>Refresh</span>
               </Button>
             ) : null}
             {showQueueEntryActionsToggle ? (

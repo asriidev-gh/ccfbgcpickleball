@@ -543,15 +543,10 @@ export function QueueEntryRow({
                   rank={leaderboardRank}
                   showRank={showLeaderboardRank}
                   sessionRecordLabel={sessionRecordLabel}
-                  showUndefeated={showUndefeated}
+                  showUndefeated={false}
                   onUndefeatedClick={onUndefeatedClick}
                   className="mt-1 xl:hidden"
                 />
-              ) : null}
-              {!checkedOut && !hideSessionStats && inWaitingLine && showUndefeated ? (
-                <div className="mt-1 xl:hidden">
-                  <UndefeatedBadge onClick={onUndefeatedClick} />
-                </div>
               ) : null}
               {isNextUp && showSessionRecordBelowName && !hideSessionStats ? (
                 <QueueEntrySessionStatsRow
@@ -572,6 +567,7 @@ export function QueueEntryRow({
             <>
               {sharedBadge ? <span className="xl:hidden">{sharedBadge}</span> : null}
               {endorsedBadge ? <span className="xl:hidden">{endorsedBadge}</span> : null}
+              {undefeatedBadge ? <span className="xl:hidden">{undefeatedBadge}</span> : null}
               <div className="hidden items-center gap-1.5 xl:flex">
                 {sharedBadge}
                 {endorsedBadge}
@@ -595,6 +591,7 @@ export function QueueEntryRow({
             <div className="flex flex-wrap items-center justify-end gap-1">
               {sharedBadge}
               {endorsedBadge}
+              {undefeatedBadge ? <span className="xl:hidden">{undefeatedBadge}</span> : null}
               {!hideSessionStats ? (
                 <QueueSessionStatsBadges
                   wins={sessionStats.wins}
