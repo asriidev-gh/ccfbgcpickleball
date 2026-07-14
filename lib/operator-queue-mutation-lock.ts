@@ -19,14 +19,16 @@ export function isQueueMutationLocked(lockRef: MutableRefObject<number>) {
   return lockRef.current > 0;
 }
 
-/** Stop live polls and wait for in-flight game queries before applying optimistic queue UI. */
-export async function beginOperatorQueueMutation(
+/** Pause polling and cancel in-flight game queries so optimistic UI is not overwritten. */
+export function beginOperatorQueueMutation(
   queryClient: QueryClient,
   gameId: string,
   lockRef: MutableRefObject<number>,
 ) {
   acquireQueueMutationLock(lockRef);
-  await queryClient.cancelQueries({ queryKey: ["game", gameId] });
+  // Do not await — optimistic updates should apply immediately. Cancellation still
+  // prevents late poll/refetch results from overwriting that UI.
+  void queryClient.cancelQueries({ queryKey: ["game", gameId] });
 }
 
 type EndOperatorQueueMutationOptions = {

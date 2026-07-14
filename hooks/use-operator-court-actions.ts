@@ -57,6 +57,10 @@ export function useOperatorCourtActions({
 }: UseOperatorCourtActionsOptions) {
   const queryClient = useQueryClient();
   const queueMutationLockRef = useRef(0);
+  const pendingFillCourtNumbersRef = useRef(new Set<number>());
+  const [pendingFillCourtNumbers, setPendingFillCourtNumbers] = useState(
+    () => new Set<number>(),
+  );
   const isLocalGame = isQuickGame(gameId);
 
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
@@ -113,68 +117,105 @@ export function useOperatorCourtActions({
     setTeamBScore("");
   }, []);
 
-  const startMutation = useMutation({
-    mutationFn: async (courtNumber: number) => {
-      if (isLocalGame) {
-        applyLocalGameMutation(
-          queryClient,
-          gameId,
-          (payload) => applyFillNextCourtOptimistic(payload, courtNumber),
-          "Failed to fill court.",
-        );
-        return { ok: true };
-      }
+  const requestFillCourt = useCallback(
+    (courtNumber: number) => {
+      if (pendingFillCourtNumbersRef.current.has(courtNumber)) return;
 
-      const maxAttempts = 3;
-      let lastMessage = "Failed to fill court.";
+      void (async () => {
+        pendingFillCourtNumbersRef.current.add(courtNumber);
+        setPendingFillCourtNumbers(new Set(pendingFillCourtNumbersRef.current));
 
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        const response = await fetch(`/api/games/${gameId}/start`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ courtNumber }),
-        });
-        const data = await response.json();
-        if (response.ok) return data;
+        let previous: GamePayload | undefined;
+        let lockAcquired = false;
+        try {
+          if (isLocalGame) {
+            applyLocalGameMutation(
+              queryClient,
+              gameId,
+              (payload) => applyFillNextCourtOptimistic(payload, courtNumber),
+              "Failed to fill court.",
+            );
+            toast.success("Court filled from the queue.");
+            return;
+          }
 
-        lastMessage = typeof data.message === "string" ? data.message : lastMessage;
-        const isCourtBusy =
-          typeof lastMessage === "string" && /is not available/i.test(lastMessage);
-        if (!isCourtBusy || attempt === maxAttempts - 1) {
-          throw new Error(lastMessage);
+          beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+          lockAcquired = true;
+
+          previous = readCachedGamePayload();
+          if (previous) {
+            const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
+            if (optimistic) {
+              writeCachedGamePayload(optimistic);
+            }
+          }
+
+          const maxAttempts = 3;
+          let lastMessage = "Failed to fill court.";
+          let succeeded = false;
+
+          for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+            const response = await fetch(`/api/games/${gameId}/start`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ courtNumber }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+              succeeded = true;
+              break;
+            }
+
+            lastMessage = typeof data.message === "string" ? data.message : lastMessage;
+            const isCourtBusy =
+              typeof lastMessage === "string" && /is not available/i.test(lastMessage);
+            if (!isCourtBusy || attempt === maxAttempts - 1) {
+              throw new Error(lastMessage);
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+
+          if (!succeeded) {
+            throw new Error(lastMessage);
+          }
+
+          toast.success("Court filled from the queue.");
+        } catch (error) {
+          if (lockAcquired && queueMutationLockRef.current <= 1 && previous) {
+            writeCachedGamePayload(previous);
+          }
+          toastOperationError(error, "Failed to fill court.");
+        } finally {
+          pendingFillCourtNumbersRef.current.delete(courtNumber);
+          setPendingFillCourtNumbers(new Set(pendingFillCourtNumbersRef.current));
+          if (lockAcquired) {
+            finishQueueMutation();
+          }
         }
+      })();
+    },
+    [
+      finishQueueMutation,
+      gameId,
+      isLocalGame,
+      queryClient,
+      readCachedGamePayload,
+      writeCachedGamePayload,
+    ],
+  );
 
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
-
-      throw new Error(lastMessage);
-    },
-    onMutate: async (courtNumber) => {
-      if (isLocalGame) return {};
-
-      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
-      const previous = readCachedGamePayload();
-      if (previous) {
-        const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
-        if (optimistic) {
-          writeCachedGamePayload(optimistic);
-        }
-      }
-      return { previous };
-    },
-    onSuccess: () => {
-      toast.success("Court filled from the queue.");
-    },
-    onSettled: () => {
-      finishQueueMutation();
-    },
-    onError: (error, _, context) => {
-      if (!isLocalGame && context?.previous) {
-        writeCachedGamePayload(context.previous);
-      }
-      toastOperationError(error, "Failed to fill court.");
-    },
-  });
+  const startMutation = useMemo(
+    () => ({
+      mutate: requestFillCourt,
+      isPending: pendingFillCourtNumbers.size > 0,
+      variables:
+        pendingFillCourtNumbers.size > 0
+          ? ([...pendingFillCourtNumbers][pendingFillCourtNumbers.size - 1] as number)
+          : undefined,
+    }),
+    [pendingFillCourtNumbers, requestFillCourt],
+  );
 
   const endMutation = useMutation({
     mutationFn: async (input: {
@@ -211,10 +252,10 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message?: string; rematch?: boolean };
     },
-    onMutate: async (variables) => {
+    onMutate: (variables) => {
       if (isLocalGame) return {};
 
-      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyEndGameOptimistic(previous, variables);
@@ -243,7 +284,7 @@ export function useOperatorCourtActions({
       finishQueueMutation();
     },
     onError: (error, _, context) => {
-      if (!isLocalGame && context?.previous) {
+      if (!isLocalGame && context?.previous && queueMutationLockRef.current <= 1) {
         writeCachedGamePayload(context.previous);
       }
       if (context?.previousRematchCourtNumbers) {
@@ -364,10 +405,10 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onMutate: async (courtNumber) => {
+    onMutate: (courtNumber) => {
       if (isLocalGame) return {};
 
-      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
@@ -390,7 +431,7 @@ export function useOperatorCourtActions({
       finishQueueMutation();
     },
     onError: (error, _, context) => {
-      if (!isLocalGame && context?.previous) {
+      if (!isLocalGame && context?.previous && queueMutationLockRef.current <= 1) {
         writeCachedGamePayload(context.previous);
       }
       toastOperationError(error, "Failed to cancel assignment.");
@@ -618,7 +659,9 @@ export function useOperatorCourtActions({
       : null;
 
   const fillingCourtNumber =
-    startMutation.isPending && startMutation.variables != null ? startMutation.variables : null;
+    [...pendingFillCourtNumbers].find((courtNumber) =>
+      courts.some((court) => court.courtNumber === courtNumber && court.status !== "active"),
+    ) ?? null;
 
   const handleReplaceConfirm = useCallback(
     (input: ReplacePlayerConfirmInput) => {
@@ -731,7 +774,7 @@ export function useOperatorCourtActions({
           court.status === "empty" &&
           emptyCourtNumbers.includes(court.courtNumber) &&
           (queueCounts.canFillFromQueue ?? queueCounts.queuedCount >= 4),
-        fillCourtPending: startMutation.isPending && startMutation.variables === court.courtNumber,
+        fillCourtPending: pendingFillCourtNumbers.has(court.courtNumber),
       };
     },
     [
@@ -748,8 +791,7 @@ export function useOperatorCourtActions({
       openEndGameDialog,
       pauseAllCourtsMutation.isPending,
       pauseCourtMutation,
-      startMutation.isPending,
-      startMutation.variables,
+      pendingFillCourtNumbers,
       swapCourtMutation,
     ],
   );
@@ -784,6 +826,7 @@ export function useOperatorCourtActions({
     activeCourts,
     allActiveCourtsPaused,
     fillingCourtNumber,
+    pendingFillCourtNumbers,
     replacePendingSourceIndex:
       replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null,
   };

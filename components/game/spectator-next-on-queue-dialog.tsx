@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Loader2, Play, Users, Volume2, VolumeX, Zap } from "lucide-react";
+import { Play, Users, Volume2, VolumeX, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import type { MatchHistoryView } from "@/components/game/match-history-list";
@@ -341,20 +341,11 @@ export function SpectatorNextOnQueueButton({
                 <Button
                   type="button"
                   className="h-11 min-w-0 flex-1 sm:w-auto sm:flex-none"
-                  disabled={fillPending || !canFillNextCourt}
+                  disabled={!canFillNextCourt}
                   onClick={handleFillNextCourt}
                 >
-                  {fillPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                      Filling…
-                    </>
-                  ) : (
-                    <>
-                      <Play className="mr-2 h-4 w-4" aria-hidden />
-                      Fill next court
-                    </>
-                  )}
+                  <Play className="mr-2 h-4 w-4" aria-hidden />
+                  Fill next court
                 </Button>
               ) : null}
             </DialogFooter>

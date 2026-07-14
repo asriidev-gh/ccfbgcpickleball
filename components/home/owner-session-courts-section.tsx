@@ -370,7 +370,7 @@ export function OwnerSessionCourtsSection({
             courtNumber={emptyCourtNumbers[0] ?? null}
             hasEmptyCourt={emptyCourtNumbers.length > 0}
             canFillNextCourt={canFillNextCourt}
-            fillPending={courtActions.startMutation.isPending}
+            fillPending={false}
             onFillNextCourt={
               canOperateSession
                 ? () => fillCourtFlowRef.current?.openFillNextCourt()
@@ -424,7 +424,7 @@ export function OwnerSessionCourtsSection({
           teamB={fillCourtTeamB}
           waitingLineEntries={waitingLineEntries}
           emptyCourtNumbers={emptyCourtNumbers}
-          fillPending={courtActions.startMutation.isPending}
+          pendingFillCourtNumbers={courtActions.pendingFillCourtNumbers}
           replacePendingSourceIndex={courtActions.replacePendingSourceIndex}
           onConfirmFill={(courtNumber) => courtActions.startMutation.mutate(courtNumber)}
           onShuffle={async () => {

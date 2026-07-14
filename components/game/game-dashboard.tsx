@@ -587,6 +587,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const courtsListContentRef = useRef<HTMLDivElement>(null);
   const pendingScrollToAvailableCourtsRef = useRef(false);
   const queueMutationLockRef = useRef(0);
+  const pendingFillCourtNumbersRef = useRef(new Set<number>());
+  const [pendingFillCourtNumbers, setPendingFillCourtNumbers] = useState(
+    () => new Set<number>(),
+  );
   const matchHistoryPanelRef = useRef<HTMLDivElement>(null);
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);
@@ -953,74 +957,95 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     });
   }, [spectatorMatchHistoryQuery]);
 
-  const startMutation = useMutation({
-    mutationFn: async (input: { courtNumber: number; queueEntryIds?: string[] }) => {
-      if (isQuickGameSession) return { ok: true };
+  const requestFillCourt = useCallback(
+    (input: { courtNumber: number; queueEntryIds?: string[] }) => {
+      if (pendingFillCourtNumbersRef.current.has(input.courtNumber)) return;
 
-      const maxAttempts = 3;
-      let lastMessage = "Failed to fill court.";
+      void (async () => {
+        pendingFillCourtNumbersRef.current.add(input.courtNumber);
+        setPendingFillCourtNumbers(new Set(pendingFillCourtNumbersRef.current));
 
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        const response = await fetch(`/api/games/${gameId}/start`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(input),
-        });
-        const data = await response.json();
-        if (response.ok) return data;
+        let previous: GamePayload | undefined;
+        let lockAcquired = false;
+        try {
+          if (!isQuickGameSession) {
+            beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+            lockAcquired = true;
+          }
 
-        lastMessage = typeof data.message === "string" ? data.message : lastMessage;
-        const isCourtBusy =
-          typeof lastMessage === "string" && /is not available/i.test(lastMessage);
-        if (!isCourtBusy || attempt === maxAttempts - 1) {
-          throw new Error(lastMessage);
-        }
+          previous = readOperatorGamePayload(queryClient, gameId);
+          if (previous) {
+            let foursomeOverride: QueueEntryView[] | undefined;
+            if (input.queueEntryIds?.length === DOUBLES_PLAYERS_PER_COURT) {
+              const byId = new Map(previous.queue.map((entry) => [String(entry._id), entry]));
+              foursomeOverride = input.queueEntryIds
+                .map((entryId) => byId.get(String(entryId)))
+                .filter((entry): entry is QueueEntryView => entry != null);
+              if (foursomeOverride.length !== DOUBLES_PLAYERS_PER_COURT) {
+                foursomeOverride = undefined;
+              }
+            }
+            const optimistic = applyFillNextCourtOptimistic(
+              previous,
+              input.courtNumber,
+              foursomeOverride,
+            );
+            if (optimistic) {
+              writeOperatorGamePayload(queryClient, gameId, optimistic);
+            }
+          }
 
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
+          if (!isQuickGameSession) {
+            const maxAttempts = 3;
+            let lastMessage = "Failed to fill court.";
+            let succeeded = false;
 
-      throw new Error(lastMessage);
-    },
-    onMutate: async (input) => {
-      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
-      const previous = readOperatorGamePayload(queryClient, gameId);
-      if (previous) {
-        let foursomeOverride: QueueEntryView[] | undefined;
-        if (input.queueEntryIds?.length === DOUBLES_PLAYERS_PER_COURT) {
-          const byId = new Map(previous.queue.map((entry) => [String(entry._id), entry]));
-          foursomeOverride = input.queueEntryIds
-            .map((entryId) => byId.get(String(entryId)))
-            .filter((entry): entry is QueueEntryView => entry != null);
-          if (foursomeOverride.length !== DOUBLES_PLAYERS_PER_COURT) {
-            foursomeOverride = undefined;
+            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+              const response = await fetch(`/api/games/${gameId}/start`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(input),
+              });
+              const data = await response.json();
+              if (response.ok) {
+                succeeded = true;
+                break;
+              }
+
+              lastMessage = typeof data.message === "string" ? data.message : lastMessage;
+              const isCourtBusy =
+                typeof lastMessage === "string" && /is not available/i.test(lastMessage);
+              if (!isCourtBusy || attempt === maxAttempts - 1) {
+                throw new Error(lastMessage);
+              }
+
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+
+            if (!succeeded) {
+              throw new Error(lastMessage);
+            }
+          }
+
+          toast.success("Next court filled from the queue.");
+        } catch (error) {
+          if (lockAcquired && queueMutationLockRef.current <= 1 && previous) {
+            writeOperatorGamePayload(queryClient, gameId, previous);
+          }
+          toastOperationError(error, "Failed to fill court.");
+        } finally {
+          pendingFillCourtNumbersRef.current.delete(input.courtNumber);
+          setPendingFillCourtNumbers(new Set(pendingFillCourtNumbersRef.current));
+          if (lockAcquired) {
+            void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+              skipRefetch: isQuickGameSession,
+            });
           }
         }
-        const optimistic = applyFillNextCourtOptimistic(
-          previous,
-          input.courtNumber,
-          foursomeOverride,
-        );
-        if (optimistic) {
-          writeOperatorGamePayload(queryClient, gameId, optimistic);
-        }
-      }
-      return { previous };
+      })();
     },
-    onSuccess: () => {
-      toast.success("Next court filled from the queue.");
-    },
-    onSettled: () => {
-      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
-        skipRefetch: isQuickGameSession,
-      });
-    },
-    onError: (error, _, context) => {
-      if (context?.previous) {
-        writeOperatorGamePayload(queryClient, gameId, context.previous);
-      }
-      toastOperationError(error, "Failed to fill court.");
-    },
-  });
+    [gameId, isQuickGameSession, queryClient],
+  );
 
   const closeEndDialog = useCallback(() => {
     setEndTargetCourt(null);
@@ -1059,7 +1084,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       return data as { message?: string; rematch?: boolean };
     },
     onMutate: async (variables) => {
-      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (previous) {
         const optimistic = isQuickGameSession
@@ -1095,7 +1120,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       });
     },
     onError: (error, _variables, context) => {
-      if (context?.previous) {
+      if (context?.previous && queueMutationLockRef.current <= 1) {
         writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       if (context?.previousRematchCourtNumbers) {
@@ -1163,9 +1188,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
   const handleFillCourtConfirm = useCallback(
     (courtNumber: number, queueEntryIds?: string[]) => {
-      startMutation.mutate({ courtNumber, queueEntryIds });
+      requestFillCourt({ courtNumber, queueEntryIds });
     },
-    [startMutation],
+    [requestFillCourt],
   );
 
   const fillCourtFoursomeRef = useRef<QueueEntryView[] | null>(null);
@@ -2627,9 +2652,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const nextOnCourtPlayerCount =
     nextCourtFoursome?.length ?? Math.min(DOUBLES_PLAYERS_PER_COURT, queueWithStats.length);
   const fillingCourtNumber =
-    startMutation.isPending && startMutation.variables != null
-      ? startMutation.variables.courtNumber
-      : null;
+    [...pendingFillCourtNumbers].find((courtNumber) =>
+      courts.some((court) => court.courtNumber === courtNumber && court.status !== "active"),
+    ) ?? null;
   const endCourt =
     endTargetCourt != null ? courts.find((c) => c.courtNumber === endTargetCourt) : undefined;
   const endGameScoreError =
@@ -2713,19 +2738,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           {!hideControls ? (
             <Button
               onClick={() => fillCourtFlowRef.current?.openFillNextCourt()}
-              disabled={startMutation.isPending || !canFillNextCourt}
+              disabled={!canFillNextCourt}
             >
-              {startMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                  Filling…
-                </>
-              ) : (
-                <>
-                  <Play className="mr-2 h-4 w-4" aria-hidden />
-                  Fill next court
-                </>
-              )}
+              <Play className="mr-2 h-4 w-4" aria-hidden />
+              Fill next court
             </Button>
           ) : null}
           <DashboardPanelFullscreenButton containerRef={queuePanelRef} panelName="queue" />
@@ -3193,10 +3209,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               court.status === "empty" &&
               pickDoublesCourtFoursome(data.queue, game.matchingType) != null
             }
-            fillCourtPending={
-              startMutation.isPending &&
-              startMutation.variables?.courtNumber === court.courtNumber
-            }
+            fillCourtPending={pendingFillCourtNumbers.has(court.courtNumber)}
             showEndorsementInPlayerLabel={showSpectatorEndorsementInPlayerLabel}
             getPlayerEndorsementCount={(playerId) => gameEndorsementCounts[playerId] ?? 0}
             onPlayerEndorsementClick={
@@ -3600,7 +3613,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               teamB={fillCourtTeamB}
               waitingLineEntries={waitingLineEntries}
               emptyCourtNumbers={emptyCourtNumbers}
-              fillPending={startMutation.isPending}
+              pendingFillCourtNumbers={pendingFillCourtNumbers}
               replacePendingSourceIndex={
                 replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
               }

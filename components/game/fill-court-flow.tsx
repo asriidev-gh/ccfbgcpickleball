@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
-import { Loader2, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { toast } from "sonner";
 
 import { FillCourtConfirmDialog } from "@/components/game/fill-court-confirm-dialog";
@@ -18,7 +18,8 @@ type FillCourtFlowProps = {
   teamB: QueueEntryView[];
   waitingLineEntries: QueueEntryView[];
   emptyCourtNumbers: number[];
-  fillPending: boolean;
+  /** Courts whose fill API is still in flight. Confirm is only blocked for those courts. */
+  pendingFillCourtNumbers?: ReadonlySet<number>;
   replacePendingSourceIndex: number | null;
   onConfirmFill: (courtNumber: number) => void;
   onShuffle: () => Promise<void>;
@@ -44,7 +45,7 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
       teamB,
       waitingLineEntries,
       emptyCourtNumbers,
-      fillPending,
+      pendingFillCourtNumbers,
       replacePendingSourceIndex,
       onConfirmFill,
       onShuffle,
@@ -55,175 +56,169 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
     },
     ref,
   ) {
-  const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
-  const [fillCourtSelectDialogOpen, setFillCourtSelectDialogOpen] = useState(false);
-  const [fillCourtTarget, setFillCourtTarget] = useState<number | null>(null);
-  const [callingNames, setCallingNames] = useState(false);
-  const callNamesRunIdRef = useRef(0);
+    const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
+    const [fillCourtSelectDialogOpen, setFillCourtSelectDialogOpen] = useState(false);
+    const [fillCourtTarget, setFillCourtTarget] = useState<number | null>(null);
+    const [callingNames, setCallingNames] = useState(false);
+    const callNamesRunIdRef = useRef(0);
 
-  const activeFillCourtNumber =
-    fillCourtTarget ?? (emptyCourtNumbers.length === 1 ? emptyCourtNumbers[0] : null) ?? null;
+    const activeFillCourtNumber =
+      fillCourtTarget ?? (emptyCourtNumbers.length === 1 ? emptyCourtNumbers[0] : null) ?? null;
+    const confirmFillPending =
+      activeFillCourtNumber != null &&
+      (pendingFillCourtNumbers?.has(activeFillCourtNumber) ?? false);
 
-  const openFillCourtConfirmDialog = useCallback(
-    (courtNumber: number) => {
-      if (queuePlayerCount < minQueueToFill) {
-        toast.error(
-          `Not enough players in the queue. At least ${minQueueToFill} are required.`,
-        );
-        return;
-      }
+    const openFillCourtConfirmDialog = useCallback(
+      (courtNumber: number) => {
+        if (queuePlayerCount < minQueueToFill) {
+          toast.error(
+            `Not enough players in the queue. At least ${minQueueToFill} are required.`,
+          );
+          return;
+        }
 
-      if (!emptyCourtNumbers.includes(courtNumber)) {
-        if (courtsClearingInProgress) {
-          toast.info("This court is still clearing. Try again in a moment.");
+        if (!emptyCourtNumbers.includes(courtNumber)) {
+          if (courtsClearingInProgress) {
+            toast.info("This court is still clearing. Try again in a moment.");
+          } else {
+            toast.error("This court is not available to fill.");
+          }
+          return;
+        }
+
+        setFillCourtTarget(courtNumber);
+        setFillCourtDialogOpen(true);
+      },
+      [courtsClearingInProgress, emptyCourtNumbers, minQueueToFill, queuePlayerCount],
+    );
+
+    const handleFillNextCourtClick = useCallback(() => {
+      if (!canFillNextCourt) {
+        if (queuePlayerCount < minQueueToFill) {
+          toast.error(
+            `Not enough players in the queue. At least ${minQueueToFill} are required.`,
+          );
+        } else if (courtsClearingInProgress) {
+          toast.info("A court is still clearing. Try again in a moment.");
         } else {
-          toast.error("This court is not available to fill.");
+          toast.error("No empty court available.");
         }
         return;
       }
 
-      setFillCourtTarget(courtNumber);
-      setFillCourtDialogOpen(true);
-    },
-    [courtsClearingInProgress, emptyCourtNumbers, minQueueToFill, queuePlayerCount],
-  );
-
-  const handleFillNextCourtClick = useCallback(() => {
-    if (!canFillNextCourt) {
-      if (queuePlayerCount < minQueueToFill) {
-        toast.error(
-          `Not enough players in the queue. At least ${minQueueToFill} are required.`,
-        );
-      } else if (courtsClearingInProgress) {
-        toast.info("A court is still clearing. Try again in a moment.");
-      } else {
-        toast.error("No empty court available.");
+      if (emptyCourtNumbers.length >= 2) {
+        setFillCourtSelectDialogOpen(true);
+        return;
       }
-      return;
-    }
 
-    if (emptyCourtNumbers.length >= 2) {
-      setFillCourtSelectDialogOpen(true);
-      return;
-    }
+      openFillCourtConfirmDialog(emptyCourtNumbers[0]);
+    }, [
+      canFillNextCourt,
+      courtsClearingInProgress,
+      emptyCourtNumbers,
+      minQueueToFill,
+      openFillCourtConfirmDialog,
+      queuePlayerCount,
+    ]);
 
-    openFillCourtConfirmDialog(emptyCourtNumbers[0]);
-  }, [
-    canFillNextCourt,
-    courtsClearingInProgress,
-    emptyCourtNumbers,
-    minQueueToFill,
-    openFillCourtConfirmDialog,
-    queuePlayerCount,
-  ]);
+    useImperativeHandle(
+      ref,
+      () => ({
+        openFillCourt: openFillCourtConfirmDialog,
+        openFillNextCourt: handleFillNextCourtClick,
+      }),
+      [handleFillNextCourtClick, openFillCourtConfirmDialog],
+    );
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      openFillCourt: openFillCourtConfirmDialog,
-      openFillNextCourt: handleFillNextCourtClick,
-    }),
-    [handleFillNextCourtClick, openFillCourtConfirmDialog],
-  );
+    const cancelPlayerAnnouncement = useCallback(() => {
+      callNamesRunIdRef.current += 1;
+      cancelCallNamesSpeech();
+      setCallingNames(false);
+    }, []);
 
-  const cancelPlayerAnnouncement = useCallback(() => {
-    callNamesRunIdRef.current += 1;
-    cancelCallNamesSpeech();
-    setCallingNames(false);
-  }, []);
-
-  const handleFillCourtDialogOpenChange = useCallback(
-    (open: boolean) => {
-      setFillCourtDialogOpen(open);
-      if (!open) {
-        setFillCourtTarget(null);
-        if (callingNames) {
-          cancelPlayerAnnouncement();
+    const handleFillCourtDialogOpenChange = useCallback(
+      (open: boolean) => {
+        setFillCourtDialogOpen(open);
+        if (!open) {
+          setFillCourtTarget(null);
+          if (callingNames) {
+            cancelPlayerAnnouncement();
+          }
         }
-      }
-    },
-    [callingNames, cancelPlayerAnnouncement],
-  );
+      },
+      [callingNames, cancelPlayerAnnouncement],
+    );
 
-  const startPlayerAnnouncement = useCallback(
-    (announceTeamA: QueueEntryView[], announceTeamB: QueueEntryView[]) => {
-      if (callingNames) return;
+    const startPlayerAnnouncement = useCallback(
+      (announceTeamA: QueueEntryView[], announceTeamB: QueueEntryView[]) => {
+        if (callingNames) return;
 
-      const runId = callNamesRunIdRef.current + 1;
-      callNamesRunIdRef.current = runId;
-      setCallingNames(true);
-      void announceNextCourtPlayers(
-        announceTeamA.map((entry) => entry.playerId),
-        announceTeamB.map((entry) => entry.playerId),
-        {
-          courtNumber: activeFillCourtNumber,
-          onComplete: () => {
-            if (callNamesRunIdRef.current !== runId) return;
-            setCallingNames(false);
+        const runId = callNamesRunIdRef.current + 1;
+        callNamesRunIdRef.current = runId;
+        setCallingNames(true);
+        void announceNextCourtPlayers(
+          announceTeamA.map((entry) => entry.playerId),
+          announceTeamB.map((entry) => entry.playerId),
+          {
+            courtNumber: activeFillCourtNumber,
+            onComplete: () => {
+              if (callNamesRunIdRef.current !== runId) return;
+              setCallingNames(false);
+            },
           },
-        },
-      ).then((started) => {
-        if (callNamesRunIdRef.current !== runId) return;
-        if (!started) {
-          setCallingNames(false);
-          toast.error("Text-to-speech is not available in this browser.");
-        }
-      });
-    },
-    [activeFillCourtNumber, callingNames],
-  );
+        ).then((started) => {
+          if (callNamesRunIdRef.current !== runId) return;
+          if (!started) {
+            setCallingNames(false);
+            toast.error("Text-to-speech is not available in this browser.");
+          }
+        });
+      },
+      [activeFillCourtNumber, callingNames],
+    );
 
-  const handleConfirmFill = useCallback(() => {
-    if (activeFillCourtNumber == null) return;
-    setFillCourtDialogOpen(false);
-    onConfirmFill(activeFillCourtNumber);
-  }, [activeFillCourtNumber, onConfirmFill]);
+    const handleConfirmFill = useCallback(() => {
+      if (activeFillCourtNumber == null) return;
+      setFillCourtDialogOpen(false);
+      onConfirmFill(activeFillCourtNumber);
+    }, [activeFillCourtNumber, onConfirmFill]);
 
-  return (
-    <>
-      {hideTrigger ? null : (
-        <Button onClick={handleFillNextCourtClick} disabled={fillPending || !canFillNextCourt}>
-          {fillPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-              Filling…
-            </>
-          ) : (
-            <>
-              <Play className="mr-2 h-4 w-4" aria-hidden />
-              Fill next court
-            </>
-          )}
-        </Button>
-      )}
+    return (
+      <>
+        {hideTrigger ? null : (
+          <Button onClick={handleFillNextCourtClick} disabled={!canFillNextCourt}>
+            <Play className="mr-2 h-4 w-4" aria-hidden />
+            Fill next court
+          </Button>
+        )}
 
-      <FillCourtSelectDialog
-        open={fillCourtSelectDialogOpen}
-        onOpenChange={setFillCourtSelectDialogOpen}
-        emptyCourtNumbers={emptyCourtNumbers}
-        onSelect={(courtNumber) => {
-          setFillCourtSelectDialogOpen(false);
-          openFillCourtConfirmDialog(courtNumber);
-        }}
-      />
-      <FillCourtConfirmDialog
-        open={fillCourtDialogOpen}
-        onOpenChange={handleFillCourtDialogOpenChange}
-        callingNames={callingNames}
-        onCallNames={startPlayerAnnouncement}
-        onCancelCallNames={cancelPlayerAnnouncement}
-        courtNumber={activeFillCourtNumber}
-        teamA={teamA}
-        teamB={teamB}
-        canReplace={waitingLineEntries.length > 0}
-        onReplace={onReplace}
-        replacePendingSourceIndex={replacePendingSourceIndex}
-        onConfirmFill={handleConfirmFill}
-        fillPending={fillPending}
-        onShuffle={onShuffle}
-        mixedDoubles={mixedDoubles}
-      />
-    </>
-  );
+        <FillCourtSelectDialog
+          open={fillCourtSelectDialogOpen}
+          onOpenChange={setFillCourtSelectDialogOpen}
+          emptyCourtNumbers={emptyCourtNumbers}
+          onSelect={(courtNumber) => {
+            setFillCourtSelectDialogOpen(false);
+            openFillCourtConfirmDialog(courtNumber);
+          }}
+        />
+        <FillCourtConfirmDialog
+          open={fillCourtDialogOpen}
+          onOpenChange={handleFillCourtDialogOpenChange}
+          callingNames={callingNames}
+          onCallNames={startPlayerAnnouncement}
+          onCancelCallNames={cancelPlayerAnnouncement}
+          courtNumber={activeFillCourtNumber}
+          teamA={teamA}
+          teamB={teamB}
+          canReplace={waitingLineEntries.length > 0}
+          onReplace={onReplace}
+          replacePendingSourceIndex={replacePendingSourceIndex}
+          onConfirmFill={handleConfirmFill}
+          fillPending={confirmFillPending}
+          onShuffle={onShuffle}
+          mixedDoubles={mixedDoubles}
+        />
+      </>
+    );
   },
 );

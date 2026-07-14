@@ -253,7 +253,7 @@ export function SinglesSessionCourtsSection({
                 courtNumber={emptyCourtNumbers[0] ?? null}
                 hasEmptyCourt={emptyCourtNumbers.length > 0}
                 canFillNextCourt={canFillNextCourt}
-                fillPending={courtActions.fillMutation.isPending}
+                fillPending={false}
                 onFillNextCourt={
                   canFillNextCourt
                     ? () => {

@@ -296,7 +296,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
     },
     onMutate: async (courtNumber) => {
       if (!isQuickGameSession) {
-        await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+        beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
@@ -335,7 +335,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
     },
     onMutate: async (input) => {
       if (!isQuickGameSession) {
-        await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+        beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
       }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
