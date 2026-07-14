@@ -1,5 +1,9 @@
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { normalizeShuffleGender } from "@/lib/doubles/mixed-doubles-shuffle";
+import {
+  playerIdsFromQueueEntries,
+  removeQueueEntriesForPlayerIds,
+} from "@/lib/queue-dedupe";
 
 function findEntryByGender(
   entries: QueueEntryView[],
@@ -46,20 +50,8 @@ export function appendMixedDoublesRequeueEntries(
   requeueEntries: QueueEntryView[],
   baseTime: number,
 ): QueueEntryView[] {
-  const requeuePlayerIds = new Set(
-    requeueEntries
-      .map((entry) => {
-        const id = entry.playerId._id;
-        if (id == null) return "";
-        return typeof id === "string" ? id : id.toString();
-      })
-      .filter(Boolean),
-  );
-  const filteredQueue = queue.filter((entry) => {
-    const id = entry.playerId._id;
-    const playerId = id == null ? "" : typeof id === "string" ? id : id.toString();
-    return !playerId || !requeuePlayerIds.has(playerId);
-  });
+  const requeuePlayerIds = playerIdsFromQueueEntries(requeueEntries);
+  const filteredQueue = removeQueueEntriesForPlayerIds(queue, requeuePlayerIds);
   const ordered = orderMixedDoublesRequeueEntries(filteredQueue, requeueEntries);
   return [
     ...filteredQueue,
