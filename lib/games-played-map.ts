@@ -62,15 +62,27 @@ export function isSessionRecordEmpty(stats: {
   return gamesPlayed === 0 && stats.wins === 0 && stats.losses === 0;
 }
 
-/** e.g. "(W1/L1/R1)" when rank is known; plain record when no session games yet. */
+/** Minimum combined W+L before session rank/trophy is meaningful enough to show. */
+export const MIN_GAMES_FOR_SESSION_RANK = 3;
+
+/** Show trophy/rank only after enough session games (wins + losses). */
+export function canShowSessionRank(stats: {
+  wins: number;
+  losses: number;
+  gamesPlayed?: number;
+}) {
+  const gamesPlayed = stats.gamesPlayed ?? stats.wins + stats.losses;
+  return gamesPlayed >= MIN_GAMES_FOR_SESSION_RANK;
+}
+
+/** e.g. "(W1/L1/R1)" when rank is known and enough games played; plain record otherwise. */
 export function formatSessionRecordWithRankLabel(
   stats: PlayerSessionStats,
   rank?: number | null,
 ) {
-  if (isSessionRecordEmpty(stats)) return formatSessionRecordLabel(stats);
+  if (!canShowSessionRank(stats) || rank == null) return formatSessionRecordLabel(stats);
 
   const { wins, losses } = stats;
-  if (rank == null) return formatSessionRecordLabel(stats);
   return `(W${wins}/L${losses}/R${rank})`;
 }
 

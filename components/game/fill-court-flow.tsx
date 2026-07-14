@@ -1,6 +1,14 @@
 "use client";
 
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Play } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,6 +17,7 @@ import { FillCourtSelectDialog } from "@/components/game/fill-court-select-dialo
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { Button } from "@/components/ui/button";
 import { announceNextCourtPlayers, cancelCallNamesSpeech } from "@/lib/call-names-speech";
+import { randomTeamSplit } from "@/lib/shuffle-teams-animation";
 
 type FillCourtFlowProps = {
   canFillNextCourt: boolean;
@@ -21,8 +30,7 @@ type FillCourtFlowProps = {
   /** Courts whose fill API is still in flight. Confirm is only blocked for those courts. */
   pendingFillCourtNumbers?: ReadonlySet<number>;
   replacePendingSourceIndex: number | null;
-  onConfirmFill: (courtNumber: number) => void;
-  onShuffle: () => void | Promise<void>;
+  onConfirmFill: (courtNumber: number, queueEntryIds?: string[]) => void;
   mixedDoubles?: boolean;
   minQueueToFill?: number;
   onReplace: (sourceIndex: number, sourceEntry: QueueEntryView) => void;
@@ -34,6 +42,10 @@ export type FillCourtFlowHandle = {
   openFillCourt: (courtNumber: number) => void;
   openFillNextCourt: () => void;
 };
+
+function foursomeKey(teamA: QueueEntryView[], teamB: QueueEntryView[]) {
+  return [...teamA, ...teamB].map((entry) => entry._id).join("\0");
+}
 
 export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>(
   function FillCourtFlow(
@@ -48,7 +60,6 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
       pendingFillCourtNumbers,
       replacePendingSourceIndex,
       onConfirmFill,
-      onShuffle,
       mixedDoubles = false,
       minQueueToFill = 4,
       onReplace,
@@ -59,6 +70,8 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
     const [fillCourtDialogOpen, setFillCourtDialogOpen] = useState(false);
     const [fillCourtSelectDialogOpen, setFillCourtSelectDialogOpen] = useState(false);
     const [fillCourtTarget, setFillCourtTarget] = useState<number | null>(null);
+    const [draftTeamA, setDraftTeamA] = useState<QueueEntryView[]>(teamA);
+    const [draftTeamB, setDraftTeamB] = useState<QueueEntryView[]>(teamB);
     const [callingNames, setCallingNames] = useState(false);
     const callNamesRunIdRef = useRef(0);
 
@@ -67,6 +80,16 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
     const confirmFillPending =
       activeFillCourtNumber != null &&
       (pendingFillCourtNumbers?.has(activeFillCourtNumber) ?? false);
+
+    const propsFoursomeKey = useMemo(() => foursomeKey(teamA, teamB), [teamA, teamB]);
+
+    // Snapshot / re-sync from the live queue when the dialog opens or Replace changes who is next.
+    // Local Shuffle only reorders draft state and must not hit the network.
+    useEffect(() => {
+      if (!fillCourtDialogOpen) return;
+      setDraftTeamA(teamA);
+      setDraftTeamB(teamB);
+    }, [fillCourtDialogOpen, propsFoursomeKey, teamA, teamB]);
 
     const openFillCourtConfirmDialog = useCallback(
       (courtNumber: number) => {
@@ -177,11 +200,23 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
       [activeFillCourtNumber, callingNames],
     );
 
+    const handleLocalShuffle = useCallback(() => {
+      const split = randomTeamSplit([...draftTeamA, ...draftTeamB], {
+        mixedDoubles,
+        getGender: (entry) => entry.playerId.gender,
+      });
+      setDraftTeamA(split.teamA);
+      setDraftTeamB(split.teamB);
+    }, [draftTeamA, draftTeamB, mixedDoubles]);
+
     const handleConfirmFill = useCallback(() => {
       if (activeFillCourtNumber == null) return;
       setFillCourtDialogOpen(false);
-      onConfirmFill(activeFillCourtNumber);
-    }, [activeFillCourtNumber, onConfirmFill]);
+      onConfirmFill(
+        activeFillCourtNumber,
+        [...draftTeamA, ...draftTeamB].map((entry) => String(entry._id)),
+      );
+    }, [activeFillCourtNumber, draftTeamA, draftTeamB, onConfirmFill]);
 
     return (
       <>
@@ -208,14 +243,14 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
           onCallNames={startPlayerAnnouncement}
           onCancelCallNames={cancelPlayerAnnouncement}
           courtNumber={activeFillCourtNumber}
-          teamA={teamA}
-          teamB={teamB}
+          teamA={draftTeamA}
+          teamB={draftTeamB}
           canReplace={waitingLineEntries.length > 0}
           onReplace={onReplace}
           replacePendingSourceIndex={replacePendingSourceIndex}
           onConfirmFill={handleConfirmFill}
           fillPending={confirmFillPending}
-          onShuffle={onShuffle}
+          onShuffle={handleLocalShuffle}
           mixedDoubles={mixedDoubles}
         />
       </>

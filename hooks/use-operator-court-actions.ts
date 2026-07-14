@@ -23,7 +23,6 @@ import {
   applyQueueReorderOptimistic,
   applyQueueSwapOptimistic,
   applyShuffleNextOptimistic,
-  applyQuickShuffleNextOptimistic,
   applySwapCourtTeamsOptimistic,
 } from "@/lib/game-payload-mutations";
 import type { GamePayload } from "@/lib/game-payload-mutations";
@@ -43,6 +42,7 @@ import {
   waitForCourtClearIfNeeded,
 } from "@/lib/operator-queue-mutation-lock";
 import { buildQueueNextCourtWaitingSwapOrder } from "@/lib/next-court-match-analysis";
+import { DOUBLES_PLAYERS_PER_COURT } from "@/lib/doubles/doubles-queue-fill";
 import {
   readOperatorGamePayload,
   writeOperatorGamePayload,
@@ -131,10 +131,11 @@ export function useOperatorCourtActions({
   }, []);
 
   const requestFillCourt = useCallback(
-    (courtNumber: number) => {
-      if (pendingFillCourtNumbersRef.current.has(courtNumber)) return;
+    (input: { courtNumber: number; queueEntryIds?: string[] }) => {
+      if (pendingFillCourtNumbersRef.current.has(input.courtNumber)) return;
 
       void (async () => {
+        const { courtNumber, queueEntryIds } = input;
         pendingFillCourtNumbersRef.current.add(courtNumber);
         setPendingFillCourtNumbers(new Set(pendingFillCourtNumbersRef.current));
 
@@ -145,7 +146,19 @@ export function useOperatorCourtActions({
             applyLocalGameMutation(
               queryClient,
               gameId,
-              (payload) => applyFillNextCourtOptimistic(payload, courtNumber),
+              (payload) => {
+                let foursomeOverride: QueueEntryView[] | undefined;
+                if (queueEntryIds?.length === DOUBLES_PLAYERS_PER_COURT) {
+                  const byId = new Map(payload.queue.map((entry) => [String(entry._id), entry]));
+                  foursomeOverride = queueEntryIds
+                    .map((entryId) => byId.get(String(entryId)))
+                    .filter((entry): entry is QueueEntryView => entry != null);
+                  if (foursomeOverride.length !== DOUBLES_PLAYERS_PER_COURT) {
+                    foursomeOverride = undefined;
+                  }
+                }
+                return applyFillNextCourtOptimistic(payload, courtNumber, foursomeOverride);
+              },
               "Failed to fill court.",
             );
             toast.success("Court filled from the queue.");
@@ -156,8 +169,22 @@ export function useOperatorCourtActions({
           lockAcquired = true;
 
           previous = readCachedGamePayload();
+          let foursomeOverride: QueueEntryView[] | undefined;
           if (previous) {
-            const optimistic = applyFillNextCourtOptimistic(previous, courtNumber);
+            if (queueEntryIds?.length === DOUBLES_PLAYERS_PER_COURT) {
+              const byId = new Map(previous.queue.map((entry) => [String(entry._id), entry]));
+              foursomeOverride = queueEntryIds
+                .map((entryId) => byId.get(String(entryId)))
+                .filter((entry): entry is QueueEntryView => entry != null);
+              if (foursomeOverride.length !== DOUBLES_PLAYERS_PER_COURT) {
+                foursomeOverride = undefined;
+              }
+            }
+            const optimistic = applyFillNextCourtOptimistic(
+              previous,
+              courtNumber,
+              foursomeOverride,
+            );
             if (optimistic) {
               writeCachedGamePayload(optimistic);
             }
@@ -173,7 +200,7 @@ export function useOperatorCourtActions({
             const response = await fetch(`/api/games/${gameId}/start`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ courtNumber }),
+              body: JSON.stringify({ courtNumber, queueEntryIds }),
             });
             const data = await response.json();
             if (response.ok) {
@@ -222,7 +249,8 @@ export function useOperatorCourtActions({
 
   const startMutation = useMemo(
     () => ({
-      mutate: requestFillCourt,
+      mutate: (courtNumber: number, queueEntryIds?: string[]) =>
+        requestFillCourt({ courtNumber, queueEntryIds }),
       isPending: pendingFillCourtNumbers.size > 0,
       variables:
         pendingFillCourtNumbers.size > 0
@@ -603,74 +631,6 @@ export function useOperatorCourtActions({
     },
   });
 
-  const quickShuffleNextMutation = useMutation({
-    mutationFn: async (nextFourEntryIds: string[]) => {
-      if (isLocalGame) {
-        return { message: "Shuffled teams." };
-      }
-
-      const response = await fetch(`/api/games/${gameId}/shuffle-next`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "quick", nextFourEntryIds }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
-      return data as { message: string };
-    },
-    onMutate: () => {
-      if (isLocalGame) return {};
-      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
-      const previous = readCachedGamePayload();
-      return { previous };
-    },
-    onSettled: () => {
-      if (!isLocalGame) {
-        releaseQueueMutationLock(queueMutationLockRef);
-      }
-    },
-    onError: (error, _, context) => {
-      if (!isLocalGame && context?.previous && queueMutationLockRef.current <= 1) {
-        writeCachedGamePayload(context.previous);
-      }
-      toastOperationError(error, "Failed to shuffle teams.");
-    },
-  });
-
-  const requestQuickShuffleNext = useCallback(() => {
-    const previous = readCachedGamePayload();
-    if (!previous) {
-      toast.error("Session not found.");
-      return;
-    }
-    if (isLocalGame) {
-      applyLocalGameMutation(
-        queryClient,
-        gameId,
-        applyQuickShuffleNextOptimistic,
-        "Not enough queued players.",
-      );
-      return;
-    }
-
-    const optimistic = applyQuickShuffleNextOptimistic(previous);
-    if (!optimistic) {
-      toast.error("Not enough queued players.");
-      return;
-    }
-    writeCachedGamePayload(optimistic);
-
-    const nextFourEntryIds = optimistic.queue.slice(0, 4).map((entry) => String(entry._id));
-    quickShuffleNextMutation.mutate(nextFourEntryIds);
-  }, [
-    gameId,
-    isLocalGame,
-    queryClient,
-    quickShuffleNextMutation,
-    readCachedGamePayload,
-    writeCachedGamePayload,
-  ]);
-
   const swapNextWaitingMutation = useMutation({
     mutationFn: async (orderedEntryIds: string[]) => {
       if (isLocalGame) {
@@ -998,8 +958,6 @@ export function useOperatorCourtActions({
     startMutation,
     endMutation,
     shuffleNextMutation,
-    quickShuffleNextMutation,
-    requestQuickShuffleNext,
     swapNextWaitingMutation,
     replaceMutation,
     pauseAllCourtsMutation,

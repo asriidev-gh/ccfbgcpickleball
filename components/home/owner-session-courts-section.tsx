@@ -426,10 +426,9 @@ export function OwnerSessionCourtsSection({
           emptyCourtNumbers={emptyCourtNumbers}
           pendingFillCourtNumbers={courtActions.pendingFillCourtNumbers}
           replacePendingSourceIndex={courtActions.replacePendingSourceIndex}
-          onConfirmFill={(courtNumber) => courtActions.startMutation.mutate(courtNumber)}
-          onShuffle={() => {
-            courtActions.requestQuickShuffleNext();
-          }}
+          onConfirmFill={(courtNumber, queueEntryIds) =>
+            courtActions.startMutation.mutate(courtNumber, queueEntryIds)
+          }
           mixedDoubles={usesMixedDoubles}
           onReplace={(sourceIndex, sourceEntry) => {
             courtActions.setReplaceDialog({ kind: "queue", sourceIndex, sourceEntry });

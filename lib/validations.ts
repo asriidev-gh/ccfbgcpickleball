@@ -308,6 +308,14 @@ export const genericPlayerSchema = z.object({
   gameId: z.string().min(4),
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
+  gender: z.enum(["male", "female"], {
+    message: "Select a gender.",
+  }),
+  birthdate: z
+    .string()
+    .trim()
+    .min(1, "Birthdate is required.")
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid birthdate."),
   mobileNumber: z
     .string()
     .trim()
@@ -369,6 +377,14 @@ export const newPlayerSchema = z
     gameId: z.string().min(4),
     firstName: z.string().min(1, "First name is required."),
     lastName: z.string().min(1, "Last name is required."),
+    gender: z.enum(["male", "female"], {
+      message: "Select a gender.",
+    }),
+    birthdate: z
+      .string()
+      .trim()
+      .min(1, "Birthdate is required.")
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid birthdate."),
     mobileNumber: z
       .string()
       .trim()
@@ -392,6 +408,14 @@ export const volunteerNewPlayerSchema = z.object({
   gameId: z.string().min(4),
   firstName: z.string().min(1, "First name is required."),
   lastName: z.string().min(1, "Last name is required."),
+  gender: z.enum(["male", "female"], {
+    message: "Select a gender.",
+  }),
+  birthdate: z
+    .string()
+    .trim()
+    .min(1, "Birthdate is required.")
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid birthdate."),
   mobileNumber: z
     .string()
     .trim()

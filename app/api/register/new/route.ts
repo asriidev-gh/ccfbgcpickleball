@@ -150,6 +150,8 @@ export async function POST(request: Request) {
       lastName: capitalizeNameWords(payload.lastName),
       mobileNumber: payload.mobileNumber,
       email: payload.email,
+      gender: payload.gender,
+      birthdate: new Date(`${payload.birthdate}T00:00:00.000Z`),
       personalQrCode,
       photoUrl,
       photoPublicId,

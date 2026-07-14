@@ -12,7 +12,7 @@ import {
   formatSessionRecordLabel,
   formatSessionRecordWithRankLabel,
   getPlayerLeaderboardRank,
-  isSessionRecordEmpty,
+  canShowSessionRank,
   isSessionUndefeated,
 } from "@/lib/games-played-map";
 import { cn, formatPlayerCourtName, formatPlayerDisplayName } from "@/lib/utils";
@@ -61,7 +61,7 @@ function SessionRecordBadgeContent({
   const recordText = `W${wins}/L${losses}`;
   const showTopRank =
     showRank &&
-    !isSessionRecordEmpty({ wins, losses }) &&
+    canShowSessionRank({ wins, losses }) &&
     rank != null &&
     rank >= 1 &&
     rank <= TOP_SESSION_RANK_TO_SHOW;
@@ -106,7 +106,7 @@ function NextOnCourtSessionRecordBadge({
       const recordText = `W${winsValue}/L${lossesValue}`;
       if (
         showRank &&
-        !isSessionRecordEmpty({ wins: winsValue, losses: lossesValue }) &&
+        canShowSessionRank({ wins: winsValue, losses: lossesValue }) &&
         rank != null &&
         rank >= 1 &&
         rank <= TOP_SESSION_RANK_TO_SHOW

@@ -231,7 +231,8 @@ export function applyFillNextCourtOptimistic(
 
   let teamAEntries = foursome.slice(0, 2);
   let teamBEntries = foursome.slice(2, 4);
-  if (isMixedDoublesMatching(payload.game.matchingType)) {
+  // Only auto-split mixed doubles when the operator did not already choose teams.
+  if (!foursomeOverride && isMixedDoublesMatching(payload.game.matchingType)) {
     const split = randomMixedDoublesTeamSplit(foursome, (entry) => entry.playerId.gender);
     if (!split) return null;
     const byId = new Map(foursome.map((entry) => [entry._id, entry]));

@@ -17,7 +17,6 @@ import {
   resolveGameFormatSettings,
 } from "@/lib/game-format-settings";
 import {
-  assignCourtTeams,
   resolveCourtAssignmentFromQueue,
   type QueueEntryLike,
 } from "@/lib/queue-court-assignment";
@@ -91,9 +90,22 @@ export async function startGameOnCourt(
       }
       return entry;
     });
-    assignment = assignCourtTeams(picked, format);
-    if (!assignment) {
-      throw new Error(`Not enough queued players. At least ${minPlayers} players are required.`);
+    // Honor the operator's confirmed team split from the fill dialog (UI shuffle).
+    if (format.gameMode === "singles") {
+      assignment = {
+        picked,
+        teamA: [picked[0]!],
+        teamB: [picked[1]!],
+      };
+    } else {
+      assignment = {
+        picked,
+        teamA: picked.slice(0, 2),
+        teamB: picked.slice(2, 4),
+      };
+      if (assignment.teamA.length !== 2 || assignment.teamB.length !== 2) {
+        throw new Error(`Not enough queued players. At least ${minPlayers} players are required.`);
+      }
     }
   } else {
     assignment = resolveCourtAssignmentFromQueue(entries as QueueEntryLike[], format);

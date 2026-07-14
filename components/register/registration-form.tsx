@@ -125,6 +125,8 @@ export function RegistrationForm({
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    gender: "male" as "male" | "female",
+    birthdate: "",
     mobileNumber: "",
     email: "",
     personalQrCode: "",
@@ -138,6 +140,7 @@ export function RegistrationForm({
   const eventsBlockRef = useRef<HTMLDivElement>(null);
   const dgroupBlockRef = useRef<HTMLDivElement>(null);
   const joinDgroupBlockRef = useRef<HTMLDivElement>(null);
+  const genderBlockRef = useRef<HTMLDivElement>(null);
 
   const registrationBlockedMessage = registrationStatus
     ? getRegistrationBlockedMessage(registrationStatus)
@@ -315,6 +318,11 @@ export function RegistrationForm({
   };
 
   const focusField = (name: string) => {
+    if (name === "gender") {
+      genderBlockRef.current?.focus();
+      genderBlockRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     if (name === "attendedEvents") {
       eventsBlockRef.current?.focus();
       eventsBlockRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -440,6 +448,8 @@ export function RegistrationForm({
         gameId,
         firstName: form.firstName,
         lastName: form.lastName,
+        gender: form.gender,
+        birthdate: form.birthdate,
         mobileNumber: form.mobileNumber,
         email: form.email,
       };
@@ -450,6 +460,8 @@ export function RegistrationForm({
         gameId,
         firstName: form.firstName,
         lastName: form.lastName,
+        gender: form.gender,
+        birthdate: form.birthdate,
         mobileNumber: form.mobileNumber,
         email: form.email,
         personalQrCode: form.personalQrCode,
@@ -472,6 +484,8 @@ export function RegistrationForm({
     body.append("gameId", payload.gameId);
     body.append("firstName", payload.firstName);
     body.append("lastName", payload.lastName);
+    body.append("gender", payload.gender);
+    body.append("birthdate", payload.birthdate);
     body.append("mobileNumber", payload.mobileNumber);
     body.append("email", payload.email);
 
@@ -875,6 +889,59 @@ export function RegistrationForm({
                         onChange={(event) => updateForm("lastName", event.target.value)}
                       />
                       {renderFieldError("lastName")}
+                    </div>
+                    <div
+                      ref={genderBlockRef}
+                      tabIndex={-1}
+                      className={cn(
+                        "register-field space-y-1.5 rounded-lg outline-none md:col-span-2",
+                        fieldErrors.gender && "ring-2 ring-destructive/40",
+                      )}
+                    >
+                      <Label className="register-label">Gender</Label>
+                      <div className="register-toggle-row" role="group" aria-label="Gender">
+                        <Button
+                          type="button"
+                          variant={form.gender === "male" ? "default" : "outline"}
+                          className="register-toggle-btn"
+                          onClick={() => {
+                            clearFieldError("gender");
+                            updateForm("gender", "male");
+                          }}
+                          disabled={submitting}
+                        >
+                          Male
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={form.gender === "female" ? "default" : "outline"}
+                          className="register-toggle-btn"
+                          onClick={() => {
+                            clearFieldError("gender");
+                            updateForm("gender", "female");
+                          }}
+                          disabled={submitting}
+                        >
+                          Female
+                        </Button>
+                      </div>
+                      {renderFieldError("gender")}
+                    </div>
+                    <div className="register-field space-y-1.5 md:col-span-2">
+                      <Label htmlFor="registration-birthdate" className="register-label">
+                        Birthdate
+                      </Label>
+                      <Input
+                        id="registration-birthdate"
+                        ref={setFieldRef("birthdate")}
+                        className={inputClass("birthdate")}
+                        type="date"
+                        value={form.birthdate}
+                        aria-invalid={Boolean(fieldErrors.birthdate)}
+                        aria-describedby={fieldErrors.birthdate ? "birthdate-error" : undefined}
+                        onChange={(event) => updateForm("birthdate", event.target.value)}
+                      />
+                      {renderFieldError("birthdate")}
                     </div>
                     <div className="register-field space-y-1.5 md:col-span-2">
                       <Input

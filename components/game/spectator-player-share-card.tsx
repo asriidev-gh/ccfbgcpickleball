@@ -14,7 +14,7 @@ import {
 import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
 import type { PlayerCardShareContent } from "@/lib/player-card-share-content";
 import { resolvePlayerCardShareSections } from "@/lib/player-card-share-content";
-import { isSessionRecordEmpty } from "@/lib/games-played-map";
+import { canShowSessionRank, isSessionRecordEmpty } from "@/lib/games-played-map";
 import type { SpectatePlayerEndorsementReceived } from "@/lib/spectate-player-endorsement";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
 
@@ -175,6 +175,7 @@ export const SpectatorPlayerShareCard = forwardRef<HTMLDivElement, SpectatorPlay
     const skillLevelLabel = resolveSpectatorPlayerSkillLevelLabel(player);
     const rankLabel = formatSpectatorPlayerRank(rank);
     const sessionRecordEmpty = isSessionRecordEmpty({ wins, losses });
+    const showSessionRank = canShowSessionRank({ wins, losses });
     const logoUrl = clubLogoUrl?.trim() ?? "";
     const tagline = clubTagline?.trim() ?? "";
     const resolvedClubName = clubName?.trim() ?? "";
@@ -234,10 +235,10 @@ export const SpectatorPlayerShareCard = forwardRef<HTMLDivElement, SpectatorPlay
             sessionRecordEmpty ? (
               <p className="text-center text-sm font-medium text-muted-foreground">No Rank Yet</p>
             ) : (
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className={cn("grid gap-1.5", showSessionRank ? "grid-cols-3" : "grid-cols-2")}>
                 <ShareStat label="Wins" value={String(wins)} />
                 <ShareStat label="Losses" value={String(losses)} />
-                <ShareStat label="Rank" value={rankLabel} />
+                {showSessionRank ? <ShareStat label="Rank" value={rankLabel} /> : null}
               </div>
             )
           ) : null}

@@ -45,7 +45,6 @@ import {
   applyQueueSwapOptimistic,
   applyRemovePlayerOptimistic,
   applyShuffleNextOptimistic,
-  applyQuickShuffleNextOptimistic,
   applySwapCourtTeamsOptimistic,
   type EndGameMutationInput,
   type GamePayload,
@@ -1230,75 +1229,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     },
   });
 
-  const quickShuffleNextMutation = useMutation({
-    mutationFn: async (nextFourEntryIds: string[]) => {
-      if (isQuickGameSession) {
-        return { message: "Shuffled teams." };
-      }
-
-      const response = await fetch(`/api/games/${gameId}/shuffle-next`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "quick", nextFourEntryIds }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
-      return data as { message: string };
-    },
-    onMutate: (nextFourEntryIds) => {
-      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
-      const previous = readOperatorGamePayload(queryClient, gameId);
-      if (!previous) return { previous: undefined as GamePayload | undefined };
-
-      // Prefer the caller-provided order (already written); fall back to a local shuffle.
-      if (nextFourEntryIds.length !== DOUBLES_PLAYERS_PER_COURT) {
-        const optimistic = applyQuickShuffleNextOptimistic(previous);
-        if (optimistic) {
-          writeOperatorGamePayload(queryClient, gameId, optimistic);
-        }
-      }
-      return { previous };
-    },
-    onSettled: () => {
-      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
-        skipRefetch: true,
-      });
-    },
-    onError: (error, _variables, context) => {
-      if (context?.previous) {
-        writeOperatorGamePayload(queryClient, gameId, context.previous);
-      }
-      toastOperationError(error, "Failed to shuffle teams.");
-    },
-  });
-
   const handleFillCourtConfirm = useCallback(
     (courtNumber: number, queueEntryIds?: string[]) => {
       requestFillCourt({ courtNumber, queueEntryIds });
     },
     [requestFillCourt],
   );
-
-  const fillCourtFoursomeRef = useRef<QueueEntryView[] | null>(null);
-
-  const handleFillCourtShuffle = useCallback(() => {
-    const previous = readOperatorGamePayload(queryClient, gameId);
-    if (!previous) return;
-    const optimistic = applyQuickShuffleNextOptimistic(previous);
-    if (!optimistic) {
-      toast.error("Not enough queued players.");
-      return;
-    }
-    writeOperatorGamePayload(queryClient, gameId, optimistic);
-    const ordered = resolveDoublesRotationQueue(
-      optimistic.queue,
-      optimistic.game.matchingType,
-    );
-    const nextFourEntryIds = ordered
-      .slice(0, DOUBLES_PLAYERS_PER_COURT)
-      .map((entry) => String(entry._id));
-    quickShuffleNextMutation.mutate(nextFourEntryIds);
-  }, [gameId, queryClient, quickShuffleNextMutation]);
 
   const handleMatchupShuffle = useCallback(async () => {
     await shuffleNextMutation.mutateAsync();
@@ -2070,7 +2006,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     naturalCourtFoursome,
     onCourtWaitingLine,
   ]);
-  fillCourtFoursomeRef.current = nextCourtFoursome;
   const nextCourtFoursomeIds = useMemo(
     () => new Set(nextCourtFoursome?.map((entry) => entry._id) ?? []),
     [nextCourtFoursome],
@@ -2120,17 +2055,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     await reorderQueueMutation.mutateAsync(order);
     toast.success("Swapped in the next two players from the waiting line.");
   }, [matchupAnalysisQueue, reorderQueueMutation]);
-
-  const handleFillCourtConfirmWithSelection = useCallback(
-    (courtNumber: number) => {
-      const foursome = fillCourtFoursomeRef.current;
-      handleFillCourtConfirm(
-        courtNumber,
-        foursome?.map((entry) => String(entry._id)),
-      );
-    },
-    [handleFillCourtConfirm],
-  );
 
   const sessionPlayerLookup = useMemo(
     () =>
@@ -3783,8 +3707,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               emptyCourtNumbers={emptyCourtNumbers}
               pendingFillCourtNumbers={pendingFillCourtNumbers}
               replacePendingSourceIndex={null}
-              onConfirmFill={handleFillCourtConfirmWithSelection}
-              onShuffle={handleFillCourtShuffle}
+              onConfirmFill={handleFillCourtConfirm}
               mixedDoubles={usesMixedDoubles}
               onReplace={handleFillCourtReplace}
             />
