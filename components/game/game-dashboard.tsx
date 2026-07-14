@@ -1170,8 +1170,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
   const fillCourtFoursomeRef = useRef<QueueEntryView[] | null>(null);
 
-  const handleFillCourtShuffle = useCallback(() => {
-    shuffleNextMutation.mutate();
+  const handleFillCourtShuffle = useCallback(async () => {
+    await shuffleNextMutation.mutateAsync();
   }, [shuffleNextMutation]);
 
   const handleFillCourtReplace = useCallback(
