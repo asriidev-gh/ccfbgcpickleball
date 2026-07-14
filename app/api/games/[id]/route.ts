@@ -25,6 +25,7 @@ import {
   readAuthTokenPayload,
 } from "@/lib/auth";
 import { deleteOwnerGame } from "@/lib/delete-owner-game";
+import { Court } from "@/models/Court";
 import { PickleGame } from "@/models/PickleGame";
 import "@/models/Player";
 
