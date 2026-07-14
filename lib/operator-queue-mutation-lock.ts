@@ -63,6 +63,16 @@ export async function waitForCourtClearIfNeeded(
   await existing.promise;
 }
 
+/** Wait until an in-flight fill for this court finishes (optimistic UI may already look filled). */
+export async function waitForPendingCourtFillIfNeeded(
+  pendingFillCourtNumbersRef: MutableRefObject<Set<number>>,
+  courtNumber: number,
+) {
+  while (pendingFillCourtNumbersRef.current.has(courtNumber)) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 40));
+  }
+}
+
 /** Pause polling and cancel in-flight game queries so optimistic UI is not overwritten. */
 export function beginOperatorQueueMutation(
   queryClient: QueryClient,
