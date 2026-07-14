@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import type { CourtView } from "@/components/game/court-card";
+import { announceCourtEnded } from "@/lib/call-names-speech";
 import { applyCourtPauseOptimistic, applyAllCourtsPauseOptimistic } from "@/lib/game-payload-mutations";
 import {
   readOperatorGamePayload,
@@ -71,6 +72,9 @@ export function useSinglesOperatorCourtActions({
   const endMutation = useMutation({
     mutationFn: async (input: SinglesEndGameInput) => input,
     onMutate: async (input) => {
+      if (!input.rematch) {
+        void announceCourtEnded(input.courtNumber);
+      }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
       const optimistic = applySinglesEndGameWithHistoryOptimistic(previous, input);

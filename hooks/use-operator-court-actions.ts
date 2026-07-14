@@ -10,6 +10,7 @@ import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import type { ReplacePlayerConfirmInput } from "@/components/game/replace-player-dialog";
 import type { ReplacePlayerDialogState } from "@/components/game/replace-player-dialog";
 import { applyLocalGameMutation } from "@/lib/apply-local-game-mutation";
+import { announceCourtEnded } from "@/lib/call-names-speech";
 import {
   applyAllCourtsPauseOptimistic,
   applyCancelCourtAssignmentOptimistic,
@@ -33,8 +34,11 @@ import {
 import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { isQuickGame } from "@/lib/local-game-id";
 import {
+  beginCourtClearWait,
   beginOperatorQueueMutation,
+  endCourtClearWait,
   endQueuedMutationLock,
+  waitForCourtClearIfNeeded,
 } from "@/lib/operator-queue-mutation-lock";
 import { buildQueueNextCourtWaitingSwapOrder } from "@/lib/next-court-match-analysis";
 import {
@@ -57,6 +61,9 @@ export function useOperatorCourtActions({
 }: UseOperatorCourtActionsOptions) {
   const queryClient = useQueryClient();
   const queueMutationLockRef = useRef(0);
+  const courtClearWaitersRef = useRef(
+    new Map<number, { promise: Promise<void>; resolve: () => void }>(),
+  );
   const pendingFillCourtNumbersRef = useRef(new Set<number>());
   const [pendingFillCourtNumbers, setPendingFillCourtNumbers] = useState(
     () => new Set<number>(),
@@ -149,6 +156,8 @@ export function useOperatorCourtActions({
               writeCachedGamePayload(optimistic);
             }
           }
+
+          await waitForCourtClearIfNeeded(courtClearWaitersRef, courtNumber);
 
           const maxAttempts = 3;
           let lastMessage = "Failed to fill court.";
@@ -253,9 +262,15 @@ export function useOperatorCourtActions({
       return data as { message?: string; rematch?: boolean };
     },
     onMutate: (variables) => {
+      if (!variables.rematch) {
+        void announceCourtEnded(variables.courtNumber);
+      }
       if (isLocalGame) return {};
 
       beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      if (!variables.rematch) {
+        beginCourtClearWait(courtClearWaitersRef, variables.courtNumber);
+      }
       const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyEndGameOptimistic(previous, variables);
@@ -280,7 +295,10 @@ export function useOperatorCourtActions({
     onSuccess: (data) => {
       toast.success(data.message ?? "Court updated.");
     },
-    onSettled: () => {
+    onSettled: (_data, _error, variables) => {
+      if (!variables.rematch) {
+        endCourtClearWait(courtClearWaitersRef, variables.courtNumber);
+      }
       finishQueueMutation();
     },
     onError: (error, _, context) => {
@@ -409,6 +427,7 @@ export function useOperatorCourtActions({
       if (isLocalGame) return {};
 
       beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      beginCourtClearWait(courtClearWaitersRef, courtNumber);
       const previous = readCachedGamePayload();
       if (previous) {
         const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
@@ -427,7 +446,8 @@ export function useOperatorCourtActions({
     onSuccess: (data) => {
       toast.success(data.message);
     },
-    onSettled: () => {
+    onSettled: (_data, _error, courtNumber) => {
+      endCourtClearWait(courtClearWaitersRef, courtNumber);
       finishQueueMutation();
     },
     onError: (error, _, context) => {
@@ -459,17 +479,39 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
-    onSuccess: (data, courtNumber) => {
+    onMutate: (courtNumber) => {
+      if (isLocalGame) return {};
+
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      beginCourtClearWait(courtClearWaitersRef, courtNumber);
+      const previous = readCachedGamePayload();
+      if (previous) {
+        const optimistic = applyCancelRematchOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeCachedGamePayload(optimistic);
+        }
+      }
       setRematchCourtNumbers((prev) => {
         const next = new Set(prev);
         next.delete(courtNumber);
         return next;
       });
-      toast.success(data.message);
       setCancelRematchTarget(null);
-      invalidate();
+      return { previous };
     },
-    onError: (error) => {
+    onSuccess: (data) => {
+      toast.success(data.message);
+    },
+    onSettled: (_data, _error, courtNumber) => {
+      endCourtClearWait(courtClearWaitersRef, courtNumber);
+      if (!isLocalGame) {
+        finishQueueMutation();
+      }
+    },
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous && queueMutationLockRef.current <= 1) {
+        writeCachedGamePayload(context.previous);
+      }
       toastOperationError(error, "Failed to cancel rematch.");
     },
   });

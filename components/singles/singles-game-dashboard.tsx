@@ -66,9 +66,13 @@ import {
   isSessionUndefeated,
 } from "@/lib/games-played-map";
 import { addLocalCourt } from "@/lib/local-game-session";
+import { announceCourtEnded } from "@/lib/call-names-speech";
 import {
+  beginCourtClearWait,
   beginOperatorQueueMutation,
+  endCourtClearWait,
   endOperatorQueueMutation,
+  waitForCourtClearIfNeeded,
 } from "@/lib/operator-queue-mutation-lock";
 import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { isEphemeralQuickGame } from "@/lib/local-game-id";
@@ -122,6 +126,9 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   const router = useRouter();
   const queryClient = useQueryClient();
   const queueMutationLockRef = useRef(0);
+  const courtClearWaitersRef = useRef(
+    new Map<number, { promise: Promise<void>; resolve: () => void }>(),
+  );
   const gameId = String(params.id ?? "");
   const isEphemeralQuickSession = isEphemeralQuickGame(gameId);
   const {
@@ -283,6 +290,7 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
   const fillMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
       if (!isQuickGameSession) {
+        await waitForCourtClearIfNeeded(courtClearWaitersRef, courtNumber);
         const response = await fetch(`/api/games/${gameId}/start`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -314,7 +322,9 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       });
     },
     onError: (error, _, context) => {
-      if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
+      if (context?.previous && queueMutationLockRef.current <= 1) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
       toastOperationError(error, "Failed to fill court.");
     },
   });
@@ -334,8 +344,14 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       return input;
     },
     onMutate: async (input) => {
+      if (!input.rematch) {
+        void announceCourtEnded(input.courtNumber);
+      }
       if (!isQuickGameSession) {
         beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+        if (!input.rematch) {
+          beginCourtClearWait(courtClearWaitersRef, input.courtNumber);
+        }
       }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
@@ -357,13 +373,18 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
             : "Game ended and players returned to the queue."),
       );
     },
-    onSettled: () => {
+    onSettled: (_data, _error, input) => {
+      if (!input.rematch) {
+        endCourtClearWait(courtClearWaitersRef, input.courtNumber);
+      }
       void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
         skipRefetch: isQuickGameSession,
       });
     },
     onError: (error, _, context) => {
-      if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
+      if (context?.previous && queueMutationLockRef.current <= 1) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
       toastOperationError(error, "Failed to end game.");
     },
   });
@@ -567,6 +588,10 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       return courtNumber;
     },
     onMutate: async (courtNumber) => {
+      if (!isQuickGameSession) {
+        beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+        beginCourtClearWait(courtClearWaitersRef, courtNumber);
+      }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
       const optimistic = applySinglesCancelCourtAssignmentOptimistic(previous, courtNumber);
@@ -575,13 +600,16 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       return { previous };
     },
     onSuccess: () => toast.success("Court assignment cancelled."),
-    onSettled: () => {
-      if (!isQuickGameSession) {
-        void queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
-      }
+    onSettled: (_data, _error, courtNumber) => {
+      endCourtClearWait(courtClearWaitersRef, courtNumber);
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+      });
     },
     onError: (error, _, context) => {
-      if (context?.previous) writeOperatorGamePayload(queryClient, gameId, context.previous);
+      if (context?.previous && queueMutationLockRef.current <= 1) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
       toastOperationError(error, "Failed to cancel court assignment.");
     },
   });

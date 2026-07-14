@@ -2698,6 +2698,10 @@
     @apply flex max-w-full flex-wrap items-center gap-x-2 gap-y-1.5;
   }
 
+  .queue-entry-status--stacked {
+    @apply flex-col items-start gap-y-1;
+  }
+
   .queue-entry-status__segment {
     @apply inline-flex min-w-0 items-center gap-1;
   }
@@ -2712,6 +2716,10 @@
 
   .queue-entry-status__divider {
     @apply hidden h-3.5 w-px shrink-0 bg-border/70 sm:block;
+  }
+
+  .queue-entry-status__pipe {
+    @apply px-0.5 text-muted-foreground/70;
   }
 
   .queue-entry-status__last-match {
@@ -2743,7 +2751,15 @@
   }
 
   .queue-entry-status__record .badge-next-up-record {
-    @apply py-0 text-[0.6875rem] sm:text-xs;
+    @apply border-0 bg-transparent px-0 py-0 text-[0.6875rem] shadow-none sm:text-xs;
+  }
+
+  .badge-session-record-medal {
+    @apply size-3 shrink-0 text-amber-600 dark:text-amber-400;
+  }
+
+  .badge-session-record-sep {
+    @apply px-0.5 text-muted-foreground/70;
   }
 
   .queue-entry-session-stats {

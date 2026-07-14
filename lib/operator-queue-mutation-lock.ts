@@ -19,6 +19,48 @@ export function isQueueMutationLocked(lockRef: MutableRefObject<number>) {
   return lockRef.current > 0;
 }
 
+type CourtClearWaiter = {
+  promise: Promise<void>;
+  resolve: () => void;
+};
+
+/**
+ * Track in-flight cancel/end clears per court so a following fill can wait for the
+ * server clear before POSTing /start (optimistic UI can still update immediately).
+ */
+export function beginCourtClearWait(
+  waitersRef: MutableRefObject<Map<number, CourtClearWaiter>>,
+  courtNumber: number,
+) {
+  const existing = waitersRef.current.get(courtNumber);
+  if (existing) return;
+
+  let resolve!: () => void;
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  waitersRef.current.set(courtNumber, { promise, resolve });
+}
+
+export function endCourtClearWait(
+  waitersRef: MutableRefObject<Map<number, CourtClearWaiter>>,
+  courtNumber: number,
+) {
+  const existing = waitersRef.current.get(courtNumber);
+  if (!existing) return;
+  waitersRef.current.delete(courtNumber);
+  existing.resolve();
+}
+
+export async function waitForCourtClearIfNeeded(
+  waitersRef: MutableRefObject<Map<number, CourtClearWaiter>>,
+  courtNumber: number,
+) {
+  const existing = waitersRef.current.get(courtNumber);
+  if (!existing) return;
+  await existing.promise;
+}
+
 /** Pause polling and cancel in-flight game queries so optimistic UI is not overwritten. */
 export function beginOperatorQueueMutation(
   queryClient: QueryClient,

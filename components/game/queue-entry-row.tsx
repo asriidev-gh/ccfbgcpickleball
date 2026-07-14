@@ -1,4 +1,4 @@
-import { Clock, Share2 } from "lucide-react";
+import { Clock, Medal, Share2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
@@ -44,24 +44,108 @@ function NextOnCourtLabel() {
   );
 }
 
-function NextOnCourtSessionRecordBadge({ label }: { label: string }) {
+const TOP_SESSION_RANK_TO_SHOW = 10;
+
+function SessionRecordBadgeContent({
+  wins,
+  losses,
+  rank,
+  showRank,
+}: {
+  wins: number;
+  losses: number;
+  rank?: number | null;
+  showRank?: boolean;
+}) {
+  const recordText = `W${wins}/L${losses}`;
+  const showTopRank =
+    showRank && rank != null && rank >= 1 && rank <= TOP_SESSION_RANK_TO_SHOW;
+
+  if (showTopRank) {
+    return (
+      <>
+        <span>{recordText}</span>
+        <span className="badge-session-record-sep" aria-hidden>
+          -
+        </span>
+        <Medal className="badge-session-record-medal" aria-hidden />
+        <span>{rank}</span>
+      </>
+    );
+  }
+
+  return <span>{recordText}</span>;
+}
+
+function NextOnCourtSessionRecordBadge({
+  wins,
+  losses,
+  rank,
+  showRank = false,
+  label,
+  className,
+}: {
+  wins?: number;
+  losses?: number;
+  rank?: number | null;
+  showRank?: boolean;
+  /** @deprecated Prefer wins/losses/rank for medal rendering. */
+  label?: string;
+  className?: string;
+}) {
+  const ariaLabel =
+    label ??
+    (() => {
+      const winsValue = wins ?? 0;
+      const lossesValue = losses ?? 0;
+      const recordText = `W${winsValue}/L${lossesValue}`;
+      if (
+        showRank &&
+        rank != null &&
+        rank >= 1 &&
+        rank <= TOP_SESSION_RANK_TO_SHOW
+      ) {
+        return `${recordText} - rank ${rank}`;
+      }
+      return recordText;
+    })();
+
   return (
     <Badge
       variant="outline"
-      className="badge-next-up-record whitespace-nowrap tabular-nums"
-      aria-label={`Session record ${label}`}
+      className={cn("badge-next-up-record whitespace-nowrap tabular-nums", className)}
+      aria-label={`Session record ${ariaLabel}`}
     >
-      {label}
+      {wins != null && losses != null ? (
+        <span className="badge-session-record-content inline-flex items-center gap-0.5">
+          <SessionRecordBadgeContent
+            wins={wins}
+            losses={losses}
+            rank={rank}
+            showRank={showRank}
+          />
+        </span>
+      ) : (
+        label
+      )}
     </Badge>
   );
 }
 
 function QueueEntrySessionStatsRow({
+  wins,
+  losses,
+  rank,
+  showRank = false,
   sessionRecordLabel,
   showUndefeated,
   onUndefeatedClick,
   className,
 }: {
+  wins?: number;
+  losses?: number;
+  rank?: number | null;
+  showRank?: boolean;
   sessionRecordLabel: string;
   showUndefeated: boolean;
   onUndefeatedClick?: () => void;
@@ -70,7 +154,13 @@ function QueueEntrySessionStatsRow({
   return (
     <div className={cn("queue-entry-session-stats flex flex-wrap items-center gap-1", className)}>
       {showUndefeated ? <UndefeatedBadge onClick={onUndefeatedClick} /> : null}
-      <NextOnCourtSessionRecordBadge label={sessionRecordLabel} />
+      <NextOnCourtSessionRecordBadge
+        wins={wins}
+        losses={losses}
+        rank={rank}
+        showRank={showRank}
+        label={sessionRecordLabel}
+      />
     </div>
   );
 }
@@ -88,18 +178,72 @@ function QueueEntryStatusDivider() {
 function QueueEntryStatusLine({
   primaryLabel,
   lastMatchResult,
+  wins,
+  losses,
+  rank,
+  showRank = false,
   sessionRecordLabel,
+  stacked = false,
+  showRecord = true,
 }: {
   primaryLabel: string;
   lastMatchResult: QueueEntryView["lastMatchResult"];
+  wins: number;
+  losses: number;
+  rank?: number | null;
+  showRank?: boolean;
   sessionRecordLabel: string;
+  /** Waiting-line layout: wait on its own row, then last match | record. */
+  stacked?: boolean;
+  showRecord?: boolean;
 }) {
   const lastMatchLabel = formatLastMatchResult(lastMatchResult);
+  const recordBadge = showRecord ? (
+    <NextOnCourtSessionRecordBadge
+      wins={wins}
+      losses={losses}
+      rank={rank}
+      showRank={showRank}
+      label={sessionRecordLabel}
+    />
+  ) : null;
+
+  if (stacked) {
+    return (
+      <div
+        className="queue-entry-status queue-entry-status--stacked"
+        aria-label={`${primaryLabel}. Last match: ${lastMatchLabel}${showRecord ? `. Session record ${sessionRecordLabel}` : ""}.`}
+      >
+        <span className="queue-entry-status__segment queue-entry-status__wait">
+          <Clock className="queue-entry-status__icon" aria-hidden />
+          <span>{primaryLabel}</span>
+        </span>
+        <span
+          className={cn(
+            "queue-entry-status__segment queue-entry-status__last-match",
+            lastMatchResult === "win" && "queue-entry-status__last-match--win",
+            lastMatchResult === "loss" && "queue-entry-status__last-match--loss",
+          )}
+        >
+          <span className="queue-entry-status__label">Last match</span>
+          <span className="queue-entry-status__value">{lastMatchLabel}</span>
+          {recordBadge ? (
+            <>
+              <span className="queue-entry-status__pipe" aria-hidden>
+                |
+              </span>
+              <span className="queue-entry-status__record">{recordBadge}</span>
+            </>
+          ) : null}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
       className="queue-entry-status"
-      aria-label={`${primaryLabel}. Last match: ${lastMatchLabel}. Session record ${sessionRecordLabel}.`}
+      aria-label={`${primaryLabel}. Last match: ${lastMatchLabel}${showRecord ? `. Session record ${sessionRecordLabel}` : ""}.`}
     >
       <span className="queue-entry-status__segment queue-entry-status__wait">
         <Clock className="queue-entry-status__icon" aria-hidden />
@@ -116,10 +260,12 @@ function QueueEntryStatusLine({
         <span className="queue-entry-status__label">Last match</span>
         <span className="queue-entry-status__value">{lastMatchLabel}</span>
       </span>
-      <QueueEntryStatusDivider />
-      <span className="queue-entry-status__record hidden xl:inline-flex">
-        <NextOnCourtSessionRecordBadge label={sessionRecordLabel} />
-      </span>
+      {recordBadge ? (
+        <>
+          <QueueEntryStatusDivider />
+          <span className="queue-entry-status__record hidden xl:inline-flex">{recordBadge}</span>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -179,22 +325,17 @@ function QueueSessionStatsBadges({
 }) {
   const stats = { wins, losses, gamesPlayed: wins + losses };
   const showUndefeated = isSessionUndefeated(stats);
-  const recordLabel = showLeaderboardRank
-    ? formatSessionRecordWithRankLabel(stats, rank)
-    : formatSessionRecordLabel(stats);
 
   return (
     <div className={cn("flex flex-wrap items-center justify-end gap-1", className)}>
       {showUndefeated ? <UndefeatedBadge onClick={onUndefeatedClick} /> : null}
-      <Badge
-        variant="outline"
-        className={cn(
-          "whitespace-nowrap tabular-nums",
-          hideRecordOnLargeScreens && "xl:hidden",
-        )}
-      >
-        {recordLabel}
-      </Badge>
+      <NextOnCourtSessionRecordBadge
+        wins={wins}
+        losses={losses}
+        rank={rank}
+        showRank={showLeaderboardRank}
+        className={hideRecordOnLargeScreens ? "xl:hidden" : undefined}
+      />
     </div>
   );
 }
@@ -420,16 +561,29 @@ export function QueueEntryRow({
                   onEndorsementClick={showEndorsedInPlayerLabel ? onEndorsementClick : undefined}
                 />
               </PlayerNameWithPhoto>
-              {!checkedOut && !hideSessionStats ? (
+              {!checkedOut && !hideSessionStats && !inWaitingLine ? (
                 <QueueEntrySessionStatsRow
+                  wins={sessionStats.wins}
+                  losses={sessionStats.losses}
+                  rank={leaderboardRank}
+                  showRank={showLeaderboardRank}
                   sessionRecordLabel={sessionRecordLabel}
                   showUndefeated={showUndefeated}
                   onUndefeatedClick={onUndefeatedClick}
                   className="mt-1 xl:hidden"
                 />
               ) : null}
+              {!checkedOut && !hideSessionStats && inWaitingLine && showUndefeated ? (
+                <div className="mt-1 xl:hidden">
+                  <UndefeatedBadge onClick={onUndefeatedClick} />
+                </div>
+              ) : null}
               {isNextUp && showSessionRecordBelowName && !hideSessionStats ? (
                 <QueueEntrySessionStatsRow
+                  wins={sessionStats.wins}
+                  losses={sessionStats.losses}
+                  rank={leaderboardRank}
+                  showRank={showLeaderboardRank}
                   sessionRecordLabel={sessionRecordLabel}
                   showUndefeated={false}
                   className="queue-next-up-inline-record mt-1 hidden xl:flex"
@@ -448,7 +602,13 @@ export function QueueEntryRow({
                 {endorsedBadge}
                 {undefeatedBadge}
                 {showSessionRecordInPillSlot ? (
-                  <NextOnCourtSessionRecordBadge label={sessionRecordLabel} />
+                  <NextOnCourtSessionRecordBadge
+                    wins={sessionStats.wins}
+                    losses={sessionStats.losses}
+                    rank={leaderboardRank}
+                    showRank={showLeaderboardRank}
+                    label={sessionRecordLabel}
+                  />
                 ) : showSessionRecordBelowName ? null : (
                   <Badge className="badge-next-up" aria-label="Next on court">
                     <NextOnCourtLabel />
@@ -466,7 +626,7 @@ export function QueueEntryRow({
                   losses={sessionStats.losses}
                   rank={leaderboardRank}
                   showLeaderboardRank={showLeaderboardRank}
-                  hideRecordOnLargeScreens
+                  hideRecordOnLargeScreens={inWaitingLine}
                   onUndefeatedClick={onUndefeatedClick}
                   className="hidden xl:flex"
                 />
@@ -489,13 +649,25 @@ export function QueueEntryRow({
           <QueueEntryStatusLine
             primaryLabel={`Checked out ${formatRelativeTimeForCard(checkedOutTime, { addSuffix: true })}`}
             lastMatchResult={entry.lastMatchResult}
+            wins={sessionStats.wins}
+            losses={sessionStats.losses}
+            rank={leaderboardRank}
+            showRank={showLeaderboardRank}
             sessionRecordLabel={sessionRecordLabel}
+            stacked={inWaitingLine}
+            showRecord={!hideSessionStats}
           />
         ) : (
           <QueueEntryStatusLine
             primaryLabel={`Waiting for ${formatRelativeTimeForCard(new Date(entry.registeredAt))}`}
             lastMatchResult={entry.lastMatchResult}
+            wins={sessionStats.wins}
+            losses={sessionStats.losses}
+            rank={leaderboardRank}
+            showRank={showLeaderboardRank}
             sessionRecordLabel={sessionRecordLabel}
+            stacked={inWaitingLine}
+            showRecord={!hideSessionStats}
           />
         )}
       </div>

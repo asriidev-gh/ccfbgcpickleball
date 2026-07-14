@@ -237,9 +237,12 @@ import {
   operatorShellQueryOptions,
 } from "@/lib/operator-query-options";
 import {
+  beginCourtClearWait,
   beginOperatorQueueMutation,
+  endCourtClearWait,
   endOperatorQueueMutation,
   isQueueMutationLocked,
+  waitForCourtClearIfNeeded,
 } from "@/lib/operator-queue-mutation-lock";
 import { dedupeQueueEntriesByPlayerId } from "@/lib/queue-dedupe";
 import {
@@ -587,6 +590,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const courtsListContentRef = useRef<HTMLDivElement>(null);
   const pendingScrollToAvailableCourtsRef = useRef(false);
   const queueMutationLockRef = useRef(0);
+  const courtClearWaitersRef = useRef(
+    new Map<number, { promise: Promise<void>; resolve: () => void }>(),
+  );
   const pendingFillCourtNumbersRef = useRef(new Set<number>());
   const [pendingFillCourtNumbers, setPendingFillCourtNumbers] = useState(
     () => new Set<number>(),
@@ -996,6 +1002,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           }
 
           if (!isQuickGameSession) {
+            // Wait for cancel/end on this court to finish on the server before /start.
+            // Optimistic UI already updated above so the operator is not blocked.
+            await waitForCourtClearIfNeeded(courtClearWaitersRef, input.courtNumber);
+
             const maxAttempts = 3;
             let lastMessage = "Failed to fill court.";
             let succeeded = false;
@@ -1085,6 +1095,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     },
     onMutate: async (variables) => {
       beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      if (!variables.rematch && !isQuickGameSession) {
+        beginCourtClearWait(courtClearWaitersRef, variables.courtNumber);
+      }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (previous) {
         const optimistic = isQuickGameSession
@@ -1107,13 +1120,18 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       }
 
       closeEndDialog();
+      if (!variables.rematch) {
+        void announceCourtEnded(variables.courtNumber);
+      }
       return { previous, previousRematchCourtNumbers };
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       toast.success(data.message ?? "Court updated.");
-      void announceCourtEnded(variables.courtNumber);
     },
-    onSettled: () => {
+    onSettled: (_data, _error, variables) => {
+      if (!variables.rematch) {
+        endCourtClearWait(courtClearWaitersRef, variables.courtNumber);
+      }
       void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
         skipRefetch: isQuickGameSession,
         refetchHistory: !isQuickGameSession && operatorMatchHistoryEnabled,
@@ -1331,7 +1349,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       return data as { message: string };
     },
     onMutate: async (courtNumber) => {
-      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      if (!isQuickGameSession) {
+        beginCourtClearWait(courtClearWaitersRef, courtNumber);
+      }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (previous) {
         const optimistic = applyCancelCourtAssignmentOptimistic(previous, courtNumber);
@@ -1352,13 +1373,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     onSuccess: (data) => {
       toast.success(data.message);
     },
-    onSettled: () => {
+    onSettled: (_data, _error, courtNumber) => {
+      endCourtClearWait(courtClearWaitersRef, courtNumber);
       void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
         skipRefetch: isQuickGameSession,
       });
     },
     onError: (error, _courtNumber, context) => {
-      if (context?.previous) {
+      if (context?.previous && queueMutationLockRef.current <= 1) {
         writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       if (context?.previousRematchCourtNumbers) {
@@ -1384,7 +1406,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       return data as { message: string };
     },
     onMutate: async (courtNumber) => {
-      await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      if (!isQuickGameSession) {
+        beginCourtClearWait(courtClearWaitersRef, courtNumber);
+      }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (previous) {
         const optimistic = applyCancelRematchOptimistic(previous, courtNumber);
@@ -1403,13 +1428,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     onSuccess: (data) => {
       toast.success(data.message);
     },
-    onSettled: () => {
+    onSettled: (_data, _error, courtNumber) => {
+      endCourtClearWait(courtClearWaitersRef, courtNumber);
       void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
         skipRefetch: isQuickGameSession,
       });
     },
     onError: (error, _courtNumber, context) => {
-      if (context?.previous) {
+      if (context?.previous && queueMutationLockRef.current <= 1) {
         writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to cancel rematch.");
