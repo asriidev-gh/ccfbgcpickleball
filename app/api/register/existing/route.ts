@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
 import { createPrayerRequestFromRegistration } from "@/lib/owner-prayer-requests";
 import { runWithDatabase } from "@/lib/db";
@@ -34,6 +34,51 @@ import {
 import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 import { Volunteer } from "@/models/Volunteer";
+
+function scheduleExistingRegistrationSideEffects(input: {
+  gameId: string;
+  playerId: string;
+  firstName: string;
+  lastName: string;
+  prayerRequest?: string;
+  volunteerType?: string;
+  volunteerTypeOther?: string;
+}) {
+  after(() => {
+    void runWithDatabase(async () => {
+      try {
+        if (input.prayerRequest?.trim()) {
+          await createPrayerRequestFromRegistration(
+            input.gameId,
+            input.playerId,
+            input.prayerRequest,
+          );
+        }
+
+        if (input.volunteerType) {
+          await Volunteer.findOneAndUpdate(
+            { playerId: input.playerId, gameId: input.gameId },
+            {
+              playerId: input.playerId,
+              gameId: input.gameId,
+              volunteerType: input.volunteerType,
+              volunteerTypeOther: input.volunteerTypeOther ?? "",
+            },
+            { upsert: true, returnDocument: "after" },
+          );
+        }
+
+        void recordPlayerRegisteredNotification({
+          gameId: input.gameId,
+          playerId: input.playerId,
+          playerName: formatPlayerDisplayName(input.firstName, input.lastName),
+        }).catch(() => {});
+      } catch {
+        // Background — check-in already succeeded.
+      }
+    });
+  });
+}
 
 export async function POST(request: Request) {
   let gameIdFromRequest: string | null = null;
@@ -137,36 +182,31 @@ export async function POST(request: Request) {
       queueType: "normal",
     });
 
-    if (shouldUpdateFullCcfProfile) {
-      const playerPayload = payload as ExistingPlayerInput;
-      await createPrayerRequestFromRegistration(
-        payload.gameId,
-        String(player._id),
-        playerPayload.prayerRequest ?? "",
-      );
-    }
-
-    void recordPlayerRegisteredNotification({
+    const playerId = String(player._id);
+    scheduleExistingRegistrationSideEffects({
       gameId: payload.gameId,
-      playerId: String(player._id),
-      playerName: formatPlayerDisplayName(player.firstName, player.lastName),
-    }).catch(() => {});
+      playerId,
+      firstName: player.firstName,
+      lastName: player.lastName,
+      prayerRequest: shouldUpdateFullCcfProfile
+        ? (payload as ExistingPlayerInput).prayerRequest
+        : undefined,
+      volunteerType: isVolunteer
+        ? (payload as VolunteerExistingPlayerInput).volunteerType
+        : undefined,
+      volunteerTypeOther: isVolunteer
+        ? (payload as VolunteerExistingPlayerInput).volunteerTypeOther
+        : undefined,
+    });
 
-    if (isVolunteer) {
-      const volunteerPayload = payload as VolunteerExistingPlayerInput;
-      await Volunteer.findOneAndUpdate(
-        { playerId: player._id, gameId: payload.gameId },
-        {
-          playerId: player._id,
-          gameId: payload.gameId,
-          volunteerType: volunteerPayload.volunteerType,
-          volunteerTypeOther: volunteerPayload.volunteerTypeOther,
-        },
-        { upsert: true, returnDocument: 'after' }
-      );
-    }
-
-    return NextResponse.json({ player, message: "Welcome back! Added to queue." });
+    return NextResponse.json({
+      player: {
+        _id: playerId,
+        firstName: player.firstName,
+        lastName: player.lastName,
+      },
+      message: "Welcome back! Added to queue.",
+    });
     });
   } catch (error) {
     if (error instanceof RegistrationLimitError) {

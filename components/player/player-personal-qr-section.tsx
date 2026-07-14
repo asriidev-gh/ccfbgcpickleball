@@ -97,13 +97,8 @@ export function PlayerPersonalQrSection({
     try {
       setDownloading(true);
       const filename = getPlayerQrPngFilename(firstName, code);
-      const result = await savePlayerQrPng({ dataUrl, filename });
-
-      if (result === "shared") {
-        toast.success("Choose Save image or Photos to store the QR on your phone.");
-      } else {
-        toast.success("QR saved as PNG.");
-      }
+      await savePlayerQrPng({ dataUrl, filename });
+      toast.success("QR saved to Downloads.");
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
       toast.error(error instanceof Error ? error.message : "Failed to save QR.");

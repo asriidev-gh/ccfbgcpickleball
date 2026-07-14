@@ -6,7 +6,10 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 
 import { shouldSuppressUserNotification } from "@/lib/infrastructure-error";
-import { refreshSpectatorLive } from "@/lib/fetch-spectate-game";
+import {
+  fetchSpectateGame,
+  spectatorLiveQueryKey,
+} from "@/lib/fetch-spectate-game";
 import { isSpectatorViewUnavailableError } from "@/lib/spectator-availability-shared";
 import {
   getActiveQueueHighlightPlayerId,
@@ -30,17 +33,21 @@ export function useNavigateToSpectate(gameId: string) {
       }
 
       setNavigating(true);
-      try {
-        await refreshSpectatorLive(queryClient, gameId);
-      } catch (error) {
-        if (isSpectatorViewUnavailableError(error) && !shouldSuppressUserNotification(error)) {
-          toast.error(error.message);
-        }
-        // Still open the live view so the full-screen message can appear.
-      } finally {
-        router.push(`/games/${gameId}/spectate`);
-        setNavigating(false);
-      }
+      // Warm the live query in the background — do not block navigation on it.
+      void queryClient
+        .prefetchQuery({
+          queryKey: spectatorLiveQueryKey(gameId),
+          queryFn: () => fetchSpectateGame(gameId, "live"),
+          staleTime: 0,
+        })
+        .catch((error) => {
+          if (isSpectatorViewUnavailableError(error) && !shouldSuppressUserNotification(error)) {
+            toast.error(error.message);
+          }
+        });
+
+      router.push(`/games/${gameId}/spectate`);
+      setNavigating(false);
     },
     [gameId, navigating, queryClient, router],
   );

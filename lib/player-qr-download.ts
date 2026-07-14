@@ -50,31 +50,17 @@ export function dataUrlToPngBlob(dataUrl: string, scale = 2): Promise<Blob> {
   });
 }
 
-export type SavePlayerQrResult = "shared" | "downloaded";
+export type SavePlayerQrResult = "downloaded";
 
 /**
- * On mobile, opens the system share sheet so the user can save to Photos/Downloads.
- * On desktop, triggers a normal PNG file download.
+ * Triggers a PNG file download into the device Downloads folder.
+ * Does not open the system share sheet.
  */
 export async function savePlayerQrPng(input: {
   dataUrl: string;
   filename: string;
 }): Promise<SavePlayerQrResult> {
   const blob = await dataUrlToPngBlob(input.dataUrl);
-  const file = new File([blob], input.filename, { type: "image/png" });
-
-  if (
-    isMobileDevice() &&
-    typeof navigator.share === "function" &&
-    navigator.canShare?.({ files: [file] })
-  ) {
-    await navigator.share({
-      files: [file],
-      title: "Personal QR ID",
-    });
-    return "shared";
-  }
-
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectUrl;
@@ -83,6 +69,7 @@ export async function savePlayerQrPng(input: {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(objectUrl);
+  // Keep the blob URL alive briefly so the browser can finish the download.
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
   return "downloaded";
 }

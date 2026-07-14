@@ -70,13 +70,8 @@ export function PlayerQrReveal({
     try {
       setDownloading(true);
       const filename = getPlayerQrPngFilename(firstName, personalQrCode);
-      const result = await savePlayerQrPng({ dataUrl, filename });
-
-      if (result === "shared") {
-        toast.success("Choose Save image or Photos to store the QR on your phone.");
-      } else {
-        toast.success("QR saved as PNG. Check your Downloads folder in the Files app.");
-      }
+      await savePlayerQrPng({ dataUrl, filename });
+      toast.success("QR saved to Downloads. Opening the game queue…");
       await onContinue();
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
@@ -95,7 +90,7 @@ export function PlayerQrReveal({
         <p className="text-base leading-relaxed text-muted-foreground">
           Save this QR code and show it the next time you play.
           {isMobile
-            ? " Tap the button below, then choose Save image or Photos so it is stored on your phone."
+            ? " Tap the button below to download it to your phone, then continue to the queue."
             : " Download it now to keep it on your phone, then continue."}
         </p>
 

@@ -58,16 +58,11 @@ export function OwnerPlayerQrDialog({
     try {
       setDownloading(true);
       const filename = getPlayerQrPngFilename(data.firstName || player?.name || "Player", data.personalQrCode);
-      const result = await savePlayerQrPng({
+      await savePlayerQrPng({
         dataUrl: data.personalQrCodeDataUrl,
         filename,
       });
-
-      if (result === "shared") {
-        toast.success("Choose Save image or Photos to store the QR on your phone.");
-      } else {
-        toast.success("QR saved as PNG.");
-      }
+      toast.success("QR saved to Downloads.");
     } catch (downloadError) {
       if (downloadError instanceof Error && downloadError.name === "AbortError") return;
       toast.error(

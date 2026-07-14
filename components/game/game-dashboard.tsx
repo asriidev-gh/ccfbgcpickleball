@@ -1196,10 +1196,28 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         return { message: "Optimized next four for best balance." };
       }
 
-      const response = await fetch(`/api/games/${gameId}/shuffle-next`, { method: "POST" });
+      // Smart pairing already applied in onMutate from cached match history.
+      // Persist with quick mode so we don't reload history + re-analyze on the server.
+      const current = readOperatorGamePayload(queryClient, gameId);
+      const nextFourEntryIds = current
+        ? resolveDoublesRotationQueue(current.queue, current.game.matchingType)
+            .slice(0, DOUBLES_PLAYERS_PER_COURT)
+            .map((entry) => String(entry._id))
+        : [];
+
+      const response = await fetch(`/api/games/${gameId}/shuffle-next`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "quick",
+          ...(nextFourEntryIds.length === DOUBLES_PLAYERS_PER_COURT
+            ? { nextFourEntryIds }
+            : {}),
+        }),
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
-      return data as { message: string };
+      return { message: "Optimized next four for best balance." };
     },
     onMutate: async () => {
       await beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);

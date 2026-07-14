@@ -58,11 +58,11 @@ export async function POST(request: Request) {
         }
 
         if (queueStatus === "checked_out") {
-          await recordCheckinAttemptNotification({
+          void recordCheckinAttemptNotification({
             gameId: parsed.data.gameId,
             playerId,
             playerName: formatPlayerDisplayName(player.firstName, player.lastName),
-          });
+          }).catch(() => {});
         }
       }
 
