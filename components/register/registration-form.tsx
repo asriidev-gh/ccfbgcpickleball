@@ -90,13 +90,15 @@ function formatMobileNumberInput(value: string, forcePrefix = false): string {
 }
 
 type RegistrationFormMode = "upload-qr";
-type EntryStep = "check-in" | "has-qr" | "done";
+type RegistrationRole = "existing-player" | "new-player" | "volunteer" | "upload-qr";
+type EntryStep = "role" | "has-qr" | "done";
+type CheckInAs = "player" | "volunteer";
 type PendingEntryAction =
-  | "check-in-yes"
-  | "check-in-no"
+  | "player"
+  | "volunteer"
+  | "spectator"
   | "has-qr-yes"
   | "has-qr-no"
-  | "volunteer"
   | null;
 
 type PendingQrReveal = {
@@ -112,21 +114,27 @@ export function RegistrationForm({
   formVariant,
   initialRegistrationStatus,
   initialMode,
+  initialRole,
+  onLeaveRole,
 }: {
   gameId: string;
   gameTitle?: string;
   formVariant: RegistrationFormVariant;
   initialRegistrationStatus?: GameRegistrationStatus | null;
   initialMode?: RegistrationFormMode;
+  /** When set (e.g. from RegistrationEntry), skip the check-in gate. */
+  initialRole?: "new-player" | "volunteer" | "upload-qr";
+  onLeaveRole?: () => void;
 }) {
   const router = useRouter();
   const { navigateToSpectate, navigating: navigatingToSpectate } = useNavigateToSpectate(gameId);
   const isGenericForm = formVariant === "generic";
-  const skipEntryFlow = initialMode === "upload-qr";
-  const [entryStep, setEntryStep] = useState<EntryStep>(skipEntryFlow ? "done" : "check-in");
-  const [role, setRole] = useState<"existing-player" | "new-player" | "volunteer" | "upload-qr" | "">(
-    skipEntryFlow ? "upload-qr" : "",
-  );
+  const skipEntryFlow = Boolean(initialRole) || initialMode === "upload-qr";
+  const resolvedInitialRole: RegistrationRole | "" =
+    initialRole ?? (initialMode === "upload-qr" ? "upload-qr" : "");
+  const [entryStep, setEntryStep] = useState<EntryStep>(skipEntryFlow ? "done" : "role");
+  const [role, setRole] = useState<RegistrationRole | "">(resolvedInitialRole);
+  const [checkInAs, setCheckInAs] = useState<CheckInAs | null>(null);
   const [pendingQrReveal, setPendingQrReveal] = useState<PendingQrReveal | null>(null);
   const [pendingEntryAction, setPendingEntryAction] = useState<PendingEntryAction>(null);
   const [pendingRole, setPendingRole] = useState<
@@ -168,7 +176,8 @@ export function RegistrationForm({
   const qrIdEnabled = isQrIdRegistrationEnabled(registrationStatus?.registrationFeature);
 
   const resetToRoleSelection = () => {
-    setEntryStep("check-in");
+    setEntryStep("role");
+    setCheckInAs(null);
     setRole("");
     setPendingQrReveal(null);
     setCcfEventsBefore(null);
@@ -178,6 +187,10 @@ export function RegistrationForm({
   };
 
   const backFromRegistrationFlow = () => {
+    if (onLeaveRole) {
+      onLeaveRole();
+      return;
+    }
     setRole("");
     setCcfEventsBefore(null);
     setFieldErrors({});
@@ -187,7 +200,8 @@ export function RegistrationForm({
   };
 
   const backFromHasQrStep = () => {
-    setEntryStep("check-in");
+    setCheckInAs(null);
+    setEntryStep("role");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -247,11 +261,12 @@ export function RegistrationForm({
     }
   };
 
-  const handleCheckInYes = async () => {
+  const openHasQrStep = async (as: CheckInAs) => {
     if (pendingEntryAction) return;
-    setPendingEntryAction("check-in-yes");
+    setPendingEntryAction(as);
     try {
       if (!(await ensureCanRegister())) return;
+      setCheckInAs(as);
       setEntryStep("has-qr");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
@@ -259,9 +274,9 @@ export function RegistrationForm({
     }
   };
 
-  const handleCheckInNo = async () => {
+  const handleSpectator = async () => {
     if (pendingEntryAction || navigatingToSpectate) return;
-    setPendingEntryAction("check-in-no");
+    setPendingEntryAction("spectator");
     try {
       await navigateToSpectate({ applyQueueHighlight: false });
     } finally {
@@ -270,12 +285,12 @@ export function RegistrationForm({
   };
 
   const handleHasQrYes = async () => {
-    if (pendingEntryAction || pendingRole) return;
+    if (pendingEntryAction || pendingRole || !checkInAs) return;
     setPendingEntryAction("has-qr-yes");
     try {
       if (!qrIdEnabled) {
         toast.info("QR check-in is not available for this session. Please complete registration.");
-        await selectRole("new-player");
+        await selectRole(checkInAs === "volunteer" ? "volunteer" : "new-player");
         return;
       }
       await selectRole("upload-qr");
@@ -285,20 +300,10 @@ export function RegistrationForm({
   };
 
   const handleHasQrNo = async () => {
-    if (pendingEntryAction || pendingRole) return;
+    if (pendingEntryAction || pendingRole || !checkInAs) return;
     setPendingEntryAction("has-qr-no");
     try {
-      await selectRole("new-player");
-    } finally {
-      setPendingEntryAction(null);
-    }
-  };
-
-  const handleVolunteerEntry = async () => {
-    if (pendingEntryAction || pendingRole) return;
-    setPendingEntryAction("volunteer");
-    try {
-      await selectRole("volunteer");
+      await selectRole(checkInAs === "volunteer" ? "volunteer" : "new-player");
     } finally {
       setPendingEntryAction(null);
     }
@@ -311,15 +316,13 @@ export function RegistrationForm({
     statusLoading;
 
   const pageTitle =
-    !role && entryStep === "check-in"
+    !role && (entryStep === "role" || entryStep === "has-qr")
       ? "Check In"
-      : !role && entryStep === "has-qr"
-        ? "Check In"
-        : role === "upload-qr"
-          ? "Upload QR ID"
-          : role === "volunteer"
-            ? "Volunteer Registration"
-            : "Player Registration";
+      : role === "upload-qr"
+        ? "Upload QR ID"
+        : role === "volunteer"
+          ? "Volunteer Registration"
+          : "Player Registration";
 
   const setFieldRef =
     (name: string) =>
@@ -742,48 +745,64 @@ export function RegistrationForm({
               </div>
             ) : null}
             {!role ? (
-              entryStep === "check-in" ? (
+              entryStep === "role" ? (
                 <div className="register-block">
-                  <Label className="register-label">Check in?</Label>
-                  <div className="register-toggle-row">
+                  <Label className="register-label">Check In as:</Label>
+                  <div className="flex flex-col gap-3">
                     <Button
                       type="button"
                       size="lg"
                       variant="outline"
-                      className="register-toggle-btn"
+                      className="register-toggle-btn w-full"
                       disabled={entryBusy || submitting}
-                      onClick={() => void handleCheckInYes()}
+                      onClick={() => void openHasQrStep("player")}
                     >
-                      {pendingEntryAction === "check-in-yes" ? (
+                      {pendingEntryAction === "player" ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                           Loading…
                         </>
                       ) : (
-                        "Yes"
+                        "Player"
                       )}
                     </Button>
+                    {!isGenericForm ? (
+                      <Button
+                        type="button"
+                        size="lg"
+                        variant="outline"
+                        className="register-toggle-btn w-full"
+                        disabled={entryBusy || submitting}
+                        onClick={() => void openHasQrStep("volunteer")}
+                      >
+                        {pendingEntryAction === "volunteer" ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                            Loading…
+                          </>
+                        ) : (
+                          "Volunteer"
+                        )}
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       size="lg"
                       variant="outline"
-                      className="register-toggle-btn"
+                      className="register-toggle-btn w-full"
                       disabled={entryBusy || submitting}
-                      onClick={() => void handleCheckInNo()}
+                      onClick={() => void handleSpectator()}
                     >
-                      {pendingEntryAction === "check-in-no" || navigatingToSpectate ? (
+                      {pendingEntryAction === "spectator" || navigatingToSpectate ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                           Opening…
                         </>
                       ) : (
-                        "No"
+                        "Spectator"
                       )}
                     </Button>
                   </div>
-                  <p className="caption text-center text-muted-foreground">
-                    Choose No to watch the game as a spectator.
-                  </p>
                 </div>
               ) : (
                 <>
@@ -825,7 +844,9 @@ export function RegistrationForm({
                         disabled={entryBusy || submitting}
                         onClick={() => void handleHasQrNo()}
                       >
-                        {pendingEntryAction === "has-qr-no" || pendingRole === "new-player" ? (
+                        {pendingEntryAction === "has-qr-no" ||
+                        pendingRole === "new-player" ||
+                        pendingRole === "volunteer" ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                             Loading…
@@ -836,31 +857,11 @@ export function RegistrationForm({
                       </Button>
                     </div>
                     <p className="caption text-center text-muted-foreground">
-                      Choose Yes to upload your saved QR ID, or No to register as a new player.
+                      {checkInAs === "volunteer"
+                        ? "Choose Yes to check in with your saved QR ID, or No to register as a new volunteer."
+                        : "Choose Yes to upload your saved QR ID, or No to register as a new player."}
                     </p>
                   </div>
-
-                  {!isGenericForm ? (
-                    <div className="text-center">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="lg"
-                        className="register-toggle-btn w-full"
-                        disabled={entryBusy || submitting}
-                        onClick={() => void handleVolunteerEntry()}
-                      >
-                        {pendingEntryAction === "volunteer" || pendingRole === "volunteer" ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                            Loading…
-                          </>
-                        ) : (
-                          "Register as a volunteer instead"
-                        )}
-                      </Button>
-                    </div>
-                  ) : null}
                 </>
               )
             ) : role === "upload-qr" ? (

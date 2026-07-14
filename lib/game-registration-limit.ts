@@ -151,7 +151,7 @@ function buildGameRegistrationStatus(
 }
 
 /** Warm-instance cache so repeated QR scans during open play skip redundant DB work. */
-const PAGE_PAYLOAD_CACHE_TTL_MS = 20_000;
+const PAGE_PAYLOAD_CACHE_TTL_MS = 45_000;
 const pagePayloadCache = new Map<
   string,
   { expiresAt: number; payload: GameRegistrationPagePayload }
@@ -176,12 +176,15 @@ export async function getGameRegistrationPagePayload(
 
   const strict = game.strictPlayerCount === true;
 
+  // Owner settings + optional capacity count in parallel (one round-trip each).
   const [owner, registeredCount] = await Promise.all([
     game.ownerId
-      ? User.findById(game.ownerId).select("userType registrationFeature").lean<{
-          userType?: string;
-          registrationFeature?: string;
-        } | null>()
+      ? User.findById(game.ownerId)
+          .select("userType registrationFeature")
+          .lean<{
+            userType?: string;
+            registrationFeature?: string;
+          } | null>()
       : Promise.resolve(null),
     // Capacity count is only needed for strict sessions; skip the scan otherwise.
     strict ? getGameRegistrationCount(gameId) : Promise.resolve(0),
@@ -205,12 +208,10 @@ export async function getGameRegistrationPagePayload(
 
 export async function getGameRegistrationStatus(
   gameId: string,
-): Promise<GameRegistrationStatus | null> {
+): Promise<(GameRegistrationStatus & { gameTitle: string }) | null> {
   const payload = await getGameRegistrationPagePayload(gameId);
   if (!payload) return null;
-
-  const { gameTitle: _gameTitle, ...status } = payload;
-  return status;
+  return payload;
 }
 
 export async function assertGameRegistrationAllowed(

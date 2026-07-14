@@ -1,11 +1,6 @@
-import { notFound, redirect } from "next/navigation";
+import { RegistrationEntry } from "@/components/register/registration-entry";
 
-import { RegistrationForm } from "@/components/register/registration-form";
-import { runWithDatabase } from "@/lib/db";
-import { getGameRegistrationPagePayload } from "@/lib/game-registration-limit";
-
-export const dynamic = "force-dynamic";
-
+/** Instant shell — session status loads on the client so QR scans are not blocked on Mongo. */
 export default async function RegisterPage({
   params,
   searchParams,
@@ -16,19 +11,9 @@ export default async function RegisterPage({
   const { gameId } = await params;
   const { mode } = await searchParams;
 
-  const payload = await runWithDatabase(() => getGameRegistrationPagePayload(gameId));
-  if (!payload) notFound();
-
-  if (payload.allowQrRegistration === false) {
-    redirect(`/games/${gameId}/spectate`);
-  }
-
   return (
-    <RegistrationForm
+    <RegistrationEntry
       gameId={gameId}
-      gameTitle={payload.gameTitle}
-      formVariant={payload.formVariant}
-      initialRegistrationStatus={payload}
       initialMode={mode === "upload-qr" ? "upload-qr" : undefined}
     />
   );
