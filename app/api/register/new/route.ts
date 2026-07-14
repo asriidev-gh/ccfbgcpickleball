@@ -297,9 +297,9 @@ export async function POST(request: Request) {
       });
 
       // Player is in the queue — respond immediately. Email / QR / extras continue in background.
-      const isVolunteer = isVolunteerNewPlayerPayload(payload);
+      const volunteerPayload = isVolunteerNewPlayerPayload(payload) ? payload : null;
       const ccfPayload =
-        !isVolunteer && formVariant !== "generic" ? (payload as NewPlayerInput) : null;
+        !volunteerPayload && formVariant !== "generic" ? (payload as NewPlayerInput) : null;
 
       queueBackgroundRegistrationWork({
         gameId: payload.gameId,
@@ -310,8 +310,8 @@ export async function POST(request: Request) {
         email: player.email,
         personalQrCode: player.personalQrCode,
         prayerRequest: ccfPayload?.prayerRequest,
-        volunteerType: isVolunteer ? payload.volunteerType : undefined,
-        volunteerTypeOther: isVolunteer ? payload.volunteerTypeOther : undefined,
+        volunteerType: volunteerPayload?.volunteerType,
+        volunteerTypeOther: volunteerPayload?.volunteerTypeOther,
       });
 
       const message = showPlayerQr
