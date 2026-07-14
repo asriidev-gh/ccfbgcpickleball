@@ -690,7 +690,9 @@ export function RegistrationForm({
             personalQrCode={pendingQrReveal.personalQrCode}
             personalQrCodeDataUrl={pendingQrReveal.personalQrCodeDataUrl}
             gameId={gameId}
-            onContinue={() => router.push(`/register/${gameId}/success`)}
+            onContinue={() => {
+              void navigateToSpectate();
+            }}
           />
         </section>
       </main>

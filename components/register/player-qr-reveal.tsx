@@ -17,7 +17,7 @@ type PlayerQrRevealProps = {
   personalQrCode: string;
   personalQrCodeDataUrl?: string;
   gameId: string;
-  onContinue: () => void;
+  onContinue: () => void | Promise<void>;
 };
 
 export function PlayerQrReveal({
@@ -64,7 +64,7 @@ export function PlayerQrReveal({
     };
   }, [initialDataUrl, personalQrCode, gameId]);
 
-  const downloadQr = async () => {
+  const saveQrAndProceed = async () => {
     if (!dataUrl) return;
 
     try {
@@ -77,6 +77,7 @@ export function PlayerQrReveal({
       } else {
         toast.success("QR saved as PNG. Check your Downloads folder in the Files app.");
       }
+      await onContinue();
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
       toast.error(error instanceof Error ? error.message : "Failed to save QR.");
@@ -95,7 +96,7 @@ export function PlayerQrReveal({
           Save this QR code and show it the next time you play.
           {isMobile
             ? " Tap the button below, then choose Save image or Photos so it is stored on your phone."
-            : " You can download it now and keep it on your phone."}
+            : " Download it now to keep it on your phone, then continue."}
         </p>
 
         <div className="mx-auto flex w-fit items-center justify-center rounded-xl bg-white p-3 shadow-sm">
@@ -117,31 +118,26 @@ export function PlayerQrReveal({
 
         <p className="break-all text-center text-sm text-muted-foreground">{personalQrCode}</p>
 
-        <div className="flex flex-col gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={!dataUrl || loading || downloading}
-            onClick={() => {
-              void downloadQr();
-            }}
-          >
-            {downloading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <Download className="mr-2 h-4 w-4" aria-hidden />
-            )}
-            {downloading
-              ? "Saving..."
-              : isMobile
-                ? "Save QR to phone"
-                : "Download QR"}
-          </Button>
-          <Button type="button" size="lg" className="register-submit w-full" onClick={onContinue}>
-            I saved my QR — continue
-          </Button>
-        </div>
+        <Button
+          type="button"
+          size="lg"
+          className="register-submit w-full"
+          disabled={!dataUrl || loading || downloading}
+          onClick={() => {
+            void saveQrAndProceed();
+          }}
+        >
+          {downloading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Download className="mr-2 h-4 w-4" aria-hidden />
+          )}
+          {downloading
+            ? "Saving…"
+            : isMobile
+              ? "Save QR to phone and proceed"
+              : "Download QR and proceed"}
+        </Button>
       </CardContent>
     </Card>
   );
