@@ -2,6 +2,8 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { MutableRefObject } from "react";
 
 import {
+  fetchOperatorMatchHistory,
+  fetchOperatorQueue,
   operatorMatchHistoryQueryKey,
   operatorQueueQueryKey,
 } from "@/lib/fetch-operator-game";
@@ -101,9 +103,16 @@ export async function endOperatorQueueMutation(
 ) {
   await endQueuedMutationLock(lockRef, async () => {
     if (options?.skipRefetch) return;
-    await queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+    // Fetch outside React Query so a newer mutation can start without this
+    // response clobbering its optimistic UI (cancel → fill race).
+    const queue = await fetchOperatorQueue(gameId);
+    if (lockRef.current !== 1) return;
+    queryClient.setQueryData(operatorQueueQueryKey(gameId), queue);
+
     if (options?.refetchHistory) {
-      await queryClient.refetchQueries({ queryKey: operatorMatchHistoryQueryKey(gameId) });
+      const history = await fetchOperatorMatchHistory(gameId);
+      if (lockRef.current !== 1) return;
+      queryClient.setQueryData(operatorMatchHistoryQueryKey(gameId), history);
     }
   });
 }

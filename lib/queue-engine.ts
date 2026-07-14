@@ -314,14 +314,15 @@ export async function promoteDeckMatchToOpenCourt(input: {
 }
 
 /**
- * Randomly re-pairs everyone on a court into two new teams. Each call produces
- * a different team composition than the current one (when possible), so the
- * operator can keep re-rolling until the matchup looks right.
+ * Re-pairs everyone on a court into two new teams. When the client sends an
+ * explicit lineup (optimistic shuffle), apply that; otherwise shuffle server-side.
  */
 export async function swapPlayersBetweenCourtTeams(input: {
   gameId: string;
   courtNumber: number;
   slotIndex?: number;
+  teamAPlayerIds?: string[];
+  teamBPlayerIds?: string[];
 }) {
   const court = await Court.findOne({
     gameId: input.gameId,
@@ -341,7 +342,20 @@ export async function swapPlayersBetweenCourtTeams(input: {
     })),
   ];
 
-  const { firstHalf: nextA, secondHalf: nextB } = shuffleIntoNewHalves(slots, teamKey);
+  let nextA: CourtSlot[];
+  let nextB: CourtSlot[];
+
+  if (input.teamAPlayerIds?.length === 2 && input.teamBPlayerIds?.length === 2) {
+    const byPlayerId = new Map(slots.map((slot) => [String(slot.playerId), slot]));
+    const requestedIds = [...input.teamAPlayerIds, ...input.teamBPlayerIds];
+    if (new Set(requestedIds).size !== 4 || requestedIds.some((id) => !byPlayerId.has(id))) {
+      throw new Error("Shuffle lineup must include the same four players already on the court.");
+    }
+    nextA = input.teamAPlayerIds.map((id) => byPlayerId.get(id)!);
+    nextB = input.teamBPlayerIds.map((id) => byPlayerId.get(id)!);
+  } else {
+    ({ firstHalf: nextA, secondHalf: nextB } = shuffleIntoNewHalves(slots, teamKey));
+  }
 
   court.teamA = {
     playerIds: nextA.map((slot) => slot.playerId),
@@ -620,12 +634,13 @@ export async function replaceCourtPlayerWithWaiting(input: {
     courtEntry,
     ...queue.slice(input.targetIndex + 1),
   ];
-  await persistQueueOrder(reordered);
 
-  await QueueEntry.updateOne({ _id: queuedEntry._id }, { $set: { status: "on_court" } });
-  await QueueEntry.updateOne({ _id: courtEntry._id }, { $set: { status: "queued" } });
-
-  await court.save();
+  await Promise.all([
+    persistQueueOrder(reordered),
+    QueueEntry.updateOne({ _id: queuedEntry._id }, { $set: { status: "on_court" } }),
+    QueueEntry.updateOne({ _id: courtEntry._id }, { $set: { status: "queued" } }),
+    court.save(),
+  ]);
 
   return court;
 }

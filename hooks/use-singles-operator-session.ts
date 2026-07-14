@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { useHydrateOperatorDashboardSessionCache } from "@/hooks/use-hydrate-operator-dashboard-session-cache";
 import { useOperatorDashboardLease } from "@/hooks/use-operator-dashboard-lease";
 import { useOperatorQueueRegistrationSync } from "@/hooks/use-operator-queue-registration-sync";
 import {
@@ -38,6 +39,9 @@ function operatorPlaceholderShell(gameId: string): OperatorShellPayload {
 }
 
 export function useSinglesOperatorSession(gameId: string) {
+  const queryClient = useQueryClient();
+  useHydrateOperatorDashboardSessionCache(queryClient, gameId);
+
   const isQuickGameSession = isQuickGame(gameId);
   const { mounted: quickMounted } = useQuickGameSessionAfterMount(isQuickGameSession ? gameId : "");
   const quickPayload = useQuickGameSession(isQuickGameSession ? gameId : "");
@@ -110,7 +114,8 @@ export function useSinglesOperatorSession(gameId: string) {
 
   const isLoading = isQuickGameSession
     ? !quickMounted
-    : operatorShellQuery.isPending || operatorQueueQuery.isPending;
+    : !operatorQueueQuery.data &&
+      (operatorShellQuery.isPending || operatorQueueQuery.isPending);
 
   return {
     payload,

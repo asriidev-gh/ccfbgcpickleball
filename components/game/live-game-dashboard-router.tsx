@@ -2,10 +2,11 @@
 
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { GameDashboard } from "@/components/game/game-dashboard";
 import { SinglesGameDashboard } from "@/components/singles/singles-game-dashboard";
+import { useHydrateOperatorDashboardSessionCache } from "@/hooks/use-hydrate-operator-dashboard-session-cache";
 import {
   fetchOperatorShell,
   operatorShellQueryKey,
@@ -15,6 +16,9 @@ import { operatorShellQueryOptions } from "@/lib/operator-query-options";
 
 export function LiveGameDashboardRouter() {
   const gameId = String(useParams().id ?? "");
+  const queryClient = useQueryClient();
+  useHydrateOperatorDashboardSessionCache(queryClient, gameId);
+
   const shellQuery = useQuery({
     queryKey: operatorShellQueryKey(gameId),
     queryFn: () => fetchOperatorShell(gameId),

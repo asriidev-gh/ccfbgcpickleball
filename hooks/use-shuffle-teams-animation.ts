@@ -61,6 +61,9 @@ export function useShuffleTeamsAnimation<T>({
     setIsShuffling(true);
     setIsRevealing(false);
     const splitOptions = mixedDoubles && getGender ? { mixedDoubles: true, getGender } : undefined;
+
+    // Apply the real lineup immediately (optimistic); ticks are only visual.
+    const shufflePromise = Promise.resolve(onShuffle());
     setPreview(randomTeamSplit(pool, splitOptions));
 
     const tickInterval =
@@ -72,7 +75,10 @@ export function useShuffleTeamsAnimation<T>({
         : undefined;
 
     try {
-      await Promise.all([Promise.resolve(onShuffle()), new Promise<void>((resolve) => setTimeout(resolve, duration))]);
+      await Promise.all([
+        shufflePromise,
+        new Promise<void>((resolve) => setTimeout(resolve, duration)),
+      ]);
     } catch {
       if (shuffleRunId.current === runId) {
         setPreview(null);
@@ -86,6 +92,7 @@ export function useShuffleTeamsAnimation<T>({
 
     if (shuffleRunId.current !== runId) return;
 
+    // Drop preview so the optimistic teams from props show through.
     setPreview(null);
     setIsShuffling(false);
 

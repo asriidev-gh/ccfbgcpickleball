@@ -628,11 +628,26 @@ export const endGameSchema = z
     }
   });
 
-export const swapCourtTeamsSchema = z.object({
-  gameId: z.string().min(4),
-  courtNumber: z.coerce.number().int().min(1),
-  slotIndex: z.coerce.number().int().min(0).max(1).optional(),
-});
+export const swapCourtTeamsSchema = z
+  .object({
+    gameId: z.string().min(4),
+    courtNumber: z.coerce.number().int().min(1),
+    slotIndex: z.coerce.number().int().min(0).max(1).optional(),
+    /** Client-chosen lineup after optimistic shuffle — keeps UI and server in sync. */
+    teamAPlayerIds: z.array(z.string().min(1)).length(2).optional(),
+    teamBPlayerIds: z.array(z.string().min(1)).length(2).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasA = data.teamAPlayerIds != null;
+    const hasB = data.teamBPlayerIds != null;
+    if (hasA !== hasB) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Both teamAPlayerIds and teamBPlayerIds are required together.",
+        path: hasA ? ["teamBPlayerIds"] : ["teamAPlayerIds"],
+      });
+    }
+  });
 
 export const replaceCourtPlayerSchema = z.object({
   gameId: z.string().min(4),

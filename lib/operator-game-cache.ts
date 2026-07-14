@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import type { GamePayload } from "@/lib/game-payload-mutations";
+import { persistOperatorDashboardSessionCacheFromClient } from "@/lib/operator-dashboard-session-cache";
 import { isQuickGame } from "@/lib/local-game-id";
 import {
   operatorDetailsQueryKey,
@@ -77,6 +78,7 @@ export function writeOperatorGamePayload(
           }
         : undefined,
   });
+  persistOperatorDashboardSessionCacheFromClient(queryClient, gameId);
 }
 
 export function seedLocalGameOperatorCache(queryClient: QueryClient, gameId: string) {

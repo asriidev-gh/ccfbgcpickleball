@@ -1,8 +1,9 @@
 import { randomMixedDoublesTeamSplit } from "@/lib/doubles/mixed-doubles-shuffle";
 
-export const SHUFFLE_DURATION_MS = 3000;
-export const SHUFFLE_TICK_MS = 75;
-export const SHUFFLE_REVEAL_MS = 650;
+/** Keep court shuffle snappy — long enough to read as a shuffle, not a wait. */
+export const SHUFFLE_DURATION_MS = 450;
+export const SHUFFLE_TICK_MS = 55;
+export const SHUFFLE_REVEAL_MS = 280;
 
 export function shuffleArray<T>(items: T[]): T[] {
   const copy = [...items];

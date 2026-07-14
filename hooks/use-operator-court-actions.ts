@@ -31,13 +31,14 @@ import {
   readCourtsViewGamePayload,
   writeCourtsViewGamePayload,
 } from "@/lib/courts-view-cache";
-import { operatorQueueQueryKey } from "@/lib/fetch-operator-game";
+import { fetchOperatorQueue, operatorQueueQueryKey } from "@/lib/fetch-operator-game";
 import { isQuickGame } from "@/lib/local-game-id";
 import {
   beginCourtClearWait,
   beginOperatorQueueMutation,
   endCourtClearWait,
   endQueuedMutationLock,
+  releaseQueueMutationLock,
   waitForCourtClearIfNeeded,
 } from "@/lib/operator-queue-mutation-lock";
 import { buildQueueNextCourtWaitingSwapOrder } from "@/lib/next-court-match-analysis";
@@ -45,6 +46,7 @@ import {
   readOperatorGamePayload,
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
+import { resolvePlayerId } from "@/lib/resolve-player-id";
 
 type UseOperatorCourtActionsOptions = {
   gameId: string;
@@ -109,7 +111,10 @@ export function useOperatorCourtActions({
       await queryClient.invalidateQueries({ queryKey: invalidateQueryKey });
       return;
     }
-    await queryClient.refetchQueries({ queryKey: operatorQueueQueryKey(gameId) });
+    const queue = await fetchOperatorQueue(gameId);
+    // Another mutation started while fetching — keep its optimistic UI.
+    if (queueMutationLockRef.current !== 1) return;
+    queryClient.setQueryData(operatorQueueQueryKey(gameId), queue);
   }, [gameId, invalidateQueryKey, isLocalGame, queryClient]);
 
   const finishQueueMutation = useCallback(() => {
@@ -315,29 +320,68 @@ export function useOperatorCourtActions({
   const swapCourtMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
       if (isLocalGame) {
+        return { message: "Court teams shuffled." };
+      }
+
+      const current = readCachedGamePayload();
+      const court = current?.courts.find(
+        (item) => item.courtNumber === courtNumber && item.status === "active",
+      );
+      const teamAPlayerIds = court?.teamA.playerIds
+        .map((player) => resolvePlayerId(player))
+        .filter((id): id is string => Boolean(id));
+      const teamBPlayerIds = court?.teamB.playerIds
+        .map((player) => resolvePlayerId(player))
+        .filter((id): id is string => Boolean(id));
+
+      const response = await fetch(`/api/games/${gameId}/swap-court`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courtNumber,
+          ...(teamAPlayerIds?.length === 2 && teamBPlayerIds?.length === 2
+            ? { teamAPlayerIds, teamBPlayerIds }
+            : {}),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onMutate: (courtNumber) => {
+      if (isLocalGame) {
         applyLocalGameMutation(
           queryClient,
           gameId,
           (payload) => applySwapCourtTeamsOptimistic(payload, courtNumber),
           "Active court not found.",
         );
-        return { message: "Court teams shuffled." };
+        return {};
       }
 
-      const response = await fetch(`/api/games/${gameId}/swap-court`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courtNumber }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
-      return data as { message: string };
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      const previous = readCachedGamePayload();
+      if (previous) {
+        const optimistic = applySwapCourtTeamsOptimistic(previous, courtNumber);
+        if (optimistic) {
+          writeCachedGamePayload(optimistic);
+        }
+      }
+      return { previous };
     },
     onSuccess: (data) => {
       toast.success(data.message);
-      invalidate();
     },
-    onError: (error) => {
+    onSettled: () => {
+      if (!isLocalGame) {
+        // Optimistic UI already applied — don't refetch and clobber it.
+        releaseQueueMutationLock(queueMutationLockRef);
+      }
+    },
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous && queueMutationLockRef.current <= 1) {
+        writeCachedGamePayload(context.previous);
+      }
       toastOperationError(error, "Failed to shuffle teams.");
     },
   });
@@ -607,12 +651,6 @@ export function useOperatorCourtActions({
   const replaceMutation = useMutation({
     mutationFn: async (input: { sourceIndex: number; targetIndex: number }) => {
       if (isLocalGame) {
-        applyLocalGameMutation(
-          queryClient,
-          gameId,
-          (payload) => applyQueueSwapOptimistic(payload, input),
-          "Failed to replace player.",
-        );
         return { message: "Queue player replaced." };
       }
 
@@ -625,12 +663,41 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: (input) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyQueueSwapOptimistic(payload, input),
+          "Failed to replace player.",
+        );
+        setReplaceDialog(null);
+        return {};
+      }
+
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      const previous = readCachedGamePayload();
+      if (previous) {
+        const optimistic = applyQueueSwapOptimistic(previous, input);
+        if (optimistic) {
+          writeCachedGamePayload(optimistic);
+        }
+      }
+      setReplaceDialog(null);
+      return { previous };
+    },
     onSuccess: (data) => {
       toast.success(data.message);
-      setReplaceDialog(null);
-      invalidate();
     },
-    onError: (error) => {
+    onSettled: () => {
+      if (!isLocalGame) {
+        releaseQueueMutationLock(queueMutationLockRef);
+      }
+    },
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous && queueMutationLockRef.current <= 1) {
+        writeCachedGamePayload(context.previous);
+      }
       toastOperationError(error, "Failed to replace player.");
     },
   });
@@ -643,12 +710,6 @@ export function useOperatorCourtActions({
       targetIndex: number;
     }) => {
       if (isLocalGame) {
-        applyLocalGameMutation(
-          queryClient,
-          gameId,
-          (payload) => applyCourtReplaceOptimistic(payload, input),
-          "Failed to replace player.",
-        );
         return { message: "Court player replaced." };
       }
 
@@ -661,12 +722,41 @@ export function useOperatorCourtActions({
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: (input) => {
+      if (isLocalGame) {
+        applyLocalGameMutation(
+          queryClient,
+          gameId,
+          (payload) => applyCourtReplaceOptimistic(payload, input),
+          "Failed to replace player.",
+        );
+        setReplaceDialog(null);
+        return {};
+      }
+
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      const previous = readCachedGamePayload();
+      if (previous) {
+        const optimistic = applyCourtReplaceOptimistic(previous, input);
+        if (optimistic) {
+          writeCachedGamePayload(optimistic);
+        }
+      }
+      setReplaceDialog(null);
+      return { previous };
+    },
     onSuccess: (data) => {
       toast.success(data.message);
-      setReplaceDialog(null);
-      invalidate();
     },
-    onError: (error) => {
+    onSettled: () => {
+      if (!isLocalGame) {
+        releaseQueueMutationLock(queueMutationLockRef);
+      }
+    },
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous && queueMutationLockRef.current <= 1) {
+        writeCachedGamePayload(context.previous);
+      }
       toastOperationError(error, "Failed to replace player.");
     },
   });
@@ -695,10 +785,7 @@ export function useOperatorCourtActions({
   const allActiveCourtsPaused =
     activeCourts.length > 0 && activeCourts.every((court) => Boolean(court.pausedAt));
 
-  const courtReplacePendingKey =
-    replaceCourtMutation.isPending && replaceCourtMutation.variables
-      ? `${replaceCourtMutation.variables.courtNumber}-${replaceCourtMutation.variables.team}-${replaceCourtMutation.variables.slotIndex}`
-      : null;
+  const courtReplacePendingKey = null;
 
   const fillingCourtNumber =
     [...pendingFillCourtNumbers].find((courtNumber) =>
@@ -776,10 +863,10 @@ export function useOperatorCourtActions({
           }),
         replacePendingKey: courtReplacePendingKey,
         onEndGame: () => openEndGameDialog(court.courtNumber),
-        onSwapTeams: async () => {
-          await swapCourtMutation.mutateAsync(court.courtNumber);
+        onSwapTeams: () => {
+          swapCourtMutation.mutate(court.courtNumber);
         },
-        swapPending: swapCourtMutation.isPending && swapCourtMutation.variables === court.courtNumber,
+        swapPending: false,
         onTogglePause:
           court.status === "active"
             ? () =>

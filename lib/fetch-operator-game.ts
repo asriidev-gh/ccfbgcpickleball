@@ -2,6 +2,10 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { sanitizeErrorMessage } from "@/lib/infrastructure-error";
 import { isQuickGame } from "@/lib/local-game-id";
+import {
+  writeOperatorQueueSessionCache,
+  writeOperatorShellSessionCache,
+} from "@/lib/operator-dashboard-session-cache";
 import { seedLocalGameOperatorCache } from "@/lib/operator-game-cache";
 import {
   operatorDetailsQueryOptions,
@@ -64,11 +68,15 @@ export async function fetchOperatorGame(gameId: string, scope: OperatorGameScope
 }
 
 export async function fetchOperatorShell(gameId: string) {
-  return (await fetchOperatorGame(gameId, "shell")) as OperatorShellPayload;
+  const data = (await fetchOperatorGame(gameId, "shell")) as OperatorShellPayload;
+  writeOperatorShellSessionCache(gameId, data);
+  return data;
 }
 
 export async function fetchOperatorQueue(gameId: string) {
-  return (await fetchOperatorGame(gameId, "queue")) as OperatorQueuePayload;
+  const data = (await fetchOperatorGame(gameId, "queue")) as OperatorQueuePayload;
+  writeOperatorQueueSessionCache(gameId, data);
+  return data;
 }
 
 export async function fetchOperatorDetails(gameId: string) {

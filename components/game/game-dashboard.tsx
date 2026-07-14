@@ -62,8 +62,10 @@ import {
   seedLocalGameOperatorCache,
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
+import { resolvePlayerId } from "@/lib/resolve-player-id";
 import { useAccountQuickGameCheckpoint } from "@/hooks/use-account-quick-game-checkpoint";
 import { useAuthMe } from "@/hooks/use-auth-me";
+import { useHydrateOperatorDashboardSessionCache } from "@/hooks/use-hydrate-operator-dashboard-session-cache";
 import { useQuickGameSessionAfterMount } from "@/hooks/use-quick-game-session-after-mount";
 import {
   ensureAccountQuickGameHydrated,
@@ -212,6 +214,10 @@ import {
   operatorQueueQueryKey,
   operatorShellQueryKey,
 } from "@/lib/fetch-operator-game";
+import {
+  isOptimisticQueueEntryId,
+  resolveQueueEntryIdsAgainstFreshQueue,
+} from "@/lib/resolve-fill-queue-entry-ids";
 import {
   mergeOperatorGamePayload,
   type OperatorFullPayload,
@@ -559,6 +565,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const isAccountQuickSession = isAccountQuickGame(gameId);
   const { payload: quickSession } = useQuickGameSessionAfterMount(isQuickGameSession ? gameId : "");
   const queryClient = useQueryClient();
+  useHydrateOperatorDashboardSessionCache(queryClient, gameId);
   const { data: authData } = useAuthMe();
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
@@ -980,8 +987,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           }
 
           previous = readOperatorGamePayload(queryClient, gameId);
+          let foursomeOverride: QueueEntryView[] | undefined;
           if (previous) {
-            let foursomeOverride: QueueEntryView[] | undefined;
             if (input.queueEntryIds?.length === DOUBLES_PLAYERS_PER_COURT) {
               const byId = new Map(previous.queue.map((entry) => [String(entry._id), entry]));
               foursomeOverride = input.queueEntryIds
@@ -1006,6 +1013,23 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             // Optimistic UI already updated above so the operator is not blocked.
             await waitForCourtClearIfNeeded(courtClearWaitersRef, input.courtNumber);
 
+            let startBody: { courtNumber: number; queueEntryIds?: string[] } = input;
+            // Cancel/end requeue uses temporary ids while the clear is in flight. Remap
+            // to real ids from a silent fetch so /start does not reject the selection.
+            if (
+              foursomeOverride &&
+              input.queueEntryIds?.some((entryId) => isOptimisticQueueEntryId(String(entryId)))
+            ) {
+              const freshQueue = await fetchOperatorQueue(gameId);
+              startBody = {
+                courtNumber: input.courtNumber,
+                queueEntryIds: resolveQueueEntryIdsAgainstFreshQueue(
+                  foursomeOverride,
+                  freshQueue.queue,
+                ),
+              };
+            }
+
             const maxAttempts = 3;
             let lastMessage = "Failed to fill court.";
             let succeeded = false;
@@ -1014,7 +1038,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               const response = await fetch(`/api/games/${gameId}/start`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(input),
+                body: JSON.stringify(startBody),
               });
               const data = await response.json();
               if (response.ok) {
@@ -1227,30 +1251,59 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const swapCourtMutation = useMutation({
     mutationFn: async (courtNumber: number) => {
       if (isQuickGameSession) {
-        const previous = readOperatorGamePayload(queryClient, gameId);
-        if (!previous) throw new Error("Session not found.");
-        const optimistic = applySwapCourtTeamsOptimistic(previous, courtNumber);
-        if (!optimistic) throw new Error("Active court not found.");
-        writeOperatorGamePayload(queryClient, gameId, optimistic);
         return { message: "Court teams shuffled." };
       }
+
+      const current = readOperatorGamePayload(queryClient, gameId);
+      const court = current?.courts.find(
+        (item) => item.courtNumber === courtNumber && item.status === "active",
+      );
+      const teamAPlayerIds = court?.teamA.playerIds
+        .map((player) => resolvePlayerId(player))
+        .filter((id): id is string => Boolean(id));
+      const teamBPlayerIds = court?.teamB.playerIds
+        .map((player) => resolvePlayerId(player))
+        .filter((id): id is string => Boolean(id));
 
       const response = await fetch(`/api/games/${gameId}/swap-court`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courtNumber }),
+        body: JSON.stringify({
+          courtNumber,
+          ...(teamAPlayerIds?.length === 2 && teamBPlayerIds?.length === 2
+            ? { teamAPlayerIds, teamBPlayerIds }
+            : {}),
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
       return data as { message: string };
     },
+    onMutate: async (courtNumber) => {
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      const optimistic = applySwapCourtTeamsOptimistic(previous, courtNumber);
+      if (!optimistic) return { previous };
+
+      writeOperatorGamePayload(queryClient, gameId, optimistic);
+      return { previous };
+    },
     onSuccess: (data) => {
       toast.success(data.message);
-      if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      }
     },
-    onError: (error) => toastOperationError(error, "Failed to swap court players."),
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: true,
+      });
+    },
+    onError: (error, _courtNumber, context) => {
+      if (context?.previous) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
+      toastOperationError(error, "Failed to swap court players.");
+    },
   });
 
   const pauseCourtMutation = useMutation({
@@ -1580,9 +1633,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     },
     onSuccess: (payload) => {
       toast.success(payload.message);
-      if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      }
     },
     onSettled: () => {
       void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
@@ -1624,9 +1674,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     },
     onSuccess: (payload) => {
       toast.success(payload.message);
-      if (!isQuickGameSession) {
-        queryClient.invalidateQueries({ queryKey: ["game", gameId] });
-      }
     },
     onSettled: () => {
       void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
@@ -1656,11 +1703,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       targetIndex: input.targetIndex,
     });
   };
-
-  const courtReplacePendingKey =
-    replaceCourtMutation.isPending && replaceCourtMutation.variables
-      ? `${replaceCourtMutation.variables.courtNumber}-${replaceCourtMutation.variables.team}-${replaceCourtMutation.variables.slotIndex}`
-      : null;
 
   const removeMutation = useMutation({
     mutationFn: async (input: {
@@ -3167,7 +3209,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                       player,
                     })
             }
-            replacePendingKey={courtReplacePendingKey}
+            replacePendingKey={null}
             hideEndGame={hideControls}
             onEndGame={
               hideControls
@@ -3177,13 +3219,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             onSwapTeams={
               hideControls
                 ? undefined
-                : async () => {
-                    await swapCourtMutation.mutateAsync(court.courtNumber);
+                : () => {
+                    swapCourtMutation.mutate(court.courtNumber);
                   }
             }
-            swapPending={
-              swapCourtMutation.isPending && swapCourtMutation.variables === court.courtNumber
-            }
+            swapPending={false}
             mixedDoubles={usesMixedDoubles}
             onTogglePause={
               hideControls || court.status !== "active"
