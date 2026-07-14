@@ -172,7 +172,11 @@ function formatLastMatchResult(result: QueueEntryView["lastMatchResult"]) {
 }
 
 function QueueEntryStatusDivider() {
-  return <span className="queue-entry-status__divider" aria-hidden />;
+  return (
+    <span className="queue-entry-status__pipe" aria-hidden>
+      |
+    </span>
+  );
 }
 
 function QueueEntryStatusLine({
@@ -183,7 +187,6 @@ function QueueEntryStatusLine({
   rank,
   showRank = false,
   sessionRecordLabel,
-  stacked = false,
   showRecord = true,
 }: {
   primaryLabel: string;
@@ -193,8 +196,6 @@ function QueueEntryStatusLine({
   rank?: number | null;
   showRank?: boolean;
   sessionRecordLabel: string;
-  /** Waiting-line layout: wait on its own row, then last match | record. */
-  stacked?: boolean;
   showRecord?: boolean;
 }) {
   const lastMatchLabel = formatLastMatchResult(lastMatchResult);
@@ -208,38 +209,6 @@ function QueueEntryStatusLine({
     />
   ) : null;
 
-  if (stacked) {
-    return (
-      <div
-        className="queue-entry-status queue-entry-status--stacked"
-        aria-label={`${primaryLabel}. Last match: ${lastMatchLabel}${showRecord ? `. Session record ${sessionRecordLabel}` : ""}.`}
-      >
-        <span className="queue-entry-status__segment queue-entry-status__wait">
-          <Clock className="queue-entry-status__icon" aria-hidden />
-          <span>{primaryLabel}</span>
-        </span>
-        <span
-          className={cn(
-            "queue-entry-status__segment queue-entry-status__last-match",
-            lastMatchResult === "win" && "queue-entry-status__last-match--win",
-            lastMatchResult === "loss" && "queue-entry-status__last-match--loss",
-          )}
-        >
-          <span className="queue-entry-status__label">Last match</span>
-          <span className="queue-entry-status__value">{lastMatchLabel}</span>
-          {recordBadge ? (
-            <>
-              <span className="queue-entry-status__pipe" aria-hidden>
-                |
-              </span>
-              <span className="queue-entry-status__record">{recordBadge}</span>
-            </>
-          ) : null}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <div
       className="queue-entry-status"
@@ -247,7 +216,7 @@ function QueueEntryStatusLine({
     >
       <span className="queue-entry-status__segment queue-entry-status__wait">
         <Clock className="queue-entry-status__icon" aria-hidden />
-        <span>{primaryLabel}</span>
+        <span className="queue-entry-status__wait-text">{primaryLabel}</span>
       </span>
       <QueueEntryStatusDivider />
       <span
@@ -257,13 +226,13 @@ function QueueEntryStatusLine({
           lastMatchResult === "loss" && "queue-entry-status__last-match--loss",
         )}
       >
-        <span className="queue-entry-status__label">Last match</span>
+        <span className="queue-entry-status__label">Last match:</span>
         <span className="queue-entry-status__value">{lastMatchLabel}</span>
       </span>
       {recordBadge ? (
         <>
           <QueueEntryStatusDivider />
-          <span className="queue-entry-status__record hidden xl:inline-flex">{recordBadge}</span>
+          <span className="queue-entry-status__record">{recordBadge}</span>
         </>
       ) : null}
     </div>
@@ -654,7 +623,6 @@ export function QueueEntryRow({
             rank={leaderboardRank}
             showRank={showLeaderboardRank}
             sessionRecordLabel={sessionRecordLabel}
-            stacked={inWaitingLine}
             showRecord={!hideSessionStats}
           />
         ) : (
@@ -666,7 +634,6 @@ export function QueueEntryRow({
             rank={leaderboardRank}
             showRank={showLeaderboardRank}
             sessionRecordLabel={sessionRecordLabel}
-            stacked={inWaitingLine}
             showRecord={!hideSessionStats}
           />
         )}

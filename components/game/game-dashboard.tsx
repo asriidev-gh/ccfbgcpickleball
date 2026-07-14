@@ -579,6 +579,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const [showCheckedOutList, setShowCheckedOutList] = useState(true);
   const [showMatchHistory, setShowMatchHistory] = useState(false);
   const [showCourts, setShowCourts] = useState(true);
+  const [headerExpanded, setHeaderExpanded] = useState(false);
   const [mobileDashboardTab, setMobileDashboardTab] = useState<DashboardMobileTab>("queue");
   const [uiPrefsHydrated, setUiPrefsHydrated] = useState(false);
   const [isLgViewport, setIsLgViewport] = useState<boolean | null>(null);
@@ -3429,11 +3430,24 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         </div>
       ) : null}
       <section className="mx-auto flex max-w-[1600px] flex-col gap-4">
-        <Card className="glass-panel game-dashboard-header">
+        <Card
+          className={cn(
+            "glass-panel game-dashboard-header",
+            !headerExpanded && "game-dashboard-header--collapsed",
+          )}
+        >
           <CardContent className="game-dashboard-header-content relative">
-            {!showSpectatorEndedRecap ? (
+            <div className="game-dashboard-header-title-row">
+              <div className="game-dashboard-header-main min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h1 className="page-title">
+                    {operatorShellLoading ? "Loading session…" : game.title}
+                  </h1>
+                  {!operatorShellLoading && isAccountQuickSession ? <LiveQueueOffBadge /> : null}
+                </div>
+              </div>
               <div className="game-dashboard-header-actions">
-                {!isPastGame ? (
+                {!showSpectatorEndedRecap && !isPastGame ? (
                   <SwitchToCourtViewButton
                     gameId={gameId}
                     variant={isSpectator ? "spectator" : "operator"}
@@ -3441,130 +3455,151 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                     buttonClassName="game-dashboard-court-view-btn h-8 gap-1 px-2 text-xs font-semibold shadow-sm sm:gap-1.5 sm:px-2.5 lg:h-11 lg:gap-2 lg:px-5 lg:text-base"
                   />
                 ) : null}
-              </div>
-            ) : null}
-            <div className="game-dashboard-header-top">
-              <div className="game-dashboard-header-main min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="page-title">
-                    {operatorShellLoading ? "Loading session…" : game.title}
-                  </h1>
-                  {!operatorShellLoading && isAccountQuickSession ? <LiveQueueOffBadge /> : null}
-                </div>
-                {!operatorShellLoading ? (
-                  <OpenPlaySkillLevelPills
-                    openPlayType={game.openPlayType}
-                    className="mt-1"
-                  />
-                ) : null}
-                {isEphemeralQuickSession ? (
-                  <p className="caption mt-1 text-muted-foreground">
-                    Public quick play — this session lives only in this browser. Nothing is saved to
-                    our servers.
-                  </p>
-                ) : isAccountQuickSession ? (
-                  <p className="caption mt-1 text-muted-foreground">
-                    Quick game — plays in this browser and syncs to your account when you end open
-                    play.
-                  </p>
-                ) : null}
-                {operatorLeasePending ? (
-                  <p className="caption mt-1 flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                    Securing operator dashboard…
-                  </p>
-                ) : null}
-                {isSpectator && showSpectatorEndedRecap ? (
-                  <p className="caption mt-1 text-muted-foreground">
-                    Session ended — view awards, standings, and match history below
-                  </p>
-                ) : null}
-              </div>
-              <div className="game-dashboard-meta">
-                {openPlayDateLabel ? (
-                  <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
-                    <CalendarDays className="mr-1 h-3 w-3 shrink-0" aria-hidden />
-                    {openPlayDateLabel}
-                  </Badge>
-                ) : null}
-                {openPlayTimeLabel ? (
-                  <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
-                    <Clock className="mr-1 h-3 w-3 shrink-0" aria-hidden />
-                    {openPlayTimeLabel}
-                  </Badge>
-                ) : null}
-                <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
-                  Courts: {game.courtCount}
-                </Badge>
-                {!operatorShellLoading ? (
-                  <GameFormatHeaderBadges
-                    gameMode={game.gameMode}
-                    matchingType={game.matchingType}
-                  />
-                ) : null}
-                <SpectateFirstTimersBadge gameId={gameId} count={firstTimerCount} />
-                <SpectateBirthdaysThisMonthBadge
-                  gameId={gameId}
-                  count={birthdayThisMonthCount}
-                />
-                {game.status === "ended" ? (
-                  <Badge variant="destructive" className="game-dashboard-meta-badge w-fit">
-                    Status: ended
-                  </Badge>
-                ) : null}
-              </div>
-            </div>
-            {!showSpectatorEndedRecap && !isSpectator ? (
-            <div className="game-toolbar mt-4 hidden flex-wrap items-center gap-2 lg:flex">
-              {isQuickGameSession ? (
-                <Link href={quickGameHomeHref}>
-                  <Button size="lg" variant="outline">
-                    <House className="mr-2 h-4 w-4" /> Home
-                  </Button>
-                </Link>
-              ) : (
-                <Link href="/">
-                  <Button size="lg" variant="outline">
-                    <House className="mr-2 h-4 w-4" /> Home
-                  </Button>
-                </Link>
-              )}
-              <Link
-                href={leaderboardHref}
-                onMouseEnter={() => prefetchLeaderboardRecap(queryClient, gameId, true)}
-                onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, true)}
-              >
-                <Button size="lg" variant="outline">
-                  <Trophy className="mr-2 h-4 w-4" /> Leaderboard
-                </Button>
-              </Link>
-              {showQrRegistration ? (
                 <Button
-                  size="lg"
-                  variant="outline"
-                  disabled={qrDialogLoading}
-                  onClick={openQrRegistrationDialog}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="game-dashboard-header-collapse-btn"
+                  aria-expanded={headerExpanded}
+                  aria-label={headerExpanded ? "Collapse session header" : "Expand session header"}
+                  onClick={() => setHeaderExpanded((current) => !current)}
                 >
-                  <QrCode className="mr-2 h-4 w-4" />
-                  {qrDialogLoading ? "Checking…" : "QR Registration"}
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 transition-transform",
+                      headerExpanded && "rotate-180",
+                    )}
+                    aria-hidden
+                  />
                 </Button>
-              ) : null}
-              <GameSessionActionsMenu
-                showDatabaseCheckIn={!readOnly && !isPastGame && !isQuickGameSession}
-                onDatabaseCheckIn={() => setDatabaseCheckInOpen(true)}
-                showAddPlayer={showManualAddPlayer}
-                onAddPlayer={() => setAddPlayerOpen(true)}
-                showResetOpenPlay={!readOnly && canResetGame}
-                resetOpenPlayPending={resetMutation.isPending}
-                onResetOpenPlay={handleResetGame}
-                showEndOpenPlay={!readOnly && !isPastGame}
-                endOpenPlayPending={endOpenPlayMutation.isPending}
-                onEndOpenPlay={handleEndOpenPlay}
-              />
-              {!isQuickGameSession ? (
-                <GameCheckoutNotificationBell gameId={gameId} iconOnly />
-              ) : null}
+              </div>
             </div>
+
+            {headerExpanded ? (
+              <>
+                <div className="game-dashboard-header-top">
+                  <div className="game-dashboard-header-details min-w-0">
+                    {!operatorShellLoading ? (
+                      <OpenPlaySkillLevelPills
+                        openPlayType={game.openPlayType}
+                        className="mt-1"
+                      />
+                    ) : null}
+                    {isEphemeralQuickSession ? (
+                      <p className="caption mt-1 text-muted-foreground">
+                        Public quick play — this session lives only in this browser. Nothing is saved to
+                        our servers.
+                      </p>
+                    ) : isAccountQuickSession ? (
+                      <p className="caption mt-1 text-muted-foreground">
+                        Quick game — plays in this browser and syncs to your account when you end open
+                        play.
+                      </p>
+                    ) : null}
+                    {operatorLeasePending ? (
+                      <p className="caption mt-1 flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                        Securing operator dashboard…
+                      </p>
+                    ) : null}
+                    {isSpectator && showSpectatorEndedRecap ? (
+                      <p className="caption mt-1 text-muted-foreground">
+                        Session ended — view awards, standings, and match history below
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="game-dashboard-meta">
+                    {openPlayDateLabel ? (
+                      <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
+                        <CalendarDays className="mr-1 h-3 w-3 shrink-0" aria-hidden />
+                        {openPlayDateLabel}
+                      </Badge>
+                    ) : null}
+                    {openPlayTimeLabel ? (
+                      <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
+                        <Clock className="mr-1 h-3 w-3 shrink-0" aria-hidden />
+                        {openPlayTimeLabel}
+                      </Badge>
+                    ) : null}
+                    <Badge variant="outline" className="game-dashboard-meta-badge w-fit">
+                      Courts: {game.courtCount}
+                    </Badge>
+                    {!operatorShellLoading ? (
+                      <GameFormatHeaderBadges
+                        gameMode={game.gameMode}
+                        matchingType={game.matchingType}
+                      />
+                    ) : null}
+                    <SpectateFirstTimersBadge gameId={gameId} count={firstTimerCount} />
+                    <SpectateBirthdaysThisMonthBadge
+                      gameId={gameId}
+                      count={birthdayThisMonthCount}
+                    />
+                    {game.status === "ended" ? (
+                      <Badge variant="destructive" className="game-dashboard-meta-badge w-fit">
+                        Status: ended
+                      </Badge>
+                    ) : null}
+                  </div>
+                </div>
+                {!showSpectatorEndedRecap && !isSpectator ? (
+                  <div className="game-toolbar mt-4 hidden flex-wrap items-center gap-2 lg:flex">
+                    {isQuickGameSession ? (
+                      <Link href={quickGameHomeHref}>
+                        <Button size="lg" variant="outline">
+                          <House className="mr-2 h-4 w-4" /> Home
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Link href="/">
+                        <Button size="lg" variant="outline">
+                          <House className="mr-2 h-4 w-4" /> Home
+                        </Button>
+                      </Link>
+                    )}
+                    <Link
+                      href={leaderboardHref}
+                      onMouseEnter={() => prefetchLeaderboardRecap(queryClient, gameId, true)}
+                      onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, true)}
+                    >
+                      <Button size="lg" variant="outline">
+                        <Trophy className="mr-2 h-4 w-4" /> Leaderboard
+                      </Button>
+                    </Link>
+                    {showQrRegistration ? (
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        disabled={qrDialogLoading}
+                        onClick={openQrRegistrationDialog}
+                      >
+                        <QrCode className="mr-2 h-4 w-4" />
+                        {qrDialogLoading ? "Checking…" : "QR Registration"}
+                      </Button>
+                    ) : null}
+                    <GameSessionActionsMenu
+                      showDatabaseCheckIn={!readOnly && !isPastGame && !isQuickGameSession}
+                      onDatabaseCheckIn={() => setDatabaseCheckInOpen(true)}
+                      showAddPlayer={showManualAddPlayer}
+                      onAddPlayer={() => setAddPlayerOpen(true)}
+                      showResetOpenPlay={!readOnly && canResetGame}
+                      resetOpenPlayPending={resetMutation.isPending}
+                      onResetOpenPlay={handleResetGame}
+                      showEndOpenPlay={!readOnly && !isPastGame}
+                      endOpenPlayPending={endOpenPlayMutation.isPending}
+                      onEndOpenPlay={handleEndOpenPlay}
+                    />
+                    {!isQuickGameSession ? (
+                      <GameCheckoutNotificationBell gameId={gameId} iconOnly />
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            ) : operatorLeasePending ? (
+              <p className="caption mt-1 flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                Securing operator dashboard…
+              </p>
             ) : null}
           </CardContent>
         </Card>
