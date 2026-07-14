@@ -16,6 +16,7 @@ import { EphemeralLeaderboardSaveBanner } from "@/components/play/ephemeral-lead
 import { ScrollToTopButton } from "@/components/scroll-to-top-button";
 import { Button } from "@/components/ui/button";
 import { useQuickGameSessionAfterMount } from "@/hooks/use-quick-game-session-after-mount";
+import { useHydrateLeaderboardSessionCache } from "@/hooks/use-hydrate-leaderboard-session-cache";
 import { useOperatorDashboardLeaseCheck } from "@/hooks/use-operator-dashboard-lease";
 import {
   fetchLeaderboardRecap,
@@ -42,6 +43,7 @@ import {
 } from "@/lib/local-game-id";
 import { buildLocalLeaderboardRecap } from "@/lib/local-leaderboard-recap";
 import { parseSpectatorLeaderboardReturnGameId } from "@/lib/leaderboard-navigation";
+import { persistLeaderboardSessionCacheFromClient } from "@/lib/leaderboard-session-cache";
 
 type LeaderboardPageClientProps = {
   gameId: string;
@@ -60,6 +62,11 @@ export function LeaderboardPageClient({
   const [endorseListTargetRow, setEndorseListTargetRow] = useState<LeaderboardRow | null>(null);
   const [shareTargetRow, setShareTargetRow] = useState<LeaderboardRow | null>(null);
   const isQuickGameSession = isQuickGame(gameId);
+  const cacheReady = useHydrateLeaderboardSessionCache(
+    queryClient,
+    gameId,
+    isSpectatorView,
+  );
   const { payload: quickPayload, mounted: quickSessionMounted } = useQuickGameSessionAfterMount(
     isQuickGameSession ? gameId : "",
   );
@@ -77,9 +84,11 @@ export function LeaderboardPageClient({
     return () => window.clearTimeout(timer);
   }, [gameId, isQuickGameSession, quickPayload, quickSessionMounted]);
 
+  // Always check for a local operator lease so "Back to Game" returns to /games/{id}
+  // even if the user opened the spectator leaderboard URL.
   const { hasDashboardLease, leaseCheckState } = useOperatorDashboardLeaseCheck(
     gameId,
-    !isSpectatorView && !isQuickGameSession,
+    !isQuickGameSession,
   );
 
   const isEndedEphemeralPublic =
@@ -93,13 +102,15 @@ export function LeaderboardPageClient({
 
   const backHref = isGameHistoryLeaderboard
     ? `/games/${spectatorReturnGameId}/spectate`
-    : isSpectatorView
-      ? `/games/${gameId}/spectate`
-      : isEndedEphemeralPublic
-        ? "/play"
-        : isQuickGameSession || hasDashboardLease
-          ? getQuickGameDashboardPath(gameId)
-          : "/my-games";
+    : isEndedEphemeralPublic
+      ? "/play"
+      : hasDashboardLease
+        ? getQuickGameDashboardPath(gameId)
+        : isSpectatorView
+          ? `/games/${gameId}/spectate`
+          : isQuickGameSession
+            ? getQuickGameDashboardPath(gameId)
+            : "/my-games";
 
   const backLabel = isGameHistoryLeaderboard
     ? "Go back to home"
@@ -109,8 +120,7 @@ export function LeaderboardPageClient({
         ? "Back to Game"
         : "Back to Dashboard";
   const showBackButton =
-    (isSpectatorView || leaseCheckState !== "loading") &&
-    (!isQuickGameSession || quickSessionMounted);
+    leaseCheckState !== "loading" && (!isQuickGameSession || quickSessionMounted);
 
   const localRecap = useMemo(
     () => (quickPayload ? buildLocalLeaderboardRecap(quickPayload) : null),
@@ -120,9 +130,14 @@ export function LeaderboardPageClient({
   const recapQuery = useQuery({
     queryKey: leaderboardRecapQueryKey(gameId, isSpectatorView),
     queryFn: () => fetchLeaderboardRecap(gameId, isSpectatorView),
-    enabled: Boolean(gameId) && !isQuickGameSession,
-    ...(isSpectatorView ? spectatorLeaderboardQueryOptions : { refetchOnWindowFocus: false }),
+    enabled: Boolean(gameId) && !isQuickGameSession && cacheReady,
+    ...spectatorLeaderboardQueryOptions,
   });
+
+  useEffect(() => {
+    if (!gameId || isQuickGameSession || !recapQuery.data) return;
+    persistLeaderboardSessionCacheFromClient(queryClient, gameId, isSpectatorView);
+  }, [gameId, isQuickGameSession, isSpectatorView, queryClient, recapQuery.data]);
 
   const { data: endorsementCounts = {} } = useQuery({
     queryKey: spectateGameEndorsementCountsQueryKey(gameId),
@@ -216,7 +231,9 @@ export function LeaderboardPageClient({
     : null;
   const quickGameLoading =
     isQuickGameSession && quickSessionMounted && !quickPayload && !quickLookupTimedOut;
-  const loading = quickGameLoading || (!isQuickGameSession && recapQuery.isPending && !recapQuery.data);
+  const loading =
+    quickGameLoading ||
+    (!isQuickGameSession && (!cacheReady || (recapQuery.isPending && !recapQuery.data)));
   const error = isQuickGameSession
     ? !quickSessionMounted
       ? null

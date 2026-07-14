@@ -4,7 +4,7 @@ import { House, Loader2, LogOut, QrCode, Trophy } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
-import { buildSpectatorLeaderboardHref } from "@/lib/leaderboard-navigation";
+import { buildOperatorLeaderboardHref } from "@/lib/leaderboard-navigation";
 import { GameCheckoutNotificationBell } from "@/components/game/spectator-notification-bell";
 import { MobileBottomNavButton, MobileBottomNavShell } from "@/components/mobile-bottom-nav";
 
@@ -50,7 +50,7 @@ export function GameDashboardMobileNav({
   onEndOpenPlay,
 }: GameDashboardMobileNavProps) {
   const pathname = usePathname();
-  const leaderboardHref = buildSpectatorLeaderboardHref(gameId);
+  const leaderboardHref = buildOperatorLeaderboardHref(gameId);
   const isLeaderboard = pathname === `/leaderboard/${gameId}`;
   const notificationBell = (
     <GameCheckoutNotificationBell gameId={gameId} variant="mobileNav" iconOnly />

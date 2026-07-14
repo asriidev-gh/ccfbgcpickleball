@@ -22,7 +22,7 @@ type FillCourtFlowProps = {
   pendingFillCourtNumbers?: ReadonlySet<number>;
   replacePendingSourceIndex: number | null;
   onConfirmFill: (courtNumber: number) => void;
-  onShuffle: () => Promise<void>;
+  onShuffle: () => void | Promise<void>;
   mixedDoubles?: boolean;
   minQueueToFill?: number;
   onReplace: (sourceIndex: number, sourceEntry: QueueEntryView) => void;

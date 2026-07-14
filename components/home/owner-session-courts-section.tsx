@@ -427,8 +427,8 @@ export function OwnerSessionCourtsSection({
           pendingFillCourtNumbers={courtActions.pendingFillCourtNumbers}
           replacePendingSourceIndex={courtActions.replacePendingSourceIndex}
           onConfirmFill={(courtNumber) => courtActions.startMutation.mutate(courtNumber)}
-          onShuffle={async () => {
-            await courtActions.shuffleNextMutation.mutateAsync();
+          onShuffle={() => {
+            courtActions.requestQuickShuffleNext();
           }}
           mixedDoubles={usesMixedDoubles}
           onReplace={(sourceIndex, sourceEntry) => {

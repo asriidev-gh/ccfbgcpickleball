@@ -53,8 +53,11 @@ export const spectatorNavQueryOptions = {
 } as const;
 
 export const spectatorLeaderboardQueryOptions = {
-  staleTime: 5 * 60_000,
+  staleTime: 60_000,
   gcTime: 30 * 60_000,
+  /** Show cached rows immediately; refresh quietly in the background. */
+  refetchOnMount: "always",
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
+  refetchIntervalInBackground: false,
 } as const;

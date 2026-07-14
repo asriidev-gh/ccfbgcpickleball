@@ -241,6 +241,56 @@ export async function shuffleNextOnCourtInQueue(gameId: string) {
   await persistQueueOrder([...firstHalf, ...secondHalf, ...queue.slice(4)]);
 }
 
+/**
+ * Fast partner re-roll for the next four only — updates those four timestamps
+ * without rewriting the rest of the waiting line.
+ */
+export async function quickShuffleNextOnCourtInQueue(
+  gameId: string,
+  nextFourEntryIds?: string[],
+) {
+  const queue = await QueueEntry.find({ gameId, status: "queued" }).sort({ registeredAt: 1 });
+  if (queue.length < 4) {
+    throw new Error("Not enough queued players. At least 4 players are required.");
+  }
+
+  let shuffled = queue.slice(0, 4);
+  if (nextFourEntryIds?.length === 4) {
+    const byId = new Map(queue.map((entry) => [String(entry._id), entry]));
+    shuffled = nextFourEntryIds.map((entryId) => {
+      const entry = byId.get(String(entryId));
+      if (!entry) {
+        throw new Error("One or more selected queue entries are no longer available.");
+      }
+      return entry;
+    });
+  } else {
+    const nextUp = queue.slice(0, 4);
+    const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp, (half) =>
+      teamKey(
+        half.map((entry) => ({
+          playerId: entry.playerId as Types.ObjectId,
+          queueEntryId: entry._id,
+        })),
+      ),
+    );
+    shuffled = [...firstHalf, ...secondHalf];
+  }
+
+  const timestamps = shuffled
+    .map((entry) => new Date(entry.registeredAt).getTime())
+    .sort((a, b) => a - b);
+
+  await Promise.all(
+    shuffled.map((entry, index) =>
+      QueueEntry.updateOne(
+        { _id: entry._id },
+        { $set: { registeredAt: new Date(timestamps[index]!) } },
+      ),
+    ),
+  );
+}
+
 /** Move a ready deck foursome onto the promoted open-court line (Team A vs Team B). */
 export async function promoteDeckMatchToOpenCourt(input: {
   gameId: string;

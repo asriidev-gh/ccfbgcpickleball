@@ -29,7 +29,7 @@ type FillCourtConfirmDialogProps = {
   replacePendingSourceIndex: number | null;
   onConfirmFill: () => void;
   fillPending?: boolean;
-  onShuffle: () => Promise<void>;
+  onShuffle: () => void | Promise<void>;
   mixedDoubles?: boolean;
   callingNames?: boolean;
   onCallNames?: (teamA: QueueEntryView[], teamB: QueueEntryView[]) => void;
@@ -194,6 +194,8 @@ function FillCourtConfirmDialogBody({
     resetKey: open,
     mixedDoubles,
     getGender: (entry) => entry.playerId.gender,
+    durationMs: 200,
+    awaitShuffle: false,
   });
 
   const actionsDisabled = fillPending || isShuffling;

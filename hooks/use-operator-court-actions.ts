@@ -23,6 +23,7 @@ import {
   applyQueueReorderOptimistic,
   applyQueueSwapOptimistic,
   applyShuffleNextOptimistic,
+  applyQuickShuffleNextOptimistic,
   applySwapCourtTeamsOptimistic,
 } from "@/lib/game-payload-mutations";
 import type { GamePayload } from "@/lib/game-payload-mutations";
@@ -602,6 +603,74 @@ export function useOperatorCourtActions({
     },
   });
 
+  const quickShuffleNextMutation = useMutation({
+    mutationFn: async (nextFourEntryIds: string[]) => {
+      if (isLocalGame) {
+        return { message: "Shuffled teams." };
+      }
+
+      const response = await fetch(`/api/games/${gameId}/shuffle-next`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "quick", nextFourEntryIds }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onMutate: () => {
+      if (isLocalGame) return {};
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      const previous = readCachedGamePayload();
+      return { previous };
+    },
+    onSettled: () => {
+      if (!isLocalGame) {
+        releaseQueueMutationLock(queueMutationLockRef);
+      }
+    },
+    onError: (error, _, context) => {
+      if (!isLocalGame && context?.previous && queueMutationLockRef.current <= 1) {
+        writeCachedGamePayload(context.previous);
+      }
+      toastOperationError(error, "Failed to shuffle teams.");
+    },
+  });
+
+  const requestQuickShuffleNext = useCallback(() => {
+    const previous = readCachedGamePayload();
+    if (!previous) {
+      toast.error("Session not found.");
+      return;
+    }
+    if (isLocalGame) {
+      applyLocalGameMutation(
+        queryClient,
+        gameId,
+        applyQuickShuffleNextOptimistic,
+        "Not enough queued players.",
+      );
+      return;
+    }
+
+    const optimistic = applyQuickShuffleNextOptimistic(previous);
+    if (!optimistic) {
+      toast.error("Not enough queued players.");
+      return;
+    }
+    writeCachedGamePayload(optimistic);
+
+    const nextFourEntryIds = optimistic.queue.slice(0, 4).map((entry) => String(entry._id));
+    quickShuffleNextMutation.mutate(nextFourEntryIds);
+  }, [
+    gameId,
+    isLocalGame,
+    queryClient,
+    quickShuffleNextMutation,
+    readCachedGamePayload,
+    writeCachedGamePayload,
+  ]);
+
   const swapNextWaitingMutation = useMutation({
     mutationFn: async (orderedEntryIds: string[]) => {
       if (isLocalGame) {
@@ -929,6 +998,8 @@ export function useOperatorCourtActions({
     startMutation,
     endMutation,
     shuffleNextMutation,
+    quickShuffleNextMutation,
+    requestQuickShuffleNext,
     swapNextWaitingMutation,
     replaceMutation,
     pauseAllCourtsMutation,

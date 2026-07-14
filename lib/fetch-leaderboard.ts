@@ -37,9 +37,16 @@ export function prefetchLeaderboardRecap(
 ) {
   if (!gameId) return;
 
-  void queryClient.prefetchQuery({
-    queryKey: leaderboardRecapQueryKey(gameId, isSpectatorView),
-    queryFn: () => fetchLeaderboardRecap(gameId, isSpectatorView),
-    ...spectatorLeaderboardQueryOptions,
-  });
+  void queryClient
+    .prefetchQuery({
+      queryKey: leaderboardRecapQueryKey(gameId, isSpectatorView),
+      queryFn: () => fetchLeaderboardRecap(gameId, isSpectatorView),
+      ...spectatorLeaderboardQueryOptions,
+    })
+    .then(async () => {
+      const { persistLeaderboardSessionCacheFromClient } = await import(
+        "@/lib/leaderboard-session-cache"
+      );
+      persistLeaderboardSessionCacheFromClient(queryClient, gameId, isSpectatorView);
+    });
 }

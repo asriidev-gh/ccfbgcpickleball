@@ -45,6 +45,7 @@ import {
   applyQueueSwapOptimistic,
   applyRemovePlayerOptimistic,
   applyShuffleNextOptimistic,
+  applyQuickShuffleNextOptimistic,
   applySwapCourtTeamsOptimistic,
   type EndGameMutationInput,
   type GamePayload,
@@ -225,7 +226,7 @@ import {
   type OperatorShellPayload,
 } from "@/lib/operator-payload";
 import { prefetchLeaderboardRecap } from "@/lib/fetch-leaderboard";
-import { buildSpectatorLeaderboardHref } from "@/lib/leaderboard-navigation";
+import { buildOperatorLeaderboardHref } from "@/lib/leaderboard-navigation";
 import { leaderboardRowToShareEntry } from "@/lib/leaderboard-share";
 import {
   fetchSpectateGame,
@@ -1229,6 +1230,48 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     },
   });
 
+  const quickShuffleNextMutation = useMutation({
+    mutationFn: async (nextFourEntryIds: string[]) => {
+      if (isQuickGameSession) {
+        return { message: "Shuffled teams." };
+      }
+
+      const response = await fetch(`/api/games/${gameId}/shuffle-next`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "quick", nextFourEntryIds }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      return data as { message: string };
+    },
+    onMutate: (nextFourEntryIds) => {
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (!previous) return { previous: undefined as GamePayload | undefined };
+
+      // Prefer the caller-provided order (already written); fall back to a local shuffle.
+      if (nextFourEntryIds.length !== DOUBLES_PLAYERS_PER_COURT) {
+        const optimistic = applyQuickShuffleNextOptimistic(previous);
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
+      return { previous };
+    },
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: true,
+      });
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
+      toastOperationError(error, "Failed to shuffle teams.");
+    },
+  });
+
   const handleFillCourtConfirm = useCallback(
     (courtNumber: number, queueEntryIds?: string[]) => {
       requestFillCourt({ courtNumber, queueEntryIds });
@@ -1238,7 +1281,26 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
   const fillCourtFoursomeRef = useRef<QueueEntryView[] | null>(null);
 
-  const handleFillCourtShuffle = useCallback(async () => {
+  const handleFillCourtShuffle = useCallback(() => {
+    const previous = readOperatorGamePayload(queryClient, gameId);
+    if (!previous) return;
+    const optimistic = applyQuickShuffleNextOptimistic(previous);
+    if (!optimistic) {
+      toast.error("Not enough queued players.");
+      return;
+    }
+    writeOperatorGamePayload(queryClient, gameId, optimistic);
+    const ordered = resolveDoublesRotationQueue(
+      optimistic.queue,
+      optimistic.game.matchingType,
+    );
+    const nextFourEntryIds = ordered
+      .slice(0, DOUBLES_PLAYERS_PER_COURT)
+      .map((entry) => String(entry._id));
+    quickShuffleNextMutation.mutate(nextFourEntryIds);
+  }, [gameId, queryClient, quickShuffleNextMutation]);
+
+  const handleMatchupShuffle = useCallback(async () => {
     await shuffleNextMutation.mutateAsync();
   }, [shuffleNextMutation]);
 
@@ -2144,6 +2206,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   }, [data?.courts]);
 
   useEffect(() => {
+    if (!gameId || isSpectator || isQuickGameSession) return;
+    prefetchLeaderboardRecap(queryClient, gameId, false);
+  }, [gameId, isSpectator, isQuickGameSession, queryClient]);
+
+  useEffect(() => {
     if (!uiPrefsHydrated || isLgViewport === null || !gameId || !data?.queue?.length) {
       return;
     }
@@ -2361,7 +2428,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const spectatorMatchHistoryEmptyMessage = "No matches recorded for this session yet.";
 
   const quickGameHomeHref = isEphemeralQuickSession ? "/play" : "/";
-  const leaderboardHref = buildSpectatorLeaderboardHref(game.gameId);
+  const leaderboardHref = buildOperatorLeaderboardHref(game.gameId);
 
   const isCourtRematch = (court: CourtView) =>
     court.isRematch === true || rematchCourtNumbers.has(court.courtNumber);
@@ -2889,7 +2956,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                         operatorMatchHistoryQuery.isLoading &&
                         !operatorMatchHistoryQuery.data
                       }
-                      onShuffle={canReorderQueue ? handleFillCourtShuffle : undefined}
+                      onShuffle={canReorderQueue ? handleMatchupShuffle : undefined}
                       shufflePending={shuffleNextMutation.isPending}
                       onSwapWaiting={canReorderQueue ? handleFillCourtQueueSwap : undefined}
                       swapWaitingPending={reorderQueueMutation.isPending}
@@ -3559,8 +3626,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                     )}
                     <Link
                       href={leaderboardHref}
-                      onMouseEnter={() => prefetchLeaderboardRecap(queryClient, gameId, true)}
-                      onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, true)}
+                      onMouseEnter={() => prefetchLeaderboardRecap(queryClient, gameId, false)}
+                      onFocus={() => prefetchLeaderboardRecap(queryClient, gameId, false)}
                     >
                       <Button size="lg" variant="outline">
                         <Trophy className="mr-2 h-4 w-4" /> Leaderboard

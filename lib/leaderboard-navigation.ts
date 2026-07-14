@@ -1,3 +1,8 @@
+/** Operator / host dashboard — back link returns to `/games/{id}`. */
+export function buildOperatorLeaderboardHref(gameId: string) {
+  return `/leaderboard/${gameId}`;
+}
+
 export function buildSpectatorLeaderboardHref(
   gameId: string,
   options?: { returnGameId?: string },

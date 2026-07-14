@@ -865,16 +865,8 @@ export function applyCancelRematchOptimistic(
   };
 }
 
-export function applyShuffleNextOptimistic(payload: GamePayload): GamePayload | null {
+export function applyQuickShuffleNextOptimistic(payload: GamePayload): GamePayload | null {
   const ordered = resolveDoublesRotationQueue(payload.queue, payload.game.matchingType);
-  const smartOrder = buildSmartShuffleQueueOrder(ordered, payload.matches ?? [], {
-    queue: ordered,
-    matchingType: payload.game.matchingType,
-  });
-  if (smartOrder) {
-    return applyQueueReorderOptimistic(payload, smartOrder);
-  }
-
   const nextUp = ordered.slice(0, DOUBLES_PLAYERS_PER_COURT);
   if (nextUp.length < DOUBLES_PLAYERS_PER_COURT) return null;
 
@@ -893,6 +885,19 @@ export function applyShuffleNextOptimistic(payload: GamePayload): GamePayload | 
     ...payload,
     queue: [...without.slice(0, insertAt), ...shuffled, ...without.slice(insertAt)],
   };
+}
+
+export function applyShuffleNextOptimistic(payload: GamePayload): GamePayload | null {
+  const ordered = resolveDoublesRotationQueue(payload.queue, payload.game.matchingType);
+  const smartOrder = buildSmartShuffleQueueOrder(ordered, payload.matches ?? [], {
+    queue: ordered,
+    matchingType: payload.game.matchingType,
+  });
+  if (smartOrder) {
+    return applyQueueReorderOptimistic(payload, smartOrder);
+  }
+
+  return applyQuickShuffleNextOptimistic(payload);
 }
 
 export function canFillDoublesCourt(

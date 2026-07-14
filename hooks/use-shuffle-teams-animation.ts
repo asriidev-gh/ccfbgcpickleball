@@ -21,6 +21,10 @@ type UseShuffleTeamsAnimationOptions<T> = {
   resetKey?: string | number | boolean;
   mixedDoubles?: boolean;
   getGender?: (item: T) => string | null | undefined;
+  /** Override animation length. Defaults to the shared shuffle duration. */
+  durationMs?: number;
+  /** When false, start onShuffle but do not wait for it to finish. */
+  awaitShuffle?: boolean;
 };
 
 export function useShuffleTeamsAnimation<T>({
@@ -31,6 +35,8 @@ export function useShuffleTeamsAnimation<T>({
   resetKey,
   mixedDoubles = false,
   getGender,
+  durationMs,
+  awaitShuffle = true,
 }: UseShuffleTeamsAnimationOptions<T>) {
   const [isShuffling, setIsShuffling] = useState(false);
   const [isRevealing, setIsRevealing] = useState(false);
@@ -56,7 +62,10 @@ export function useShuffleTeamsAnimation<T>({
 
     const runId = shuffleRunId.current + 1;
     shuffleRunId.current = runId;
-    const duration = getShuffleAnimationDurationMs();
+    const duration =
+      durationMs != null
+        ? durationMs
+        : getShuffleAnimationDurationMs();
 
     setIsShuffling(true);
     setIsRevealing(false);
@@ -75,10 +84,13 @@ export function useShuffleTeamsAnimation<T>({
         : undefined;
 
     try {
-      await Promise.all([
-        shufflePromise,
+      const waits: Promise<unknown>[] = [
         new Promise<void>((resolve) => setTimeout(resolve, duration)),
-      ]);
+      ];
+      if (awaitShuffle) {
+        waits.push(shufflePromise);
+      }
+      await Promise.all(waits);
     } catch {
       if (shuffleRunId.current === runId) {
         setPreview(null);
@@ -102,7 +114,17 @@ export function useShuffleTeamsAnimation<T>({
         if (shuffleRunId.current === runId) setIsRevealing(false);
       }, SHUFFLE_REVEAL_MS);
     }
-  }, [enabled, getGender, isShuffling, mixedDoubles, onShuffle, teamA, teamB]);
+  }, [
+    awaitShuffle,
+    durationMs,
+    enabled,
+    getGender,
+    isShuffling,
+    mixedDoubles,
+    onShuffle,
+    teamA,
+    teamB,
+  ]);
 
   return {
     isShuffling,
