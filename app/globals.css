@@ -2820,9 +2820,8 @@
     @apply text-sm text-muted-foreground;
   }
 
-  .queue-sortable-item {
-    @apply touch-none;
-  }
+  /* Touch scrolling: only `.queue-drag-handle` uses touch-action:none so the rest of
+     each queue row still scrolls the page on tablets. */
 
   .queue-sortable-item--dragging .queue-item {
     @apply z-10 border-primary/40 bg-card shadow-lg ring-2 ring-primary/25;
