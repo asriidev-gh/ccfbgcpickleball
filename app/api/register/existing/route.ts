@@ -146,11 +146,11 @@ export async function POST(request: Request) {
       );
     }
 
-    await recordPlayerRegisteredNotification({
+    void recordPlayerRegisteredNotification({
       gameId: payload.gameId,
       playerId: String(player._id),
       playerName: formatPlayerDisplayName(player.firstName, player.lastName),
-    });
+    }).catch(() => {});
 
     if (isVolunteer) {
       const volunteerPayload = payload as VolunteerExistingPlayerInput;

@@ -69,12 +69,9 @@ export class RegistrationLimitError extends Error {
 }
 
 export async function getGameRegistrationCount(gameId: string) {
-  const [result] = await QueueEntry.aggregate<{ count: number }>([
-    { $match: { gameId } },
-    { $group: { _id: "$playerId" } },
-    { $count: "count" },
-  ]);
-  return result?.count ?? 0;
+  // Distinct player ids is cheaper than a 3-stage aggregation for capacity checks.
+  const playerIds = await QueueEntry.distinct("playerId", { gameId });
+  return playerIds.length;
 }
 
 export type GameRegistrationStatus = {
@@ -153,9 +150,21 @@ function buildGameRegistrationStatus(
   };
 }
 
+/** Warm-instance cache so repeated QR scans during open play skip redundant DB work. */
+const PAGE_PAYLOAD_CACHE_TTL_MS = 20_000;
+const pagePayloadCache = new Map<
+  string,
+  { expiresAt: number; payload: GameRegistrationPagePayload }
+>();
+
 export async function getGameRegistrationPagePayload(
   gameId: string,
 ): Promise<GameRegistrationPagePayload | null> {
+  const cached = pagePayloadCache.get(gameId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload;
+  }
+
   await connectToDatabase();
 
   const game = await PickleGame.findOne({ gameId })
@@ -165,6 +174,8 @@ export async function getGameRegistrationPagePayload(
     .lean<LoadedRegistrationGame | null>();
   if (!game) return null;
 
+  const strict = game.strictPlayerCount === true;
+
   const [owner, registeredCount] = await Promise.all([
     game.ownerId
       ? User.findById(game.ownerId).select("userType registrationFeature").lean<{
@@ -172,16 +183,24 @@ export async function getGameRegistrationPagePayload(
           registrationFeature?: string;
         } | null>()
       : Promise.resolve(null),
-    getGameRegistrationCount(gameId),
+    // Capacity count is only needed for strict sessions; skip the scan otherwise.
+    strict ? getGameRegistrationCount(gameId) : Promise.resolve(0),
   ]);
 
   const settings = resolveOwnerRegistrationSettings(owner);
   const status = buildGameRegistrationStatus(game, registeredCount, settings);
 
-  return {
+  const payload: GameRegistrationPagePayload = {
     ...status,
     gameTitle: game.title ?? "",
   };
+
+  pagePayloadCache.set(gameId, {
+    expiresAt: Date.now() + PAGE_PAYLOAD_CACHE_TTL_MS,
+    payload,
+  });
+
+  return payload;
 }
 
 export async function getGameRegistrationStatus(

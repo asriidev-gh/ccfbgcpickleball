@@ -1,6 +1,7 @@
 import { CLUB_LOGO_MAX_DIMENSION, MAX_CLUB_LOGO_BYTES } from "@/lib/club-settings-shared";
 import {
   MAX_REGISTRATION_PHOTO_BYTES,
+  REGISTRATION_PHOTO_COMPRESS_THRESHOLD_BYTES,
   REGISTRATION_PHOTO_MAX_DIMENSION,
 } from "@/lib/registration-photo";
 
@@ -89,7 +90,7 @@ export async function compressRegistrationPhoto(file: File): Promise<File> {
 }
 
 export function shouldCompressRegistrationPhoto(file: File) {
-  return file.size > MAX_REGISTRATION_PHOTO_BYTES;
+  return file.size > REGISTRATION_PHOTO_COMPRESS_THRESHOLD_BYTES;
 }
 
 /** Resize and compress club logos to fit the 2 MB upload limit. */

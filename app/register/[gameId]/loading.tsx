@@ -1,17 +1,23 @@
-import { Loader2 } from "lucide-react";
-
 export default function RegisterLoading() {
   return (
     <main className="register-page">
       <section className="register-shell">
         <div
-          className="register-card flex min-h-[18rem] flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card p-8 shadow-sm"
+          className="register-card space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8"
           role="status"
           aria-live="polite"
           aria-busy="true"
+          aria-label="Loading registration"
         >
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
-          <p className="text-sm text-muted-foreground">Loading registration…</p>
+          <div className="space-y-2">
+            <div className="h-7 w-48 animate-pulse rounded-md bg-muted" />
+            <div className="h-4 w-64 max-w-full animate-pulse rounded-md bg-muted/70" />
+          </div>
+          <div className="space-y-3">
+            <div className="h-11 w-full animate-pulse rounded-lg bg-muted" />
+            <div className="h-11 w-full animate-pulse rounded-lg bg-muted" />
+          </div>
+          <p className="text-center text-sm text-muted-foreground">Opening registration…</p>
         </div>
       </section>
     </main>

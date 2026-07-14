@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -11,10 +12,8 @@ import {
   getRegistrationBlockedMessage,
   promptIfRegistrationFullFromStatus,
 } from "@/components/game/registration-capacity-prompt";
-import { PlayerQrReveal } from "@/components/register/player-qr-reveal";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
 import { useNavigateToSpectate } from "@/components/register/use-navigate-to-spectate";
-import { UploadQrIdFlow } from "@/components/register/upload-qr-id-flow";
 import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
 import {
   persistActiveQueueHighlight,
@@ -47,6 +46,26 @@ import {
   volunteerNewPlayerSchema,
 } from "@/lib/validations";
 import { cn } from "@/lib/utils";
+
+const UploadQrIdFlow = dynamic(
+  () =>
+    import("@/components/register/upload-qr-id-flow").then((mod) => mod.UploadQrIdFlow),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[10rem] items-center justify-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+        Loading QR check-in…
+      </div>
+    ),
+  },
+);
+
+const PlayerQrReveal = dynamic(
+  () =>
+    import("@/components/register/player-qr-reveal").then((mod) => mod.PlayerQrReveal),
+  { ssr: false },
+);
 
 type FieldErrors = Record<string, string>;
 type CcfEventsBeforeAnswer = "yes" | "not_yet";
@@ -525,7 +544,7 @@ export function RegistrationForm({
     setSubmitting(true);
 
     try {
-      if (!(await ensureCanRegister({ refresh: true }))) {
+      if (!(await ensureCanRegister())) {
         setSubmitting(false);
         return;
       }

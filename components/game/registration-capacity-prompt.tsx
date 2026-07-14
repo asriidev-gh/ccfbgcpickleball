@@ -1,7 +1,5 @@
 "use client";
 
-import Swal from "sweetalert2";
-
 import type { CourtView } from "@/components/game/court-card";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
@@ -13,6 +11,10 @@ const registrationAlertOptions = {
   color: "#e2e8f0",
   confirmButtonColor: "#22c55e",
 };
+
+async function loadSwal() {
+  return (await import("sweetalert2")).default;
+}
 
 export async function fetchGameRegistrationStatus(gameId: string) {
   const response = await fetch(`/api/games/${gameId}/registration-status`);
@@ -46,6 +48,8 @@ async function promptIfRegistrationCapacityBlocked(status: GameRegistrationStatu
   if (!message) {
     return true;
   }
+
+  const Swal = await loadSwal();
 
   if (status.status === "ended") {
     await Swal.fire({
