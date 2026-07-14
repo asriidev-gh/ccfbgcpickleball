@@ -7534,7 +7534,11 @@
   }
 
   .register-photo-placeholder {
-    @apply flex h-40 w-full max-w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30;
+    @apply flex h-40 w-full max-w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .register-photo-placeholder:not(:disabled):hover {
+    @apply border-primary/40 bg-muted/50;
   }
 
   .register-photo-preview-wrap {
@@ -7550,11 +7554,11 @@
   }
 
   .register-photo-actions {
-    @apply flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-2;
+    @apply flex flex-row gap-2;
   }
 
   .register-photo-btn {
-    @apply min-h-12 w-full sm:min-h-11 sm:flex-1;
+    @apply min-h-11 min-w-0 flex-1 px-2 text-sm sm:min-h-11 sm:px-4 sm:text-base;
   }
 
   .register-photo-clear-btn {

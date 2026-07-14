@@ -2749,6 +2749,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <CardTitle>Queue</CardTitle>
+            <Badge variant="secondary" className="tabular-nums">
+              {queueWithStats.length}
+            </Badge>
             {isSpectator && !isPastGame ? (
               <Button
                 type="button"

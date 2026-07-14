@@ -148,37 +148,43 @@ export function RegistrationPhotoField({
           ) : null}
         </div>
       ) : (
-        <div className="register-photo-placeholder" aria-hidden>
+        <button
+          type="button"
+          className="register-photo-placeholder"
+          disabled={inputsDisabled}
+          aria-label={processing ? "Preparing photo" : "Add a photo"}
+          onClick={() => cameraInputRef.current?.click()}
+        >
           {processing ? (
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden />
           ) : (
-            <Camera className="h-8 w-8 text-muted-foreground" />
+            <Camera className="h-8 w-8 text-muted-foreground" aria-hidden />
           )}
           <span className="caption text-muted-foreground">
             {processing ? "Preparing photo…" : "No photo selected"}
           </span>
-        </div>
+        </button>
       )}
 
-      <div className="register-photo-actions flex flex-wrap gap-2">
+      <div className="register-photo-actions">
         <Button
           type="button"
           variant="outline"
-          className="register-photo-btn flex-1"
+          className="register-photo-btn"
           disabled={inputsDisabled}
           onClick={() => cameraInputRef.current?.click()}
         >
-          <Camera className="mr-2 h-4 w-4" />
+          <Camera className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2" aria-hidden />
           Take photo
         </Button>
         <Button
           type="button"
           variant="outline"
-          className="register-photo-btn flex-1"
+          className="register-photo-btn"
           disabled={inputsDisabled}
           onClick={() => galleryInputRef.current?.click()}
         >
-          <ImagePlus className="mr-2 h-4 w-4" />
+          <ImagePlus className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2" aria-hidden />
           Upload photo
         </Button>
       </div>

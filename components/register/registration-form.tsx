@@ -842,8 +842,9 @@ export function RegistrationForm({
                     <div className="text-center">
                       <Button
                         type="button"
-                        variant="link"
-                        className="text-muted-foreground"
+                        variant="outline"
+                        size="lg"
+                        className="register-toggle-btn w-full"
                         disabled={entryBusy || submitting}
                         onClick={() => void handleVolunteerEntry()}
                       >
