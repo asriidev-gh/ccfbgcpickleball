@@ -3715,9 +3715,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
               waitingLineEntries={waitingLineEntries}
               emptyCourtNumbers={emptyCourtNumbers}
               pendingFillCourtNumbers={pendingFillCourtNumbers}
-              replacePendingSourceIndex={
-                replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null
-              }
+              replacePendingSourceIndex={null}
               onConfirmFill={handleFillCourtConfirmWithSelection}
               onShuffle={handleFillCourtShuffle}
               mixedDoubles={usesMixedDoubles}

@@ -956,7 +956,6 @@ export function useOperatorCourtActions({
     allActiveCourtsPaused,
     fillingCourtNumber,
     pendingFillCourtNumbers,
-    replacePendingSourceIndex:
-      replaceMutation.isPending ? (replaceMutation.variables?.sourceIndex ?? null) : null,
+    replacePendingSourceIndex: null,
   };
 }

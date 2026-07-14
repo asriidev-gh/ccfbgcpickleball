@@ -54,25 +54,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    const reorderedQueue = [...queue];
-    [reorderedQueue[sourceIndex], reorderedQueue[targetIndex]] = [
-      reorderedQueue[targetIndex],
-      reorderedQueue[sourceIndex],
-    ];
+    const sourceEntry = queue[sourceIndex];
+    const targetEntry = queue[targetIndex];
+    const sourceRegisteredAt = sourceEntry.registeredAt;
+    const targetRegisteredAt = targetEntry.registeredAt;
 
-    const baseTime =
-      reorderedQueue.length > 0
-        ? new Date(reorderedQueue[0].registeredAt).getTime()
-        : Date.now();
-
-    await Promise.all(
-      reorderedQueue.map((entry, index) =>
-        QueueEntry.updateOne(
-          { _id: entry._id },
-          { $set: { registeredAt: new Date(baseTime + index * 1000) } },
-        ),
+    // Only touch the two swapped rows — rewriting the full queue was making fill-modal
+    // replaces feel multi-second on larger waiting lines.
+    await Promise.all([
+      QueueEntry.updateOne(
+        { _id: sourceEntry._id },
+        { $set: { registeredAt: targetRegisteredAt } },
       ),
-    );
+      QueueEntry.updateOne(
+        { _id: targetEntry._id },
+        { $set: { registeredAt: sourceRegisteredAt } },
+      ),
+    ]);
 
     return NextResponse.json({
       message: `Swapped queue #${sourceIndex + 1} with #${targetIndex + 1}.`,
