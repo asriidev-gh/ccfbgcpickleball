@@ -1,5 +1,9 @@
 import { connectToDatabase } from "@/lib/db";
-import { isCcfUserType, USER_TYPE_DEFAULT } from "@/lib/registration-variant";
+import {
+  getRegistrationFormVariant,
+  isCcfUserType,
+  USER_TYPE_DEFAULT,
+} from "@/lib/registration-variant";
 import { PickleGame } from "@/models/PickleGame";
 import { User } from "@/models/User";
 
@@ -31,11 +35,21 @@ export async function assertOwnerHasCcfMinistryFeatures(ownerId: string) {
   }
 }
 
+/** Player-facing D-group/prayer menu — matches whether this game uses the CCF registration form. */
 export async function resolveGameShowsCcfMinistryFeatures(gameId: string) {
   await connectToDatabase();
-  const game = await PickleGame.findOne({ gameId }).select("ownerId").lean<{ ownerId?: { toString(): string } }>();
+  const game = await PickleGame.findOne({ gameId })
+    .select("ownerId")
+    .lean<{ ownerId?: { toString(): string } }>();
   if (!game?.ownerId) return false;
-  return ownerHasCcfMinistryFeatures(String(game.ownerId));
+
+  const owner = await User.findById(game.ownerId)
+    .select("userType")
+    .lean<{ userType?: string } | null>();
+  const userType =
+    owner && typeof owner.userType === "string" ? owner.userType : undefined;
+
+  return getRegistrationFormVariant(userType) === "ccf";
 }
 
 export async function assertGameShowsCcfMinistryFeatures(gameId: string) {

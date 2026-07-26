@@ -70,10 +70,11 @@ export function PlayerSessionMenu({
   const showCommunityPosts = (features?.communityPostCount ?? 0) > 0;
   const showMarketplace = features?.showMarketplace === true;
   const showCcf = features?.showCcfFeatures ?? false;
-  const showDgroup = Boolean(features?.showDgroupJoinMenu);
+  const showDgroup = showCcf;
   const dgroupSubmitted = Boolean(features?.hasSubmittedDgroupRequest);
   const dgroupAcknowledged = dgroupSubmitted && Boolean(features?.isDgroupRequestAcknowledged);
-  const dgroupMenuDisabled = dgroupSubmitted;
+  const alreadyInDgroup =
+    Boolean(features?.isPartOfDgroup) || Boolean(features?.isOwnerMarkedDgroupJoined);
   const prayerSubmitted = Boolean(features?.hasSubmittedPrayerRequest);
   const prayerAcknowledged = Boolean(features?.isPrayerRequestAcknowledged);
   const prayerReplyCount = features?.prayerReplyCount ?? 0;
@@ -166,19 +167,24 @@ export function PlayerSessionMenu({
             </DropdownMenuItem>
           ) : null}
           {showDgroup ? (
-            <DropdownMenuItem
-              disabled={dgroupMenuDisabled}
-              onClick={() => {
-                if (!dgroupMenuDisabled) setDgroupOpen(true);
-              }}
-            >
+            <DropdownMenuItem onClick={() => setDgroupOpen(true)}>
               <Users />
-              <span className="flex-1">Join a D-group</span>
-              {dgroupAcknowledged ? (
+              <span className="flex-1">
+                {alreadyInDgroup
+                  ? "D-group"
+                  : dgroupSubmitted
+                    ? "D-group request"
+                    : "Join a D-group"}
+              </span>
+              {alreadyInDgroup ? (
+                <Badge variant="secondary" className="ml-auto">
+                  Joined
+                </Badge>
+              ) : dgroupAcknowledged ? (
                 <Badge className="ml-auto dgroup-acknowledged-badge">
                   Acknowledged
                 </Badge>
-              ) : features?.hasSubmittedDgroupRequest ? (
+              ) : dgroupSubmitted ? (
                 <Badge variant="secondary" className="ml-auto">
                   Submitted
                 </Badge>
@@ -231,7 +237,7 @@ export function PlayerSessionMenu({
         />
       ) : null}
 
-      {showDgroup && features && !dgroupMenuDisabled ? (
+      {showDgroup && features ? (
         <SpectateDgroupRequestDialog
           gameId={gameId}
           playerId={playerId}

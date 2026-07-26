@@ -6,15 +6,16 @@ export default async function RegisterPage({
   searchParams,
 }: {
   params: Promise<{ gameId: string }>;
-  searchParams: Promise<{ mode?: string }>;
+  searchParams: Promise<{ mode?: string; again?: string }>;
 }) {
   const { gameId } = await params;
-  const { mode } = await searchParams;
+  const { mode, again } = await searchParams;
 
   return (
     <RegistrationEntry
       gameId={gameId}
       initialMode={mode === "upload-qr" ? "upload-qr" : undefined}
+      allowAnotherRegistration={again === "1" || again === "true"}
     />
   );
 }

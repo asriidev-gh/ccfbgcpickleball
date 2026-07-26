@@ -16,7 +16,8 @@ export function RegisterAnotherPlayerButton({ gameId }: { gameId: string }) {
     try {
       const canProceed = await promptIfRegistrationFull(gameId);
       if (canProceed) {
-        router.push(`/register/${gameId}`);
+        // Bypass the already-checked-in gate on the register entry screen.
+        router.push(`/register/${gameId}?again=1`);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not check registration status.");

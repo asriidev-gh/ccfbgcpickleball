@@ -320,29 +320,18 @@ function QueuePlayerLabel({
   compactName,
   checkedOut,
   slot,
-  endorsementCount = 0,
-  onEndorsementClick,
 }: {
   entry: QueueEntryView;
   compactName: boolean;
   checkedOut: boolean;
   slot: number;
-  endorsementCount?: number;
-  onEndorsementClick?: () => void;
 }) {
   const rank = checkedOut ? undefined : slot;
   const name = compactName
     ? formatPlayerCourtName(entry.playerId.firstName, entry.playerId.lastName, rank)
     : formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName, rank);
 
-  return (
-    <span className="inline-flex max-w-full flex-wrap items-center gap-1">
-      <span className="min-w-0 truncate">{name}</span>
-      {endorsementCount > 0 ? (
-        <PlayerEndorsementStatusBadge count={endorsementCount} onClick={onEndorsementClick} />
-      ) : null}
-    </span>
-  );
+  return <span className="min-w-0 truncate">{name}</span>;
 }
 
 type QueueEntryRowProps = {
@@ -518,24 +507,31 @@ export function QueueEntryRow({
           ) : null}
           <div className="min-w-0 flex-1">
             <div className={cn("min-w-0", isNextUp ? "text-sm font-medium xl:text-base" : "body-lg")}>
-              <PlayerNameWithPhoto
-                player={entry.playerId}
-                onPlayerClick={onViewPlayerInfo}
-                className={cn(
-                  isNextUp && "gap-2 xl:gap-3",
-                  checkedOut && "opacity-80",
-                )}
-                nameClassName={checkedOut ? "text-muted-foreground" : undefined}
-              >
-                <QueuePlayerLabel
-                  entry={entry}
-                  compactName={compactName}
-                  checkedOut={checkedOut}
-                  slot={slot}
-                  endorsementCount={showEndorsedInPlayerLabel ? endorsementCount : 0}
-                  onEndorsementClick={showEndorsedInPlayerLabel ? onEndorsementClick : undefined}
-                />
-              </PlayerNameWithPhoto>
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <PlayerNameWithPhoto
+                  player={entry.playerId}
+                  onPlayerClick={onViewPlayerInfo}
+                  className={cn(
+                    "min-w-0",
+                    isNextUp && "gap-2 xl:gap-3",
+                    checkedOut && "opacity-80",
+                  )}
+                  nameClassName={checkedOut ? "text-muted-foreground" : undefined}
+                >
+                  <QueuePlayerLabel
+                    entry={entry}
+                    compactName={compactName}
+                    checkedOut={checkedOut}
+                    slot={slot}
+                  />
+                </PlayerNameWithPhoto>
+                {showEndorsedInPlayerLabel ? (
+                  <PlayerEndorsementStatusBadge
+                    count={endorsementCount}
+                    onClick={onEndorsementClick}
+                  />
+                ) : null}
+              </div>
               {!checkedOut && !hideSessionStats && !inWaitingLine ? (
                 <QueueEntrySessionStatsRow
                   wins={sessionStats.wins}

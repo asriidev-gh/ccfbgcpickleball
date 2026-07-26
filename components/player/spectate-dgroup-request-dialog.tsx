@@ -46,6 +46,8 @@ export function SpectateDgroupRequestDialog({
     | "dgroupAvailableTimeTo"
     | "isDgroupRequestAcknowledged"
     | "hasSubmittedDgroupRequest"
+    | "isPartOfDgroup"
+    | "isOwnerMarkedDgroupJoined"
   >;
 }) {
   const queryClient = useQueryClient();
@@ -62,7 +64,9 @@ export function SpectateDgroupRequestDialog({
     setTimeTo(initial.dgroupAvailableTimeTo);
   }, [open, initial]);
 
-  const readOnly = initial.hasSubmittedDgroupRequest;
+  const alreadyInDgroup =
+    initial.isPartOfDgroup === true || initial.isOwnerMarkedDgroupJoined === true;
+  const readOnly = alreadyInDgroup || initial.hasSubmittedDgroupRequest;
   const isAcknowledged = initial.isDgroupRequestAcknowledged;
 
   const submitMutation = useMutation({
@@ -122,15 +126,25 @@ export function SpectateDgroupRequestDialog({
             Join a D-group
           </DialogTitle>
           <DialogDescription>
-            {readOnly
-              ? isAcknowledged
-                ? "Your D-group request was acknowledged. You cannot submit another request."
-                : "Your D-group request has been submitted. You cannot submit another request."
-              : "Let the club know you want to join a D-group and when you are usually available."}
+            {alreadyInDgroup
+              ? "You are already part of a D-group."
+              : readOnly
+                ? isAcknowledged
+                  ? "Your D-group request was acknowledged. You cannot submit another request."
+                  : "Your D-group request has been submitted. You cannot submit another request."
+                : "Let the club know you want to join a D-group and when you are usually available."}
           </DialogDescription>
         </DialogHeader>
 
-        {readOnly ? (
+        {alreadyInDgroup ? (
+          <div className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+            <Badge variant="secondary">Joined</Badge>
+            <p className="text-sm text-foreground">
+              Your profile shows you are already in a D-group. Contact your club if this looks
+              wrong.
+            </p>
+          </div>
+        ) : readOnly ? (
           <div className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="bg-amber-500/15 text-amber-800 dark:text-amber-200">
@@ -147,6 +161,26 @@ export function SpectateDgroupRequestDialog({
                 ? "Your club has acknowledged your request and will follow up with you."
                 : "Your request is on file. The club will review it soon."}
             </p>
+            {days.length > 0 || timeFrom || timeTo ? (
+              <div className="space-y-2 border-t border-amber-500/20 pt-3 text-sm">
+                {days.length > 0 ? (
+                  <p>
+                    <span className="font-medium text-foreground">Available days: </span>
+                    <span className="text-muted-foreground">
+                      {days.map((day) => DGROUP_WEEKDAY_LABELS[day]).join(", ")}
+                    </span>
+                  </p>
+                ) : null}
+                {timeFrom || timeTo ? (
+                  <p>
+                    <span className="font-medium text-foreground">Available time: </span>
+                    <span className="text-muted-foreground">
+                      {[timeFrom, timeTo].filter(Boolean).join(" – ")}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : (
         <div className="space-y-5">

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export const QUEUE_ENTRY_ACTIONS_STORAGE_KEY = "ccf-queue-entry-actions-visible";
 
 export function defaultShowQueueEntryActions() {
-  return false;
+  return true;
 }
 
 export function loadShowQueueEntryActions() {

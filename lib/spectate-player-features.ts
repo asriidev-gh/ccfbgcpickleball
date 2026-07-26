@@ -90,8 +90,10 @@ export async function getSpectatePlayerFeatures(
         });
 
   const isPartOfDgroup = player.isPartOfDgroup === true;
+  const hasSubmittedDgroupRequest = player.wantsToJoinDgroup === true;
+  // Menu entry follows CCF features; this flag means the player can still submit a new request.
   const showDgroupJoinMenu =
-    showCcfFeatures && !isPartOfDgroup && !ownerMarkedDgroupJoined;
+    showCcfFeatures && !isPartOfDgroup && !hasSubmittedDgroupRequest && !ownerMarkedDgroupJoined;
 
   const prayerStatus = showCcfFeatures
     ? await getSpectatePlayerPrayerStatus(ownerId, playerId)
@@ -109,7 +111,7 @@ export async function getSpectatePlayerFeatures(
     dgroupAvailableTimeFrom: player.dgroupAvailableTimeFrom?.trim() ?? "",
     dgroupAvailableTimeTo: player.dgroupAvailableTimeTo?.trim() ?? "",
     isDgroupRequestAcknowledged,
-    hasSubmittedDgroupRequest: player.wantsToJoinDgroup === true,
+    hasSubmittedDgroupRequest,
     isOwnerMarkedDgroupJoined: ownerMarkedDgroupJoined,
     showDgroupJoinMenu,
     hasSubmittedPrayerRequest: prayerStatus?.hasRequest ?? false,

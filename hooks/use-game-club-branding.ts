@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import type { ClubBranding } from "@/lib/club-branding";
 import {
@@ -16,6 +17,14 @@ import { fetchSpectateGame, spectatorLiveQueryKey } from "@/lib/fetch-spectate-g
 import type { SpectateLivePayload } from "@/lib/spectate-payload";
 
 export function useGameClubBranding(pathname: string, fromParam: string | null) {
+  // Keep SSR and the first client render identical (APP_NAME). Club branding can
+  // appear from a hydrated React Query cache / sessionStorage and would otherwise
+  // mismatch the server HTML.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const leaderboardGameId = getLeaderboardGameIdFromPath(pathname);
   const gameId =
     getGameIdFromGamesPath(pathname) ??
@@ -29,18 +38,18 @@ export function useGameClubBranding(pathname: string, fromParam: string | null) 
   const operatorQuery = useQuery({
     queryKey: operatorShellQueryKey(gameId ?? ""),
     queryFn: () => fetchOperatorShell(gameId!),
-    enabled: Boolean(gameId) && isGamePath && !isSpectator && !isQuickGameSession,
+    enabled: mounted && Boolean(gameId) && isGamePath && !isSpectator && !isQuickGameSession,
     staleTime: Number.POSITIVE_INFINITY,
   });
 
   const spectatorQuery = useQuery({
     queryKey: spectatorLiveQueryKey(gameId ?? ""),
     queryFn: () => fetchSpectateGame(gameId!, "live") as Promise<SpectateLivePayload>,
-    enabled: Boolean(gameId) && isSpectator,
+    enabled: mounted && Boolean(gameId) && isSpectator,
     staleTime: 30_000,
   });
 
-  if (!isGamePath || !gameId) {
+  if (!mounted || !isGamePath || !gameId) {
     return null;
   }
 

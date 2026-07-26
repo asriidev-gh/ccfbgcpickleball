@@ -1,4 +1,5 @@
 import { ThumbsUp } from "lucide-react";
+import type { KeyboardEvent, MouseEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -34,9 +35,30 @@ export function PlayerEndorsementStatusBadge({
 
   if (!onClick) return badge;
 
+  const handleClick = (event: MouseEvent<HTMLSpanElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClick();
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.stopPropagation();
+    onClick();
+  };
+
+  // Use a span (not <button>) so this can sit beside name triggers without nested buttons.
   return (
-    <button type="button" className="inline-flex" onClick={onClick} aria-label={`View ${label}`}>
+    <span
+      role="button"
+      tabIndex={0}
+      className="inline-flex"
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      aria-label={`View ${label}`}
+    >
       {badge}
-    </button>
+    </span>
   );
 }
