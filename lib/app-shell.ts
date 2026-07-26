@@ -3,8 +3,17 @@ export function getGameIdFromGamesPath(pathname: string) {
   return match?.[1] ?? null;
 }
 
+export function getOfflineSandboxGameIdFromPath(pathname: string) {
+  const match = pathname.match(/^\/offline\/([^/]+)/);
+  return match?.[1] ?? null;
+}
+
 export function isGameDashboardPath(pathname: string) {
-  return pathname.startsWith("/games/") || /^\/play\/[^/]+$/.test(pathname);
+  return (
+    pathname.startsWith("/games/") ||
+    /^\/play\/[^/]+$/.test(pathname) ||
+    /^\/offline\/[^/]+$/.test(pathname)
+  );
 }
 
 export function getQuickPlayGameIdFromPath(pathname: string) {
@@ -13,14 +22,23 @@ export function getQuickPlayGameIdFromPath(pathname: string) {
 }
 
 export function getBrandShellClasses(pathname: string) {
-  if (pathname.startsWith("/games/")) {
+  if (pathname.startsWith("/games/") || pathname.startsWith("/offline/")) {
     return {
       pad: "px-4 md:px-6",
       container: "max-w-[1600px]",
     };
   }
 
-  if (pathname === "/" || pathname === "/my-games" || pathname.startsWith("/my-games/") || pathname === "/my-club" || pathname === "/marketplace" || pathname === "/play" || pathname.startsWith("/play/") || pathname === "/quick-game") {
+  if (
+    pathname === "/" ||
+    pathname === "/my-games" ||
+    pathname.startsWith("/my-games/") ||
+    pathname === "/my-club" ||
+    pathname === "/marketplace" ||
+    pathname === "/play" ||
+    pathname.startsWith("/play/") ||
+    pathname === "/quick-game"
+  ) {
     return {
       pad: "px-6 lg:px-10",
       container: "max-w-7xl",
@@ -83,6 +101,7 @@ export function shouldShowOwnerDashboardNavLinks(pathname: string) {
   if (OWNER_DASHBOARD_NAV_HIDDEN_PATHS.has(pathname)) return false;
   if (pathname.startsWith("/my-games/")) return false;
   if (pathname.startsWith("/games/")) return false;
+  if (pathname.startsWith("/offline/")) return false;
   if (pathname === "/play" || pathname.startsWith("/play/")) return false;
   if (pathname.startsWith("/leaderboard/")) return false;
   return true;

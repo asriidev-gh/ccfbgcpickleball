@@ -32,7 +32,7 @@ import {
   writeCourtsViewGamePayload,
 } from "@/lib/courts-view-cache";
 import { fetchOperatorQueue, operatorQueueQueryKey } from "@/lib/fetch-operator-game";
-import { isQuickGame } from "@/lib/local-game-id";
+import { isClientOnlyOperatorGame } from "@/lib/client-only-operator-game";
 import {
   beginCourtClearWait,
   beginOperatorQueueMutation,
@@ -74,7 +74,7 @@ export function useOperatorCourtActions({
   const [pendingFillCourtNumbers, setPendingFillCourtNumbers] = useState(
     () => new Set<number>(),
   );
-  const isLocalGame = isQuickGame(gameId);
+  const isLocalGame = isClientOnlyOperatorGame(gameId);
 
   const [replaceDialog, setReplaceDialog] = useState<ReplacePlayerDialogState | null>(null);
   const [cancelCourtTarget, setCancelCourtTarget] = useState<number | null>(null);

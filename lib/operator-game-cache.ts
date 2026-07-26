@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { GamePayload } from "@/lib/game-payload-mutations";
 import { persistOperatorDashboardSessionCacheFromClient } from "@/lib/operator-dashboard-session-cache";
-import { isQuickGame } from "@/lib/local-game-id";
+import { isClientOnlyOperatorGame } from "@/lib/client-only-operator-game";
 import {
   operatorDetailsQueryKey,
   operatorMatchHistoryQueryKey,
@@ -22,7 +22,7 @@ export function readOperatorGamePayload(
   queryClient: QueryClient,
   gameId: string,
 ): GamePayload | undefined {
-  if (isQuickGame(gameId)) {
+  if (isClientOnlyOperatorGame(gameId)) {
     return readQuickGamePayload(gameId);
   }
 
@@ -41,7 +41,7 @@ export function writeOperatorGamePayload(
   gameId: string,
   next: GamePayload,
 ) {
-  if (isQuickGame(gameId)) {
+  if (isClientOnlyOperatorGame(gameId)) {
     writeQuickGamePayload(gameId, next);
     return;
   }

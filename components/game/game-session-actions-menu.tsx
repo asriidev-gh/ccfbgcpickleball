@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Contact, Flag, RotateCcw, Settings2, UserPlus } from "lucide-react";
+import { ChevronDown, Contact, Flag, RotateCcw, Settings2, Unplug, UserPlus, Wifi } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 
@@ -29,6 +29,10 @@ type GameSessionActionsMenuProps = {
   onDatabaseCheckIn?: () => void;
   showAddPlayer?: boolean;
   onAddPlayer?: () => void;
+  showSwitchOfflineMode?: boolean;
+  onSwitchOfflineMode?: () => void;
+  showExitOfflineMode?: boolean;
+  onExitOfflineMode?: () => void;
   showResetOpenPlay?: boolean;
   resetOpenPlayPending?: boolean;
   onResetOpenPlay?: () => void | Promise<void>;
@@ -46,6 +50,10 @@ export function GameSessionActionsMenu({
   onDatabaseCheckIn,
   showAddPlayer = false,
   onAddPlayer,
+  showSwitchOfflineMode = false,
+  onSwitchOfflineMode,
+  showExitOfflineMode = false,
+  onExitOfflineMode,
   showResetOpenPlay = false,
   resetOpenPlayPending = false,
   onResetOpenPlay,
@@ -79,6 +87,26 @@ export function GameSessionActionsMenu({
       });
     }
 
+    if (showSwitchOfflineMode && onSwitchOfflineMode) {
+      items.push({
+        key: "switch-offline-mode",
+        label: "Switch offline mode",
+        icon: <Unplug aria-hidden />,
+        onClick: onSwitchOfflineMode,
+        className: "game-session-switch-offline-btn",
+      });
+    }
+
+    if (showExitOfflineMode && onExitOfflineMode) {
+      items.push({
+        key: "exit-offline-mode",
+        label: "Back to live queue",
+        icon: <Wifi aria-hidden />,
+        onClick: onExitOfflineMode,
+        className: "game-session-exit-offline-btn",
+      });
+    }
+
     if (showResetOpenPlay && onResetOpenPlay) {
       items.push({
         key: "reset-open-play",
@@ -109,12 +137,16 @@ export function GameSessionActionsMenu({
     onAddPlayer,
     onDatabaseCheckIn,
     onEndOpenPlay,
+    onExitOfflineMode,
     onResetOpenPlay,
+    onSwitchOfflineMode,
     resetOpenPlayPending,
     showAddPlayer,
     showDatabaseCheckIn,
     showEndOpenPlay,
+    showExitOfflineMode,
     showResetOpenPlay,
+    showSwitchOfflineMode,
   ]);
 
   if (actions.length === 0) return null;

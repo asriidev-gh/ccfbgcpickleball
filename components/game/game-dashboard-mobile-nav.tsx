@@ -21,6 +21,10 @@ type GameDashboardMobileNavProps = {
   onDatabaseCheckInClick: () => void;
   showAddPlayer?: boolean;
   onAddPlayerClick?: () => void;
+  showSwitchOfflineMode?: boolean;
+  onSwitchOfflineMode?: () => void;
+  showExitOfflineMode?: boolean;
+  onExitOfflineMode?: () => void;
   showResetOpenPlay: boolean;
   resetOpenPlayPending: boolean;
   onResetOpenPlay: () => void;
@@ -42,6 +46,10 @@ export function GameDashboardMobileNav({
   onDatabaseCheckInClick,
   showAddPlayer = false,
   onAddPlayerClick,
+  showSwitchOfflineMode = false,
+  onSwitchOfflineMode,
+  showExitOfflineMode = false,
+  onExitOfflineMode,
   showResetOpenPlay,
   resetOpenPlayPending,
   onResetOpenPlay,
@@ -98,6 +106,10 @@ export function GameDashboardMobileNav({
         onDatabaseCheckIn={onDatabaseCheckInClick}
         showAddPlayer={showAddPlayer}
         onAddPlayer={onAddPlayerClick}
+        showSwitchOfflineMode={showSwitchOfflineMode}
+        onSwitchOfflineMode={onSwitchOfflineMode}
+        showExitOfflineMode={showExitOfflineMode}
+        onExitOfflineMode={onExitOfflineMode}
         showResetOpenPlay={showResetOpenPlay}
         resetOpenPlayPending={resetOpenPlayPending}
         onResetOpenPlay={onResetOpenPlay}

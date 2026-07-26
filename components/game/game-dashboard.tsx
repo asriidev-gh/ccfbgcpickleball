@@ -55,8 +55,14 @@ import {
   getQuickGameDashboardPath,
   isAccountQuickGame,
   isEphemeralQuickGame,
-  isQuickGame,
 } from "@/lib/local-game-id";
+import { isClientOnlyOperatorGame } from "@/lib/client-only-operator-game";
+import { isOfflineSandboxGame } from "@/lib/offline-sandbox-id";
+import {
+  endOfflineSandboxSession,
+  getOfflineSandboxSourceLiveGameId,
+  startOfflineSandboxFromLivePayload,
+} from "@/lib/start-offline-sandbox";
 import {
   readOperatorGamePayload,
   seedLocalGameOperatorCache,
@@ -561,9 +567,10 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const gameId = params.id ?? "";
-  const isQuickGameSession = isQuickGame(gameId);
+  const isQuickGameSession = isClientOnlyOperatorGame(gameId);
   const isEphemeralQuickSession = isEphemeralQuickGame(gameId);
   const isAccountQuickSession = isAccountQuickGame(gameId);
+  const isOfflineSandboxSession = isOfflineSandboxGame(gameId);
   const { payload: quickSession } = useQuickGameSessionAfterMount(isQuickGameSession ? gameId : "");
   const queryClient = useQueryClient();
   useHydrateOperatorDashboardSessionCache(queryClient, gameId);
@@ -2462,6 +2469,23 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     if (result.isConfirmed) endOpenPlayMutation.mutate();
   };
 
+  const handleSwitchOfflineMode = () => {
+    const live = readOperatorGamePayload(queryClient, gameId);
+    if (!live) {
+      toast.error("Live queue is still loading. Try again in a moment.");
+      return;
+    }
+    const started = startOfflineSandboxFromLivePayload(live);
+    toast.success("Offline mode opened — the live queue was not changed.");
+    router.push(started.path);
+  };
+
+  const handleExitOfflineMode = () => {
+    const sourceLiveGameId = getOfflineSandboxSourceLiveGameId(gameId);
+    endOfflineSandboxSession(gameId);
+    router.push(sourceLiveGameId ? `/games/${sourceLiveGameId}` : "/");
+  };
+
   const handleResetGame = async () => {
     const result = await Swal.fire({
       ...alertBaseOptions,
@@ -3461,6 +3485,18 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         </div>
       ) : null}
       <section className="mx-auto flex max-w-[1600px] flex-col gap-4">
+        {isOfflineSandboxSession ? (
+          <div
+            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
+            role="status"
+          >
+            <p className="font-medium">Offline mode</p>
+            <p className="mt-0.5 text-muted-foreground">
+              Court and queue actions stay in this browser only. The live queue and database are not
+              updated.
+            </p>
+          </div>
+        ) : null}
         <Card
           className={cn(
             "glass-panel game-dashboard-header",
@@ -3520,6 +3556,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                       <p className="caption mt-1 text-muted-foreground">
                         Public quick play — this session lives only in this browser. Nothing is saved to
                         our servers.
+                      </p>
+                    ) : isOfflineSandboxSession ? (
+                      <p className="caption mt-1 font-medium text-amber-700 dark:text-amber-300">
+                        Offline mode — fill, swap, and end actions stay in this browser only. The live
+                        queue is not updated.
                       </p>
                     ) : isAccountQuickSession ? (
                       <p className="caption mt-1 text-muted-foreground">
@@ -3613,10 +3654,16 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                       onDatabaseCheckIn={() => setDatabaseCheckInOpen(true)}
                       showAddPlayer={showManualAddPlayer}
                       onAddPlayer={() => setAddPlayerOpen(true)}
+                      showSwitchOfflineMode={
+                        !readOnly && !isPastGame && !isSpectator && !isQuickGameSession
+                      }
+                      onSwitchOfflineMode={handleSwitchOfflineMode}
+                      showExitOfflineMode={isOfflineSandboxSession}
+                      onExitOfflineMode={handleExitOfflineMode}
                       showResetOpenPlay={!readOnly && canResetGame}
                       resetOpenPlayPending={resetMutation.isPending}
                       onResetOpenPlay={handleResetGame}
-                      showEndOpenPlay={!readOnly && !isPastGame}
+                      showEndOpenPlay={!readOnly && !isPastGame && !isOfflineSandboxSession}
                       endOpenPlayPending={endOpenPlayMutation.isPending}
                       onEndOpenPlay={handleEndOpenPlay}
                     />
@@ -3919,10 +3966,16 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           onDatabaseCheckInClick={() => setDatabaseCheckInOpen(true)}
           showAddPlayer={showManualAddPlayer}
           onAddPlayerClick={() => setAddPlayerOpen(true)}
+          showSwitchOfflineMode={
+            !readOnly && !isPastGame && !isSpectator && !isQuickGameSession
+          }
+          onSwitchOfflineMode={handleSwitchOfflineMode}
+          showExitOfflineMode={isOfflineSandboxSession}
+          onExitOfflineMode={handleExitOfflineMode}
           showResetOpenPlay={!readOnly && canResetGame}
           resetOpenPlayPending={resetMutation.isPending}
           onResetOpenPlay={handleResetGame}
-          showEndOpenPlay={!readOnly && !isPastGame}
+          showEndOpenPlay={!readOnly && !isPastGame && !isOfflineSandboxSession}
           endOpenPlayPending={endOpenPlayMutation.isPending}
           onEndOpenPlay={handleEndOpenPlay}
         />

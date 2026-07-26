@@ -4,9 +4,11 @@ import {
   isEphemeralQuickGame,
   isQuickGame,
 } from "@/lib/local-game-id";
+import { isOfflineSandboxGame } from "@/lib/offline-sandbox-id";
 import type { OperatorFullPayload } from "@/lib/operator-payload";
 import { useEphemeralQuickGameStore } from "@/store/ephemeral-quick-game-store";
 import { useLocalGameStore } from "@/store/local-game-store";
+import { useOfflineSandboxStore } from "@/store/offline-sandbox-store";
 
 export { isQuickGame, isAccountQuickGame, isEphemeralQuickGame };
 
@@ -16,6 +18,9 @@ export function readQuickGamePayload(gameId: string) {
   }
   if (isEphemeralQuickGame(gameId)) {
     return useEphemeralQuickGameStore.getState().getSession(gameId);
+  }
+  if (isOfflineSandboxGame(gameId)) {
+    return useOfflineSandboxStore.getState().getSession(gameId);
   }
   return undefined;
 }
@@ -27,6 +32,10 @@ export function writeQuickGamePayload(gameId: string, payload: OperatorFullPaylo
   }
   if (isEphemeralQuickGame(gameId)) {
     useEphemeralQuickGameStore.getState().setSession(gameId, payload);
+    return;
+  }
+  if (isOfflineSandboxGame(gameId)) {
+    useOfflineSandboxStore.getState().setSession(gameId, payload);
   }
 }
 
@@ -37,6 +46,12 @@ export function initializeQuickGameSession(gameId: string, payload: OperatorFull
   }
   if (isEphemeralQuickGame(gameId)) {
     useEphemeralQuickGameStore.getState().initializeSession(gameId, payload);
+    return;
+  }
+  if (isOfflineSandboxGame(gameId)) {
+    const source =
+      useOfflineSandboxStore.getState().getSourceLiveGameId(gameId) ?? payload.game.gameId;
+    useOfflineSandboxStore.getState().initializeSession(gameId, payload, source);
   }
 }
 
@@ -47,6 +62,10 @@ export function removeQuickGameSession(gameId: string) {
   }
   if (isEphemeralQuickGame(gameId)) {
     useEphemeralQuickGameStore.getState().removeSession(gameId);
+    return;
+  }
+  if (isOfflineSandboxGame(gameId)) {
+    useOfflineSandboxStore.getState().removeSession(gameId);
   }
 }
 
@@ -62,6 +81,7 @@ export function clearEphemeralQuickGameSessions() {
 export function clearAllQuickGameSessions() {
   useLocalGameStore.getState().clearAllSessions();
   useEphemeralQuickGameStore.getState().clearAllSessions();
+  useOfflineSandboxStore.getState().clearAllSessions();
 }
 
 export function updateQuickGamePayload(
@@ -83,7 +103,10 @@ export function useQuickGameSession(gameId: string) {
   const ephemeralSession = useEphemeralQuickGameStore((state) =>
     isEphemeralQuickGame(gameId) ? state.sessions[gameId] : undefined,
   );
-  return accountSession ?? ephemeralSession;
+  const offlineSession = useOfflineSandboxStore((state) =>
+    isOfflineSandboxGame(gameId) ? state.sessions[gameId] : undefined,
+  );
+  return accountSession ?? ephemeralSession ?? offlineSession;
 }
 
 export function listAllQuickGameSessions(): Record<string, OperatorFullPayload> {

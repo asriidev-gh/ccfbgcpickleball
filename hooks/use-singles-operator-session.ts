@@ -14,7 +14,7 @@ import {
   operatorQueueQueryKey,
   operatorShellQueryKey,
 } from "@/lib/fetch-operator-game";
-import { isQuickGame } from "@/lib/local-game-id";
+import { isClientOnlyOperatorGame } from "@/lib/client-only-operator-game";
 import { mergeOperatorGamePayload } from "@/lib/operator-payload";
 import type { OperatorFullPayload, OperatorShellPayload } from "@/lib/operator-payload";
 import {
@@ -42,7 +42,7 @@ export function useSinglesOperatorSession(gameId: string) {
   const queryClient = useQueryClient();
   useHydrateOperatorDashboardSessionCache(queryClient, gameId);
 
-  const isQuickGameSession = isQuickGame(gameId);
+  const isQuickGameSession = isClientOnlyOperatorGame(gameId);
   const { mounted: quickMounted } = useQuickGameSessionAfterMount(isQuickGameSession ? gameId : "");
   const quickPayload = useQuickGameSession(isQuickGameSession ? gameId : "");
 

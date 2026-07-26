@@ -4,7 +4,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { useLayoutEffect, useState } from "react";
 
 import { hydrateOperatorDashboardSessionCache } from "@/lib/operator-dashboard-session-cache";
-import { isQuickGame } from "@/lib/local-game-id";
+import { isClientOnlyOperatorGame } from "@/lib/client-only-operator-game";
 
 /**
  * Synchronously hydrate operator shell/queue from sessionStorage before paint
@@ -17,7 +17,7 @@ export function useHydrateOperatorDashboardSessionCache(
   const [hydratedGameId, setHydratedGameId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
-    if (!gameId || isQuickGame(gameId)) {
+    if (!gameId || isClientOnlyOperatorGame(gameId)) {
       setHydratedGameId(gameId || null);
       return;
     }
