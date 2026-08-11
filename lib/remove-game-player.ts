@@ -87,18 +87,20 @@ export async function removePlayerFromGame(input: {
     ),
     LeaderboardStats.deleteOne({ gameId: input.gameId, playerId: playerObjectId }),
     Volunteer.deleteOne({ gameId: input.gameId, playerId: playerObjectId }),
-    Court.updateMany(
-      { gameId: input.gameId },
-      {
-        $pull: {
-          "teamA.playerIds": playerObjectId,
-          "teamB.playerIds": playerObjectId,
-          "teamA.queueEntryIds": { $in: queueEntryIds },
-          "teamB.queueEntryIds": { $in: queueEntryIds },
-        },
-      },
-    ),
   ]);
+
+  // Pull court refs after queue status is updated so a mid-failure cannot leave on_court orphans.
+  await Court.updateMany(
+    { gameId: input.gameId },
+    {
+      $pull: {
+        "teamA.playerIds": playerObjectId,
+        "teamB.playerIds": playerObjectId,
+        "teamA.queueEntryIds": { $in: queueEntryIds },
+        "teamB.queueEntryIds": { $in: queueEntryIds },
+      },
+    },
+  );
 
   return {
     playerName: formatPlayerDisplayName(player.firstName, player.lastName),

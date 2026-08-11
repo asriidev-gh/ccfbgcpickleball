@@ -21,6 +21,7 @@ import {
   type QueueEntryLike,
 } from "@/lib/queue-court-assignment";
 import { requeuePlayersAfterCourtEnd } from "@/lib/queue-end-requeue";
+import { healOrphanedOnCourtEntries } from "@/lib/queue-on-court-orphans";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -31,19 +32,57 @@ import "@/models/Player";
 const COURT_EMPTY_WAIT_MS = 5_000;
 const COURT_EMPTY_POLL_MS = 250;
 
+function emptyCourtTeam() {
+  return { playerIds: [] as Types.ObjectId[], queueEntryIds: [] as Types.ObjectId[] };
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function findEmptyCourt(gameId: string, courtNumber?: number) {
-  const deadline =
-    courtNumber != null ? Date.now() + COURT_EMPTY_WAIT_MS : Date.now();
+function resolvePlayerObjectId(entry: QueueEntryLike) {
+  const player = entry.playerId as Types.ObjectId | { _id: Types.ObjectId };
+  return typeof player === "object" && player != null && "_id" in player
+    ? player._id
+    : (player as Types.ObjectId);
+}
+
+function resolveEntryObjectId(entry: QueueEntryLike) {
+  return entry._id instanceof Types.ObjectId ? entry._id : new Types.ObjectId(String(entry._id));
+}
+
+/** Atomically claim an empty court and assign teams in one write to prevent fill races. */
+async function claimEmptyCourtWithTeams(
+  gameId: string,
+  courtNumber: number | undefined,
+  teams: {
+    teamA: { playerIds: Types.ObjectId[]; queueEntryIds: Types.ObjectId[] };
+    teamB: { playerIds: Types.ObjectId[]; queueEntryIds: Types.ObjectId[] };
+  },
+) {
+  const deadline = courtNumber != null ? Date.now() + COURT_EMPTY_WAIT_MS : Date.now();
 
   while (true) {
-    const court =
+    const court = await Court.findOneAndUpdate(
       courtNumber != null
-        ? await Court.findOne({ gameId, courtNumber, status: "empty" })
-        : await Court.findOne({ gameId, status: "empty" }).sort({ courtNumber: 1 });
+        ? { gameId, courtNumber, status: "empty" }
+        : { gameId, status: "empty" },
+      {
+        $set: {
+          status: "active",
+          startedAt: new Date(),
+          pausedAt: null,
+          totalPausedMs: 0,
+          isRematch: false,
+          teamA: teams.teamA,
+          teamB: teams.teamB,
+        },
+      },
+      {
+        sort: courtNumber == null ? { courtNumber: 1 } : undefined,
+        returnDocument: "after",
+      },
+    );
 
     if (court) return court;
 
@@ -55,6 +94,22 @@ async function findEmptyCourt(gameId: string, courtNumber?: number) {
   }
 }
 
+async function releaseClaimedCourt(courtId: Types.ObjectId) {
+  await Court.updateOne(
+    { _id: courtId, status: "active" },
+    {
+      $set: {
+        status: "empty",
+        teamA: emptyCourtTeam(),
+        teamB: emptyCourtTeam(),
+        startedAt: null,
+        ...clearCourtTimerPauseFields(),
+        isRematch: false,
+      },
+    },
+  );
+}
+
 export async function startGameOnCourt(
   gameId: string,
   courtNumber?: number,
@@ -63,17 +118,11 @@ export async function startGameOnCourt(
   const game = await PickleGame.findOne({ gameId }).select("gameMode matchingType");
   if (!game) throw new Error("Game not found.");
 
+  // Repair any leftover orphans before picking so they can be filled again.
+  await healOrphanedOnCourtEntries(gameId);
+
   const format = resolveGameFormatSettings(game);
   const minPlayers = minPlayersForGameFormat(format.gameMode);
-
-  const court = await findEmptyCourt(gameId, courtNumber);
-  if (!court) {
-    throw new Error(
-      courtNumber != null
-        ? `Court ${courtNumber} is not available.`
-        : "No empty court available.",
-    );
-  }
 
   const entries = await QueueEntry.find({ gameId, status: "queued" })
     .sort({ registeredAt: 1 })
@@ -114,35 +163,54 @@ export async function startGameOnCourt(
     }
   }
 
-  const resolvePlayerObjectId = (entry: QueueEntryLike) => {
-    const player = entry.playerId as Types.ObjectId | { _id: Types.ObjectId };
-    return typeof player === "object" && player != null && "_id" in player
-      ? player._id
-      : (player as Types.ObjectId);
+  const pickedEntryIds = assignment.picked.map(resolveEntryObjectId);
+  const teams = {
+    teamA: {
+      playerIds: assignment.teamA.map(resolvePlayerObjectId),
+      queueEntryIds: assignment.teamA.map(resolveEntryObjectId),
+    },
+    teamB: {
+      playerIds: assignment.teamB.map(resolvePlayerObjectId),
+      queueEntryIds: assignment.teamB.map(resolveEntryObjectId),
+    },
   };
 
-  const resolveEntryObjectId = (entry: QueueEntryLike) =>
-    entry._id instanceof Types.ObjectId ? entry._id : new Types.ObjectId(String(entry._id));
+  // Claim the court with teams first so concurrent fills cannot share one court,
+  // and so a failed queue flip never leaves on_court rows without a court.
+  const court = await claimEmptyCourtWithTeams(gameId, courtNumber, teams);
+  if (!court) {
+    throw new Error(
+      courtNumber != null
+        ? `Court ${courtNumber} is not available.`
+        : "No empty court available.",
+    );
+  }
 
-  await QueueEntry.updateMany(
-    { _id: { $in: assignment.picked.map(resolveEntryObjectId) } },
-    { $set: { status: "on_court" } },
-  );
+  try {
+    const promoted = await QueueEntry.updateMany(
+      {
+        _id: { $in: pickedEntryIds },
+        gameId,
+        status: "queued",
+      },
+      { $set: { status: "on_court" } },
+    );
 
-  court.status = "active";
-  court.startedAt = new Date();
-  court.pausedAt = null;
-  court.totalPausedMs = 0;
-  court.isRematch = false;
-  court.teamA = {
-    playerIds: assignment.teamA.map(resolvePlayerObjectId),
-    queueEntryIds: assignment.teamA.map(resolveEntryObjectId),
-  };
-  court.teamB = {
-    playerIds: assignment.teamB.map(resolvePlayerObjectId),
-    queueEntryIds: assignment.teamB.map(resolveEntryObjectId),
-  };
-  await court.save();
+    if ((promoted.modifiedCount ?? 0) !== pickedEntryIds.length) {
+      throw new Error("One or more selected queue entries are no longer available.");
+    }
+  } catch (error) {
+    await QueueEntry.updateMany(
+      {
+        _id: { $in: pickedEntryIds },
+        gameId,
+        status: "on_court",
+      },
+      { $set: { status: "queued" } },
+    );
+    await releaseClaimedCourt(court._id as Types.ObjectId);
+    throw error;
+  }
 
   return court;
 }
@@ -567,22 +635,53 @@ export async function cancelCourtAssignment(input: { gameId: string; courtNumber
     (a, b) => new Date(a.registeredAt).getTime() - new Date(b.registeredAt).getTime(),
   );
 
-  court.status = "empty";
-  court.teamA = { playerIds: [], queueEntryIds: [] };
-  court.teamB = { playerIds: [], queueEntryIds: [] };
-  court.startedAt = null;
-  Object.assign(court, clearCourtTimerPauseFields());
-  court.isRematch = false;
-  await court.save();
-
-  await QueueEntry.updateMany(
-    { _id: { $in: courtQueueEntryIds } },
+  // Restore queue status before emptying the court so a crash cannot orphan on_court rows.
+  const restored = await QueueEntry.updateMany(
+    {
+      _id: { $in: courtQueueEntryIds },
+      gameId: input.gameId,
+      status: "on_court",
+    },
     { $set: { status: "queued" } },
   );
+  if ((restored.modifiedCount ?? 0) !== courtQueueEntryIds.length) {
+    throw new Error("One or more court players are no longer on court.");
+  }
+
+  let emptied;
+  try {
+    emptied = await Court.findOneAndUpdate(
+      { _id: court._id, status: "active" },
+      {
+        $set: {
+          status: "empty",
+          teamA: emptyCourtTeam(),
+          teamB: emptyCourtTeam(),
+          startedAt: null,
+          ...clearCourtTimerPauseFields(),
+          isRematch: false,
+        },
+      },
+      { returnDocument: "after" },
+    );
+  } catch (error) {
+    await QueueEntry.updateMany(
+      { _id: { $in: courtQueueEntryIds }, gameId: input.gameId, status: "queued" },
+      { $set: { status: "on_court" } },
+    );
+    throw error;
+  }
+  if (!emptied) {
+    await QueueEntry.updateMany(
+      { _id: { $in: courtQueueEntryIds }, gameId: input.gameId, status: "queued" },
+      { $set: { status: "on_court" } },
+    );
+    throw new Error("Active court not found.");
+  }
 
   await persistQueueOrder([...courtEntriesOrdered, ...otherQueued]);
 
-  return court;
+  return emptied;
 }
 
 /** End a rematch early — return the four players to the queue (no history or stats changes). */
@@ -628,22 +727,52 @@ export async function cancelRematch(input: { gameId: string; courtNumber: number
     (a, b) => new Date(a.registeredAt).getTime() - new Date(b.registeredAt).getTime(),
   );
 
-  court.status = "empty";
-  court.teamA = { playerIds: [], queueEntryIds: [] };
-  court.teamB = { playerIds: [], queueEntryIds: [] };
-  court.startedAt = null;
-  Object.assign(court, clearCourtTimerPauseFields());
-  court.isRematch = false;
-  await court.save();
-
-  await QueueEntry.updateMany(
-    { _id: { $in: courtQueueEntryIds } },
+  const restored = await QueueEntry.updateMany(
+    {
+      _id: { $in: courtQueueEntryIds },
+      gameId: input.gameId,
+      status: "on_court",
+    },
     { $set: { status: "queued" } },
   );
+  if ((restored.modifiedCount ?? 0) !== courtQueueEntryIds.length) {
+    throw new Error("One or more court players are no longer on court.");
+  }
+
+  let emptied;
+  try {
+    emptied = await Court.findOneAndUpdate(
+      { _id: court._id, status: "active" },
+      {
+        $set: {
+          status: "empty",
+          teamA: emptyCourtTeam(),
+          teamB: emptyCourtTeam(),
+          startedAt: null,
+          ...clearCourtTimerPauseFields(),
+          isRematch: false,
+        },
+      },
+      { returnDocument: "after" },
+    );
+  } catch (error) {
+    await QueueEntry.updateMany(
+      { _id: { $in: courtQueueEntryIds }, gameId: input.gameId, status: "queued" },
+      { $set: { status: "on_court" } },
+    );
+    throw error;
+  }
+  if (!emptied) {
+    await QueueEntry.updateMany(
+      { _id: { $in: courtQueueEntryIds }, gameId: input.gameId, status: "queued" },
+      { $set: { status: "on_court" } },
+    );
+    throw new Error("Active court not found.");
+  }
 
   await persistQueueOrder([...otherQueued, ...courtEntriesOrdered]);
 
-  return court;
+  return emptied;
 }
 
 /** Swap an active-court player with someone from the queue (next up or waiting line). */
@@ -687,6 +816,9 @@ export async function replaceCourtPlayerWithWaiting(input: {
 
   const queuedEntry = queue[input.targetIndex];
 
+  const previousPlayerId = team.playerIds[input.slotIndex];
+  const previousQueueEntryId = team.queueEntryIds[input.slotIndex];
+
   team.playerIds[input.slotIndex] = queuedEntry.playerId as Types.ObjectId;
   team.queueEntryIds[input.slotIndex] = queuedEntry._id;
   court.markModified(teamKey);
@@ -697,12 +829,42 @@ export async function replaceCourtPlayerWithWaiting(input: {
     ...queue.slice(input.targetIndex + 1),
   ];
 
-  await Promise.all([
-    persistQueueOrder(reordered),
-    QueueEntry.updateOne({ _id: queuedEntry._id }, { $set: { status: "on_court" } }),
-    QueueEntry.updateOne({ _id: courtEntry._id }, { $set: { status: "queued" } }),
-    court.save(),
-  ]);
+  // Promote the waiting player first while the outgoing player is still listed on the court,
+  // then persist the court swap, then demote the outgoing player — never orphan on_court.
+  const promoted = await QueueEntry.findOneAndUpdate(
+    { _id: queuedEntry._id, gameId: input.gameId, status: "queued" },
+    { $set: { status: "on_court" } },
+    { returnDocument: "after" },
+  );
+  if (!promoted) {
+    throw new Error("Selected player is not in the queue.");
+  }
+
+  try {
+    await court.save();
+  } catch (error) {
+    await QueueEntry.updateOne(
+      { _id: queuedEntry._id, gameId: input.gameId, status: "on_court" },
+      { $set: { status: "queued" } },
+    );
+    team.playerIds[input.slotIndex] = previousPlayerId;
+    team.queueEntryIds[input.slotIndex] = previousQueueEntryId;
+    court.markModified(teamKey);
+    throw error;
+  }
+
+  const demoted = await QueueEntry.findOneAndUpdate(
+    { _id: courtEntry._id, gameId: input.gameId, status: "on_court" },
+    { $set: { status: "queued" } },
+    { returnDocument: "after" },
+  );
+  if (!demoted) {
+    // Court already shows the incoming player; heal path will recover if needed.
+    await healOrphanedOnCourtEntries(input.gameId);
+    throw new Error("Court player queue entry not found.");
+  }
+
+  await persistQueueOrder(reordered);
 
   return court;
 }

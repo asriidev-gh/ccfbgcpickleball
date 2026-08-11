@@ -15,6 +15,7 @@ import {
 } from "@/lib/spectate-live-meta-cache";
 import { getSpectatorCount } from "@/lib/spectator-presence";
 import { normalizePlayerPhotoRef } from "@/lib/player-avatar-url";
+import { healOrphanedOnCourtEntries } from "@/lib/queue-on-court-orphans";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -54,6 +55,9 @@ function serializeCourtForPayload(court: CourtDoc) {
 }
 
 export async function loadQueueCourtsAndCheckedOut(gameId: string) {
+  // Self-heal players stuck as on_court with no court assignment so they reappear in the queue.
+  await healOrphanedOnCourtEntries(gameId);
+
   const [queue, checkedOut, courts] = await Promise.all([
     QueueEntry.find({ gameId, status: "queued", removedFromSession: { $ne: true } })
       .sort({ registeredAt: 1 })

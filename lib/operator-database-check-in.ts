@@ -16,6 +16,7 @@ import type { OwnerRegisteredPlayerItem } from "@/lib/owner-registered-players-s
 import { buildOwnerRegisteredPlayerAccountGroupKey } from "@/lib/owner-registered-players";
 import { recordPlayerRegisteredNotification } from "@/lib/organizer-notifications";
 import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
+import { healOrphanedOnCourtEntries } from "@/lib/queue-on-court-orphans";
 import { formatPlayerDisplayName, formatPlayerTableName } from "@/lib/utils";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { PickleGame } from "@/models/PickleGame";
@@ -334,6 +335,7 @@ export async function getDatabaseCheckInPlayersForGame(
   options: { page?: number; pageSize?: number; query?: string } = {},
 ): Promise<DatabaseCheckInPlayersPage> {
   await connectToDatabase();
+  await healOrphanedOnCourtEntries(gameId);
 
   const page = Math.max(1, options.page ?? 1);
   const pageSize = Math.min(50, Math.max(1, options.pageSize ?? 10));
@@ -430,6 +432,7 @@ export async function operatorCheckInPlayerFromDatabase(
   playerId: string,
 ) {
   await connectToDatabase();
+  await healOrphanedOnCourtEntries(gameId);
 
   const playerObjectId = new Types.ObjectId(playerId);
   const [game, ownerGames, player, queueStatus] = await Promise.all([
