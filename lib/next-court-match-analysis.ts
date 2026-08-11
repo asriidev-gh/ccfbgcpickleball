@@ -14,6 +14,8 @@ export type NextCourtMatchSuggestion = {
   bulletPoints?: string[];
   suggestsShuffle: boolean;
   suggestsQueueSwap?: boolean;
+  /** When true, auto-swap failed — operator should Accept or manually swap waiting players. */
+  requiresManualDecision?: boolean;
   priority: number;
 };
 
@@ -262,6 +264,347 @@ export type AutoRepeatLastMatchSwapPlan = {
   playerIds: string[];
 };
 
+/** Minimum waiting-line size before smart rematch avoidance searches the line. */
+export const SMART_REMATCH_MIN_WAITING = 4;
+
+/** Cap how deep into the queue we enumerate combinations (keeps search snappy). */
+const SMART_REMATCH_POOL_LIMIT = 14;
+
+export type SmartRematchAvoidanceReplacement = {
+  outPlayerName: string;
+  inPlayerName: string;
+};
+
+export type SmartRematchAvoidancePlan =
+  | {
+      status: "none";
+    }
+  | {
+      status: "clean";
+      adjustedFoursome: QueueEntryView[];
+      replacements: SmartRematchAvoidanceReplacement[];
+      rematchPlayerCount: 0;
+      priorCourtmatePairCount: 0;
+      conflictLabels: string[];
+    }
+  | {
+      status: "compromised";
+      adjustedFoursome: QueueEntryView[];
+      replacements: SmartRematchAvoidanceReplacement[];
+      rematchPlayerCount: 2 | 3 | 4;
+      priorCourtmatePairCount: number;
+      conflictLabels: string[];
+    };
+
+function analysisPlayerIdsFromFoursome(foursome: QueueEntryView[]) {
+  return foursome
+    .map((entry) => resolvePlayerId(entry.playerId))
+    .filter((id): id is string => Boolean(id));
+}
+
+/** Count pairs in the foursome who previously shared any court this session. */
+function countPriorCourtmatePairsInAnalysis(
+  playerIds: string[],
+  analysisMatches: AnalysisMatch[],
+) {
+  let count = 0;
+  for (let i = 0; i < playerIds.length; i += 1) {
+    for (let j = i + 1; j < playerIds.length; j += 1) {
+      if (findMostRecentSharedMatch(analysisMatches, playerIds[i]!, playerIds[j]!)) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+/** Count pairs in the foursome who previously shared any court this session. */
+export function countPriorCourtmatePairs(playerIds: string[], matches: MatchHistoryView[]) {
+  return countPriorCourtmatePairsInAnalysis(playerIds, toAnalysisMatches(matches));
+}
+
+function priorCourtmateConflictLabels(
+  players: AnalysisPlayer[],
+  analysisMatches: AnalysisMatch[],
+) {
+  const labels: string[] = [];
+  for (let i = 0; i < players.length; i += 1) {
+    for (let j = i + 1; j < players.length; j += 1) {
+      const a = players[i]!;
+      const b = players[j]!;
+      if (!findMostRecentSharedMatch(analysisMatches, a.id, b.id)) continue;
+      labels.push(pairLabel(a, b));
+    }
+  }
+  return labels;
+}
+
+function countRematchPlayersInAnalysis(
+  playerIds: string[],
+  analysisMatches: AnalysisMatch[],
+) {
+  const involved = new Set<string>();
+  for (let i = 0; i < playerIds.length; i += 1) {
+    for (let j = i + 1; j < playerIds.length; j += 1) {
+      const id1 = playerIds[i]!;
+      const id2 = playerIds[j]!;
+      if (!findMostRecentSharedMatch(analysisMatches, id1, id2)) continue;
+      involved.add(id1);
+      involved.add(id2);
+    }
+  }
+  return involved.size;
+}
+
+type ScoredRematchFoursome = {
+  foursome: QueueEntryView[];
+  rematchPlayerCount: number;
+  pairCount: number;
+  gamesPlayedSum: number;
+  gamesPlayedSpread: number;
+  indexSum: number;
+};
+
+function entryGamesPlayed(entry: QueueEntryView) {
+  if (typeof entry.gamesPlayed === "number") return entry.gamesPlayed;
+  const wins = entry.wins ?? 0;
+  const losses = entry.losses ?? 0;
+  return wins + losses;
+}
+
+function scoreRematchFoursome(
+  foursome: QueueEntryView[],
+  analysisMatches: AnalysisMatch[],
+  poolIndexByEntryId: Map<string, number>,
+): ScoredRematchFoursome | null {
+  const playerIds = analysisPlayerIdsFromFoursome(foursome);
+  if (playerIds.length !== 4 || new Set(playerIds).size !== 4) return null;
+  const games = foursome.map(entryGamesPlayed);
+  const gamesPlayedSum = games.reduce((sum, value) => sum + value, 0);
+  const gamesPlayedSpread = Math.max(...games) - Math.min(...games);
+  return {
+    foursome,
+    rematchPlayerCount: countRematchPlayersInAnalysis(playerIds, analysisMatches),
+    pairCount: countPriorCourtmatePairsInAnalysis(playerIds, analysisMatches),
+    gamesPlayedSum,
+    gamesPlayedSpread,
+    indexSum: foursome.reduce(
+      (sum, entry) => sum + (poolIndexByEntryId.get(entry._id) ?? 999),
+      0,
+    ),
+  };
+}
+
+function isBetterRematchFoursome(candidate: ScoredRematchFoursome, best: ScoredRematchFoursome) {
+  // Prefer fewer rematch players (0 → 2 → 3 → 4), then fewer pairs,
+  // then fewer total games / tighter spread, then earlier queue.
+  if (candidate.rematchPlayerCount !== best.rematchPlayerCount) {
+    return candidate.rematchPlayerCount < best.rematchPlayerCount;
+  }
+  if (candidate.pairCount !== best.pairCount) {
+    return candidate.pairCount < best.pairCount;
+  }
+  if (candidate.gamesPlayedSum !== best.gamesPlayedSum) {
+    return candidate.gamesPlayedSum < best.gamesPlayedSum;
+  }
+  if (candidate.gamesPlayedSpread !== best.gamesPlayedSpread) {
+    return candidate.gamesPlayedSpread < best.gamesPlayedSpread;
+  }
+  return candidate.indexSum < best.indexSum;
+}
+
+function orderFoursomeByPool(
+  foursome: QueueEntryView[],
+  poolIndexByEntryId: Map<string, number>,
+) {
+  return [...foursome].sort(
+    (left, right) =>
+      (poolIndexByEntryId.get(left._id) ?? 999) - (poolIndexByEntryId.get(right._id) ?? 999),
+  );
+}
+
+function describeFoursomeSwap(
+  naturalFoursome: QueueEntryView[],
+  adjustedFoursome: QueueEntryView[],
+): SmartRematchAvoidanceReplacement[] {
+  const naturalIds = new Set(naturalFoursome.map((entry) => entry._id));
+  const adjustedIds = new Set(adjustedFoursome.map((entry) => entry._id));
+  const movedOut = naturalFoursome.filter((entry) => !adjustedIds.has(entry._id));
+  const movedIn = adjustedFoursome.filter((entry) => !naturalIds.has(entry._id));
+  const count = Math.max(movedOut.length, movedIn.length);
+  const replacements: SmartRematchAvoidanceReplacement[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const outPlayer = movedOut[index] ? toAnalysisPlayer(movedOut[index]!) : null;
+    const inPlayer = movedIn[index] ? toAnalysisPlayer(movedIn[index]!) : null;
+    if (!outPlayer && !inPlayer) continue;
+    replacements.push({
+      outPlayerName: outPlayer?.shortName ?? "Player",
+      inPlayerName: inPlayer?.shortName ?? "Player",
+    });
+  }
+  return replacements;
+}
+
+/**
+ * Greedy fresh pick: among players who don't rematch anyone already selected,
+ * take the least-played player (then earliest in queue).
+ */
+function pickGreedyFreshFoursome(
+  pool: QueueEntryView[],
+  analysisMatches: AnalysisMatch[],
+  poolIndexByEntryId: Map<string, number>,
+): ScoredRematchFoursome | null {
+  const selected: QueueEntryView[] = [];
+  const selectedIds = new Set<string>();
+
+  while (selected.length < 4) {
+    let bestEntry: QueueEntryView | null = null;
+    let bestGames = Number.POSITIVE_INFINITY;
+    let bestIndex = Number.POSITIVE_INFINITY;
+
+    for (const entry of pool) {
+      if (selectedIds.has(entry._id)) continue;
+      const entryId = resolvePlayerId(entry.playerId);
+      if (!entryId) continue;
+
+      const trialIds = [
+        ...analysisPlayerIdsFromFoursome(selected),
+        entryId,
+      ];
+      if (countPriorCourtmatePairsInAnalysis(trialIds, analysisMatches) !== 0) continue;
+
+      const games = entryGamesPlayed(entry);
+      const index = poolIndexByEntryId.get(entry._id) ?? 999;
+      if (
+        games < bestGames ||
+        (games === bestGames && index < bestIndex)
+      ) {
+        bestEntry = entry;
+        bestGames = games;
+        bestIndex = index;
+      }
+    }
+
+    if (!bestEntry) break;
+    selected.push(bestEntry);
+    selectedIds.add(bestEntry._id);
+  }
+
+  if (selected.length !== 4) return null;
+  return scoreRematchFoursome(
+    orderFoursomeByPool(selected, poolIndexByEntryId),
+    analysisMatches,
+    poolIndexByEntryId,
+  );
+}
+
+function enumerateFoursomeCombinations(pool: QueueEntryView[]): QueueEntryView[][] {
+  const results: QueueEntryView[][] = [];
+  const n = pool.length;
+  for (let a = 0; a < n - 3; a += 1) {
+    for (let b = a + 1; b < n - 2; b += 1) {
+      for (let c = b + 1; c < n - 1; c += 1) {
+        for (let d = c + 1; d < n; d += 1) {
+          results.push([pool[a]!, pool[b]!, pool[c]!, pool[d]!]);
+        }
+      }
+    }
+  }
+  return results;
+}
+
+/**
+ * When 4+ are waiting, search on-deck + waiting for the best foursome.
+ *
+ * Preference order:
+ * 1. Fewer rematch players (0 → 2 → 3 → 4)
+ * 2. Fewer prior courtmate pairs
+ * 3. Fewer total games played (prioritize waiting players with the least games)
+ * 4. Tighter games-played spread within the four
+ * 5. Earlier queue positions
+ *
+ * Fully fresh (0 rematches) auto-applies; any rematches require manual Accept.
+ */
+export function findSmartWaitingLineRematchAvoidance(
+  naturalFoursome: QueueEntryView[],
+  waitingLine: QueueEntryView[],
+  matches: MatchHistoryView[] = [],
+): SmartRematchAvoidancePlan {
+  if (naturalFoursome.length !== 4) return { status: "none" };
+  if (waitingLine.length < SMART_REMATCH_MIN_WAITING) return { status: "none" };
+
+  const players = naturalFoursome
+    .map(toAnalysisPlayer)
+    .filter((player): player is AnalysisPlayer => player != null);
+  if (players.length !== 4) return { status: "none" };
+
+  const analysisMatches = toAnalysisMatches(matches);
+
+  const pool = [...naturalFoursome, ...waitingLine].slice(
+    0,
+    Math.max(4, SMART_REMATCH_POOL_LIMIT),
+  );
+  const poolIndexByEntryId = new Map(pool.map((entry, index) => [entry._id, index]));
+  const naturalScore = scoreRematchFoursome(
+    naturalFoursome,
+    analysisMatches,
+    poolIndexByEntryId,
+  );
+  if (!naturalScore) return { status: "none" };
+
+  let best = naturalScore;
+
+  const greedyFresh = pickGreedyFreshFoursome(pool, analysisMatches, poolIndexByEntryId);
+  if (greedyFresh && isBetterRematchFoursome(greedyFresh, best)) {
+    best = greedyFresh;
+  }
+
+  for (const combo of enumerateFoursomeCombinations(pool)) {
+    const ordered = orderFoursomeByPool(combo, poolIndexByEntryId);
+    const scored = scoreRematchFoursome(ordered, analysisMatches, poolIndexByEntryId);
+    if (!scored) continue;
+    if (isBetterRematchFoursome(scored, best)) {
+      best = scored;
+    }
+  }
+
+  const sameAsNatural =
+    best.foursome.map((entry) => entry._id).join("|") ===
+    naturalFoursome.map((entry) => entry._id).join("|");
+  if (sameAsNatural) return { status: "none" };
+
+  const bestPlayers = best.foursome
+    .map(toAnalysisPlayer)
+    .filter((player): player is AnalysisPlayer => player != null);
+  const conflictLabels = priorCourtmateConflictLabels(bestPlayers, analysisMatches);
+  const replacements = describeFoursomeSwap(naturalFoursome, best.foursome);
+
+  if (best.rematchPlayerCount === 0) {
+    return {
+      status: "clean",
+      adjustedFoursome: best.foursome,
+      replacements,
+      rematchPlayerCount: 0,
+      priorCourtmatePairCount: 0,
+      conflictLabels: [],
+    };
+  }
+
+  const rematchPlayerCount = Math.min(
+    4,
+    Math.max(2, best.rematchPlayerCount),
+  ) as 2 | 3 | 4;
+
+  return {
+    status: "compromised",
+    adjustedFoursome: best.foursome,
+    replacements,
+    rematchPlayerCount,
+    priorCourtmatePairCount: best.pairCount,
+    conflictLabels,
+  };
+}
+
 /** Detect when the natural on-deck four shared their last match. */
 export function detectRepeatLastMatchSwapPlanFromFoursome(
   naturalFoursome: QueueEntryView[],
@@ -334,17 +677,11 @@ export function detectAutoRepeatLastMatchSwapPlan(
   return plan;
 }
 
-/**
- * Adjust only the next-on-court four — does not reorder the full queue.
- * Waiting-line players stay in queue order (requeued players remain at the tail).
- */
-export function applyRepeatLastMatchFoursomeAdjustment(
+function applyLegacyRepeatLastMatchFoursomeAdjustment(
   naturalFoursome: QueueEntryView[],
   waitingLine: QueueEntryView[],
-  matches: MatchHistoryView[] = [],
+  matches: MatchHistoryView[],
 ): QueueEntryView[] {
-  if (naturalFoursome.length !== 4) return naturalFoursome;
-
   const plan = detectRepeatLastMatchSwapPlanFromFoursome(naturalFoursome, matches);
   if (!plan) return naturalFoursome;
 
@@ -367,6 +704,35 @@ export function applyRepeatLastMatchFoursomeAdjustment(
   ];
 }
 
+/**
+ * Adjust only the next-on-court four — does not reorder the full queue.
+ * With 4+ waiting, prefer smart rematch avoidance from the waiting line.
+ * Clean (0 rematches) and compromised (best 2→3→4) lineups are both applied to the display;
+ * compromised still requires manual Accept in the matchup check.
+ * Otherwise fall back to last-match trio/foursome swaps.
+ */
+export function applyRepeatLastMatchFoursomeAdjustment(
+  naturalFoursome: QueueEntryView[],
+  waitingLine: QueueEntryView[],
+  matches: MatchHistoryView[] = [],
+): QueueEntryView[] {
+  if (naturalFoursome.length !== 4) return naturalFoursome;
+
+  if (waitingLine.length >= SMART_REMATCH_MIN_WAITING) {
+    const smartPlan = findSmartWaitingLineRematchAvoidance(
+      naturalFoursome,
+      waitingLine,
+      matches,
+    );
+    if (smartPlan.status === "clean" || smartPlan.status === "compromised") {
+      return smartPlan.adjustedFoursome;
+    }
+    return naturalFoursome;
+  }
+
+  return applyLegacyRepeatLastMatchFoursomeAdjustment(naturalFoursome, waitingLine, matches);
+}
+
 export function buildAutoRepeatLastMatchSwapOrder(
   queue: QueueEntryView[],
   matches: MatchHistoryView[] = [],
@@ -381,12 +747,68 @@ export function buildAutoRepeatLastMatchSwapOrder(
   return buildQueueThirdWithFifthSwapOrder(queue);
 }
 
+function formatSmartReplacementSummary(replacements: SmartRematchAvoidanceReplacement[]) {
+  if (replacements.length === 0) return "";
+  if (replacements.length === 1) {
+    const only = replacements[0]!;
+    return `${only.inPlayerName} in for ${only.outPlayerName}`;
+  }
+  return replacements
+    .map((replacement) => `${replacement.inPlayerName} in for ${replacement.outPlayerName}`)
+    .join("; ");
+}
+
+function pushSmartRematchAvoidanceSuggestions(
+  suggestions: NextCourtMatchSuggestion[],
+  displayedFoursome: QueueEntryView[],
+  plan: SmartRematchAvoidancePlan,
+) {
+  if (plan.status === "none") return;
+
+  const displayedIds = displayedFoursome.map((entry) => entry._id).join("|");
+  const adjustedIds = plan.adjustedFoursome.map((entry) => entry._id).join("|");
+  if (displayedIds !== adjustedIds) return;
+
+  if (plan.status === "clean") {
+    const swapSummary = formatSmartReplacementSummary(plan.replacements);
+    pushSuggestion(suggestions, {
+      id: "smart-rematch-avoidance-applied",
+      tone: "tip",
+      message: swapSummary
+        ? `New matchup — no rematches (${swapSummary}).`
+        : "New matchup — these 4 haven’t played together yet.",
+      suggestsShuffle: false,
+      suggestsQueueSwap: false,
+      priority: 96,
+    });
+    return;
+  }
+
+  const conflictText =
+    plan.conflictLabels.length > 0
+      ? plan.conflictLabels.slice(0, 2).join("; ")
+      : `${plan.rematchPlayerCount} players still rematch`;
+
+  pushSuggestion(suggestions, {
+    id: "smart-rematch-avoidance-compromised",
+    tone: "caution",
+    message: `Closest fresh matchup still has rematches (${conflictText}). Accept or swap manually.`,
+    suggestsShuffle: false,
+    suggestsQueueSwap: true,
+    requiresManualDecision: true,
+    priority: 98,
+  });
+}
+
 function pushAutoRepeatLastMatchSuggestions(
   suggestions: NextCourtMatchSuggestion[],
   naturalFoursome: QueueEntryView[],
   waitingLine: QueueEntryView[],
   matches: MatchHistoryView[],
 ) {
+  // Smart rematch avoidance owns this case when the waiting line is deep enough.
+  if (waitingLine.length >= SMART_REMATCH_MIN_WAITING) return;
+
   const plan = detectRepeatLastMatchSwapPlanFromFoursome(naturalFoursome, matches);
   if (!plan) return;
 
@@ -571,9 +993,21 @@ export function computeNextCourtMatchSuggestions(
           (entry) => !new Set(naturalFoursome.map((row) => row._id)).has(entry._id),
         )
       : []);
+  const smartRematchPlan =
+    naturalFoursome.length === 4 && waitingLine.length >= SMART_REMATCH_MIN_WAITING
+      ? findSmartWaitingLineRematchAvoidance(naturalFoursome, waitingLine, matches)
+      : ({ status: "none" } as const);
+  const smartRematchHandled = smartRematchPlan.status !== "none";
+  const smartRematchNeedsDecision = smartRematchPlan.status === "compromised";
 
   if (naturalFoursome.length === 4 && waitingLine.length > 0) {
+    pushSmartRematchAvoidanceSuggestions(suggestions, foursome, smartRematchPlan);
     pushAutoRepeatLastMatchSuggestions(suggestions, naturalFoursome, waitingLine, matches);
+  }
+
+  // When rematch avoidance needs Accept, keep the CTA focused — skip other shuffle prompts.
+  if (smartRematchNeedsDecision) {
+    return suggestions.sort((a, b) => b.priority - a.priority);
   }
 
   if (isRotation) {
@@ -714,30 +1148,32 @@ export function computeNextCourtMatchSuggestions(
   }
 
   if (!isRotation && foursomeTogetherCount >= 2) {
-    const waitingFifth = options?.queue?.[4];
-    const waitingSixth = options?.queue?.[5];
-    const fifthPlayer = waitingFifth ? toAnalysisPlayer(waitingFifth) : null;
-    const sixthPlayer = waitingSixth ? toAnalysisPlayer(waitingSixth) : null;
-    const canSwapWaiting =
-      fifthPlayer != null && sixthPlayer != null && (options?.queue?.length ?? 0) >= 6;
+    if (!smartRematchHandled) {
+      const waitingFifth = options?.queue?.[4];
+      const waitingSixth = options?.queue?.[5];
+      const fifthPlayer = waitingFifth ? toAnalysisPlayer(waitingFifth) : null;
+      const sixthPlayer = waitingSixth ? toAnalysisPlayer(waitingSixth) : null;
+      const canSwapWaiting =
+        fifthPlayer != null && sixthPlayer != null && (options?.queue?.length ?? 0) >= 6;
 
-    if (canSwapWaiting) {
-      pushSuggestion(suggestions, {
-        id: "frequent-rematch",
-        tone: "caution",
-        message: `These four have already shared a court together ${formatSharedCourtCount(foursomeTogetherCount)}. Swap in ${pairLabel(fifthPlayer, sixthPlayer)} from the waiting line (5th and 6th) for fresh matchups.`,
-        suggestsShuffle: false,
-        suggestsQueueSwap: true,
-        priority: 93,
-      });
-    } else {
-      pushSuggestion(suggestions, {
-        id: "frequent-rematch",
-        tone: "caution",
-        message: `These four have already shared a court together ${formatSharedCourtCount(foursomeTogetherCount)}. Shuffling partners refreshes the court.`,
-        suggestsShuffle: true,
-        priority: 93,
-      });
+      if (canSwapWaiting) {
+        pushSuggestion(suggestions, {
+          id: "frequent-rematch",
+          tone: "caution",
+          message: `These four have already shared a court together ${formatSharedCourtCount(foursomeTogetherCount)}. Swap in ${pairLabel(fifthPlayer, sixthPlayer)} from the waiting line (5th and 6th) for fresh matchups.`,
+          suggestsShuffle: false,
+          suggestsQueueSwap: true,
+          priority: 93,
+        });
+      } else {
+        pushSuggestion(suggestions, {
+          id: "frequent-rematch",
+          tone: "caution",
+          message: `These four have already shared a court together ${formatSharedCourtCount(foursomeTogetherCount)}. Shuffling partners refreshes the court.`,
+          suggestsShuffle: true,
+          priority: 93,
+        });
+      }
     }
   }
 
@@ -745,7 +1181,7 @@ export function computeNextCourtMatchSuggestions(
     const latest = analysisMatches[0]!;
     const latestIds = new Set([...latest.teamAIds, ...latest.teamBIds]);
     const sameFoursome = players.every((player) => latestIds.has(player.id));
-    if (sameFoursome) {
+    if (sameFoursome && !smartRematchHandled) {
       pushSuggestion(suggestions, {
         id: "immediate-rematch",
         tone: "caution",
@@ -1091,17 +1527,24 @@ export const MATCHUP_CHECK_GUIDE_SCENARIOS: MatchupCheckGuideScenario[] = [
     tone: "tip",
   },
   {
+    id: "smart-rematch-avoidance",
+    title: "Smart rematch avoidance",
+    description:
+      "With 4+ waiting, picks a fresh foursome and favors players with fewer games. If rematches remain, shows the closest option and asks you to Accept.",
+    tone: "caution",
+  },
+  {
     id: "last-match-foursome-repeat",
     title: "Last-match foursome",
     description:
-      "All four on deck were in the same match last time. Swap players 5 and 6 from the waiting line into slots 3 and 4.",
+      "With fewer than 4 waiting: all four on deck were in the same match last time. Slots 3–4 use players 5 and 6 from the waiting line.",
     tone: "caution",
   },
   {
     id: "last-match-trio-repeat",
     title: "Last-match trio",
     description:
-      "Three on deck shared their last match. Swap player 3 with the 5th player in the waiting line.",
+      "With fewer than 4 waiting: three on deck shared their last match. Slot 3 uses the 5th player in the waiting line.",
     tone: "caution",
   },
   {

@@ -140,6 +140,7 @@ export function NextCourtMatchAnalysis({
   }, [foursomeKey, isBalanced]);
 
   const queueSwapSuggestion = getQueueSwapSuggestion(suggestions);
+  const manualDecisionRequired = suggestions.some((item) => item.requiresManualDecision);
   const waitingLineSwapAvailable = canSwapWaitingLinePlayers(queue);
   const shuffleOptionalOnly =
     hasActionableWarnings &&
@@ -153,10 +154,12 @@ export function NextCourtMatchAnalysis({
   const showSwap =
     Boolean(onSwapWaiting) &&
     (queueSwapSuggestion != null ||
+      manualDecisionRequired ||
       (waitingLineSwapAvailable &&
         (Boolean(leastBalanceNote) || (shuffleOptionalOnly && suggestions.some((item) => item.suggestsShuffle)))));
   const showShuffle =
     Boolean(onShuffle) &&
+    !manualDecisionRequired &&
     suggestions.some((item) => item.suggestsShuffle) &&
     suggestions.every((item) => item.tone !== "balanced") &&
     (!shuffleExhausted || shuffleOptionalOnly);
@@ -319,17 +322,19 @@ export function NextCourtMatchAnalysis({
           {showFooter ? (
             <div className="next-court-analysis__footer">
               <p className="next-court-analysis__footer-hint">
-                {showBothActions
-                  ? "Shuffle partners, swap in waiting players (5th and 6th), or accept to keep this lineup."
-                  : showSwap
-                    ? "Swap in waiting players, or accept to keep this lineup."
-                    : shuffleExhausted
-                      ? shuffleOptionalOnly
-                        ? "Shuffle is optional, or accept to keep this lineup."
-                        : "Accept to proceed with this lineup."
-                      : shuffleOptionalOnly
-                        ? "Shuffle is optional, or accept to keep this lineup."
-                        : "Shuffle finds the best balance once, or accept to keep this lineup."}
+                {manualDecisionRequired
+                  ? "Accept this lineup, or swap waiting players manually."
+                  : showBothActions
+                    ? "Shuffle partners, swap in waiting players (5th and 6th), or accept to keep this lineup."
+                    : showSwap
+                      ? "Swap in waiting players, or accept to keep this lineup."
+                      : shuffleExhausted
+                        ? shuffleOptionalOnly
+                          ? "Shuffle is optional, or accept to keep this lineup."
+                          : "Accept to proceed with this lineup."
+                        : shuffleOptionalOnly
+                          ? "Shuffle is optional, or accept to keep this lineup."
+                          : "Shuffle finds the best balance once, or accept to keep this lineup."}
               </p>
               <div className="next-court-analysis__actions">
                 <Button
