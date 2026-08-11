@@ -4455,31 +4455,51 @@
   }
 
   .end-game-rematch-block {
-    @apply rounded-lg border border-border/70 bg-muted/30 px-2.5 py-2;
+    @apply rounded-xl border border-border/70 bg-muted/30 px-3.5 py-3 md:px-4 md:py-3.5;
   }
 
   .end-game-rematch-row {
-    @apply flex items-center justify-between gap-2;
+    @apply flex items-center justify-between gap-3;
   }
 
   .end-game-rematch-label {
-    @apply shrink-0 text-sm font-medium text-foreground;
+    @apply shrink-0 text-base font-semibold text-foreground md:text-lg;
   }
 
   .end-game-rematch-toggle {
-    @apply inline-flex shrink-0 gap-1;
+    @apply inline-flex shrink-0 gap-2;
   }
 
   .end-game-rematch-btn {
-    @apply h-8 min-w-[3.25rem] px-3 text-xs font-semibold;
+    @apply h-11 min-w-[4.5rem] px-4 text-sm font-semibold md:h-12 md:min-w-[5.5rem] md:text-base;
   }
 
   .end-game-rematch-hint {
-    @apply mt-1.5 text-[11px] leading-snug text-muted-foreground;
+    @apply mt-2 text-sm leading-snug text-muted-foreground md:text-[15px];
+  }
+
+  .court-winner-dialog {
+    @apply gap-0 overflow-hidden p-0 sm:max-w-lg md:max-w-2xl;
+  }
+
+  .court-winner-dialog-header {
+    @apply gap-2 border-b border-border/60 px-5 pb-4 pt-5 pr-12 text-left sm:px-6 sm:pb-5 sm:pt-6 md:px-8;
+  }
+
+  .court-winner-dialog-title {
+    @apply text-xl font-semibold tracking-tight md:text-2xl md:leading-snug;
+  }
+
+  .court-winner-dialog-body {
+    @apply px-5 py-5 sm:px-6 sm:py-6 md:px-8 md:py-7;
+  }
+
+  .court-winner-team-card {
+    @apply rounded-xl border border-border/60 bg-muted/20 p-3.5 md:p-4;
   }
 
   .court-winner-dialog-actions [data-slot="button"].court-winner-btn {
-    @apply border-border bg-muted text-foreground shadow-none transition-colors duration-150;
+    @apply h-12 min-h-12 w-full justify-center border-border bg-background text-base font-semibold shadow-none transition-colors duration-150 md:h-14 md:min-h-14 md:text-lg;
   }
 
   .court-winner-dialog-actions [data-slot="button"].court-winner-btn:hover {
@@ -4492,6 +4512,46 @@
 
   .court-winner-dialog-actions [data-slot="button"].court-winner-btn:focus-visible {
     @apply ring-3 ring-primary/35;
+  }
+
+  .court-winner-player-name {
+    @apply text-sm md:text-base;
+  }
+
+  .court-winner-section-label {
+    @apply text-xs font-semibold uppercase tracking-wide md:text-sm;
+  }
+
+  .court-winner-score-label {
+    @apply text-base font-semibold md:text-lg;
+  }
+
+  .court-winner-score-error {
+    @apply text-sm md:text-base;
+  }
+
+  .court-winner-score-btn {
+    @apply h-11 w-11 shrink-0 md:h-12 md:w-12;
+  }
+
+  .court-winner-score-input {
+    @apply h-11 min-w-0 flex-1 px-2 text-center text-lg font-semibold md:h-12 md:text-xl;
+  }
+
+  .court-winner-footer-btn {
+    @apply h-12 min-h-12 text-base font-semibold md:h-14 md:min-h-14 md:text-lg;
+  }
+
+  .database-check-in-dialog-title {
+    @apply text-xl font-semibold tracking-tight md:text-2xl;
+  }
+
+  .database-check-in-dialog-description {
+    @apply text-sm text-muted-foreground md:text-base;
+  }
+
+  .database-check-in-action {
+    @apply h-11 min-w-[7.5rem] px-4 text-sm font-semibold md:h-12 md:min-w-[9rem] md:text-base;
   }
 
   .court-active .court-team {
@@ -5652,25 +5712,27 @@
   }
 
   [data-theme="cupertino"] [data-slot="dialog-content"].court-winner-dialog {
-    @apply flex w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-[14px] p-0 sm:max-w-[22rem];
+    @apply flex w-full max-w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden rounded-[16px] p-0 sm:max-w-lg md:max-w-2xl;
   }
 
-  [data-theme="cupertino"] .court-winner-dialog [data-slot="dialog-header"] {
-    @apply items-center gap-2 border-b px-5 pb-4 pt-5 pr-12 text-center;
+  [data-theme="cupertino"] .court-winner-dialog [data-slot="dialog-header"],
+  [data-theme="cupertino"] .court-winner-dialog .court-winner-dialog-header {
+    @apply items-center gap-2 border-b px-5 pb-4 pt-5 pr-12 text-center sm:px-6 sm:pb-5 sm:pt-6 md:px-8;
     border-color: color-mix(in srgb, var(--cupertino-slate-light) 75%, transparent);
   }
 
-  [data-theme="cupertino"] .court-winner-dialog [data-slot="dialog-title"] {
-    @apply w-full text-center text-[17px] leading-[22px] font-semibold tracking-[-0.02em];
+  [data-theme="cupertino"] .court-winner-dialog [data-slot="dialog-title"],
+  [data-theme="cupertino"] .court-winner-dialog .court-winner-dialog-title {
+    @apply w-full text-center text-[22px] leading-[28px] font-semibold tracking-[-0.02em] md:text-[26px] md:leading-[32px];
     color: var(--cupertino-slate-dark);
   }
 
   [data-theme="cupertino"] .court-winner-dialog-actions {
-    @apply grid-cols-1 gap-2.5 p-4 sm:grid-cols-2 sm:gap-3;
+    @apply grid-cols-1 gap-4 p-0 sm:grid-cols-2 sm:gap-5;
   }
 
   [data-theme="cupertino"] .court-winner-dialog-actions [data-slot="button"] {
-    @apply min-h-11 w-full justify-center rounded-[10px] text-[17px] font-semibold;
+    @apply min-h-12 w-full justify-center rounded-[12px] text-[18px] font-semibold md:min-h-14 md:text-[20px];
   }
 
   [data-theme="cupertino"] .court-winner-dialog-actions .court-winner-btn {
@@ -5688,7 +5750,7 @@
   }
 
   [data-theme="cupertino"] .court-winner-dialog [data-slot="dialog-close"] {
-    @apply absolute top-3 right-3;
+    @apply absolute top-3.5 right-3.5 size-10;
     color: var(--cupertino-blue);
   }
 

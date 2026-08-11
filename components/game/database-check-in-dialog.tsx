@@ -165,34 +165,34 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="database-check-in-dialog flex max-h-[min(92dvh,40rem)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-        <DialogHeader className="shrink-0 border-b border-border px-5 py-4">
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <UserPlus className="h-5 w-5 shrink-0" aria-hidden />
+      <DialogContent className="database-check-in-dialog flex max-h-[min(92dvh,52rem)] w-full max-w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl md:max-w-3xl">
+        <DialogHeader className="database-check-in-dialog-header shrink-0 border-b border-border px-5 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">
+          <DialogTitle className="database-check-in-dialog-title flex items-center gap-2.5">
+            <UserPlus className="h-5 w-5 shrink-0 md:h-6 md:w-6" aria-hidden />
             Check in from database
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="database-check-in-dialog-description">
             Choose a player from your registration list to add them to this session queue.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="shrink-0 border-b border-border px-5 py-3">
+        <div className="database-check-in-search shrink-0 border-b border-border px-5 py-3.5 sm:px-6 sm:py-4 md:px-8">
           <div className="relative">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground md:h-5 md:w-5"
               aria-hidden
             />
             <Input
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search by name, email, or mobile"
-              className="pl-9"
+              className="database-check-in-search-input h-11 pl-10 text-base md:h-12 md:pl-11 md:text-lg"
               aria-label="Search registered players"
               aria-busy={isRefreshing}
             />
             {isRefreshing ? (
               <Loader2
-                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+                className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground md:h-5 md:w-5"
                 aria-hidden
               />
             ) : null}
@@ -201,41 +201,41 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
 
         <div
           className={cn(
-            "min-h-0 flex-1 overflow-y-auto px-5 py-3 transition-opacity",
+            "database-check-in-list min-h-0 flex-1 overflow-y-auto px-5 py-4 transition-opacity sm:px-6 md:px-8 md:py-5",
             isRefreshing && "opacity-70",
           )}
         >
           {showInitialLoading ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            <div className="flex items-center justify-center gap-2 py-14 text-base text-muted-foreground md:text-lg">
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
               Loading players…
             </div>
           ) : playersQuery.isError ? (
             shouldSuppressUserNotification(playersQuery.error) ? (
-              <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              <div className="flex items-center justify-center gap-2 py-14 text-base text-muted-foreground md:text-lg">
+                <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
                 Loading players…
               </div>
             ) : (
-            <p className="py-8 text-center text-sm text-destructive">
-              {getPublicErrorMessage(playersQuery.error, "Failed to load players.")}
-            </p>
+              <p className="py-10 text-center text-base text-destructive md:text-lg">
+                {getPublicErrorMessage(playersQuery.error, "Failed to load players.")}
+              </p>
             )
           ) : playersQuery.data?.players.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
+            <p className="py-10 text-center text-base text-muted-foreground md:text-lg">
               {searchQuery
                 ? "No available players match your search."
                 : "No players available to check in."}
             </p>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-2.5 md:gap-3">
               {playersQuery.data?.players.map((player) => {
                 const statusLabel = queueStatusLabel(player.queueStatus);
 
                 return (
                   <li
                     key={player.id}
-                    className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+                    className="database-check-in-row flex items-center gap-3 rounded-xl border border-border bg-card p-3.5 md:gap-4 md:p-4"
                   >
                     <PlayerAvatar
                       player={{
@@ -246,17 +246,21 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
                         photoPublicId: player.photoPublicId,
                       }}
                       size="sm"
+                      className="!size-10 shrink-0 md:!size-12"
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{player.name}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <p className="truncate text-base font-semibold md:text-lg">{player.name}</p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                         {statusLabel ? (
-                          <Badge variant={queueStatusVariant(player.queueStatus)} className="text-[10px]">
+                          <Badge
+                            variant={queueStatusVariant(player.queueStatus)}
+                            className="text-[11px] md:text-xs"
+                          >
                             {statusLabel}
                           </Badge>
                         ) : null}
                         {player.isBlocked ? (
-                          <Badge variant="destructive" className="text-[10px]">
+                          <Badge variant="destructive" className="text-[11px] md:text-xs">
                             Blocked
                           </Badge>
                         ) : null}
@@ -264,17 +268,16 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
                     </div>
                     <Button
                       type="button"
-                      size="sm"
+                      size="lg"
                       variant={player.canCheckIn ? "default" : "outline"}
-                      className={cn("shrink-0", !player.canCheckIn && "pointer-events-none opacity-60")}
+                      className={cn(
+                        "database-check-in-action shrink-0",
+                        !player.canCheckIn && "pointer-events-none opacity-60",
+                      )}
                       disabled={!player.canCheckIn}
                       onClick={() => handleCheckIn(player)}
                     >
-                      {player.queueStatus === "checked_out" ? (
-                        "Check back in"
-                      ) : (
-                        "Check in"
-                      )}
+                      {player.queueStatus === "checked_out" ? "Check back in" : "Check in"}
                     </Button>
                   </li>
                 );
@@ -284,32 +287,32 @@ export function DatabaseCheckInDialog({ gameId, open, onOpenChange }: DatabaseCh
         </div>
 
         {totalPages > 1 ? (
-          <div className="flex shrink-0 items-center justify-between border-t border-border px-5 py-3">
-            <p className="text-xs text-muted-foreground">
+          <div className="database-check-in-pagination flex shrink-0 items-center justify-between border-t border-border px-5 py-3.5 sm:px-6 md:px-8 md:py-4">
+            <p className="text-sm text-muted-foreground md:text-base">
               Page {page} of {totalPages} · {total} players
             </p>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
                 size="icon"
                 variant="outline"
-                className="h-8 w-8"
+                className="h-10 w-10 md:h-11 md:w-11"
                 disabled={page <= 1 || playersQuery.isFetching}
                 onClick={() => setPage((current) => Math.max(1, current - 1))}
                 aria-label="Previous page"
               >
-                <ChevronLeft className="h-4 w-4" aria-hidden />
+                <ChevronLeft className="h-5 w-5" aria-hidden />
               </Button>
               <Button
                 type="button"
                 size="icon"
                 variant="outline"
-                className="h-8 w-8"
+                className="h-10 w-10 md:h-11 md:w-11"
                 disabled={page >= totalPages || playersQuery.isFetching}
                 onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
                 aria-label="Next page"
               >
-                <ChevronRight className="h-4 w-4" aria-hidden />
+                <ChevronRight className="h-5 w-5" aria-hidden />
               </Button>
             </div>
           </div>

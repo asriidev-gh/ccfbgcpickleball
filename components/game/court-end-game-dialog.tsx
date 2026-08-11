@@ -58,9 +58,13 @@ function CourtWinnerPlayerRow({
 
   return (
     <>
-      <PlayerAvatar player={displayPlayer} size="sm" className="!size-8 sm:!size-8" />
+      <PlayerAvatar
+        player={displayPlayer}
+        size="sm"
+        className="court-winner-player-avatar !size-10 sm:!size-11 md:!size-12"
+      />
       <span className="inline-flex min-w-0 items-center gap-1.5">
-        <span className="min-w-0 text-left text-xs font-medium leading-snug">
+        <span className="court-winner-player-name min-w-0 text-left font-medium leading-snug">
           {formatPlayerDisplayName(displayPlayer.firstName, displayPlayer.lastName)}
         </span>
         <PlayerGenderPill gender={displayPlayer.gender} birthdate={displayPlayer.birthdate} />
@@ -77,11 +81,15 @@ export function CourtWinnerTeamRoster({
   playerLookup?: Map<string, PlayerPhotoRef>;
 }) {
   if (players.length === 0) {
-    return <p className="court-winner-team-roster text-center text-xs text-muted-foreground">—</p>;
+    return (
+      <p className="court-winner-team-roster text-center text-sm text-muted-foreground md:text-base">
+        —
+      </p>
+    );
   }
 
   return (
-    <ul className="court-winner-team-roster flex flex-col gap-1.5">
+    <ul className="court-winner-team-roster flex flex-col gap-2 md:gap-2.5">
       {players.map((player, index) => (
         <li
           key={
@@ -89,7 +97,7 @@ export function CourtWinnerTeamRoster({
               ? `${String(player._id)}-${index}`
               : `${player.firstName}-${player.lastName}-${index}`
           }
-          className="flex items-center gap-2"
+          className="flex items-center gap-2.5 md:gap-3"
         >
           <CourtWinnerPlayerRow player={player} playerLookup={playerLookup} />
         </li>
@@ -170,18 +178,18 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
 
   return (
     <Dialog open onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="court-winner-dialog">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent className="court-winner-dialog sm:max-w-lg md:max-w-2xl">
+        <DialogHeader className="court-winner-dialog-header">
+          <DialogTitle className="court-winner-dialog-title">
             {pendingWinner
-              ? `Team ${pendingWinner} won — enter the score`
+              ? `Team ${pendingWinner} won — enter score`
               : `Who won on Court ${endCourt?.courtNumber ?? ""}?`}
           </DialogTitle>
         </DialogHeader>
 
         {pendingWinner === null ? (
-          <div className="court-winner-dialog-actions grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-2">
+          <div className="court-winner-dialog-body court-winner-dialog-actions grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
+            <div className="court-winner-team-card flex flex-col gap-3">
               <Button
                 type="button"
                 size="lg"
@@ -200,7 +208,7 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                 playerLookup={playerLookup}
               />
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="court-winner-team-card flex flex-col gap-3">
               <Button
                 type="button"
                 size="lg"
@@ -221,13 +229,13 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className="court-winner-dialog-body court-winner-score-step flex flex-col gap-5 md:gap-6">
             {winningPlayers.length > 0 ? (
-              <div className="surface-muted flex flex-col gap-2 rounded-xl border p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <div className="court-winner-winners-panel surface-muted flex flex-col gap-3 rounded-xl border p-4 md:p-5">
+                <p className="court-winner-section-label text-muted-foreground">
                   Winners · Team {pendingWinner}
                 </p>
-                <ul className="flex flex-col gap-2">
+                <ul className="flex flex-col gap-2.5 md:gap-3">
                   {winningPlayers.map((player, index) => (
                     <li
                       key={
@@ -235,10 +243,14 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                           ? `${String(player._id)}-${index}`
                           : `${player.firstName}-${player.lastName}-${index}`
                       }
-                      className="flex items-center gap-2.5"
+                      className="flex items-center gap-3"
                     >
-                      <PlayerAvatar player={player} size="sm" className="!size-9 sm:!size-9" />
-                      <span className="inline-flex items-center gap-1.5 font-medium">
+                      <PlayerAvatar
+                        player={player}
+                        size="sm"
+                        className="court-winner-player-avatar !size-10 sm:!size-11 md:!size-12"
+                      />
+                      <span className="court-winner-player-name inline-flex items-center gap-1.5 font-medium">
                         {formatPlayerDisplayName(player.firstName, player.lastName)}
                         <PlayerGenderPill gender={player.gender} birthdate={player.birthdate} />
                       </span>
@@ -247,11 +259,14 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                 </ul>
               </div>
             ) : null}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
+            <div className="grid grid-cols-2 gap-4 md:gap-5">
+              <div className="flex flex-col gap-2">
                 <label
                   htmlFor="team-a-score"
-                  className={cn("text-sm font-medium", pendingWinner === "A" && "text-primary")}
+                  className={cn(
+                    "court-winner-score-label",
+                    pendingWinner === "A" && "text-primary",
+                  )}
                 >
                   Team A
                   {pendingWinner === "A" ? " (winner)" : " (loser)"}
@@ -266,16 +281,19 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                   }
                   value={parseEndGameScoreField(teamAScore)}
                   onChange={handleTeamAScoreChange}
-                  className="court-winner-score-stepper w-full gap-1"
-                  buttonClassName="h-9 w-9"
-                  inputClassName="h-9 min-w-0 flex-1 px-1"
+                  className="court-winner-score-stepper w-full gap-1.5 md:gap-2"
+                  buttonClassName="court-winner-score-btn"
+                  inputClassName="court-winner-score-input"
                   invalid={endGameScoreError != null && pendingWinner === "B"}
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <label
                   htmlFor="team-b-score"
-                  className={cn("text-sm font-medium", pendingWinner === "B" && "text-primary")}
+                  className={cn(
+                    "court-winner-score-label",
+                    pendingWinner === "B" && "text-primary",
+                  )}
                 >
                   Team B
                   {pendingWinner === "B" ? " (winner)" : " (loser)"}
@@ -290,15 +308,15 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                   }
                   value={parseEndGameScoreField(teamBScore)}
                   onChange={handleTeamBScoreChange}
-                  className="court-winner-score-stepper w-full gap-1"
-                  buttonClassName="h-9 w-9"
-                  inputClassName="h-9 min-w-0 flex-1 px-1"
+                  className="court-winner-score-stepper w-full gap-1.5 md:gap-2"
+                  buttonClassName="court-winner-score-btn"
+                  inputClassName="court-winner-score-input"
                   invalid={endGameScoreError != null && pendingWinner === "A"}
                 />
               </div>
             </div>
             {endGameScoreError ? (
-              <p className="text-sm text-destructive" role="alert">
+              <p className="court-winner-score-error text-destructive" role="alert">
                 {endGameScoreError}
               </p>
             ) : null}
@@ -330,10 +348,12 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                 {endGameRematch ? rematchHint : noRematchHint}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="court-winner-footer-actions grid grid-cols-2 gap-3 md:gap-4">
               <Button
                 type="button"
                 variant="outline"
+                size="lg"
+                className="court-winner-footer-btn"
                 onClick={() => {
                   onPendingWinnerChange(null);
                   onEndGameRematchChange(false);
@@ -345,6 +365,8 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
               </Button>
               <Button
                 type="button"
+                size="lg"
+                className="court-winner-footer-btn"
                 disabled={endGameScoreError != null}
                 onClick={() => {
                   if (!pendingWinner || endGameScoreError) return;
