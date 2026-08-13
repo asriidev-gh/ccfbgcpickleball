@@ -184,7 +184,7 @@ export function QueuePlayerActionsMenu({
         aria-label={action.label}
       >
         {action.icon}
-        {action.label}
+        <span className="queue-player-action-label">{action.label}</span>
       </Button>
     );
   }
@@ -208,7 +208,7 @@ export function QueuePlayerActionsMenu({
         }
       >
         <MoreHorizontal className={cn(iconClass, "opacity-80")} aria-hidden />
-        Actions
+        <span className="queue-player-action-label">Actions</span>
         <ChevronDown className={cn(iconClass, "opacity-70")} aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

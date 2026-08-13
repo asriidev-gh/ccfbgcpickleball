@@ -18,6 +18,7 @@ import {
 } from "@/lib/qr-upload-ccf-questionnaire-shared";
 import { resolveQrUploadGameContext } from "@/lib/qr-upload-game-context";
 import { formatPlayerDisplayName } from "@/lib/utils";
+import { tryReactivateCheckedOutQueueEntry } from "@/lib/reactivate-checked-out-queue-entry";
 import { resolveGameRegistrationFormVariant } from "@/lib/resolve-game-registration-variant";
 import {
   existingPlayerSchema,
@@ -175,12 +176,18 @@ export async function POST(request: Request) {
     player.lastAttendedAt = new Date();
     await player.save();
 
-    await QueueEntry.create({
-      gameId: payload.gameId,
-      playerId: player._id,
-      status: "queued",
-      queueType: "normal",
-    });
+    const reactivated = await tryReactivateCheckedOutQueueEntry(
+      payload.gameId,
+      String(player._id),
+    );
+    if (!reactivated) {
+      await QueueEntry.create({
+        gameId: payload.gameId,
+        playerId: player._id,
+        status: "queued",
+        queueType: "normal",
+      });
+    }
 
     const playerId = String(player._id);
     scheduleExistingRegistrationSideEffects({

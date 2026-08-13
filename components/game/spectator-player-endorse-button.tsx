@@ -63,7 +63,7 @@ export function SpectatorPlayerEndorseButton({
       aria-label="Endorse player"
     >
       <ThumbsUp className={compact ? "size-3 shrink-0 xl:size-3.5" : "h-3.5 w-3.5"} aria-hidden />
-      Endorse
+      <span className="queue-player-action-label">Endorse</span>
     </Button>
   );
 }

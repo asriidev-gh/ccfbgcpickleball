@@ -21,6 +21,7 @@ import {
   clusterQueuedLockInGroups,
   getLockInGroupIdByPlayerIds,
 } from "@/lib/lock-in-groups";
+import { tryReactivateCheckedOutQueueEntry } from "@/lib/reactivate-checked-out-queue-entry";
 import { formatPlayerDisplayName, formatPlayerTableName } from "@/lib/utils";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { PickleGame } from "@/models/PickleGame";
@@ -380,62 +381,6 @@ export async function getDatabaseCheckInPlayersForGame(
   };
 }
 
-async function reactivateCheckedOutEntry(gameId: string, playerId: string) {
-  const playerObjectId = new Types.ObjectId(playerId);
-  const [checkedOutEntry, alreadyQueued, lastQueued] = await Promise.all([
-    QueueEntry.findOne({
-      gameId,
-      playerId: playerObjectId,
-      status: "checked_out",
-    }).select("_id"),
-    QueueEntry.findOne({
-      gameId,
-      status: "queued",
-      playerId: playerObjectId,
-    }).select("_id"),
-    QueueEntry.findOne({ gameId, status: "queued" })
-      .sort({ registeredAt: -1 })
-      .select("registeredAt")
-      .lean<{ registeredAt?: Date } | null>(),
-  ]);
-
-  if (!checkedOutEntry) {
-    throw new Error("Checked-out player not found.");
-  }
-  if (alreadyQueued) {
-    throw new Error("Player is already in the queue.");
-  }
-
-  const baseTime = lastQueued?.registeredAt
-    ? new Date(lastQueued.registeredAt).getTime()
-    : Date.now();
-  const registeredAt = new Date(baseTime + 1000);
-
-  const lockInByPlayer = await getLockInGroupIdByPlayerIds(gameId, [playerObjectId]);
-  const lockInGroupId = lockInByPlayer.get(String(playerObjectId)) ?? null;
-
-  const entry = await QueueEntry.findOneAndUpdate(
-    { _id: checkedOutEntry._id, gameId, status: "checked_out" },
-    {
-      $set: {
-        status: "queued",
-        queueType: "normal",
-        pairGroupId: null,
-        lockInGroupId,
-        removedFromSession: false,
-        registeredAt,
-      },
-    },
-    { returnDocument: "after" },
-  );
-
-  if (!entry) {
-    throw new Error("Checked-out player not found.");
-  }
-
-  await clusterQueuedLockInGroups(gameId);
-}
-
 export async function operatorCheckInPlayerFromDatabase(
   ownerId: string,
   gameId: string,
@@ -479,8 +424,7 @@ export async function operatorCheckInPlayerFromDatabase(
     });
   }
 
-  if (queueStatus === "checked_out") {
-    await reactivateCheckedOutEntry(gameId, playerId);
+  if (await tryReactivateCheckedOutQueueEntry(gameId, playerId)) {
     return {
       message: `${name} checked back in at the end of the queue.`,
       playerId,

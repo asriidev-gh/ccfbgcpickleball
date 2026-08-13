@@ -50,7 +50,7 @@ export function SpectatorPlayerCardShareButton({
       aria-label="Share player card"
     >
       <Share2 className={compact ? "size-3 shrink-0 xl:size-3.5" : "h-3.5 w-3.5"} aria-hidden />
-      Share
+      <span className="queue-player-action-label">Share</span>
     </Button>
   );
 }

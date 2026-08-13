@@ -3,6 +3,7 @@ import { Types, type PipelineStage } from "mongoose";
 import { connectToDatabase } from "@/lib/db";
 import { assertGameRegistrationAllowed } from "@/lib/game-registration-limit";
 import { isOwnerPreRegisteredPlayer } from "@/lib/owner-pre-registered-players";
+import { tryReactivateCheckedOutQueueEntry } from "@/lib/reactivate-checked-out-queue-entry";
 import { buildOwnerRegisteredPlayerAccountGroupKey } from "@/lib/owner-registered-players";
 import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import { recordPlayerRegisteredNotification } from "@/lib/organizer-notifications";
@@ -349,12 +350,15 @@ export async function checkInPlayerByNameSearch(gameId: string, playerId: string
   });
 
   await Player.updateOne({ _id: player._id }, { $set: { lastAttendedAt: new Date() } });
-  await QueueEntry.create({
-    gameId,
-    playerId: player._id,
-    status: "queued",
-    queueType: "normal",
-  });
+  const reactivated = await tryReactivateCheckedOutQueueEntry(gameId, playerId);
+  if (!reactivated) {
+    await QueueEntry.create({
+      gameId,
+      playerId: player._id,
+      status: "queued",
+      queueType: "normal",
+    });
+  }
 
   void recordPlayerRegisteredNotification({
     gameId,

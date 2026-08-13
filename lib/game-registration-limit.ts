@@ -29,10 +29,10 @@ export async function getPlayerQueueStatusForGame(
 
   const entry = await QueueEntry.findOne({ gameId, playerId })
     .sort({ registeredAt: -1 })
-    .select("status")
-    .lean<{ status?: string } | null>();
+    .select("status removedFromSession")
+    .lean<{ status?: string; removedFromSession?: boolean } | null>();
 
-  if (!entry?.status) return null;
+  if (!entry?.status || entry.removedFromSession) return null;
   if ((ACTIVE_QUEUE_STATUSES as readonly string[]).includes(entry.status)) return "active";
   if (entry.status === "checked_out") return "checked_out";
   return null;
@@ -70,7 +70,10 @@ export class RegistrationLimitError extends Error {
 
 export async function getGameRegistrationCount(gameId: string) {
   // Distinct player ids is cheaper than a 3-stage aggregation for capacity checks.
-  const playerIds = await QueueEntry.distinct("playerId", { gameId });
+  const playerIds = await QueueEntry.distinct("playerId", {
+    gameId,
+    removedFromSession: { $ne: true },
+  });
   return playerIds.length;
 }
 

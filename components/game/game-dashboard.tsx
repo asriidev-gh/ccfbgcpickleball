@@ -2847,8 +2847,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             ? () => setEndorseListTargetEntry(entry)
             : undefined
         }
-        endorseAction={renderSpectatorEndorseAction(entry, options?.compactName)}
-        shareAction={renderSpectatorShareAction(entry, options?.compactName)}
+        endorseAction={renderSpectatorEndorseAction(entry, Boolean(isNextUp || options?.compactName))}
+        shareAction={renderSpectatorShareAction(entry, Boolean(isNextUp || options?.compactName))}
         hideActions={!showQueueEntryActions}
       />
     );

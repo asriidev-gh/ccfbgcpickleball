@@ -2451,22 +2451,30 @@
   }
 
   .queue-next-up-card--profile {
-    @apply w-full items-center gap-3 sm:gap-4;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "photo identity actions";
+    align-items: start;
+    width: 100%;
+    gap: 0.75rem 1rem;
   }
 
   .queue-next-up-card--profile .queue-next-up-card__photo {
-    flex: 0 1 200px;
+    grid-area: photo;
+    flex: none;
     width: min(200px, 30%);
     min-width: 5.5rem;
     max-width: 200px;
   }
 
   .queue-next-up-card--profile .queue-next-up-card__identity {
-    @apply min-w-0 flex-1 items-start;
+    grid-area: identity;
+    min-width: 0;
+    align-items: start;
   }
 
   .queue-next-up-card--profile .queue-next-up-card__copy {
-    @apply flex min-w-0 flex-col items-start;
+    @apply flex min-w-0 w-full flex-col items-start;
   }
 
   .queue-next-up-card--profile .queue-next-up-card__name {
@@ -2474,19 +2482,22 @@
   }
 
   .queue-next-up-card--profile .queue-next-up-card__actions {
-    @apply ml-auto self-center;
+    grid-area: actions;
+    margin-left: 0;
+    align-self: start;
+    justify-content: flex-end;
   }
 
   .queue-next-up-card--profile .queue-next-up-stats {
-    @apply mt-3 flex-nowrap justify-start;
+    @apply mt-2.5 w-full min-w-0 flex-wrap justify-start;
   }
 
   .queue-next-up-stats {
-    @apply flex shrink-0 items-stretch gap-1.5;
+    @apply flex min-w-0 items-stretch gap-1.5;
   }
 
   .queue-next-up-stat {
-    @apply flex min-w-[3.25rem] flex-col items-center justify-center rounded-lg bg-muted/70 px-1.5 py-1;
+    @apply flex min-w-[2.75rem] flex-col items-center justify-center rounded-lg bg-muted/70 px-1.5 py-1;
   }
 
   .queue-next-up-stat__icon {
@@ -2513,9 +2524,57 @@
     @apply mt-0.5 text-[9px] font-medium leading-none text-muted-foreground;
   }
 
-  @container next-up-card (max-width: 640px) {
+  @container next-up-card (max-width: 560px) {
+    .queue-next-up-card--profile {
+      grid-template-columns: minmax(5rem, 7.25rem) minmax(0, 1fr);
+      grid-template-areas:
+        "photo identity"
+        "photo actions";
+      gap: 0.5rem 0.75rem;
+    }
+
+    .queue-next-up-card--profile .queue-next-up-card__photo {
+      width: 100%;
+      min-width: 0;
+      max-width: none;
+    }
+
     .queue-next-up-card--profile .queue-next-up-card__actions {
-      margin-left: auto;
+      justify-content: flex-start;
+      width: 100%;
+    }
+
+    .queue-next-up-card--profile .queue-next-up-card__name {
+      @apply text-base;
+    }
+
+    .queue-next-up-card--profile .queue-next-up-stats {
+      @apply mt-2;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .queue-next-up-card--profile {
+      grid-template-columns: minmax(5rem, 7.25rem) minmax(0, 1fr);
+      grid-template-areas:
+        "photo identity"
+        "photo actions";
+      gap: 0.5rem 0.75rem;
+    }
+
+    .queue-next-up-card--profile .queue-next-up-card__photo {
+      width: 100%;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .queue-next-up-card--profile .queue-next-up-card__actions {
+      justify-content: flex-start;
+      width: 100%;
+    }
+
+    .queue-next-up-card--profile .queue-next-up-card__name {
+      @apply text-base;
     }
   }
 
@@ -5130,55 +5189,97 @@
   .dashboard-panel:fullscreen .dashboard-panel-content,
   .dashboard-panel:-webkit-full-screen .dashboard-panel-content {
     @apply min-h-0 flex-1 overflow-y-auto;
+    align-content: start;
   }
 
-  /* Courts fullscreen — larger player photos for dedicated court displays */
-  .dashboard-panel--courts:fullscreen .court-player-row,
-  .dashboard-panel--courts:-webkit-full-screen .court-player-row {
-    @apply gap-3 sm:gap-4;
+  .dashboard-panel--courts:fullscreen .dashboard-panel-content.court-grid,
+  .dashboard-panel--courts:-webkit-full-screen .dashboard-panel-content.court-grid {
+    grid-auto-rows: min-content;
+    align-content: start;
   }
 
-  .dashboard-panel--courts:fullscreen .court-player-row .player-avatar,
-  .dashboard-panel--courts:-webkit-full-screen .court-player-row .player-avatar {
-    width: 5rem !important;
-    height: 5rem !important;
-    min-width: 5rem;
-    min-height: 5rem;
+  .dashboard-panel--courts:fullscreen .court-card,
+  .dashboard-panel--courts:-webkit-full-screen .court-card {
+    min-height: min-content;
   }
 
-  .dashboard-panel--courts:fullscreen .court-player-row .player-avatar [data-slot="avatar-fallback"],
-  .dashboard-panel--courts:-webkit-full-screen .court-player-row .player-avatar [data-slot="avatar-fallback"] {
-    @apply text-lg font-semibold;
+  .dashboard-panel--courts:fullscreen .court-teams,
+  .dashboard-panel--courts:-webkit-full-screen .court-teams {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .dashboard-panel--courts:fullscreen .court-card .body-lg,
-  .dashboard-panel--courts:-webkit-full-screen .court-card .body-lg,
-  .dashboard-panel--courts:fullscreen .court-card .court-player-name,
-  .dashboard-panel--courts:-webkit-full-screen .court-card .court-player-name {
-    @apply text-base sm:text-lg;
+  /* Phones: keep the stacked court layout; do not use TV-sized photos. */
+  @media (max-width: 767px) {
+    .dashboard-panel--courts:fullscreen .court-team,
+    .dashboard-panel--courts:-webkit-full-screen .court-team {
+      @apply w-full max-w-none p-3;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-team-players-list .court-player-row,
+    .dashboard-panel--courts:-webkit-full-screen .court-team-players-list .court-player-row {
+      @apply w-full max-w-full justify-start gap-2;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-player-name,
+    .dashboard-panel--courts:-webkit-full-screen .court-player-name {
+      @apply text-left text-sm;
+    }
   }
 
-  .dashboard-panel--courts:fullscreen .court-card .court-player-session-record,
-  .dashboard-panel--courts:-webkit-full-screen .court-card .court-player-session-record {
-    @apply text-xs sm:text-sm;
+  /* Tablets and court displays — larger player photos */
+  @media (min-width: 768px) {
+    .dashboard-panel--courts:fullscreen .court-teams,
+    .dashboard-panel--courts:-webkit-full-screen .court-teams {
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    }
+
+    .dashboard-panel--courts:fullscreen .court-player-row,
+    .dashboard-panel--courts:-webkit-full-screen .court-player-row {
+      @apply gap-3 sm:gap-4;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-player-row .player-avatar,
+    .dashboard-panel--courts:-webkit-full-screen .court-player-row .player-avatar {
+      width: 5rem !important;
+      height: 5rem !important;
+      min-width: 5rem;
+      min-height: 5rem;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-player-row .player-avatar [data-slot="avatar-fallback"],
+    .dashboard-panel--courts:-webkit-full-screen .court-player-row .player-avatar [data-slot="avatar-fallback"] {
+      @apply text-lg font-semibold;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-card .body-lg,
+    .dashboard-panel--courts:-webkit-full-screen .court-card .body-lg,
+    .dashboard-panel--courts:fullscreen .court-card .court-player-name,
+    .dashboard-panel--courts:-webkit-full-screen .court-card .court-player-name {
+      @apply text-base sm:text-lg;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-card .court-player-session-record,
+    .dashboard-panel--courts:-webkit-full-screen .court-card .court-player-session-record {
+      @apply text-xs sm:text-sm;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-team,
+    .dashboard-panel--courts:-webkit-full-screen .court-team {
+      @apply p-4;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-team-label,
+    .dashboard-panel--courts:-webkit-full-screen .court-team-label {
+      @apply mb-2 text-sm;
+    }
+
+    .dashboard-panel--courts:fullscreen .court-team-players-list,
+    .dashboard-panel--courts:-webkit-full-screen .court-team-players-list {
+      @apply space-y-3;
+    }
   }
 
-  .dashboard-panel--courts:fullscreen .court-team,
-  .dashboard-panel--courts:-webkit-full-screen .court-team {
-    @apply p-4;
-  }
-
-  .dashboard-panel--courts:fullscreen .court-team-label,
-  .dashboard-panel--courts:-webkit-full-screen .court-team-label {
-    @apply mb-2 text-sm;
-  }
-
-  .dashboard-panel--courts:fullscreen .court-team-players-list,
-  .dashboard-panel--courts:-webkit-full-screen .court-team-players-list {
-    @apply space-y-3;
-  }
-
-  @media (min-height: 600px) {
+  @media (min-width: 768px) and (min-height: 600px) {
     .dashboard-panel--courts:fullscreen .court-player-row .player-avatar,
     .dashboard-panel--courts:-webkit-full-screen .court-player-row .player-avatar {
       width: 6.5rem !important;
