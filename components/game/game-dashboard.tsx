@@ -2203,7 +2203,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     const nextFour = order
       .slice(0, DOUBLES_PLAYERS_PER_COURT)
       .map((entryId) => matchupAnalysisQueue.find((entry) => entry._id === entryId))
-      .filter((entry): entry is QueueEntryView => entry != null);
+      .filter((entry): entry is (typeof matchupAnalysisQueue)[number] => entry != null);
     if (nextFour.length === DOUBLES_PLAYERS_PER_COURT) {
       lockNextCourtFoursome(nextFour);
     }
@@ -3063,7 +3063,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                             .map((entryId) =>
                               queueWithStats.find((entry) => entry._id === entryId),
                             )
-                            .filter((entry): entry is QueueEntryView => entry != null),
+                            .filter((entry): entry is (typeof queueWithStats)[number] => entry != null),
                         );
                   reorderQueueMutation.mutate(fullOrder);
                 }}
