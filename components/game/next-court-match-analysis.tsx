@@ -49,6 +49,9 @@ type NextCourtMatchAnalysisProps = {
   shufflePending?: boolean;
   onSwapWaiting?: () => void;
   swapWaitingPending?: boolean;
+  /** Operator chose this lineup (replace / Accept). Skip auto-adjust prompts. */
+  manualLineup?: boolean;
+  onAcceptLineup?: () => void;
   maxVisible?: number;
   className?: string;
 };
@@ -90,6 +93,8 @@ export function NextCourtMatchAnalysis({
   shufflePending = false,
   onSwapWaiting,
   swapWaitingPending = false,
+  manualLineup = false,
+  onAcceptLineup,
   maxVisible = 3,
   className,
 }: NextCourtMatchAnalysisProps) {
@@ -115,8 +120,9 @@ export function NextCourtMatchAnalysis({
         matchingType,
         naturalFoursome,
         waitingLine,
+        manualLineup,
       }),
-    [foursome, matches, queue, matchingType, naturalFoursome, waitingLine],
+    [foursome, matches, queue, matchingType, naturalFoursome, waitingLine, manualLineup],
   );
 
   const hasActionableWarnings = suggestions.some((item) => item.tone !== "balanced");
@@ -323,7 +329,7 @@ export function NextCourtMatchAnalysis({
             <div className="next-court-analysis__footer">
               <p className="next-court-analysis__footer-hint">
                 {manualDecisionRequired
-                  ? "Accept this lineup, or swap waiting players manually."
+                  ? "Accept this lineup, or replace / swap waiting players yourself. Auto-adjust will not override a lineup you keep."
                   : showBothActions
                     ? "Shuffle partners, swap in waiting players (5th and 6th), or accept to keep this lineup."
                     : showSwap
@@ -342,7 +348,10 @@ export function NextCourtMatchAnalysis({
                   variant="outline"
                   size="sm"
                   className="next-court-analysis__accept-btn h-8 shrink-0 gap-1.5 px-2.5 text-xs"
-                  onClick={() => setDismissedFoursomeKey(foursomeKey)}
+                  onClick={() => {
+                    onAcceptLineup?.();
+                    setDismissedFoursomeKey(foursomeKey);
+                  }}
                 >
                   <Check className="h-3.5 w-3.5" aria-hidden />
                   Accept
@@ -417,7 +426,7 @@ export function NextCourtMatchAnalysis({
                     ) : (
                       <Shuffle className="h-3.5 w-3.5" aria-hidden />
                     )}
-                    Shuffle
+                    Shuffle partners
                   </Button>
                 ) : null}
               </div>

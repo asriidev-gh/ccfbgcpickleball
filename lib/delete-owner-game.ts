@@ -1,5 +1,6 @@
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
+import { LockInGroup } from "@/models/LockInGroup";
 import { MatchHistory } from "@/models/MatchHistory";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
@@ -14,6 +15,7 @@ export async function deleteOwnerGame(ownerId: string, gameId: string): Promise<
     MatchHistory.deleteMany({ gameId }),
     LeaderboardStats.deleteMany({ gameId }),
     Court.deleteMany({ gameId }),
+    LockInGroup.deleteMany({ gameId }),
   ]);
 
   return true;

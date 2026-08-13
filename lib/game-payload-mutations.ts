@@ -28,7 +28,7 @@ import {
   resolveDoublesRotationQueue,
 } from "@/lib/doubles/doubles-queue-fill";
 import { shuffleDoublesIntoNewHalves, randomMixedDoublesTeamSplit } from "@/lib/doubles/mixed-doubles-shuffle";
-import { buildSmartShuffleQueueOrder } from "@/lib/next-court-match-analysis";
+import { buildQueueOrderWithNextCourtFoursome, buildSmartShuffleQueueOrder } from "@/lib/next-court-match-analysis";
 import { appendMixedDoublesRequeueEntries } from "@/lib/doubles/mixed-doubles-requeue";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import { isSinglesGameMode } from "@/lib/singles/singles-constants";
@@ -866,39 +866,41 @@ export function applyCancelRematchOptimistic(
   };
 }
 
-export function applyQuickShuffleNextOptimistic(payload: GamePayload): GamePayload | null {
+export function applyQuickShuffleNextOptimistic(
+  payload: GamePayload,
+  foursome?: QueueEntryView[],
+): GamePayload | null {
   const ordered = resolveDoublesRotationQueue(payload.queue, payload.game.matchingType);
-  const nextUp = ordered.slice(0, DOUBLES_PLAYERS_PER_COURT);
+  const nextUp =
+    foursome?.length === DOUBLES_PLAYERS_PER_COURT
+      ? foursome
+      : ordered.slice(0, DOUBLES_PLAYERS_PER_COURT);
   if (nextUp.length < DOUBLES_PLAYERS_PER_COURT) return null;
 
-  const pickedIds = new Set(nextUp.map((entry) => entry._id));
-  const insertAt = ordered.findIndex((entry) => pickedIds.has(entry._id));
-  const without = ordered.filter((entry) => !pickedIds.has(entry._id));
   const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp, payload.game.matchingType);
-
-  const baseTime = new Date(nextUp[0].registeredAt).getTime();
-  const shuffled = [...firstHalf, ...secondHalf].map((entry, index) => ({
-    ...entry,
-    registeredAt: new Date(baseTime + index * 1000).toISOString(),
-  }));
-
-  return {
-    ...payload,
-    queue: [...without.slice(0, insertAt), ...shuffled, ...without.slice(insertAt)],
-  };
+  const order = buildQueueOrderWithNextCourtFoursome(payload.queue, [...firstHalf, ...secondHalf]);
+  return applyQueueReorderOptimistic(payload, order);
 }
 
-export function applyShuffleNextOptimistic(payload: GamePayload): GamePayload | null {
+export function applyShuffleNextOptimistic(
+  payload: GamePayload,
+  foursome?: QueueEntryView[],
+): GamePayload | null {
   const ordered = resolveDoublesRotationQueue(payload.queue, payload.game.matchingType);
+  const nextUp =
+    foursome?.length === DOUBLES_PLAYERS_PER_COURT
+      ? foursome
+      : ordered.slice(0, DOUBLES_PLAYERS_PER_COURT);
   const smartOrder = buildSmartShuffleQueueOrder(ordered, payload.matches ?? [], {
     queue: ordered,
     matchingType: payload.game.matchingType,
+    foursome: nextUp,
   });
   if (smartOrder) {
     return applyQueueReorderOptimistic(payload, smartOrder);
   }
 
-  return applyQuickShuffleNextOptimistic(payload);
+  return applyQuickShuffleNextOptimistic(payload, nextUp);
 }
 
 export function canFillDoublesCourt(

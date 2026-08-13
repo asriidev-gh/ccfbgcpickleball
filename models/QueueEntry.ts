@@ -15,6 +15,8 @@ const queueEntrySchema = new Schema(
       default: "normal",
     },
     pairGroupId: { type: String, default: null },
+    /** Session lock-in group — members stay adjacent in the queue when possible. */
+    lockInGroupId: { type: String, default: null, index: true },
     deckPlacement: { type: String, enum: ["deck", "open_court"], default: null },
     openCourtGroupId: { type: String, default: null },
     openCourtTeam: { type: String, enum: ["A", "B"], default: null },

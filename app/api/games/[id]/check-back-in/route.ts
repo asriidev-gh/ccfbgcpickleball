@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
+import { Types } from "mongoose";
 
 import { runWithDatabase } from "@/lib/db";
 import { getAuthUserFromCookie } from "@/lib/auth";
+import {
+  clusterQueuedLockInGroups,
+  getLockInGroupIdByPlayerIds,
+} from "@/lib/lock-in-groups";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
 import "@/models/Player";
@@ -57,6 +62,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : Date.now();
     const registeredAt = new Date(baseTime + 1000);
 
+    const lockInByPlayer = await getLockInGroupIdByPlayerIds(gameId, [
+      checkedOutEntry.playerId as Types.ObjectId,
+    ]);
+    const lockInGroupId =
+      lockInByPlayer.get(String(checkedOutEntry.playerId)) ?? null;
+
     const entry = await QueueEntry.findOneAndUpdate(
       { _id: queueEntryId, gameId, status: "checked_out" },
       {
@@ -64,6 +75,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           status: "queued",
           queueType: "normal",
           pairGroupId: null,
+          lockInGroupId,
           registeredAt,
         },
       },
@@ -73,6 +85,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!entry) {
       return NextResponse.json({ message: "Checked-out player not found." }, { status: 404 });
     }
+
+    await clusterQueuedLockInGroups(gameId);
 
     const player = entry.playerId as { firstName?: string; lastName?: string } | null;
     const name = [player?.firstName, player?.lastName].filter(Boolean).join(" ").trim() || "Player";

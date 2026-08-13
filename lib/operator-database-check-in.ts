@@ -17,6 +17,10 @@ import { buildOwnerRegisteredPlayerAccountGroupKey } from "@/lib/owner-registere
 import { recordPlayerRegisteredNotification } from "@/lib/organizer-notifications";
 import { ALREADY_REGISTERED_MESSAGE } from "@/lib/registration-messages";
 import { healOrphanedOnCourtEntries } from "@/lib/queue-on-court-orphans";
+import {
+  clusterQueuedLockInGroups,
+  getLockInGroupIdByPlayerIds,
+} from "@/lib/lock-in-groups";
 import { formatPlayerDisplayName, formatPlayerTableName } from "@/lib/utils";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { PickleGame } from "@/models/PickleGame";
@@ -407,6 +411,9 @@ async function reactivateCheckedOutEntry(gameId: string, playerId: string) {
     : Date.now();
   const registeredAt = new Date(baseTime + 1000);
 
+  const lockInByPlayer = await getLockInGroupIdByPlayerIds(gameId, [playerObjectId]);
+  const lockInGroupId = lockInByPlayer.get(String(playerObjectId)) ?? null;
+
   const entry = await QueueEntry.findOneAndUpdate(
     { _id: checkedOutEntry._id, gameId, status: "checked_out" },
     {
@@ -414,6 +421,7 @@ async function reactivateCheckedOutEntry(gameId: string, playerId: string) {
         status: "queued",
         queueType: "normal",
         pairGroupId: null,
+        lockInGroupId,
         removedFromSession: false,
         registeredAt,
       },
@@ -424,6 +432,8 @@ async function reactivateCheckedOutEntry(gameId: string, playerId: string) {
   if (!entry) {
     throw new Error("Checked-out player not found.");
   }
+
+  await clusterQueuedLockInGroups(gameId);
 }
 
 export async function operatorCheckInPlayerFromDatabase(
@@ -480,12 +490,19 @@ export async function operatorCheckInPlayerFromDatabase(
   await assertGameRegistrationAllowed(gameId, { email: player.email ?? undefined });
 
   await Player.updateOne({ _id: player._id }, { $set: { lastAttendedAt: new Date() } });
+
+  const lockInByPlayer = await getLockInGroupIdByPlayerIds(gameId, [player._id]);
+  const lockInGroupId = lockInByPlayer.get(String(player._id)) ?? null;
+
   await QueueEntry.create({
     gameId,
     playerId: player._id,
     status: "queued",
     queueType: "normal",
+    lockInGroupId,
   });
+
+  await clusterQueuedLockInGroups(gameId);
 
   void recordPlayerRegisteredNotification({
     gameId,

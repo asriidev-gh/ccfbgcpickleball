@@ -21,6 +21,10 @@ import {
   type QueueEntryLike,
 } from "@/lib/queue-court-assignment";
 import { requeuePlayersAfterCourtEnd } from "@/lib/queue-end-requeue";
+import {
+  clusterQueuedLockInGroups,
+  getLockInGroupIdByPlayerIds,
+} from "@/lib/lock-in-groups";
 import { healOrphanedOnCourtEntries } from "@/lib/queue-on-court-orphans";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
@@ -337,25 +341,29 @@ export async function quickShuffleNextOnCourtInQueue(
   let shuffled = queue.slice(0, 4);
   if (nextFourEntryIds?.length === 4) {
     const byId = new Map(queue.map((entry) => [String(entry._id), entry]));
-    shuffled = nextFourEntryIds.map((entryId) => {
+    const chosen = nextFourEntryIds.map((entryId) => {
       const entry = byId.get(String(entryId));
       if (!entry) {
         throw new Error("One or more selected queue entries are no longer available.");
       }
       return entry;
     });
-  } else {
-    const nextUp = queue.slice(0, 4);
-    const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp, (half) =>
-      teamKey(
-        half.map((entry) => ({
-          playerId: entry.playerId as Types.ObjectId,
-          queueEntryId: entry._id,
-        })),
-      ),
-    );
-    shuffled = [...firstHalf, ...secondHalf];
+    const chosenIds = new Set(chosen.map((entry) => String(entry._id)));
+    const rest = queue.filter((entry) => !chosenIds.has(String(entry._id)));
+    await persistQueueOrder([...chosen, ...rest]);
+    return;
   }
+
+  const nextUp = queue.slice(0, 4);
+  const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp, (half) =>
+    teamKey(
+      half.map((entry) => ({
+        playerId: entry.playerId as Types.ObjectId,
+        queueEntryId: entry._id,
+      })),
+    ),
+  );
+  shuffled = [...firstHalf, ...secondHalf];
 
   const timestamps = shuffled
     .map((entry) => new Date(entry.registeredAt).getTime())
@@ -1024,8 +1032,13 @@ async function requeueCourtPlayersWithRotation(input: {
 
   const now = Date.now();
   const newEntriesByPlayerId = new Map<string, (typeof queued)[number]>();
+  const courtPlayerIdsList = [
+    ...input.court.teamA.playerIds,
+    ...input.court.teamB.playerIds,
+  ];
+  const lockInByPlayer = await getLockInGroupIdByPlayerIds(input.gameId, courtPlayerIdsList);
 
-  for (const playerId of [...input.court.teamA.playerIds, ...input.court.teamB.playerIds]) {
+  for (const playerId of courtPlayerIdsList) {
     const playerKey = playerId.toString();
     const isWinner = input.winnerPlayerIdSet.has(playerKey);
     const entry = await QueueEntry.create({
@@ -1034,6 +1047,7 @@ async function requeueCourtPlayersWithRotation(input: {
       status: "queued",
       queueType: "normal",
       pairGroupId: null,
+      lockInGroupId: lockInByPlayer.get(playerKey) ?? null,
       deckPlacement: null,
       openCourtGroupId: null,
       openCourtTeam: null,
@@ -1058,5 +1072,6 @@ async function requeueCourtPlayersWithRotation(input: {
   });
 
   await persistQueueOrder(orderedEntries);
+  await clusterQueuedLockInGroups(input.gameId);
   return true;
 }

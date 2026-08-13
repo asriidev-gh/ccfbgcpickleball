@@ -1,4 +1,4 @@
-import { Clock, Share2, Trophy } from "lucide-react";
+import { Clock, Lock, Share2, Trophy } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
@@ -23,6 +23,8 @@ export type QueueEntryView = {
   playerId: PlayerPhotoRef;
   registeredAt: string;
   lastMatchResult: "win" | "loss" | "none";
+  /** Durable lock-in group — members stay adjacent in the queue. */
+  lockInGroupId?: string | null;
   /** Set when the player checked out of the waiting queue. */
   checkedOutAt?: string;
   updatedAt?: string;
@@ -530,6 +532,16 @@ export function QueueEntryRow({
                     count={endorsementCount}
                     onClick={onEndorsementClick}
                   />
+                ) : null}
+                {entry.lockInGroupId ? (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 text-[10px] font-medium"
+                    title="Lock-in group"
+                  >
+                    <Lock className="h-3 w-3" aria-hidden />
+                    Lock-in
+                  </Badge>
                 ) : null}
               </div>
               {!checkedOut && !hideSessionStats && !inWaitingLine ? (

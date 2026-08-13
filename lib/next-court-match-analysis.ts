@@ -14,7 +14,7 @@ export type NextCourtMatchSuggestion = {
   bulletPoints?: string[];
   suggestsShuffle: boolean;
   suggestsQueueSwap?: boolean;
-  /** When true, auto-swap failed — operator should Accept or manually swap waiting players. */
+  /** When true, auto-adjust will not rewrite the lineup — operator should Accept or replace/swap manually. */
   requiresManualDecision?: boolean;
   priority: number;
 };
@@ -523,7 +523,8 @@ function enumerateFoursomeCombinations(pool: QueueEntryView[]): QueueEntryView[]
  * 4. Tighter games-played spread within the four
  * 5. Earlier queue positions
  *
- * Fully fresh (0 rematches) auto-applies; any rematches require manual Accept.
+ * Fully fresh (0 rematches) auto-applies. If 2+ still rematch, leave the current
+ * lineup in place so the operator can replace players without auto-adjust.
  */
 export function findSmartWaitingLineRematchAvoidance(
   naturalFoursome: QueueEntryView[],
@@ -706,10 +707,10 @@ function applyLegacyRepeatLastMatchFoursomeAdjustment(
 
 /**
  * Adjust only the next-on-court four — does not reorder the full queue.
- * With 4+ waiting, prefer smart rematch avoidance from the waiting line.
- * Clean (0 rematches) and compromised (best 2→3→4) lineups are both applied to the display;
- * compromised still requires manual Accept in the matchup check.
- * Otherwise fall back to last-match trio/foursome swaps.
+ * With 4+ waiting, auto-apply only a fully fresh foursome (0 rematches).
+ * If the best option still has 2+ rematch players, keep the current lineup.
+ * The dashboard applies this once when a new on-deck group appears, then freezes
+ * so operator replace / reorder is never overwritten.
  */
 export function applyRepeatLastMatchFoursomeAdjustment(
   naturalFoursome: QueueEntryView[],
@@ -724,13 +725,58 @@ export function applyRepeatLastMatchFoursomeAdjustment(
       waitingLine,
       matches,
     );
-    if (smartPlan.status === "clean" || smartPlan.status === "compromised") {
+    if (smartPlan.status === "clean") {
       return smartPlan.adjustedFoursome;
     }
     return naturalFoursome;
   }
 
   return applyLegacyRepeatLastMatchFoursomeAdjustment(naturalFoursome, waitingLine, matches);
+}
+
+/** Promote a displayed next-on-court four to the front of the queue, keeping relative waiting order. */
+export function buildQueueOrderWithNextCourtFoursome(
+  queue: QueueEntryView[],
+  nextCourt: QueueEntryView[],
+): string[] {
+  const nextIds = nextCourt.map((entry) => entry._id);
+  const nextIdSet = new Set(nextIds);
+  const rest = queue.filter((entry) => !nextIdSet.has(entry._id)).map((entry) => entry._id);
+  return [...nextIds, ...rest];
+}
+
+/** Replace one displayed next-on-court player, then promote that foursome to the queue front. */
+export function buildQueueOrderAfterNextCourtReplace(
+  queue: QueueEntryView[],
+  displayedFoursome: QueueEntryView[],
+  sourceEntryId: string,
+  targetEntryId: string,
+): string[] | null {
+  if (displayedFoursome.length !== 4) return null;
+  if (displayedFoursome.some((entry) => entry._id === targetEntryId)) return null;
+  const target = queue.find((entry) => entry._id === targetEntryId);
+  if (!target) return null;
+  if (!displayedFoursome.some((entry) => entry._id === sourceEntryId)) return null;
+
+  const newDisplayed = displayedFoursome.map((entry) =>
+    entry._id === sourceEntryId ? target : entry,
+  );
+  return buildQueueOrderWithNextCourtFoursome(queue, newDisplayed);
+}
+
+export function resolveLockedNextCourtFoursome(
+  queue: QueueEntryView[],
+  lockKey: string,
+): QueueEntryView[] | null {
+  const ids = lockKey.split("|").filter(Boolean);
+  if (ids.length !== 4) return null;
+  const byId = new Map(queue.map((entry) => [entry._id, entry]));
+  const foursome = ids.map((id) => byId.get(id)).filter((entry): entry is QueueEntryView => entry != null);
+  return foursome.length === 4 ? foursome : null;
+}
+
+export function nextCourtOrderedEntryKey(foursome: QueueEntryView[]) {
+  return foursome.map((entry) => entry._id).join("|");
 }
 
 export function buildAutoRepeatLastMatchSwapOrder(
@@ -762,14 +808,16 @@ function pushSmartRematchAvoidanceSuggestions(
   suggestions: NextCourtMatchSuggestion[],
   displayedFoursome: QueueEntryView[],
   plan: SmartRematchAvoidancePlan,
+  analysisMatches: AnalysisMatch[],
 ) {
   if (plan.status === "none") return;
 
   const displayedIds = displayedFoursome.map((entry) => entry._id).join("|");
   const adjustedIds = plan.adjustedFoursome.map((entry) => entry._id).join("|");
-  if (displayedIds !== adjustedIds) return;
+  const showingAdjusted = displayedIds === adjustedIds;
 
   if (plan.status === "clean") {
+    if (!showingAdjusted) return;
     const swapSummary = formatSmartReplacementSummary(plan.replacements);
     pushSuggestion(suggestions, {
       id: "smart-rematch-avoidance-applied",
@@ -784,15 +832,35 @@ function pushSmartRematchAvoidanceSuggestions(
     return;
   }
 
+  if (showingAdjusted) {
+    const conflictText =
+      plan.conflictLabels.length > 0
+        ? plan.conflictLabels.slice(0, 2).join("; ")
+        : `${plan.rematchPlayerCount} players still rematch`;
+
+    pushSuggestion(suggestions, {
+      id: "smart-rematch-avoidance-compromised",
+      tone: "caution",
+      message: `Closest fresh matchup still has rematches (${conflictText}). Accept or swap manually.`,
+      suggestsShuffle: false,
+      suggestsQueueSwap: true,
+      requiresManualDecision: true,
+      priority: 98,
+    });
+    return;
+  }
+
+  const displayedPlayers = displayedFoursome
+    .map(toAnalysisPlayer)
+    .filter((player): player is AnalysisPlayer => player != null);
+  const labels = priorCourtmateConflictLabels(displayedPlayers, analysisMatches);
   const conflictText =
-    plan.conflictLabels.length > 0
-      ? plan.conflictLabels.slice(0, 2).join("; ")
-      : `${plan.rematchPlayerCount} players still rematch`;
+    labels.length > 0 ? labels.slice(0, 2).join("; ") : "2 or more players have already played together";
 
   pushSuggestion(suggestions, {
-    id: "smart-rematch-avoidance-compromised",
+    id: "smart-rematch-avoidance-manual",
     tone: "caution",
-    message: `Closest fresh matchup still has rematches (${conflictText}). Accept or swap manually.`,
+    message: `${conflictText}. Auto-adjust left this lineup so you can replace players yourself. Accept, or swap waiting players.`,
     suggestsShuffle: false,
     suggestsQueueSwap: true,
     requiresManualDecision: true,
@@ -975,6 +1043,8 @@ export function computeNextCourtMatchSuggestions(
     matchingType?: QuickPlayMatchingType | null;
     naturalFoursome?: QueueEntryView[];
     waitingLine?: QueueEntryView[];
+    /** Operator locked this lineup (replace / Accept) — don't re-prompt auto-adjust. */
+    manualLineup?: boolean;
   },
 ): NextCourtMatchSuggestion[] {
   const players = foursome.map(toAnalysisPlayer).filter((player): player is AnalysisPlayer => player != null);
@@ -994,14 +1064,16 @@ export function computeNextCourtMatchSuggestions(
         )
       : []);
   const smartRematchPlan =
-    naturalFoursome.length === 4 && waitingLine.length >= SMART_REMATCH_MIN_WAITING
+    !options?.manualLineup &&
+    naturalFoursome.length === 4 &&
+    waitingLine.length >= SMART_REMATCH_MIN_WAITING
       ? findSmartWaitingLineRematchAvoidance(naturalFoursome, waitingLine, matches)
       : ({ status: "none" } as const);
   const smartRematchHandled = smartRematchPlan.status !== "none";
   const smartRematchNeedsDecision = smartRematchPlan.status === "compromised";
 
   if (naturalFoursome.length === 4 && waitingLine.length > 0) {
-    pushSmartRematchAvoidanceSuggestions(suggestions, foursome, smartRematchPlan);
+    pushSmartRematchAvoidanceSuggestions(suggestions, foursome, smartRematchPlan, analysisMatches);
     pushAutoRepeatLastMatchSuggestions(suggestions, naturalFoursome, waitingLine, matches);
   }
 
@@ -1414,11 +1486,16 @@ export function pickAlternatePartnerFoursomeOrder(
 export function resolveShuffleNextFoursomeOrder(
   foursome: QueueEntryView[],
   matches: MatchHistoryView[] = [],
-  options?: { queue?: QueueEntryView[]; matchingType?: QuickPlayMatchingType | null },
+  options?: {
+    queue?: QueueEntryView[];
+    matchingType?: QuickPlayMatchingType | null;
+    manualLineup?: boolean;
+  },
 ): QueueEntryView[] {
   const matchupOptions = {
     queue: options?.queue,
     matchingType: options?.matchingType,
+    manualLineup: options?.manualLineup,
   };
   const suggestions = computeNextCourtMatchSuggestions(foursome, matches, matchupOptions);
   const actionable = suggestions.filter((item) => item.tone !== "balanced");
@@ -1445,18 +1522,21 @@ export function resolveShuffleNextFoursomeOrder(
 export function buildSmartShuffleQueueOrder(
   queue: QueueEntryView[],
   matches: MatchHistoryView[] = [],
-  options?: { queue?: QueueEntryView[]; matchingType?: QuickPlayMatchingType | null },
+  options?: {
+    queue?: QueueEntryView[];
+    matchingType?: QuickPlayMatchingType | null;
+    foursome?: QueueEntryView[];
+  },
 ): string[] | null {
   if (queue.length < 4) return null;
-  const nextUp = queue.slice(0, 4);
+  const nextUp = options?.foursome?.length === 4 ? options.foursome : queue.slice(0, 4);
+  if (nextUp.length !== 4) return null;
   const chosen = resolveShuffleNextFoursomeOrder(nextUp, matches, {
     queue: options?.queue ?? queue,
     matchingType: options?.matchingType,
+    manualLineup: true,
   });
-  return [
-    ...chosen.map((entry) => stringifyQueueEntryId(entry._id)),
-    ...queue.slice(4).map((entry) => stringifyQueueEntryId(entry._id)),
-  ].filter(Boolean);
+  return buildQueueOrderWithNextCourtFoursome(queue, chosen);
 }
 
 export function formatLeastBalancedLineupNote(
@@ -1530,7 +1610,7 @@ export const MATCHUP_CHECK_GUIDE_SCENARIOS: MatchupCheckGuideScenario[] = [
     id: "smart-rematch-avoidance",
     title: "Smart rematch avoidance",
     description:
-      "With 4+ waiting, picks a fresh foursome and favors players with fewer games. If rematches remain, shows the closest option and asks you to Accept.",
+      "Runs once when Next on court is first formed. After that (and after any replace / Accept / reorder), the lineup stays until those players leave the queue. Fully fresh foursomes (0 rematches) are auto-applied; if 2 or more still played together, the current lineup is left for you to edit.",
     tone: "caution",
   },
   {

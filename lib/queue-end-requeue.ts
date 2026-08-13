@@ -7,6 +7,10 @@ import { orderMixedDoublesRequeueEntries } from "@/lib/doubles/mixed-doubles-req
 import type { GameFormatSettings } from "@/lib/game-format-settings";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { toQueueEntryViewForPick, type QueueEntryLike } from "@/lib/queue-court-assignment";
+import {
+  clusterQueuedLockInGroups,
+  getLockInGroupIdByPlayerIds,
+} from "@/lib/lock-in-groups";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import {
   buildRotationRequeuePlayerOrder,
@@ -79,6 +83,7 @@ async function insertRequeueEntries(
     playerId: Types.ObjectId;
     queueType: "normal" | "winner" | "loser";
     pairGroupId?: string | null;
+    lockInGroupId?: string | null;
     registeredAt: Date;
     lastMatchResult: "win" | "loss";
   }>,
@@ -88,6 +93,12 @@ async function insertRequeueEntries(
     gameId,
     specs.map((spec) => spec.playerId),
   );
+
+  const lockInByPlayer = await getLockInGroupIdByPlayerIds(
+    gameId,
+    specs.map((spec) => spec.playerId),
+  );
+
   await QueueEntry.insertMany(
     specs.map((spec) => ({
       gameId,
@@ -95,11 +106,15 @@ async function insertRequeueEntries(
       status: "queued",
       queueType: spec.queueType,
       pairGroupId: spec.pairGroupId ?? null,
+      lockInGroupId:
+        spec.lockInGroupId ?? lockInByPlayer.get(String(spec.playerId)) ?? null,
       registeredAt: spec.registeredAt,
       lastMatchResult: spec.lastMatchResult,
       winStreak: spec.lastMatchResult === "win" ? 1 : 0,
     })),
   );
+
+  await clusterQueuedLockInGroups(gameId);
 }
 
 async function requeueSinglesCourt(input: {

@@ -25,6 +25,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { createContext, useContext, useState, type ReactNode } from "react";
 
+import { moveContiguousGroupBlock } from "@/lib/lock-in-groups-shared";
 import { cn } from "@/lib/utils";
 
 export type QueueDndZoneId = "next-up" | "waiting";
@@ -57,6 +58,8 @@ type SortableQueueListProps = {
   onReorder: (orderedEntryIds: string[]) => void;
   /** How many top positions count as the "next on court" drop zone. Defaults to 4 (doubles). */
   nextUpCount?: number;
+  /** When set, dragging one lock-in member moves the whole contiguous group. */
+  lockInGroupIdByEntryId?: Map<string, string | null | undefined>;
   children: ReactNode;
 };
 
@@ -65,6 +68,7 @@ export function SortableQueueList({
   enabled,
   onReorder,
   nextUpCount = 4,
+  lockInGroupIdByEntryId,
   children,
 }: SortableQueueListProps) {
   const sensors = useSensors(
@@ -110,6 +114,13 @@ export function SortableQueueList({
     const oldIndex = entryIds.indexOf(String(active.id));
     const newIndex = entryIds.indexOf(String(over.id));
     if (oldIndex < 0 || newIndex < 0) return;
+
+    if (lockInGroupIdByEntryId) {
+      onReorder(
+        moveContiguousGroupBlock(entryIds, lockInGroupIdByEntryId, oldIndex, newIndex),
+      );
+      return;
+    }
 
     onReorder(arrayMove(entryIds, oldIndex, newIndex));
   };

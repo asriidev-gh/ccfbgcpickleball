@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Contact, Flag, RotateCcw, Settings2, UserPlus } from "lucide-react";
+import { ChevronDown, Contact, Flag, Lock, RotateCcw, Settings2, UserPlus } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 
@@ -27,6 +27,8 @@ type SessionAction = {
 type GameSessionActionsMenuProps = {
   showDatabaseCheckIn?: boolean;
   onDatabaseCheckIn?: () => void;
+  showLockInPlayers?: boolean;
+  onLockInPlayers?: () => void;
   showAddPlayer?: boolean;
   onAddPlayer?: () => void;
   showResetOpenPlay?: boolean;
@@ -44,6 +46,8 @@ type GameSessionActionsMenuProps = {
 export function GameSessionActionsMenu({
   showDatabaseCheckIn = false,
   onDatabaseCheckIn,
+  showLockInPlayers = false,
+  onLockInPlayers,
   showAddPlayer = false,
   onAddPlayer,
   showResetOpenPlay = false,
@@ -66,6 +70,16 @@ export function GameSessionActionsMenu({
         icon: <Contact aria-hidden />,
         onClick: onDatabaseCheckIn,
         className: "game-session-database-check-in-btn",
+      });
+    }
+
+    if (showLockInPlayers && onLockInPlayers) {
+      items.push({
+        key: "lock-in-players",
+        label: "Lock-in Players",
+        icon: <Lock aria-hidden />,
+        onClick: onLockInPlayers,
+        className: "game-session-lock-in-players-btn",
       });
     }
 
@@ -109,11 +123,13 @@ export function GameSessionActionsMenu({
     onAddPlayer,
     onDatabaseCheckIn,
     onEndOpenPlay,
+    onLockInPlayers,
     onResetOpenPlay,
     resetOpenPlayPending,
     showAddPlayer,
     showDatabaseCheckIn,
     showEndOpenPlay,
+    showLockInPlayers,
     showResetOpenPlay,
   ]);
 
