@@ -290,18 +290,35 @@ export async function reorderQueuedPlayers(gameId: string, orderedEntryIds: stri
 async function persistQueueOrder(
   orderedEntries: Array<{ _id: Types.ObjectId; registeredAt: Date }>,
 ) {
-  const baseTime =
-    orderedEntries.length > 0
-      ? new Date(orderedEntries[0].registeredAt).getTime()
-      : Date.now();
+  if (orderedEntries.length === 0) return;
 
-  await Promise.all(
-    orderedEntries.map((entry, index) =>
-      QueueEntry.updateOne(
-        { _id: entry._id },
-        { $set: { registeredAt: new Date(baseTime + index * 1000) } },
-      ),
-    ),
+  const baseTime = new Date(orderedEntries[0].registeredAt).getTime();
+  await QueueEntry.bulkWrite(
+    orderedEntries.map((entry, index) => ({
+      updateOne: {
+        filter: { _id: entry._id },
+        update: { $set: { registeredAt: new Date(baseTime + index * 1000) } },
+      },
+    })),
+    { ordered: false },
+  );
+}
+
+async function persistNextFourOrder(
+  orderedNextFour: Array<{ _id: Types.ObjectId; registeredAt: Date }>,
+) {
+  const timestamps = orderedNextFour
+    .map((entry) => new Date(entry.registeredAt).getTime())
+    .sort((a, b) => a - b);
+
+  await QueueEntry.bulkWrite(
+    orderedNextFour.map((entry, index) => ({
+      updateOne: {
+        filter: { _id: entry._id },
+        update: { $set: { registeredAt: new Date(timestamps[index]!) } },
+      },
+    })),
+    { ordered: false },
   );
 }
 
@@ -338,7 +355,6 @@ export async function quickShuffleNextOnCourtInQueue(
     throw new Error("Not enough queued players. At least 4 players are required.");
   }
 
-  let shuffled = queue.slice(0, 4);
   if (nextFourEntryIds?.length === 4) {
     const byId = new Map(queue.map((entry) => [String(entry._id), entry]));
     const chosen = nextFourEntryIds.map((entryId) => {
@@ -348,6 +364,13 @@ export async function quickShuffleNextOnCourtInQueue(
       }
       return entry;
     });
+    const topFour = queue.slice(0, 4);
+    const topIds = new Set(topFour.map((entry) => String(entry._id)));
+    const sameOnDeckFoursome = chosen.every((entry) => topIds.has(String(entry._id)));
+    if (sameOnDeckFoursome) {
+      await persistNextFourOrder(chosen);
+      return;
+    }
     const chosenIds = new Set(chosen.map((entry) => String(entry._id)));
     const rest = queue.filter((entry) => !chosenIds.has(String(entry._id)));
     await persistQueueOrder([...chosen, ...rest]);
@@ -363,20 +386,7 @@ export async function quickShuffleNextOnCourtInQueue(
       })),
     ),
   );
-  shuffled = [...firstHalf, ...secondHalf];
-
-  const timestamps = shuffled
-    .map((entry) => new Date(entry.registeredAt).getTime())
-    .sort((a, b) => a - b);
-
-  await Promise.all(
-    shuffled.map((entry, index) =>
-      QueueEntry.updateOne(
-        { _id: entry._id },
-        { $set: { registeredAt: new Date(timestamps[index]!) } },
-      ),
-    ),
-  );
+  await persistNextFourOrder([...firstHalf, ...secondHalf]);
 }
 
 /** Move a ready deck foursome onto the promoted open-court line (Team A vs Team B). */

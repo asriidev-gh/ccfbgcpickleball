@@ -1250,7 +1250,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     },
     onSettled: () => {
       void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
-        skipRefetch: isQuickGameSession,
+        // Optimistic pairing already matches the persisted next-four order.
+        skipRefetch: true,
       });
     },
     onError: (error, _variables, context) => {
