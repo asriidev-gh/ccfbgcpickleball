@@ -77,7 +77,6 @@ import { addLocalCourt } from "@/lib/local-game-session";
 import { MAX_QUICK_PLAY_COURTS, isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import {
   DOUBLES_PLAYERS_PER_COURT,
-  formatDoublesNextOnCourtSubtitle,
   isDoublesWinnerLoserRotation,
   pickDoublesCourtFoursome,
   resolveDoublesRotationQueue,
@@ -145,9 +144,13 @@ import {
 } from "@/components/game/queue-entry-actions-toggle";
 import {
   QueueNextUpSlots,
+  NextOnCourtDensityToggle,
   NextOnCourtLayoutToggle,
+  loadNextOnCourtDensityMode,
   loadNextOnCourtLayoutMode,
+  saveNextOnCourtDensityMode,
   saveNextOnCourtLayoutMode,
+  type NextOnCourtDensityMode,
   type NextOnCourtLayoutMode,
 } from "@/components/game/queue-next-up-slots";
 import {
@@ -592,6 +595,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const [isLgViewport, setIsLgViewport] = useState<boolean | null>(null);
   const [compactQueue, setCompactQueue] = useState(false);
   const [nextOnCourtLayout, setNextOnCourtLayout] = useState<NextOnCourtLayoutMode>("stacked");
+  const [nextOnCourtDensity, setNextOnCourtDensity] = useState<NextOnCourtDensityMode>("cards");
   const [endorseTargetEntry, setEndorseTargetEntry] = useState<QueueEntryView | null>(null);
   const [endorseListTargetEntry, setEndorseListTargetEntry] = useState<QueueEntryView | null>(null);
   const [spectatorSharePreviewEntry, setSpectatorSharePreviewEntry] =
@@ -658,6 +662,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     setShowCheckedOutList(loadShowCheckedOutList());
     setShowCourts(loadShowCourts());
     setNextOnCourtLayout(loadNextOnCourtLayoutMode());
+    setNextOnCourtDensity(loadNextOnCourtDensityMode());
     setUiPrefsHydrated(true);
   }, []);
 
@@ -2757,6 +2762,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     drag?: QueueDragHandleProps,
     options?: {
       compactName?: boolean;
+      compactView?: boolean;
       hideSessionStats?: boolean;
       showSessionRecordBelowName?: boolean;
       showSessionRecordInPillSlot?: boolean;
@@ -2809,6 +2815,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           queueEntryPlayerId(entry) === selfHighlightPlayerId
         }
         compactName={options?.compactName}
+        compactView={options?.compactView}
         hideSessionStats={options?.hideSessionStats}
         showSessionRecordBelowName={options?.showSessionRecordBelowName}
         showSessionRecordInPillSlot={options?.showSessionRecordInPillSlot}
@@ -2852,6 +2859,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     options?: {
       sortable?: boolean;
       compactName?: boolean;
+      compactView?: boolean;
       hideSessionStats?: boolean;
       showSessionRecordBelowName?: boolean;
       showSessionRecordInPillSlot?: boolean;
@@ -2919,8 +2927,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     !isSpectator &&
     isDoublesMatchupAnalysisMatchingType(matchingType, game.gameMode) &&
     (nextCourtFoursome?.length ?? 0) === DOUBLES_PLAYERS_PER_COURT;
-  const nextOnCourtPlayerCount =
-    nextCourtFoursome?.length ?? Math.min(DOUBLES_PLAYERS_PER_COURT, queueWithStats.length);
   const fillingCourtNumber =
     [...pendingFillCourtNumbers].find((courtNumber) =>
       courts.some((court) => court.courtNumber === courtNumber && court.status !== "active"),
@@ -3073,15 +3079,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                           <span className="xl:hidden">Next</span>
                           <span className="hidden xl:inline">Next on court</span>
                         </p>
-                        <p className="queue-next-up-subtitle caption">
-                          {showNextCourtAnalysis
-                            ? `Slots 1–2 vs 3–4${canReorderQueue ? " · drag to reorder" : ""}`
-                            : usesWinnerLoserRotation
-                              ? "Next four in queue order — complete bracket foursomes move to the end of the main line"
-                              : formatDoublesNextOnCourtSubtitle(nextOnCourtPlayerCount, {
-                                  canReorder: canReorderQueue,
-                                })}
-                        </p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2 self-start sm:flex-row sm:items-center">
                         {game.gameMode !== "singles" ? (
@@ -3094,6 +3091,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                             className="hidden xl:inline-flex"
                           />
                         ) : null}
+                        <NextOnCourtDensityToggle
+                          density={nextOnCourtDensity}
+                          onDensityChange={(mode) => {
+                            setNextOnCourtDensity(mode);
+                            saveNextOnCourtDensityMode(mode);
+                          }}
+                        />
                         <Badge className="badge-next-up-count">
                           {nextCourtFoursome?.length ?? 0} / {DOUBLES_PLAYERS_PER_COURT}
                         </Badge>
@@ -3135,6 +3139,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                     showDoublesTeamPreview={game.gameMode !== "singles"}
                     layout={nextOnCourtLayout}
                     compactName={compactQueue}
+                    compactView={nextOnCourtDensity === "compact"}
+                    onShuffle={
+                      canReorderQueue
+                        ? () => void shuffleNextMutation.mutateAsync(nextCourtFoursome ?? undefined)
+                        : undefined
+                    }
+                    shufflePending={shuffleNextMutation.isPending}
                     renderEntry={(entry, index, options) =>
                       renderQueuedEntry(entry, index, options)
                     }

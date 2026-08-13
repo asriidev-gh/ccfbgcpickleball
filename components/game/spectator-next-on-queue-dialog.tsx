@@ -1,14 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Play, Users, Volume2, VolumeX, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import type { MatchHistoryView } from "@/components/game/match-history-list";
 import { NextCourtMatchAnalysis } from "@/components/game/next-court-match-analysis";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
-import { QueueNextUpSlots } from "@/components/game/queue-next-up-slots";
+import {
+  NextOnCourtDensityToggle,
+  QueueNextUpSlots,
+  loadNextOnCourtDensityMode,
+  saveNextOnCourtDensityMode,
+  type NextOnCourtDensityMode,
+} from "@/components/game/queue-next-up-slots";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -97,7 +103,12 @@ export function SpectatorNextOnQueueButton({
 }: SpectatorNextOnQueueButtonProps) {
   const [open, setOpen] = useState(false);
   const [callingNames, setCallingNames] = useState(false);
+  const [nextOnCourtDensity, setNextOnCourtDensity] = useState<NextOnCourtDensityMode>("cards");
   const callNamesRunIdRef = useRef(0);
+
+  useEffect(() => {
+    setNextOnCourtDensity(loadNextOnCourtDensityMode());
+  }, []);
 
   const isDoubles = gameMode !== "singles" && courtPlayerCount === DOUBLES_PLAYERS_PER_COURT;
   const usesWinnerLoserRotation = isDoublesWinnerLoserRotation(matchingType);
@@ -257,13 +268,19 @@ export function SpectatorNextOnQueueButton({
                   </span>
                   <div className="queue-next-up-banner__heading">
                     <p className="queue-next-up-title">Next on court</p>
-                    {queueSubtitle ? (
-                      <p className="queue-next-up-subtitle caption">{queueSubtitle}</p>
-                    ) : null}
                   </div>
-                  <Badge className="badge-next-up-count shrink-0 self-start sm:self-center">
-                    {count} / {courtPlayerCount}
-                  </Badge>
+                  <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
+                    <NextOnCourtDensityToggle
+                      density={nextOnCourtDensity}
+                      onDensityChange={(mode) => {
+                        setNextOnCourtDensity(mode);
+                        saveNextOnCourtDensityMode(mode);
+                      }}
+                    />
+                    <Badge className="badge-next-up-count">
+                      {count} / {courtPlayerCount}
+                    </Badge>
+                  </div>
                 </div>
               </div>
               {showNextCourtAnalysis ? (
@@ -287,12 +304,16 @@ export function SpectatorNextOnQueueButton({
               <QueueNextUpSlots
                 entries={nextUp}
                 showDoublesTeamPreview={isDoubles}
-                renderEntry={(entry, index) => (
+                compactView={nextOnCourtDensity === "compact"}
+                onShuffle={onShuffleNext}
+                shufflePending={shuffleNextPending}
+                renderEntry={(entry, index, options) => (
                   <QueueEntryRow
                     key={entry._id}
                     entry={entry}
                     index={index}
                     isNextUp
+                    compactView={options?.compactView}
                     hideReplacePanel
                     onReplace={() => {}}
                     replacePending={false}

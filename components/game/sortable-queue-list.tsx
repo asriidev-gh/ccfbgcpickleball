@@ -233,7 +233,7 @@ export function QueueDragHandle({
     >
       {slot != null ? <span className="queue-rank">{slot}</span> : null}
       <GripVertical
-        className={cn("queue-drag-handle-grip", slot == null && "h-4 w-4")}
+        className="queue-drag-handle-grip"
         aria-hidden
       />
     </button>

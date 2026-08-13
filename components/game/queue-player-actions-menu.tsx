@@ -86,7 +86,7 @@ export function QueuePlayerActionsMenu({
       items.push({
         key: "replace",
         label: "Replace",
-        icon: <ArrowLeftRight aria-hidden />,
+        icon: <ArrowLeftRight className="size-4 shrink-0" aria-hidden />,
         onClick: onReplace,
         disabled: replacePending || !canReplace,
         className: "queue-replace-btn",
@@ -97,7 +97,7 @@ export function QueuePlayerActionsMenu({
       items.push({
         key: "check-back-in",
         label: checkBackInPending ? "Checking in…" : "Check back in",
-        icon: <LogIn aria-hidden />,
+        icon: <LogIn className="size-4 shrink-0" aria-hidden />,
         onClick: onCheckBackIn,
         disabled: checkBackInPending,
         className: "queue-check-back-in-btn",
@@ -108,7 +108,7 @@ export function QueuePlayerActionsMenu({
       items.push({
         key: "check-in-as-player",
         label: checkInAsPlayerPending ? "Opening…" : "Check in as player",
-        icon: <UserRoundCheck aria-hidden />,
+        icon: <UserRoundCheck className="size-4 shrink-0" aria-hidden />,
         onClick: handleCheckInAsPlayer,
         disabled: checkInAsPlayerPending,
         className: "queue-check-in-as-player-btn",
@@ -119,7 +119,7 @@ export function QueuePlayerActionsMenu({
       items.push({
         key: "check-out",
         label: "Check out",
-        icon: <LogOut aria-hidden />,
+        icon: <LogOut className="size-4 shrink-0" aria-hidden />,
         onClick: onCheckOut,
         disabled: checkOutPending,
         variant: "destructive",
@@ -131,7 +131,7 @@ export function QueuePlayerActionsMenu({
       items.push({
         key: "remove-player",
         label: "Remove player",
-        icon: <UserX aria-hidden />,
+        icon: <UserX className="size-4 shrink-0" aria-hidden />,
         onClick: onRemovePlayer,
         disabled: removePlayerPending,
         variant: "destructive",
@@ -159,11 +159,12 @@ export function QueuePlayerActionsMenu({
 
   const btnClass = cn(
     "queue-player-actions-btn",
-    compact &&
-      "h-7 min-h-7 gap-0.5 px-2 text-[11px] leading-tight xl:h-9 xl:min-h-9 xl:px-3 xl:text-sm",
+    compact
+      ? "h-10 min-h-10 gap-1 px-3 text-xs sm:h-11 sm:min-h-11 sm:px-3.5 sm:text-sm"
+      : "h-9 min-h-9 gap-1 px-3 text-sm sm:h-10 sm:min-h-10",
     className,
   );
-  const iconClass = compact ? "size-3 shrink-0 xl:size-3.5" : "h-3.5 w-3.5";
+  const iconClass = "size-4 shrink-0";
 
   if (actions.length === 1) {
     const action = actions[0]!;
@@ -210,11 +211,11 @@ export function QueuePlayerActionsMenu({
         Actions
         <ChevronDown className={cn(iconClass, "opacity-70")} aria-hidden />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-56">
         {primaryActions.map((action) => (
           <DropdownMenuItem
             key={action.key}
-            className={action.className}
+            className={cn("min-h-11 gap-2 text-sm", action.className)}
             disabled={action.disabled}
             onClick={action.onClick}
           >
@@ -229,7 +230,7 @@ export function QueuePlayerActionsMenu({
           <DropdownMenuItem
             key={action.key}
             variant="destructive"
-            className={action.className}
+            className={cn("min-h-11 gap-2 text-sm", action.className)}
             disabled={action.disabled}
             onClick={action.onClick}
           >

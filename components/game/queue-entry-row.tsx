@@ -1,9 +1,14 @@
-import { Clock, Lock, Share2, Trophy } from "lucide-react";
+import { ChartColumn, CircleX, Clock, Lock, Share2, Trophy } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
-import { PlayerNameWithPhoto, resolvePlayerId, type PlayerPhotoRef } from "@/components/game/player-avatar";
+import {
+  PlayerAvatar,
+  PlayerNameWithPhoto,
+  resolvePlayerId,
+  type PlayerPhotoRef,
+} from "@/components/game/player-avatar";
 import { PlayerEndorsementStatusBadge } from "@/components/game/player-endorsement-status-badge";
 import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-menu";
 import { UndefeatedBadge } from "@/components/game/undefeated-badge";
@@ -137,6 +142,37 @@ function NextOnCourtSessionRecordBadge({
         label
       )}
     </Badge>
+  );
+}
+
+function NextOnCourtStatTiles({
+  wins,
+  losses,
+}: {
+  wins: number;
+  losses: number;
+}) {
+  const played = wins + losses;
+  const winRate = played > 0 ? Math.round((wins / played) * 100) : 0;
+
+  return (
+    <div className="queue-next-up-stats" aria-label="Session stats">
+      <div className="queue-next-up-stat queue-next-up-stat--wins">
+        <Trophy className="queue-next-up-stat__icon" aria-hidden />
+        <span className="queue-next-up-stat__value">{wins}</span>
+        <span className="queue-next-up-stat__label">Wins</span>
+      </div>
+      <div className="queue-next-up-stat queue-next-up-stat--losses">
+        <CircleX className="queue-next-up-stat__icon" aria-hidden />
+        <span className="queue-next-up-stat__value">{losses}</span>
+        <span className="queue-next-up-stat__label">Losses</span>
+      </div>
+      <div className="queue-next-up-stat queue-next-up-stat--rate">
+        <ChartColumn className="queue-next-up-stat__icon" aria-hidden />
+        <span className="queue-next-up-stat__value">{winRate}%</span>
+        <span className="queue-next-up-stat__label">Win Rate</span>
+      </div>
+    </div>
   );
 }
 
@@ -360,6 +396,8 @@ type QueueEntryRowProps = {
   dragHandle?: ReactNode;
   /** First name + last initial (e.g. "Alex M.") for dense layouts. */
   compactName?: boolean;
+  /** Use the compact next-on-court row instead of photo cards. */
+  compactView?: boolean;
   /** Hide win/loss badges (e.g. compact group view). */
   hideSessionStats?: boolean;
   /** Show compact (W/L/R) under the name in split next-on-court layout. */
@@ -411,6 +449,7 @@ export function QueueEntryRow({
   inWaitingLine = false,
   dragHandle,
   compactName = false,
+  compactView = false,
   hideSessionStats = false,
   showSessionRecordBelowName = false,
   showSessionRecordInPillSlot = false,
@@ -460,7 +499,10 @@ export function QueueEntryRow({
     <PlayerEndorsementStatusBadge count={endorsementCount} onClick={onEndorsementClick} />
   ) : null;
   const undefeatedBadge = showUndefeated ? (
-    <UndefeatedBadge onClick={onUndefeatedClick} />
+    <UndefeatedBadge
+      onClick={onUndefeatedClick}
+      iconOnly={compactView && showSessionRecordBelowName}
+    />
   ) : null;
   const rowClass = checkedOut
     ? "queue-checked-out"
@@ -485,6 +527,247 @@ export function QueueEntryRow({
     Boolean(shareAction) ||
     Boolean(endorseAction);
 
+  const nextUpActions =
+    (showActionsMenu || shareAction || endorseAction) && !hideActions ? (
+      <div className="queue-next-up-card__actions flex shrink-0 flex-wrap items-center justify-end gap-1">
+        {endorseAction}
+        {shareAction}
+        {showActionsMenu ? (
+          <QueuePlayerActionsMenu
+            onReplace={showReplace ? onReplace : undefined}
+            canReplace={canReplace}
+            replacePending={replacePending}
+            onCheckBackIn={checkedOut ? onCheckBackIn : undefined}
+            checkBackInPending={checkBackInPending}
+            checkInAsPlayer={checkInAsPlayer}
+            onCheckOut={onRemove}
+            checkOutPending={removePending}
+            onRemovePlayer={onRemovePlayer}
+            removePlayerPending={removePlayerPending}
+            compact
+          />
+        ) : null}
+      </div>
+    ) : null;
+
+  if (isNextUp && compactView) {
+    const splitCompact = showSessionRecordBelowName;
+    const compactNameNode = onViewPlayerInfo ? (
+      <button
+        type="button"
+        className="min-w-0 flex-1 truncate text-left text-sm font-medium xl:text-base"
+        onClick={onViewPlayerInfo}
+      >
+        {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
+      </button>
+    ) : (
+      <p className="min-w-0 flex-1 truncate text-sm font-medium xl:text-base">
+        {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
+      </p>
+    );
+
+    return (
+      <div
+        id={`queue-entry-${entry._id}`}
+        className={cn(
+          "queue-item queue-next-up--compact min-w-0 rounded-xl border p-2 xl:p-2.5",
+          splitCompact && "queue-next-up--compact-split",
+          rowClass,
+          compactName && "queue-item--compact-name",
+          highlighted && "queue-entry-highlighted",
+        )}
+      >
+        <span className="queue-slot-ribbon" aria-hidden />
+        <div
+          className={cn(
+            "flex w-full min-w-0 gap-2",
+            splitCompact ? "flex-col items-stretch" : "items-center justify-between",
+          )}
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {dragHandle}
+            {!dragHandle ? (
+              <span className="queue-rank" aria-label={`Queue position ${slot}`}>
+                {slot}
+              </span>
+            ) : null}
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+              {compactNameNode}
+              {showEndorsedInPlayerLabel ? (
+                <PlayerEndorsementStatusBadge
+                  count={endorsementCount}
+                  onClick={onEndorsementClick}
+                />
+              ) : null}
+              {entry.lockInGroupId ? (
+                <Badge
+                  variant="outline"
+                  className="gap-1 text-[10px] font-medium"
+                  title="Lock-in group"
+                >
+                  <Lock className="h-3 w-3" aria-hidden />
+                  Lock-in
+                </Badge>
+              ) : null}
+              {sharedBadge}
+              {endorsedBadge}
+              {undefeatedBadge}
+              {!hideSessionStats && showSessionRecordInPillSlot ? (
+                <NextOnCourtSessionRecordBadge
+                  wins={sessionStats.wins}
+                  losses={sessionStats.losses}
+                  rank={leaderboardRank}
+                  showRank={showLeaderboardRank}
+                  label={sessionRecordLabel}
+                />
+              ) : null}
+            </div>
+          </div>
+          {splitCompact ? null : (
+            <div className="queue-next-up-compact__actions ml-auto shrink-0">
+              {nextUpActions}
+            </div>
+          )}
+          {splitCompact ? (
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              {!hideSessionStats && showSessionRecordBelowName ? (
+                <NextOnCourtSessionRecordBadge
+                  wins={sessionStats.wins}
+                  losses={sessionStats.losses}
+                  rank={leaderboardRank}
+                  showRank={showLeaderboardRank}
+                  label={sessionRecordLabel}
+                />
+              ) : (
+                <span />
+              )}
+              {nextUpActions}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (isNextUp && !compactView) {
+    const profileLayout = !showSessionRecordBelowName;
+    const nameNode = onViewPlayerInfo ? (
+      <button
+        type="button"
+        className="queue-next-up-card__name min-w-0 truncate text-left"
+        onClick={onViewPlayerInfo}
+      >
+        {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
+      </button>
+    ) : (
+      <p className="queue-next-up-card__name min-w-0 truncate">
+        {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
+      </p>
+    );
+    const identityBadges = (
+      <>
+        {showEndorsedInPlayerLabel ? (
+          <PlayerEndorsementStatusBadge
+            count={endorsementCount}
+            onClick={onEndorsementClick}
+          />
+        ) : null}
+        {entry.lockInGroupId ? (
+          <Badge
+            variant="outline"
+            className="gap-1 text-[10px] font-medium"
+            title="Lock-in group"
+          >
+            <Lock className="h-3 w-3" aria-hidden />
+            Lock-in
+          </Badge>
+        ) : null}
+      </>
+    );
+
+    return (
+      <div
+        id={`queue-entry-${entry._id}`}
+        className={cn(
+          "queue-item queue-next-up--card rounded-2xl border p-2.5",
+          profileLayout && "queue-next-up--profile",
+          rowClass,
+          compactName && "queue-item--compact-name",
+          highlighted && "queue-entry-highlighted",
+        )}
+      >
+        <div className={cn("queue-next-up-card", profileLayout && "queue-next-up-card--profile")}>
+          <div className="queue-next-up-card__photo">
+            <span className="queue-rank" aria-label={`Queue position ${slot}`}>
+              {slot}
+            </span>
+            <PlayerAvatar
+              player={entry.playerId}
+              onClick={onViewPlayerInfo}
+              className="queue-next-up-photo"
+            />
+          </div>
+          {profileLayout ? (
+            <>
+              <div className="queue-next-up-card__identity">
+                {dragHandle}
+                <div className="queue-next-up-card__copy min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    {nameNode}
+                    {identityBadges}
+                    {sharedBadge}
+                    {endorsedBadge}
+                    {undefeatedBadge}
+                  </div>
+                  {!hideSessionStats ? (
+                    <NextOnCourtStatTiles
+                      wins={sessionStats.wins}
+                      losses={sessionStats.losses}
+                    />
+                  ) : null}
+                </div>
+              </div>
+              {nextUpActions}
+            </>
+          ) : (
+            <div className="queue-next-up-card__body">
+              <div className="queue-next-up-card__identity">
+                {dragHandle}
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    {nameNode}
+                    {identityBadges}
+                  </div>
+                </div>
+              </div>
+              <div className="queue-next-up-card__meta">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {sharedBadge}
+                  {endorsedBadge}
+                  {undefeatedBadge}
+                  {!hideSessionStats ? (
+                    <NextOnCourtSessionRecordBadge
+                      wins={sessionStats.wins}
+                      losses={sessionStats.losses}
+                      rank={leaderboardRank}
+                      showRank={showLeaderboardRank}
+                      label={sessionRecordLabel}
+                    />
+                  ) : (
+                    <Badge className="badge-next-up" aria-label="Next on court">
+                      <NextOnCourtLabel />
+                    </Badge>
+                  )}
+                </div>
+                {nextUpActions}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       id={`queue-entry-${entry._id}`}
@@ -498,7 +781,6 @@ export function QueueEntryRow({
       )}
     >
       {isNextUp ? <span className="queue-slot-ribbon" aria-hidden /> : null}
-
       <div className="queue-item-layout flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 xl:gap-3">
           {dragHandle}
