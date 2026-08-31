@@ -8,11 +8,6 @@ import {
   toCourtTimerClock,
 } from "@/lib/court-cancel-grace";
 import {
-  buildRotationRequeuePlayerOrder,
-  countActiveRotationPlayers,
-  shouldUseRotationRequeue,
-} from "@/lib/rotation-requeue";
-import {
   minPlayersForGameFormat,
   resolveGameFormatSettings,
 } from "@/lib/game-format-settings";
@@ -21,10 +16,6 @@ import {
   type QueueEntryLike,
 } from "@/lib/queue-court-assignment";
 import { requeuePlayersAfterCourtEnd } from "@/lib/queue-end-requeue";
-import {
-  clusterQueuedLockInGroups,
-  getLockInGroupIdByPlayerIds,
-} from "@/lib/lock-in-groups";
 import { healOrphanedOnCourtEntries } from "@/lib/queue-on-court-orphans";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
@@ -1001,87 +992,4 @@ export async function endGameAndRequeue(input: {
   await court.save();
 
   return requeueResult;
-}
-
-async function requeueCourtPlayersWithRotation(input: {
-  gameId: string;
-  court: {
-    teamA: { playerIds: Types.ObjectId[]; queueEntryIds: Types.ObjectId[] };
-    teamB: { playerIds: Types.ObjectId[]; queueEntryIds: Types.ObjectId[] };
-  };
-  winnerPlayerIdSet: Set<string>;
-}) {
-  const queued = await QueueEntry.find({ gameId: input.gameId, status: "queued" }).sort({
-    registeredAt: 1,
-  });
-
-  const playerOrder = buildRotationRequeuePlayerOrder({
-    queuedPlayerIds: queued.map((entry) => entry.playerId as Types.ObjectId),
-    court: {
-      teamAPlayerIds: [...input.court.teamA.playerIds],
-      teamBPlayerIds: [...input.court.teamB.playerIds],
-    },
-  });
-
-  if (!playerOrder) return false;
-
-  const pairAIds = new Set(
-    input.court.teamA.playerIds.map((id: Types.ObjectId) => id.toString()),
-  );
-  const pairBIds = new Set(
-    input.court.teamB.playerIds.map((id: Types.ObjectId) => id.toString()),
-  );
-  const courtPlayerIds = new Set([...pairAIds, ...pairBIds]);
-
-  await QueueEntry.updateMany(
-    {
-      _id: { $in: [...input.court.teamA.queueEntryIds, ...input.court.teamB.queueEntryIds] },
-    },
-    { $set: { status: "done" } },
-  );
-
-  const now = Date.now();
-  const newEntriesByPlayerId = new Map<string, (typeof queued)[number]>();
-  const courtPlayerIdsList = [
-    ...input.court.teamA.playerIds,
-    ...input.court.teamB.playerIds,
-  ];
-  const lockInByPlayer = await getLockInGroupIdByPlayerIds(input.gameId, courtPlayerIdsList);
-
-  for (const playerId of courtPlayerIdsList) {
-    const playerKey = playerId.toString();
-    const isWinner = input.winnerPlayerIdSet.has(playerKey);
-    const entry = await QueueEntry.create({
-      gameId: input.gameId,
-      playerId,
-      status: "queued",
-      queueType: "normal",
-      pairGroupId: null,
-      lockInGroupId: lockInByPlayer.get(playerKey) ?? null,
-      deckPlacement: null,
-      openCourtGroupId: null,
-      openCourtTeam: null,
-      registeredAt: new Date(now),
-      lastMatchResult: isWinner ? "win" : "loss",
-      winStreak: isWinner ? 1 : 0,
-    });
-    newEntriesByPlayerId.set(playerKey, entry);
-  }
-
-  const orderedEntries = playerOrder.map((playerId) => {
-    const playerKey = playerId.toString();
-    if (courtPlayerIds.has(playerKey)) {
-      return newEntriesByPlayerId.get(playerKey)!;
-    }
-
-    const existing = queued.find((entry) => entry.playerId.toString() === playerKey);
-    if (!existing) {
-      throw new Error("Rotation requeue could not resolve a queued player.");
-    }
-    return existing;
-  });
-
-  await persistQueueOrder(orderedEntries);
-  await clusterQueuedLockInGroups(input.gameId);
-  return true;
 }

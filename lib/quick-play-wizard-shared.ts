@@ -50,7 +50,7 @@ export const QUICK_PLAY_MATCHING_TYPE_OPTIONS: QuickPlayMatchingTypeOption[] = [
     value: "auto-balanced",
     label: "Auto-balanced",
     description:
-      "Two players from the last game ended play together with the last two players on the queue.",
+      "Finished players go to the end of the queue, interleaved as winner / loser / winner / loser.",
   },
   {
     value: "winner-loser-groups",

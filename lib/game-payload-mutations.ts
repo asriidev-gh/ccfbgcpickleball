@@ -10,12 +10,8 @@ import type { OperatorFullPayload } from "@/lib/operator-payload";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
 import {
   appendRequeueEntriesWithoutDuplicates,
-  dedupeQueueEntriesByPlayerId,
-  playerIdsFromCourtPlayers,
   prependRequeueEntriesWithoutDuplicates,
-  removeQueueEntriesForPlayerIds,
 } from "@/lib/queue-dedupe";
-import { shouldUseRotationRequeue } from "@/lib/rotation-requeue-shared";
 import {
   appendDoublesRequeueEntries,
   buildDoublesWinnerLoserRequeueEntries,
@@ -59,46 +55,6 @@ export type ReplaceCourtMutationInput = {
   slotIndex: number;
   targetIndex: number;
 };
-
-function countActivePlayersForRotation(payload: GamePayload) {
-  const onCourt = payload.courts
-    .filter((court) => court.status === "active")
-    .reduce(
-      (sum, court) =>
-        sum + (court.teamA?.playerIds?.length ?? 0) + (court.teamB?.playerIds?.length ?? 0),
-      0,
-    );
-  return payload.queue.length + onCourt;
-}
-
-function shouldUseRotationRequeuePayload(payload: GamePayload) {
-  return shouldUseRotationRequeue(countActivePlayersForRotation(payload));
-}
-
-function buildRotationOptimisticRequeueEntries(
-  teamA: PlayerPhotoRef[],
-  teamB: PlayerPhotoRef[],
-  winnerTeam: "A" | "B",
-  baseTime: number,
-): QueueEntryView[] {
-  const buildEntry = (player: PlayerPhotoRef, team: "A" | "B", index: number): QueueEntryView => {
-    const isWinner = team === winnerTeam;
-    return {
-      _id: `optimistic-rotation-${baseTime}-${team}-${index}`,
-      queueType: "normal",
-      playerId: player,
-      registeredAt: new Date(baseTime + index).toISOString(),
-      lastMatchResult: isWinner ? "win" : "loss",
-    };
-  };
-
-  return [
-    buildEntry(teamA[0], "A", 0),
-    buildEntry(teamA[1], "A", 1),
-    buildEntry(teamB[0], "B", 2),
-    buildEntry(teamB[1], "B", 3),
-  ];
-}
 
 function buildOptimisticRequeueEntries(
   teamA: PlayerPhotoRef[],
@@ -364,52 +320,12 @@ export function applyEndGameOptimistic(
     };
   }
 
-  if (
-    shouldUseRotationRequeuePayload(payload) &&
-    payload.queue.length >= 2 &&
-    teamA.length === 2 &&
-    teamB.length === 2
-  ) {
-    const courtPlayerIds = playerIdsFromCourtPlayers(teamA, teamB);
-    const queueWithoutCourtPlayers = removeQueueEntriesForPlayerIds(payload.queue, courtPlayerIds);
-    const withoutLastTwo = queueWithoutCourtPlayers.slice(0, -2);
-    const lastTwo = queueWithoutCourtPlayers.slice(-2);
-    const rotationEntries = buildRotationOptimisticRequeueEntries(
-      teamA,
-      teamB,
-      input.winnerTeam,
-      baseTime,
-    );
-    const pairAEntries = rotationEntries.slice(0, 2);
-    const pairBEntries = rotationEntries.slice(2, 4);
-    const mergedQueue = dedupeQueueEntriesByPlayerId(
-      [...withoutLastTwo, ...pairAEntries, ...lastTwo, ...pairBEntries].map((entry, index) => ({
-        ...entry,
-        registeredAt: new Date(baseTime + index).toISOString(),
-      })),
-    );
-
-    return {
-      ...payload,
-      queue: mergedQueue,
-      courts: payload.courts.map((c) =>
-        c.courtNumber === input.courtNumber
-          ? {
-              ...c,
-              status: "empty",
-              startedAt: null,
-              pausedAt: null,
-              totalPausedMs: 0,
-              isRematch: false,
-              teamA: { playerIds: [] },
-              teamB: { playerIds: [] },
-            }
-          : c,
-      ),
-    };
-  }
-
-  const requeueEntries = buildOptimisticRequeueEntries(teamA, teamB, input.winnerTeam, baseTime);
+  const requeueEntries = buildOptimisticRequeueEntries(
+    teamA,
+    teamB,
+    input.winnerTeam,
+    baseTime,
+  ).map((entry) => ({ ...entry, queueType: "normal" as const }));
 
   return {
     ...payload,

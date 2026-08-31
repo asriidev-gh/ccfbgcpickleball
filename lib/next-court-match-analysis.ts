@@ -629,10 +629,27 @@ export function detectAutoRepeatLastMatchSwapPlan(
   return plan;
 }
 
+/** Keep slots 1–2 and bring in waiting players 5 and 6 as slots 3–4. */
+export function splitOnDeckFoursomeWithWaitingPair(
+  naturalFoursome: QueueEntryView[],
+  waitingLine: QueueEntryView[],
+): QueueEntryView[] | null {
+  if (naturalFoursome.length !== 4 || waitingLine.length < 2) return null;
+  return [naturalFoursome[0]!, naturalFoursome[1]!, waitingLine[0]!, waitingLine[1]!];
+}
+
+function onDeckFoursomeSharedCourtCount(
+  foursome: QueueEntryView[],
+  matches: MatchHistoryView[],
+) {
+  const playerIds = analysisPlayerIdsFromFoursome(foursome);
+  if (playerIds.length !== 4) return 0;
+  return countFoursomeMatches(toAnalysisMatches(matches), playerIds);
+}
+
 /**
- * Next on court stays the first four unless 2+ of them already played together
- * and the waiting line has enough players (1/2/3) to swap in from the front.
- * Auto-apply only a rematch-free foursome. Otherwise keep the current lineup.
+ * Next on court stays the first four unless those four already shared a court
+ * (swap in waiting 5th and 6th) or smart rematch finds a rematch-free mix.
  */
 export function applyRepeatLastMatchFoursomeAdjustment(
   naturalFoursome: QueueEntryView[],
@@ -640,6 +657,11 @@ export function applyRepeatLastMatchFoursomeAdjustment(
   matches: MatchHistoryView[] = [],
 ): QueueEntryView[] {
   if (naturalFoursome.length !== 4) return naturalFoursome;
+
+  if (onDeckFoursomeSharedCourtCount(naturalFoursome, matches) >= 1) {
+    const split = splitOnDeckFoursomeWithWaitingPair(naturalFoursome, waitingLine);
+    if (split) return split;
+  }
 
   const smartPlan = findSmartWaitingLineRematchAvoidance(
     naturalFoursome,
@@ -907,8 +929,6 @@ function collectBalancedLineupReasons(input: {
 
     if (foursomeTogetherCount === 0) {
       reasons.push("this foursome has not shared a court yet today");
-    } else if (foursomeTogetherCount === 1) {
-      reasons.push("this foursome has only played together once");
     }
   }
 
@@ -1137,37 +1157,39 @@ export function computeNextCourtMatchSuggestions(
     }
   }
 
-  if (!isRotation && foursomeTogetherCount >= 2) {
-    if (!smartRematchHandled) {
-      const waitingFifth = options?.queue?.[4];
-      const waitingSixth = options?.queue?.[5];
-      const fifthPlayer = waitingFifth ? toAnalysisPlayer(waitingFifth) : null;
-      const sixthPlayer = waitingSixth ? toAnalysisPlayer(waitingSixth) : null;
-      const canSwapWaiting =
-        fifthPlayer != null && sixthPlayer != null && (options?.queue?.length ?? 0) >= 6;
+  if (
+    !isRotation &&
+    foursomeTogetherCount >= 1 &&
+    !suggestions.some((item) => item.suggestsQueueSwap)
+  ) {
+    const waitingFifth = options?.queue?.[4];
+    const waitingSixth = options?.queue?.[5];
+    const fifthPlayer = waitingFifth ? toAnalysisPlayer(waitingFifth) : null;
+    const sixthPlayer = waitingSixth ? toAnalysisPlayer(waitingSixth) : null;
+    const canSwapWaiting =
+      fifthPlayer != null && sixthPlayer != null && (options?.queue?.length ?? 0) >= 6;
 
-      if (canSwapWaiting) {
-        pushSuggestion(suggestions, {
-          id: "frequent-rematch",
-          tone: "caution",
-          message: `These four have already shared a court together ${formatSharedCourtCount(foursomeTogetherCount)}. Swap in ${pairLabel(fifthPlayer, sixthPlayer)} from the waiting line (5th and 6th) for fresh matchups.`,
-          suggestsShuffle: false,
-          suggestsQueueSwap: true,
-          priority: 93,
-        });
-      } else {
-        pushSuggestion(suggestions, {
-          id: "frequent-rematch",
-          tone: "caution",
-          message: `These four have already shared a court together ${formatSharedCourtCount(foursomeTogetherCount)}. Shuffling partners refreshes the court.`,
-          suggestsShuffle: true,
-          priority: 93,
-        });
-      }
+    if (canSwapWaiting) {
+      pushSuggestion(suggestions, {
+        id: "frequent-rematch",
+        tone: "caution",
+        message: `These four have already shared a court together ${formatSharedCourtCount(foursomeTogetherCount)}. Swap in ${pairLabel(fifthPlayer, sixthPlayer)} from the waiting line (5th and 6th) for fresh matchups.`,
+        suggestsShuffle: false,
+        suggestsQueueSwap: true,
+        priority: 93,
+      });
+    } else {
+      pushSuggestion(suggestions, {
+        id: "frequent-rematch",
+        tone: "caution",
+        message: `These four have already shared a court together ${formatSharedCourtCount(foursomeTogetherCount)}. Shuffling partners refreshes the court.`,
+        suggestsShuffle: true,
+        priority: 93,
+      });
     }
   }
 
-  if (analysisMatches.length > 0) {
+  if (analysisMatches.length > 0 && foursomeTogetherCount < 1) {
     const latest = analysisMatches[0]!;
     const latestIds = new Set([...latest.teamAIds, ...latest.teamBIds]);
     const sameFoursome = players.every((player) => latestIds.has(player.id));
@@ -1535,7 +1557,7 @@ export const MATCHUP_CHECK_GUIDE_SCENARIOS: MatchupCheckGuideScenario[] = [
     id: "last-match-foursome-repeat",
     title: "Last-match foursome",
     description:
-      "With fewer than 4 waiting: all four on deck were in the same match last time. Slots 3–4 use players 5 and 6 from the waiting line.",
+      "When the next four already shared a court, slots 3–4 swap with waiting players 5 and 6 so the same group does not go back out together.",
     tone: "caution",
   },
   {

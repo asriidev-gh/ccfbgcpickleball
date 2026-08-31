@@ -2088,18 +2088,29 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   }, [naturalCourtFoursome, queueWithStats]);
   const nextCourtFoursome = useMemo(() => {
     if (!naturalCourtFoursome) return null;
+    const adjusted =
+      !applyOnDeckRepeatLastMatchFilter || (data?.matches ?? []).length === 0
+        ? naturalCourtFoursome
+        : applyRepeatLastMatchFoursomeAdjustment(
+            naturalCourtFoursome,
+            onCourtWaitingLine,
+            data?.matches ?? [],
+          );
+
     if (nextCourtLockEntryKey) {
       const locked = resolveLockedNextCourtFoursome(queueWithStats, nextCourtLockEntryKey);
-      if (locked) return locked;
+      if (locked) {
+        const lockedKey = nextCourtOrderedEntryKey(locked);
+        const naturalKey = nextCourtOrderedEntryKey(naturalCourtFoursome);
+        const adjustedKey = nextCourtOrderedEntryKey(adjusted);
+        // An earlier auto-lock froze the rematch four before we could split it.
+        if (lockedKey === naturalKey && adjustedKey !== naturalKey) {
+          return adjusted;
+        }
+        return locked;
+      }
     }
-    if (!applyOnDeckRepeatLastMatchFilter || (data?.matches ?? []).length === 0) {
-      return naturalCourtFoursome;
-    }
-    return applyRepeatLastMatchFoursomeAdjustment(
-      naturalCourtFoursome,
-      onCourtWaitingLine,
-      data?.matches ?? [],
-    );
+    return adjusted;
   }, [
     applyOnDeckRepeatLastMatchFilter,
     data?.matches,
@@ -2162,6 +2173,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       const queuedIds = new Set(queueWithStats.map((entry) => entry._id));
       if (lockedIds.some((id) => !queuedIds.has(id))) {
         setNextCourtLockEntryKey(null);
+        return;
+      }
+      if (
+        nextCourtFoursome &&
+        nextCourtFoursome.length === DOUBLES_PLAYERS_PER_COURT &&
+        nextCourtOrderedEntryKey(nextCourtFoursome) !== nextCourtLockEntryKey
+      ) {
+        setNextCourtLockEntryKey(nextCourtOrderedEntryKey(nextCourtFoursome));
       }
       return;
     }

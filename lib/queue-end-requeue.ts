@@ -13,11 +13,6 @@ import {
 } from "@/lib/lock-in-groups";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import {
-  buildRotationRequeuePlayerOrder,
-  countActiveRotationPlayers,
-  shouldUseRotationRequeue,
-} from "@/lib/rotation-requeue";
-import {
   isSinglesWinnerLoserRotation,
   rebuildSinglesQueueOrder,
 } from "@/lib/singles/singles-queue-fill";
@@ -55,6 +50,40 @@ function crossRequeuePlayerOrder(
   ) as Types.ObjectId[];
 }
 
+function queuePlayerIdKey(playerId: unknown) {
+  if (typeof playerId === "string") return playerId;
+  if (playerId instanceof Types.ObjectId) return playerId.toString();
+  if (playerId && typeof playerId === "object" && "_id" in playerId) {
+    const id = (playerId as { _id?: unknown })._id;
+    if (id != null) return String(id);
+  }
+  return String(playerId);
+}
+
+/** Keep waiting players in place and append finished-court players in W/L/W/L order. */
+async function persistFinishedPlayersAtQueueTail(
+  gameId: string,
+  finishedPlayerOrder: Types.ObjectId[],
+) {
+  if (finishedPlayerOrder.length === 0) return;
+
+  const queued = await QueueEntry.find({ gameId, status: "queued" }).sort({
+    registeredAt: 1,
+  });
+  const finishedSet = new Set(finishedPlayerOrder.map((id) => id.toString()));
+  const waiting = queued.filter((entry) => !finishedSet.has(queuePlayerIdKey(entry.playerId)));
+  const requeuedByPlayerId = new Map<string, (typeof queued)[number]>();
+  for (const entry of queued) {
+    const key = queuePlayerIdKey(entry.playerId);
+    if (finishedSet.has(key)) requeuedByPlayerId.set(key, entry);
+  }
+  const tail = finishedPlayerOrder
+    .map((playerId) => requeuedByPlayerId.get(playerId.toString()))
+    .filter((entry): entry is (typeof queued)[number] => entry != null);
+  if (tail.length !== finishedPlayerOrder.length) return;
+  await persistQueueOrder([...waiting, ...tail]);
+}
+
 async function markCourtEntriesDone(court: CourtDoc) {
   await QueueEntry.updateMany(
     { _id: { $in: [...court.teamA.queueEntryIds, ...court.teamB.queueEntryIds] } },
@@ -87,6 +116,7 @@ async function insertRequeueEntries(
     registeredAt: Date;
     lastMatchResult: "win" | "loss";
   }>,
+  options?: { clusterLockInGroups?: boolean },
 ) {
   if (specs.length === 0) return;
   await clearStaleQueuedEntriesForPlayers(
@@ -114,7 +144,9 @@ async function insertRequeueEntries(
     })),
   );
 
-  await clusterQueuedLockInGroups(gameId);
+  if (options?.clusterLockInGroups !== false) {
+    await clusterQueuedLockInGroups(gameId);
+  }
 }
 
 async function requeueSinglesCourt(input: {
@@ -172,74 +204,6 @@ async function requeueSinglesCourt(input: {
     rematch: false,
     requeueMode: "singles" as const,
     message: "Game ended and players returned to the queue.",
-  };
-}
-
-async function requeueDoublesCourtWithRotation(input: {
-  gameId: string;
-  court: CourtDoc;
-  winnerPlayerIdSet: Set<string>;
-}) {
-  const queued = await QueueEntry.find({ gameId: input.gameId, status: "queued" }).sort({
-    registeredAt: 1,
-  });
-
-  const playerOrder = buildRotationRequeuePlayerOrder({
-    queuedPlayerIds: queued.map((entry) => entry.playerId as Types.ObjectId),
-    court: {
-      teamAPlayerIds: [...input.court.teamA.playerIds],
-      teamBPlayerIds: [...input.court.teamB.playerIds],
-    },
-  });
-
-  if (!playerOrder || input.court.teamA.playerIds.length !== 2) return null;
-
-  const courtPlayerIds = new Set(
-    [...input.court.teamA.playerIds, ...input.court.teamB.playerIds].map((id) => id.toString()),
-  );
-
-  await markCourtEntriesDone(input.court);
-
-  const courtPlayerObjectIds = [
-    ...input.court.teamA.playerIds,
-    ...input.court.teamB.playerIds,
-  ];
-  await clearStaleQueuedEntriesForPlayers(input.gameId, courtPlayerObjectIds);
-
-  const now = Date.now();
-  const newEntriesByPlayerId = new Map<string, (typeof queued)[number]>();
-
-  for (const playerId of courtPlayerObjectIds) {
-    const playerKey = playerId.toString();
-    const isWinner = input.winnerPlayerIdSet.has(playerKey);
-    const entry = await QueueEntry.create({
-      gameId: input.gameId,
-      playerId,
-      status: "queued",
-      queueType: "normal",
-      pairGroupId: null,
-      registeredAt: new Date(now),
-      lastMatchResult: isWinner ? "win" : "loss",
-      winStreak: isWinner ? 1 : 0,
-    });
-    newEntriesByPlayerId.set(playerKey, entry);
-  }
-
-  const orderedEntries = playerOrder.map((playerId) => {
-    const playerKey = playerId.toString();
-    if (courtPlayerIds.has(playerKey)) {
-      return newEntriesByPlayerId.get(playerKey)!;
-    }
-    return queued.find((entry) => entry.playerId.toString() === playerKey)!;
-  });
-
-  await persistQueueOrder(orderedEntries);
-
-  return {
-    ok: true,
-    rematch: false,
-    requeueMode: "rotation" as const,
-    message: "Game ended — players rotated in the queue.",
   };
 }
 
@@ -361,16 +325,6 @@ async function requeueDoublesCourtStandard(input: {
     };
   }
 
-  const activePlayerCount = await countActiveRotationPlayers(input.gameId);
-  if (shouldUseRotationRequeue(activePlayerCount)) {
-    const rotated = await requeueDoublesCourtWithRotation({
-      gameId: input.gameId,
-      court: input.court,
-      winnerPlayerIdSet: input.winnerPlayerIdSet,
-    });
-    if (rotated) return rotated;
-  }
-
   await markCourtEntriesDone(input.court);
   await insertRequeueEntries(
     input.gameId,
@@ -380,7 +334,9 @@ async function requeueDoublesCourtStandard(input: {
       registeredAt: new Date(now + index),
       lastMatchResult: input.winnerPlayerIdSet.has(playerId.toString()) ? "win" : "loss",
     })),
+    { clusterLockInGroups: false },
   );
+  await persistFinishedPlayersAtQueueTail(input.gameId, requeueOrder);
 
   return {
     ok: true,
