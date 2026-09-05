@@ -199,6 +199,23 @@ export async function deleteLockInGroup(gameId: string, groupId: string) {
   );
 }
 
+type PopulatedLockInPlayer = {
+  _id?: Types.ObjectId;
+  firstName?: string;
+  lastName?: string;
+  photoUrl?: string | null;
+  photoPublicId?: string | null;
+};
+
+function asPopulatedLockInPlayer(player: unknown): PopulatedLockInPlayer | null {
+  if (player == null || typeof player !== "object" || player instanceof Types.ObjectId) {
+    return null;
+  }
+  if (!("_id" in player)) return null;
+  const doc = player as PopulatedLockInPlayer;
+  return doc._id ? doc : null;
+}
+
 export async function listLockInGroups(gameId: string): Promise<LockInGroupItem[]> {
   const groups = await LockInGroup.find({ gameId })
     .sort({ createdAt: -1 })
@@ -211,31 +228,24 @@ export async function listLockInGroups(gameId: string): Promise<LockInGroupItem[
       Array<{
         groupId: string;
         createdAt?: Date;
-        playerIds: Array<{
-          _id?: Types.ObjectId;
-          firstName?: string;
-          lastName?: string;
-          photoUrl?: string | null;
-          photoPublicId?: string | null;
-        } | Types.ObjectId | string>;
+        playerIds: unknown[];
       }>
     >();
 
   return groups.map((group) => {
     const players = (group.playerIds ?? []).flatMap((player) => {
-      if (player == null || typeof player !== "object" || !("_id" in player) || !player._id) {
-        return [];
-      }
-      const firstName = player.firstName ?? "";
-      const lastName = player.lastName ?? "";
+      const doc = asPopulatedLockInPlayer(player);
+      if (!doc?._id) return [];
+      const firstName = doc.firstName ?? "";
+      const lastName = doc.lastName ?? "";
       return [
         {
-          id: String(player._id),
+          id: String(doc._id),
           firstName,
           lastName,
           name: `${firstName} ${lastName}`.trim() || "Player",
-          photoUrl: player.photoUrl,
-          photoPublicId: player.photoPublicId,
+          photoUrl: doc.photoUrl,
+          photoPublicId: doc.photoPublicId,
         },
       ];
     });
