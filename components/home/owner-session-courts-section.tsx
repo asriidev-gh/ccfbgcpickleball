@@ -2,6 +2,7 @@
 
 import { ArrowRight, Gauge, Loader2, Pause, Play } from "lucide-react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +23,10 @@ import {
   resolveCourtsViewShowPlayerPhotos,
   useCourtsViewSessionPhotos,
 } from "@/components/game/courts-view-photos-toggle";
+import {
+  fetchLockInGroups,
+  lockInGroupsQueryKey,
+} from "@/components/game/lock-in-players-dialog";
 import { ReplacePlayerDialog } from "@/components/game/replace-player-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +57,8 @@ import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
 import { useQuickGameSession } from "@/lib/quick-game-store";
 import type { CourtsViewCourtTheme } from "@/lib/courts-view-court-theme";
+import { hasLockInPair, playerIdsIncludeLockInPair } from "@/lib/lock-in-groups-shared";
+import { resolvePlayerId } from "@/lib/resolve-player-id";
 import { cn } from "@/lib/utils";
 
 type OwnerSessionCourtsSectionProps = {
@@ -218,6 +225,26 @@ export function OwnerSessionCourtsSection({
     [queueWithStats, session.checkedOut, session.courts],
   );
 
+  const lockInGroupsQuery = useQuery({
+    queryKey: lockInGroupsQueryKey(session.gameId),
+    queryFn: () => fetchLockInGroups(session.gameId),
+    enabled: Boolean(session.gameId) && canOperateSession && !isBrowserQuickGame,
+  });
+  const lockInGroupIdByPlayerId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const entry of queueWithStats) {
+      const playerId = resolvePlayerId(entry.playerId);
+      if (playerId && entry.lockInGroupId) map.set(playerId, entry.lockInGroupId);
+    }
+    for (const group of lockInGroupsQuery.data?.groups ?? []) {
+      for (const player of group.players) {
+        map.set(player.id, group.groupId);
+      }
+    }
+    return map;
+  }, [lockInGroupsQuery.data?.groups, queueWithStats]);
+  const nextCourtHasLockInPair = hasLockInPair(nextCourtFoursome);
+
   const queueCounts = useMemo(
     () => ({
       queuedCount: queueWithStats.length,
@@ -230,13 +257,25 @@ export function OwnerSessionCourtsSection({
   );
 
   const getCourtCardProps = useCallback(
-    (court: (typeof session.courts)[number]) => ({
-      ...courtActions.getCourtCardProps(court, queueCounts, (courtNumber) =>
+    (court: (typeof session.courts)[number]) => {
+      const props = courtActions.getCourtCardProps(court, queueCounts, (courtNumber) =>
         fillCourtFlowRef.current?.openFillCourt(courtNumber),
-      ),
-      mixedDoubles: usesMixedDoubles,
-    }),
-    [courtActions, queueCounts, usesMixedDoubles],
+      );
+      const lockedInOnCourt = playerIdsIncludeLockInPair(
+        [...(court.teamA?.playerIds ?? []), ...(court.teamB?.playerIds ?? [])].map((player) =>
+          resolvePlayerId(player),
+        ),
+        lockInGroupIdByPlayerId,
+      );
+      return {
+        ...props,
+        mixedDoubles: usesMixedDoubles,
+        canReplacePlayers: lockedInOnCourt ? false : props.canReplacePlayers,
+        onReplacePlayer: lockedInOnCourt ? undefined : props.onReplacePlayer,
+        onSwapTeams: lockedInOnCourt ? undefined : props.onSwapTeams,
+      };
+    },
+    [courtActions, lockInGroupIdByPlayerId, queueCounts, usesMixedDoubles],
   );
 
   const showPauseAll = canOperateSession && courtActions.activeCourts.length > 0;
@@ -388,7 +427,7 @@ export function OwnerSessionCourtsSection({
               isDoublesMatchupAnalysisMatchingType(matchingType, gameMode)
             }
             onShuffleNext={
-              canOperateSession
+              canOperateSession && !nextCourtHasLockInPair
                 ? async () => {
                     await courtActions.shuffleNextMutation.mutateAsync();
                   }
@@ -396,7 +435,7 @@ export function OwnerSessionCourtsSection({
             }
             shuffleNextPending={courtActions.shuffleNextMutation.isPending}
             onSwapWaiting={
-              canOperateSession
+              canOperateSession && !nextCourtHasLockInPair
                 ? async () => {
                     const order = buildQueueNextCourtWaitingSwapOrder(matchupAnalysisQueue);
                     if (!order) {

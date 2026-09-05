@@ -2452,8 +2452,8 @@
 
   .queue-next-up-card--profile {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: "photo identity actions";
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "photo body";
     align-items: start;
     width: 100%;
     gap: 0.75rem 1rem;
@@ -2467,9 +2467,28 @@
     max-width: 200px;
   }
 
-  .queue-next-up-card--profile .queue-next-up-card__identity {
-    grid-area: identity;
+  .queue-next-up-card__body--profile {
+    grid-area: body;
+    display: flex;
     min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.625rem;
+  }
+
+  .queue-next-up-card__header {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .queue-next-up-card--profile .queue-next-up-card__identity {
+    min-width: 0;
+    flex: 1;
     align-items: start;
   }
 
@@ -2482,14 +2501,14 @@
   }
 
   .queue-next-up-card--profile .queue-next-up-card__actions {
-    grid-area: actions;
     margin-left: 0;
+    flex-shrink: 0;
     align-self: start;
     justify-content: flex-end;
   }
 
   .queue-next-up-card--profile .queue-next-up-stats {
-    @apply mt-2.5 w-full min-w-0 flex-wrap justify-start;
+    @apply w-full min-w-0 flex-wrap justify-start;
   }
 
   .queue-next-up-stats {
@@ -2527,9 +2546,7 @@
   @container next-up-card (max-width: 560px) {
     .queue-next-up-card--profile {
       grid-template-columns: minmax(5rem, 7.25rem) minmax(0, 1fr);
-      grid-template-areas:
-        "photo identity"
-        "photo actions";
+      grid-template-areas: "photo body";
       gap: 0.5rem 0.75rem;
     }
 
@@ -2539,26 +2556,15 @@
       max-width: none;
     }
 
-    .queue-next-up-card--profile .queue-next-up-card__actions {
-      justify-content: flex-start;
-      width: 100%;
-    }
-
     .queue-next-up-card--profile .queue-next-up-card__name {
       @apply text-base;
-    }
-
-    .queue-next-up-card--profile .queue-next-up-stats {
-      @apply mt-2;
     }
   }
 
   @media (max-width: 560px) {
     .queue-next-up-card--profile {
       grid-template-columns: minmax(5rem, 7.25rem) minmax(0, 1fr);
-      grid-template-areas:
-        "photo identity"
-        "photo actions";
+      grid-template-areas: "photo body";
       gap: 0.5rem 0.75rem;
     }
 
@@ -2566,11 +2572,6 @@
       width: 100%;
       min-width: 0;
       max-width: none;
-    }
-
-    .queue-next-up-card--profile .queue-next-up-card__actions {
-      justify-content: flex-start;
-      width: 100%;
     }
 
     .queue-next-up-card--profile .queue-next-up-card__name {
@@ -3379,6 +3380,11 @@
 
   .queue-item[id^="queue-entry-"] {
     scroll-margin-top: 5.5rem;
+  }
+
+  .queue-item.queue-waiting-line {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 4.75rem;
   }
 
   /* Self-registration highlight — uses --primary so it matches the active theme */
@@ -7864,6 +7870,126 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  .register-page--check-in {
+    @apply flex-1 justify-stretch md:justify-center;
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+
+  .register-page--check-in .register-shell {
+    @apply flex w-full max-w-md flex-1 flex-col md:flex-none;
+  }
+
+  .register-card--check-in {
+    @apply flex flex-1 flex-col gap-0 rounded-2xl py-0 md:flex-none;
+  }
+
+  .register-checkin-kicker {
+    @apply text-[11px] font-semibold tracking-[0.18em] text-primary uppercase;
+  }
+
+  .register-checkin-title {
+    @apply text-[1.65rem] font-semibold leading-tight tracking-tight sm:text-3xl;
+  }
+
+  .register-checkin-session {
+    @apply mt-1.5 text-sm leading-snug text-muted-foreground;
+  }
+
+  .register-checkin-brand {
+    @apply flex min-h-0 flex-1 flex-col items-center justify-center gap-2.5 py-2;
+  }
+
+  .register-checkin-logo-frame {
+    @apply flex size-32 items-center justify-center overflow-hidden rounded-[1.75rem] border border-border/80 bg-background/70 shadow-md;
+  }
+
+  .register-checkin-logo {
+    @apply size-full object-contain;
+  }
+
+  .register-checkin-monogram {
+    @apply text-3xl font-semibold tracking-tight text-primary;
+  }
+
+  .register-checkin-club-name {
+    @apply max-w-[16rem] truncate text-center text-sm font-medium text-muted-foreground;
+  }
+
+  .register-checkin-choices {
+    @apply flex flex-col gap-3;
+  }
+
+  .register-checkin-choice {
+    @apply flex min-h-[5.25rem] w-full items-center gap-3.5 rounded-2xl border border-border bg-background/50 px-4 py-3.5 text-left transition-colors;
+  }
+
+  .register-checkin-choice:hover:not(:disabled) {
+    @apply bg-muted/50;
+  }
+
+  .register-checkin-choice:active:not(:disabled) {
+    @apply bg-muted/70;
+  }
+
+  .register-checkin-choice:disabled {
+    @apply cursor-not-allowed opacity-55;
+  }
+
+  .register-checkin-choice--primary {
+    border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+    background: color-mix(in srgb, var(--primary) 11%, var(--card));
+  }
+
+  .register-checkin-choice--primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--primary) 16%, var(--card));
+  }
+
+  .register-checkin-choice--quiet {
+    @apply border-border/80 bg-transparent;
+  }
+
+  .register-checkin-choice__icon {
+    @apply flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-foreground;
+  }
+
+  .register-checkin-choice--primary .register-checkin-choice__icon {
+    border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+    background: color-mix(in srgb, var(--primary) 16%, var(--card));
+    color: var(--primary);
+  }
+
+  .register-checkin-choice__copy {
+    @apply flex min-w-0 flex-1 flex-col gap-0.5;
+  }
+
+  .register-checkin-choice__title {
+    @apply text-base font-semibold leading-tight;
+  }
+
+  .register-checkin-choice__desc {
+    @apply text-sm leading-snug text-muted-foreground;
+  }
+
+  .register-checkin-choice__chevron {
+    @apply size-5 shrink-0 text-muted-foreground;
+  }
+
+  .register-checkin-choice:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  .register-checkin-back {
+    @apply -ml-1 inline-flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-muted-foreground;
+  }
+
+  .register-checkin-back:hover:not(:disabled) {
+    @apply text-foreground;
+  }
+
+  .register-checkin-back:disabled {
+    @apply cursor-not-allowed opacity-55;
+  }
+
   .register-shell {
     @apply mx-auto w-full max-w-3xl min-w-0 py-2 md:py-0;
   }
@@ -7886,6 +8012,14 @@
 
   .register-card [data-slot="card-content"].register-form-compact {
     @apply flex flex-col gap-5 pt-1;
+  }
+
+  .register-card.register-card--check-in [data-slot="card-header"].register-card-header {
+    @apply gap-2 border-b border-border/70 px-5 pb-5 pt-5 sm:px-6;
+  }
+
+  .register-card.register-card--check-in [data-slot="card-content"].register-form-compact {
+    @apply flex flex-1 flex-col justify-end gap-5 px-5 pb-6 pt-5 sm:px-6 sm:pb-8 md:justify-center;
   }
 
   .register-form-compact {
@@ -8210,6 +8344,37 @@
 
   [data-theme="cosmos"] .register-form-compact {
     @apply gap-6;
+  }
+
+  [data-theme="cosmos"] .register-page--check-in {
+    @apply px-4 py-4 md:px-8 md:py-10;
+  }
+
+  [data-theme="cosmos"] .register-card--check-in[data-slot="card"] {
+    @apply border-border/80 shadow-lg shadow-black/40;
+  }
+
+  [data-theme="cosmos"] .register-card--check-in [data-slot="card-header"] {
+    @apply px-5 pb-5 pt-5 md:px-6 md:pt-6;
+  }
+
+  [data-theme="cosmos"] .register-card--check-in [data-slot="card-content"] {
+    @apply px-5 pb-6 pt-5 md:px-6 md:pb-8;
+  }
+
+  [data-theme="cosmos"] .register-checkin-logo-frame {
+    @apply border-border/70 bg-background/50 shadow-lg shadow-black/40;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent),
+      0 12px 32px rgb(0 0 0 / 0.35);
+  }
+
+  [data-theme="cosmos"] .register-checkin-choice {
+    @apply border-border/80 bg-card/40;
+  }
+
+  [data-theme="cosmos"] .register-checkin-choice__icon {
+    @apply border-border/70 bg-background/70;
   }
 
   [data-theme="cosmos"] .register-input {

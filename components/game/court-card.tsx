@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ArrowLeftRight, CircleDot, Loader2, Pause, Play, Shuffle, Users } from "lucide-react";
 
 import { CourtCancelAssignmentButton } from "@/components/game/court-cancel-assignment-button";
@@ -210,7 +211,43 @@ type CourtCardProps = {
   onPlayerEndorsementClick?: (player: PlayerRef) => void;
 };
 
-export function CourtCard({
+function courtCardPropsAreEqual(prev: CourtCardProps, next: CourtCardProps) {
+  if (prev.court !== next.court) return false;
+  if (prev.playerSessionStats !== next.playerSessionStats) return false;
+  if (prev.playerLeaderboardRanks !== next.playerLeaderboardRanks) return false;
+  if (prev.showLeaderboardRank !== next.showLeaderboardRank) return false;
+  if (prev.replacePendingKey !== next.replacePendingKey) return false;
+  if (prev.isFilling !== next.isFilling) return false;
+  if (prev.isClearing !== next.isClearing) return false;
+  if (prev.canFillCourt !== next.canFillCourt) return false;
+  if (prev.fillCourtPending !== next.fillCourtPending) return false;
+  if (prev.cancelPending !== next.cancelPending) return false;
+  if (prev.cancelRematchPending !== next.cancelRematchPending) return false;
+  if (prev.swapPending !== next.swapPending) return false;
+  if (prev.pausePending !== next.pausePending) return false;
+  if (prev.canReplacePlayers !== next.canReplacePlayers) return false;
+  if (prev.hideEndGame !== next.hideEndGame) return false;
+  if (prev.mixedDoubles !== next.mixedDoubles) return false;
+  if (prev.layoutVariant !== next.layoutVariant) return false;
+  if (prev.showEndorsementInPlayerLabel !== next.showEndorsementInPlayerLabel) return false;
+  if (prev.elementId !== next.elementId) return false;
+  if (prev.getPlayerEndorsementCount !== next.getPlayerEndorsementCount) {
+    const players = [
+      ...(next.court.teamA?.playerIds ?? []),
+      ...(next.court.teamB?.playerIds ?? []),
+    ];
+    for (const player of players) {
+      const playerId = player._id ?? "";
+      if (!playerId) continue;
+      const prevCount = prev.getPlayerEndorsementCount?.(playerId) ?? 0;
+      const nextCount = next.getPlayerEndorsementCount?.(playerId) ?? 0;
+      if (prevCount !== nextCount) return false;
+    }
+  }
+  return true;
+}
+
+export const CourtCard = memo(function CourtCard({
   court,
   elementId,
   playerSessionStats,
@@ -572,7 +609,7 @@ export function CourtCard({
       </CardContent>
     </Card>
   );
-}
+}, courtCardPropsAreEqual);
 
 export function CourtsSummary({
   courts,

@@ -779,7 +779,11 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
         index={displayIndex}
         isNextUp={isNextUp}
         inWaitingLine={!isNextUp}
-        canReplace={!isPastGame && isNextUp && waitingLineEntries.length > 0}
+        canReplace={
+          !isPastGame &&
+          isNextUp &&
+          waitingLineEntries.some((waitingEntry) => !waitingEntry.lockInGroupId)
+        }
         onReplace={
           !isPastGame && isNextUp
             ? () =>

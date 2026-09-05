@@ -50,7 +50,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const groups = await listLockInGroups(gameId);
 
       return NextResponse.json({
-        message: "Lock-in group created. Players are clustered in the queue.",
+        message: "Partners locked in. They will stay together in the queue.",
         groupId,
         groups,
       });

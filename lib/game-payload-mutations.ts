@@ -24,6 +24,11 @@ import {
   resolveDoublesRotationQueue,
 } from "@/lib/doubles/doubles-queue-fill";
 import { shuffleDoublesIntoNewHalves, randomMixedDoublesTeamSplit } from "@/lib/doubles/mixed-doubles-shuffle";
+import {
+  hasLockInPair,
+  keepLockInPartnersTogether,
+  lockInPairsOccupyPartnerSlots,
+} from "@/lib/lock-in-groups-shared";
 import { buildQueueOrderWithNextCourtFoursome, buildSmartShuffleQueueOrder } from "@/lib/next-court-match-analysis";
 import { appendMixedDoublesRequeueEntries } from "@/lib/doubles/mixed-doubles-requeue";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
@@ -199,6 +204,16 @@ export function applyFillNextCourtOptimistic(
       .map((entry) => byId.get(entry._id))
       .filter((entry): entry is (typeof foursome)[number] => entry != null);
     if (teamAEntries.length !== 2 || teamBEntries.length !== 2) return null;
+    if (
+      !lockInPairsOccupyPartnerSlots(
+        [...teamAEntries, ...teamBEntries],
+        (entry) => entry.lockInGroupId,
+      )
+    ) {
+      const aligned = keepLockInPartnersTogether(foursome, (entry) => entry.lockInGroupId);
+      teamAEntries = aligned.slice(0, 2);
+      teamBEntries = aligned.slice(2, 4);
+    }
   }
 
   const emptyCourt = payload.courts.find(
@@ -792,9 +807,14 @@ export function applyQuickShuffleNextOptimistic(
       ? foursome
       : ordered.slice(0, DOUBLES_PLAYERS_PER_COURT);
   if (nextUp.length < DOUBLES_PLAYERS_PER_COURT) return null;
+  if (hasLockInPair(nextUp)) return null;
 
   const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp, payload.game.matchingType);
-  const order = buildQueueOrderWithNextCourtFoursome(payload.queue, [...firstHalf, ...secondHalf]);
+  const shuffled = [...firstHalf, ...secondHalf];
+  const nextFour = lockInPairsOccupyPartnerSlots(shuffled, (entry) => entry.lockInGroupId)
+    ? shuffled
+    : keepLockInPartnersTogether(shuffled, (entry) => entry.lockInGroupId);
+  const order = buildQueueOrderWithNextCourtFoursome(payload.queue, nextFour);
   return applyQueueReorderOptimistic(payload, order);
 }
 

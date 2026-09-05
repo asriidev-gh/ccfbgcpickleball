@@ -7,6 +7,7 @@ import {
   getRegistrationFormVariant,
   type RegistrationFormVariant,
 } from "@/lib/registration-variant";
+import { resolveClubBranding, type ClubBranding } from "@/lib/club-branding";
 import { connectToDatabase } from "@/lib/db";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
@@ -88,6 +89,7 @@ export type GameRegistrationStatus = {
   isFull: boolean;
   spotsRemaining: number | null;
   status: "draft" | "active" | "ended";
+  clubBranding?: ClubBranding | null;
 };
 
 export type GameRegistrationPagePayload = GameRegistrationStatus & {
@@ -183,10 +185,14 @@ export async function getGameRegistrationPagePayload(
   const [owner, registeredCount] = await Promise.all([
     game.ownerId
       ? User.findById(game.ownerId)
-          .select("userType registrationFeature")
+          .select("userType registrationFeature name clubName clubLogoUrl clubTagline")
           .lean<{
             userType?: string;
             registrationFeature?: string;
+            name?: string;
+            clubName?: string;
+            clubLogoUrl?: string;
+            clubTagline?: string;
           } | null>()
       : Promise.resolve(null),
     // Capacity count is only needed for strict sessions; skip the scan otherwise.
@@ -199,6 +205,7 @@ export async function getGameRegistrationPagePayload(
   const payload: GameRegistrationPagePayload = {
     ...status,
     gameTitle: game.title ?? "",
+    clubBranding: owner ? resolveClubBranding(owner) : null,
   };
 
   pagePayloadCache.set(gameId, {

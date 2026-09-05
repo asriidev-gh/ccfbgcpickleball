@@ -4,6 +4,7 @@ import { runWithDatabase } from "@/lib/db";
 import { QueueEntry } from "@/models/QueueEntry";
 import { PickleGame } from "@/models/PickleGame";
 import { getAuthUserFromCookie } from "@/lib/auth";
+import { LOCKED_IN_LINEUP_LOCKED_MESSAGE } from "@/lib/lock-in-groups-shared";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -56,6 +57,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const sourceEntry = queue[sourceIndex];
     const targetEntry = queue[targetIndex];
+    if (targetEntry.lockInGroupId) {
+      return NextResponse.json(
+        { message: "Locked-in players cannot be used as replacements." },
+        { status: 400 },
+      );
+    }
+    if (sourceEntry.lockInGroupId) {
+      return NextResponse.json(
+        { message: LOCKED_IN_LINEUP_LOCKED_MESSAGE },
+        { status: 400 },
+      );
+    }
     const sourceRegisteredAt = sourceEntry.registeredAt;
     const targetRegisteredAt = targetEntry.registeredAt;
 

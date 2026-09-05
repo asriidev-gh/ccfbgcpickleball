@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import { Types } from "mongoose";
 
 import {
+  alignLockInPairsToPartnerSlots,
   LOCK_IN_MAX_PLAYERS,
   LOCK_IN_MIN_PLAYERS,
   type LockInGroupItem,
@@ -10,8 +11,11 @@ import { LockInGroup } from "@/models/LockInGroup";
 import { QueueEntry } from "@/models/QueueEntry";
 
 export {
+  alignLockInPairsToPartnerSlots,
+  keepLockInPartnersTogether,
   LOCK_IN_MAX_PLAYERS,
   LOCK_IN_MIN_PLAYERS,
+  lockInPairsOccupyPartnerSlots,
   moveContiguousGroupBlock,
   type LockInGroupItem,
 } from "@/lib/lock-in-groups-shared";
@@ -35,8 +39,8 @@ function persistQueueOrder(
 }
 
 /**
- * Reorder queued entries so each lock-in group's members sit in one contiguous block
- * (preserving relative order within the group and overall FIFO as much as possible).
+ * Reorder queued entries so each lock-in pair sits together on partner slots
+ * (0–1, 2–3, …), preserving overall FIFO as much as possible.
  */
 export async function clusterQueuedLockInGroups(gameId: string) {
   const [queued, groups] = await Promise.all([
@@ -109,7 +113,8 @@ export async function clusterQueuedLockInGroups(gameId: string) {
     }
   }
 
-  await persistQueueOrder(ordered);
+  const aligned = alignLockInPairsToPartnerSlots(ordered, resolveGroupId);
+  await persistQueueOrder(aligned);
 }
 
 export async function getLockInGroupIdByPlayerIds(gameId: string, playerIds: Types.ObjectId[]) {
@@ -137,7 +142,7 @@ export async function createLockInGroup(input: {
 }) {
   const uniqueIds = [...new Set(input.playerIds.map(String))];
   if (uniqueIds.length < LOCK_IN_MIN_PLAYERS || uniqueIds.length > LOCK_IN_MAX_PLAYERS) {
-    throw new Error(`Select between ${LOCK_IN_MIN_PLAYERS} and ${LOCK_IN_MAX_PLAYERS} players.`);
+    throw new Error("Select exactly 2 players to lock in as partners.");
   }
 
   const objectIds = uniqueIds.map((id) => new Types.ObjectId(id));

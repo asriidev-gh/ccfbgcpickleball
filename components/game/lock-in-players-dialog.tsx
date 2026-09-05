@@ -5,6 +5,7 @@ import { Lock, Loader2, Plus, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { LockInGroupBadge } from "@/components/game/lock-in-group-badge";
 import { PlayerAvatar } from "@/components/game/player-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,11 +42,11 @@ type LockInGroupsResponse = {
   message?: string;
 };
 
-function lockInGroupsQueryKey(gameId: string) {
+export function lockInGroupsQueryKey(gameId: string) {
   return ["lock-in-groups", gameId] as const;
 }
 
-async function fetchLockInGroups(gameId: string) {
+export async function fetchLockInGroups(gameId: string) {
   const response = await fetch(`/api/games/${gameId}/lock-in-groups`);
   const payload = (await response.json()) as LockInGroupsResponse;
   if (!response.ok) throw new Error(payload.message ?? "Failed to load lock-in groups.");
@@ -167,7 +168,7 @@ export function LockInPlayersDialog({
         return current.filter((id) => id !== playerId);
       }
       if (current.length >= LOCK_IN_MAX_PLAYERS) {
-        toast.message(`Select up to ${LOCK_IN_MAX_PLAYERS} players.`);
+        toast.message("Lock-in groups are 2 players.");
         return current;
       }
       return [...current, playerId];
@@ -183,7 +184,7 @@ export function LockInPlayersDialog({
             Lock-in Players
           </DialogTitle>
           <DialogDescription>
-            Keep 2–4 players adjacent in the queue. Dragging one moves the whole group.
+            Lock 2 players as partners. They stay together in the queue and after each game.
           </DialogDescription>
         </DialogHeader>
 
@@ -221,9 +222,12 @@ export function LockInPlayersDialog({
                       className="rounded-xl border border-border bg-card p-3.5"
                     >
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium">
-                          Group · {group.players.length} players
-                        </p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <LockInGroupBadge groupId={group.groupId} />
+                          <p className="text-sm font-medium">
+                            Partners · {group.players.length} players
+                          </p>
+                        </div>
                         <Button
                           type="button"
                           size="sm"

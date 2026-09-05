@@ -17,6 +17,7 @@ import { FillCourtSelectDialog } from "@/components/game/fill-court-select-dialo
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { Button } from "@/components/ui/button";
 import { announceNextCourtPlayers, cancelCallNamesSpeech } from "@/lib/call-names-speech";
+import { hasLockInPair } from "@/lib/lock-in-groups-shared";
 import { randomTeamSplit } from "@/lib/shuffle-teams-animation";
 
 type FillCourtFlowProps = {
@@ -200,6 +201,8 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
       [activeFillCourtNumber, callingNames],
     );
 
+    const draftHasLockInPair = hasLockInPair([...draftTeamA, ...draftTeamB]);
+
     const handleLocalShuffle = useCallback(() => {
       const split = randomTeamSplit([...draftTeamA, ...draftTeamB], {
         mixedDoubles,
@@ -245,12 +248,14 @@ export const FillCourtFlow = forwardRef<FillCourtFlowHandle, FillCourtFlowProps>
           courtNumber={activeFillCourtNumber}
           teamA={draftTeamA}
           teamB={draftTeamB}
-          canReplace={waitingLineEntries.length > 0}
+          canReplace={
+            !draftHasLockInPair && waitingLineEntries.some((entry) => !entry.lockInGroupId)
+          }
           onReplace={onReplace}
           replacePendingSourceIndex={replacePendingSourceIndex}
           onConfirmFill={handleConfirmFill}
           fillPending={confirmFillPending}
-          onShuffle={handleLocalShuffle}
+          onShuffle={draftHasLockInPair ? undefined : handleLocalShuffle}
           mixedDoubles={mixedDoubles}
         />
       </>

@@ -7,6 +7,7 @@ import {
   operatorMatchHistoryQueryKey,
   operatorQueueQueryKey,
 } from "@/lib/fetch-operator-game";
+import type { OperatorQueuePayload } from "@/lib/operator-payload";
 
 /** Pause operator queue polling while queue mutations are in flight. */
 export function acquireQueueMutationLock(lockRef: MutableRefObject<number>) {
@@ -115,7 +116,10 @@ export async function endOperatorQueueMutation(
     if (options?.skipRefetch) return;
     // Fetch outside React Query so a newer mutation can start without this
     // response clobbering its optimistic UI (cancel → fill race).
-    const queue = await fetchOperatorQueue(gameId);
+    const previous = queryClient.getQueryData<OperatorQueuePayload>(
+      operatorQueueQueryKey(gameId),
+    );
+    const queue = await fetchOperatorQueue(gameId, previous);
     if (lockRef.current !== 1) return;
     queryClient.setQueryData(operatorQueueQueryKey(gameId), queue);
 

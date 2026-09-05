@@ -10,6 +10,7 @@ import { toQueueEntryViewForPick, type QueueEntryLike } from "@/lib/queue-court-
 import {
   clusterQueuedLockInGroups,
   getLockInGroupIdByPlayerIds,
+  keepLockInPartnersTogether,
 } from "@/lib/lock-in-groups";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import {
@@ -231,7 +232,12 @@ async function requeueDoublesCourtStandard(input: {
   const teamAPlayers = [...input.court.teamA.playerIds];
   const teamBPlayers = [...input.court.teamB.playerIds];
   const now = Date.now();
-  const requeueOrder = crossRequeuePlayerOrder(teamAPlayers, teamBPlayers);
+  const crossedOrder = crossRequeuePlayerOrder(teamAPlayers, teamBPlayers);
+  const lockInByPlayer = await getLockInGroupIdByPlayerIds(input.gameId, crossedOrder);
+  const requeueOrder = keepLockInPartnersTogether(
+    crossedOrder,
+    (playerId) => lockInByPlayer.get(playerId.toString()) ?? null,
+  );
 
   if (isMixedDoublesMatching(input.format.matchingType)) {
     const winnerPairGroupId = `W-${nanoid(8)}`;
@@ -288,6 +294,7 @@ async function requeueDoublesCourtStandard(input: {
     if (orderedEntries.length === specs.length) {
       await persistQueueOrder([...tail, ...orderedEntries]);
     }
+    await clusterQueuedLockInGroups(input.gameId);
 
     return {
       ok: true,
@@ -316,6 +323,7 @@ async function requeueDoublesCourtStandard(input: {
       }),
     );
     await reorderQueuedEntries(input.gameId);
+    await clusterQueuedLockInGroups(input.gameId);
 
     return {
       ok: true,
@@ -337,6 +345,7 @@ async function requeueDoublesCourtStandard(input: {
     { clusterLockInGroups: false },
   );
   await persistFinishedPlayersAtQueueTail(input.gameId, requeueOrder);
+  await clusterQueuedLockInGroups(input.gameId);
 
   return {
     ok: true,

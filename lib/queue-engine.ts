@@ -15,6 +15,14 @@ import {
   resolveCourtAssignmentFromQueue,
   type QueueEntryLike,
 } from "@/lib/queue-court-assignment";
+import { getLockInGroupIdByPlayerIds } from "@/lib/lock-in-groups";
+import {
+  hasLockInPair,
+  keepLockInPartnersTogether,
+  LOCKED_IN_LINEUP_LOCKED_MESSAGE,
+  lockInPairsOccupyPartnerSlots,
+  playerIdsIncludeLockInPair,
+} from "@/lib/lock-in-groups-shared";
 import { requeuePlayersAfterCourtEnd } from "@/lib/queue-end-requeue";
 import { healOrphanedOnCourtEntries } from "@/lib/queue-on-court-orphans";
 import { Court } from "@/models/Court";
@@ -321,6 +329,9 @@ export async function shuffleNextOnCourtInQueue(gameId: string) {
   }
 
   const nextUp = queue.slice(0, 4);
+  if (hasLockInPair(nextUp)) {
+    throw new Error(LOCKED_IN_LINEUP_LOCKED_MESSAGE);
+  }
   const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp, (half) =>
     teamKey(
       half.map((entry) => ({
@@ -329,8 +340,12 @@ export async function shuffleNextOnCourtInQueue(gameId: string) {
       })),
     ),
   );
+  const shuffled = [...firstHalf, ...secondHalf];
+  const nextFour = lockInPairsOccupyPartnerSlots(shuffled, (entry) => entry.lockInGroupId)
+    ? shuffled
+    : keepLockInPartnersTogether(shuffled, (entry) => entry.lockInGroupId);
 
-  await persistQueueOrder([...firstHalf, ...secondHalf, ...queue.slice(4)]);
+  await persistQueueOrder([...nextFour, ...queue.slice(4)]);
 }
 
 /**
@@ -355,6 +370,9 @@ export async function quickShuffleNextOnCourtInQueue(
       }
       return entry;
     });
+    if (hasLockInPair(chosen)) {
+      throw new Error(LOCKED_IN_LINEUP_LOCKED_MESSAGE);
+    }
     const topFour = queue.slice(0, 4);
     const topIds = new Set(topFour.map((entry) => String(entry._id)));
     const sameOnDeckFoursome = chosen.every((entry) => topIds.has(String(entry._id)));
@@ -369,6 +387,9 @@ export async function quickShuffleNextOnCourtInQueue(
   }
 
   const nextUp = queue.slice(0, 4);
+  if (hasLockInPair(nextUp)) {
+    throw new Error(LOCKED_IN_LINEUP_LOCKED_MESSAGE);
+  }
   const { firstHalf, secondHalf } = shuffleIntoNewHalves(nextUp, (half) =>
     teamKey(
       half.map((entry) => ({
@@ -377,7 +398,11 @@ export async function quickShuffleNextOnCourtInQueue(
       })),
     ),
   );
-  await persistNextFourOrder([...firstHalf, ...secondHalf]);
+  const shuffled = [...firstHalf, ...secondHalf];
+  const nextFour = lockInPairsOccupyPartnerSlots(shuffled, (entry) => entry.lockInGroupId)
+    ? shuffled
+    : keepLockInPartnersTogether(shuffled, (entry) => entry.lockInGroupId);
+  await persistNextFourOrder(nextFour);
 }
 
 /** Move a ready deck foursome onto the promoted open-court line (Team A vs Team B). */
@@ -469,6 +494,12 @@ export async function swapPlayersBetweenCourtTeams(input: {
     status: "active",
   });
   if (!court) throw new Error("Active court not found.");
+
+  const courtPlayerIds = [...court.teamA.playerIds, ...court.teamB.playerIds];
+  const lockInByPlayer = await getLockInGroupIdByPlayerIds(input.gameId, courtPlayerIds);
+  if (playerIdsIncludeLockInPair(courtPlayerIds.map(String), lockInByPlayer)) {
+    throw new Error(LOCKED_IN_LINEUP_LOCKED_MESSAGE);
+  }
 
   const slots: CourtSlot[] = [
     ...court.teamA.playerIds.map((playerId: Types.ObjectId, index: number) => ({
@@ -824,6 +855,17 @@ export async function replaceCourtPlayerWithWaiting(input: {
   }
 
   const queuedEntry = queue[input.targetIndex];
+  if (queuedEntry.lockInGroupId) {
+    throw new Error("Locked-in players cannot be used as replacements.");
+  }
+  if (courtEntry.lockInGroupId) {
+    throw new Error(LOCKED_IN_LINEUP_LOCKED_MESSAGE);
+  }
+  const courtPlayerIds = [...court.teamA.playerIds, ...court.teamB.playerIds];
+  const lockInByPlayer = await getLockInGroupIdByPlayerIds(input.gameId, courtPlayerIds);
+  if (playerIdsIncludeLockInPair(courtPlayerIds.map(String), lockInByPlayer)) {
+    throw new Error(LOCKED_IN_LINEUP_LOCKED_MESSAGE);
+  }
 
   const previousPlayerId = team.playerIds[input.slotIndex];
   const previousQueueEntryId = team.queueEntryIds[input.slotIndex];

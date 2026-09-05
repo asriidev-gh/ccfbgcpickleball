@@ -29,7 +29,7 @@ type FillCourtConfirmDialogProps = {
   replacePendingSourceIndex: number | null;
   onConfirmFill: () => void;
   fillPending?: boolean;
-  onShuffle: () => void | Promise<void>;
+  onShuffle?: () => void | Promise<void>;
   mixedDoubles?: boolean;
   callingNames?: boolean;
   onCallNames?: (teamA: QueueEntryView[], teamB: QueueEntryView[]) => void;
@@ -189,8 +189,8 @@ function FillCourtConfirmDialogBody({
   } = useShuffleTeamsAnimation({
     teamA,
     teamB,
-    onShuffle,
-    enabled: open,
+    onShuffle: onShuffle ?? (async () => {}),
+    enabled: open && Boolean(onShuffle),
     resetKey: open,
     mixedDoubles,
     getGender: (entry) => entry.playerId.gender,
@@ -199,6 +199,7 @@ function FillCourtConfirmDialogBody({
   });
 
   const actionsDisabled = fillPending || isShuffling;
+  const hasFullFoursome = displayTeamA.length + displayTeamB.length >= 4;
   const courtLabel = courtNumber != null ? `Court ${courtNumber}` : "the next court";
 
   return (
@@ -257,7 +258,11 @@ function FillCourtConfirmDialogBody({
                 isShuffling && "fill-court-shuffle-btn--spinning",
               )}
               aria-label="Shuffle players into new teams"
-              title="Shuffle teams (re-roll until it looks right)"
+              title={
+                canShuffle
+                  ? "Shuffle teams (re-roll until it looks right)"
+                  : "Locked-in partners stay together"
+              }
               disabled={!canShuffle || actionsDisabled}
               onClick={() => void handleShuffleClick()}
             >
@@ -312,7 +317,7 @@ function FillCourtConfirmDialogBody({
           <Button
             type="button"
             className="h-11 min-w-0 flex-1 sm:w-auto sm:flex-none"
-            disabled={actionsDisabled || !canShuffle}
+            disabled={actionsDisabled || !hasFullFoursome}
             onClick={onConfirmFill}
           >
             {fillPending ? (

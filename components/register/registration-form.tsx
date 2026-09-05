@@ -12,6 +12,7 @@ import {
   getRegistrationBlockedMessage,
   promptIfRegistrationFullFromStatus,
 } from "@/components/game/registration-capacity-prompt";
+import { CheckInLanding } from "@/components/register/check-in-landing";
 import { RegistrationPhotoField } from "@/components/register/registration-photo-field";
 import { useNavigateToSpectate } from "@/components/register/use-navigate-to-spectate";
 import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
@@ -740,6 +741,34 @@ export function RegistrationForm({
   const inputClass = (name: string) =>
     cn("register-input", fieldErrors[name] && "border-destructive ring-destructive/30");
 
+  if (!role && (entryStep === "role" || entryStep === "has-qr")) {
+    return (
+      <CheckInLanding
+        gameTitle={gameTitle}
+        clubBranding={registrationStatus?.clubBranding}
+        statusLoading={statusLoading}
+        statusReady={Boolean(registrationStatus)}
+        blockedMessage={registrationBlockedMessage}
+        entryStep={entryStep}
+        checkInAs={checkInAs}
+        isGenericForm={isGenericForm}
+        entryBusy={entryBusy}
+        pendingEntryAction={pendingEntryAction}
+        pendingRole={pendingRole}
+        navigatingToSpectate={navigatingToSpectate}
+        onPlayer={() => void openHasQrStep("player")}
+        onVolunteer={() => void openHasQrStep("volunteer")}
+        onSpectator={() => void handleSpectator()}
+        onBack={backFromHasQrStep}
+        onHasQrYes={() => void handleHasQrYes()}
+        onHasQrNo={() => void handleHasQrNo()}
+        onViaQr={() => void handleViaQr()}
+        onViaNameSearch={() => void handleViaNameSearch()}
+        onAsNewPlayer={() => void handleAsNewPlayer()}
+      />
+    );
+  }
+
   if (pendingQrReveal) {
     return (
       <main className="register-page">
@@ -800,193 +829,7 @@ export function RegistrationForm({
                 {registrationBlockedMessage}
               </div>
             ) : null}
-            {!role ? (
-              entryStep === "role" ? (
-                <div className="register-block">
-                  <Label className="register-label">Check In as:</Label>
-                  <div className="flex flex-col gap-3">
-                    <Button
-                      type="button"
-                      size="lg"
-                      variant="outline"
-                      className="register-toggle-btn w-full"
-                      disabled={entryBusy || submitting}
-                      onClick={() => void openHasQrStep("player")}
-                    >
-                      {pendingEntryAction === "player" ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                          Loading…
-                        </>
-                      ) : (
-                        "Player"
-                      )}
-                    </Button>
-                    {!isGenericForm ? (
-                      <Button
-                        type="button"
-                        size="lg"
-                        variant="outline"
-                        className="register-toggle-btn w-full"
-                        disabled={entryBusy || submitting}
-                        onClick={() => void openHasQrStep("volunteer")}
-                      >
-                        {pendingEntryAction === "volunteer" ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                            Loading…
-                          </>
-                        ) : (
-                          "Volunteer"
-                        )}
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      size="lg"
-                      variant="outline"
-                      className="register-toggle-btn w-full"
-                      disabled={entryBusy || submitting}
-                      onClick={() => void handleSpectator()}
-                    >
-                      {pendingEntryAction === "spectator" || navigatingToSpectate ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                          Opening…
-                        </>
-                      ) : (
-                        "Spectator"
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="register-back"
-                    onClick={backFromHasQrStep}
-                    disabled={entryBusy || submitting}
-                  >
-                    ← Back
-                  </Button>
-
-                  <div className="register-block">
-                    <Label className="register-label">
-                      {checkInAs === "volunteer"
-                        ? "Do you have a QR already?"
-                        : "How would you like to check in?"}
-                    </Label>
-                    {checkInAs === "volunteer" ? (
-                      <>
-                        <div className="register-toggle-row">
-                          <Button
-                            type="button"
-                            size="lg"
-                            variant="outline"
-                            className="register-toggle-btn"
-                            disabled={entryBusy || submitting}
-                            onClick={() => void handleHasQrYes()}
-                          >
-                            {pendingEntryAction === "has-qr-yes" || pendingRole === "upload-qr" ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                                Loading…
-                              </>
-                            ) : (
-                              "Yes"
-                            )}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="lg"
-                            variant="outline"
-                            className="register-toggle-btn"
-                            disabled={entryBusy || submitting}
-                            onClick={() => void handleHasQrNo()}
-                          >
-                            {pendingEntryAction === "has-qr-no" || pendingRole === "volunteer" ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                                Loading…
-                              </>
-                            ) : (
-                              "No"
-                            )}
-                          </Button>
-                        </div>
-                        <p className="caption text-center text-muted-foreground">
-                          Choose Yes to check in with your saved QR ID, or No to register as a new
-                          volunteer.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex flex-col gap-3">
-                          <Button
-                            type="button"
-                            size="lg"
-                            variant="outline"
-                            className="register-toggle-btn w-full"
-                            disabled={entryBusy || submitting}
-                            onClick={() => void handleViaQr()}
-                          >
-                            {pendingEntryAction === "via-qr" || pendingRole === "upload-qr" ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                                Loading…
-                              </>
-                            ) : (
-                              "Via QR"
-                            )}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="lg"
-                            variant="outline"
-                            className="register-toggle-btn w-full"
-                            disabled={entryBusy || submitting}
-                            onClick={() => void handleViaNameSearch()}
-                          >
-                            {pendingEntryAction === "via-name-search" ||
-                            pendingRole === "name-search" ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                                Loading…
-                              </>
-                            ) : (
-                              "Via Name Search"
-                            )}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="lg"
-                            variant="outline"
-                            className="register-toggle-btn w-full"
-                            disabled={entryBusy || submitting}
-                            onClick={() => void handleAsNewPlayer()}
-                          >
-                            {pendingEntryAction === "as-new-player" ||
-                            pendingRole === "new-player" ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                                Loading…
-                              </>
-                            ) : (
-                              "As New Player"
-                            )}
-                          </Button>
-                        </div>
-                        <p className="caption text-center text-muted-foreground">
-                          Use your saved QR, find your name, or register as a new player.
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </>
-              )
-            ) : role === "upload-qr" ? (
+            {role === "upload-qr" ? (
               <UploadQrIdFlow
                 gameId={gameId}
                 formVariant={formVariant}

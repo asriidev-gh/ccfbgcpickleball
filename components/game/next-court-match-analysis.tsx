@@ -39,7 +39,6 @@ const BALANCED_AUTO_COLLAPSE_MS = 3000;
 
 type NextCourtMatchAnalysisProps = {
   foursome: QueueEntryView[];
-  naturalFoursome?: QueueEntryView[];
   waitingLine?: QueueEntryView[];
   queue?: QueueEntryView[];
   matchingType?: QuickPlayMatchingType | null;
@@ -49,8 +48,6 @@ type NextCourtMatchAnalysisProps = {
   shufflePending?: boolean;
   onSwapWaiting?: () => void;
   swapWaitingPending?: boolean;
-  /** Operator chose this lineup (replace / Accept). Skip auto-adjust prompts. */
-  manualLineup?: boolean;
   onAcceptLineup?: () => void;
   maxVisible?: number;
   className?: string;
@@ -83,7 +80,6 @@ function nextCourtFoursomeKey(foursome: QueueEntryView[]) {
 
 export function NextCourtMatchAnalysis({
   foursome,
-  naturalFoursome,
   waitingLine,
   queue = [],
   matchingType = null,
@@ -93,7 +89,6 @@ export function NextCourtMatchAnalysis({
   shufflePending = false,
   onSwapWaiting,
   swapWaitingPending = false,
-  manualLineup = false,
   onAcceptLineup,
   maxVisible = 3,
   className,
@@ -118,11 +113,9 @@ export function NextCourtMatchAnalysis({
       computeNextCourtMatchSuggestions(foursome, matches, {
         queue,
         matchingType,
-        naturalFoursome,
         waitingLine,
-        manualLineup,
       }),
-    [foursome, matches, queue, matchingType, naturalFoursome, waitingLine, manualLineup],
+    [foursome, matches, queue, matchingType, waitingLine],
   );
 
   const hasActionableWarnings = suggestions.some((item) => item.tone !== "balanced");
@@ -146,7 +139,6 @@ export function NextCourtMatchAnalysis({
   }, [foursomeKey, isBalanced]);
 
   const queueSwapSuggestion = getQueueSwapSuggestion(suggestions);
-  const manualDecisionRequired = suggestions.some((item) => item.requiresManualDecision);
   const waitingLineSwapAvailable = canSwapWaitingLinePlayers(queue);
   const shuffleOptionalOnly =
     hasActionableWarnings &&
@@ -160,12 +152,10 @@ export function NextCourtMatchAnalysis({
   const showSwap =
     Boolean(onSwapWaiting) &&
     (queueSwapSuggestion != null ||
-      manualDecisionRequired ||
       (waitingLineSwapAvailable &&
         (Boolean(leastBalanceNote) || (shuffleOptionalOnly && suggestions.some((item) => item.suggestsShuffle)))));
   const showShuffle =
     Boolean(onShuffle) &&
-    !manualDecisionRequired &&
     suggestions.some((item) => item.suggestsShuffle) &&
     suggestions.every((item) => item.tone !== "balanced") &&
     (!shuffleExhausted || shuffleOptionalOnly);
@@ -328,19 +318,17 @@ export function NextCourtMatchAnalysis({
           {showFooter ? (
             <div className="next-court-analysis__footer">
               <p className="next-court-analysis__footer-hint">
-                {manualDecisionRequired
-                  ? "Accept this lineup, or replace / swap waiting players yourself. Auto-adjust will not override a lineup you keep."
-                  : showBothActions
-                    ? "Shuffle partners, swap in waiting players (5th and 6th), or accept to keep this lineup."
-                    : showSwap
-                      ? "Swap in waiting players, or accept to keep this lineup."
-                      : shuffleExhausted
-                        ? shuffleOptionalOnly
-                          ? "Shuffle is optional, or accept to keep this lineup."
-                          : "Accept to proceed with this lineup."
-                        : shuffleOptionalOnly
-                          ? "Shuffle is optional, or accept to keep this lineup."
-                          : "Shuffle finds the best balance once, or accept to keep this lineup."}
+                {showBothActions
+                  ? "Shuffle partners, swap in waiting players (5th and 6th), or accept to keep this lineup."
+                  : showSwap
+                    ? "Swap in waiting players, or accept to keep this lineup."
+                    : shuffleExhausted
+                      ? shuffleOptionalOnly
+                        ? "Shuffle is optional, or accept to keep this lineup."
+                        : "Accept to proceed with this lineup."
+                      : shuffleOptionalOnly
+                        ? "Shuffle is optional, or accept to keep this lineup."
+                        : "Shuffle finds the best balance once, or accept to keep this lineup."}
               </p>
               <div className="next-court-analysis__actions">
                 <Button

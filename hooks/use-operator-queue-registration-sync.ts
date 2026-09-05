@@ -4,7 +4,7 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { fetchOrganizerNotifications } from "@/lib/fetch-organizer-notifications";
-import { OPERATOR_QUEUE_LIVE_POLL_MS } from "@/lib/spectator-polling";
+import { OPERATOR_NOTIFICATIONS_POLL_MS } from "@/lib/spectator-polling";
 
 type QueueQuery = Pick<UseQueryResult<unknown>, "refetch">;
 type DetailsQuery = Pick<UseQueryResult<unknown>, "refetch">;
@@ -25,7 +25,7 @@ export function useOperatorQueueRegistrationSync(input: {
     queryKey: ["game", input.gameId, "notifications"],
     queryFn: () => fetchOrganizerNotifications(input.gameId),
     enabled: input.enabled && Boolean(input.gameId),
-    refetchInterval: OPERATOR_QUEUE_LIVE_POLL_MS,
+    refetchInterval: OPERATOR_NOTIFICATIONS_POLL_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false,
   });

@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
     ...(lanHost ? [lanHost] : []),
     "192.168.1.100",
     "192.168.100.5",
+    "192.168.100.17",
   ],
 };
 

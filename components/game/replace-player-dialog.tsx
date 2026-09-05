@@ -8,6 +8,7 @@ import type { PlayerPhotoRef } from "@/components/game/player-avatar";
 import { PlayerGenderPill } from "@/components/game/player-gender-pill";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { isLockedInEntry } from "@/lib/lock-in-groups-shared";
 import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
 import {
   Dialog,
@@ -98,7 +99,20 @@ export function ReplacePlayerDialog({
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const isCourtReplace = state?.kind === "court";
-  const candidateEntries = isCourtReplace ? courtReplaceEntries : waitingEntries;
+  const sourceEntries = isCourtReplace ? courtReplaceEntries : waitingEntries;
+  const candidateEntries = sourceEntries.filter((entry) => !isLockedInEntry(entry));
+
+  const resolveCandidateQueueIndex = (entry: QueueEntryView) => {
+    if (resolveTargetIndex) {
+      const resolved = resolveTargetIndex(entry);
+      if (resolved >= 0) return resolved;
+    }
+    if (isCourtReplace) {
+      return courtReplaceEntries.findIndex((row) => row._id === entry._id);
+    }
+    const waitingIndex = waitingEntries.findIndex((row) => row._id === entry._id);
+    return waitingIndex >= 0 ? nextUpCount + waitingIndex : -1;
+  };
 
   useEffect(() => {
     if (open) setSelectedOffset(0);
@@ -111,11 +125,7 @@ export function ReplacePlayerDialog({
   }, [open, selectedOffset, candidateEntries.length]);
 
   const selectedEntry = candidateEntries[selectedOffset];
-  const selectedTargetIndex = isCourtReplace
-    ? selectedOffset
-    : selectedEntry && resolveTargetIndex
-      ? resolveTargetIndex(selectedEntry)
-      : nextUpCount + selectedOffset;
+  const selectedTargetIndex = selectedEntry ? resolveCandidateQueueIndex(selectedEntry) : -1;
 
   const goNext = () => {
     if (candidateEntries.length === 0) return;
@@ -166,8 +176,8 @@ export function ReplacePlayerDialog({
           {candidateEntries.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {isCourtReplace
-                ? "No players in the queue to replace with."
-                : "Not enough players in the waiting line to replace."}
+                ? "No available players in the queue to replace with. Locked-in partners stay together."
+                : "No available players in the waiting line to replace with. Locked-in partners stay together."}
             </p>
           ) : (
             <>
@@ -176,11 +186,7 @@ export function ReplacePlayerDialog({
               </p>
               <ul className="replace-player-dialog-list max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-muted/25 p-2">
                 {candidateEntries.map((entry, offset) => {
-                  const queuePosition = isCourtReplace
-                    ? offset + 1
-                    : resolveTargetIndex
-                      ? resolveTargetIndex(entry) + 1
-                      : nextUpCount + offset + 1;
+                  const queuePosition = resolveCandidateQueueIndex(entry) + 1;
                   const isSelected = offset === selectedOffset;
                   return (
                     <li key={entry._id}>
@@ -276,7 +282,7 @@ export function ReplacePlayerDialog({
             <Button
               type="button"
               className="h-9 w-full shrink-0 px-4 sm:w-auto sm:min-w-[7.75rem]"
-              disabled={!state || !selectedEntry}
+              disabled={!state || !selectedEntry || selectedTargetIndex < 0}
               onClick={() => {
                 if (!state || !selectedEntry) return;
                 if (state.kind === "queue") {

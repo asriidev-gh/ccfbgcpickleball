@@ -1,5 +1,5 @@
-import { ChartColumn, CircleX, Clock, Lock, Share2, Trophy } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChartColumn, CircleX, Clock, Share2, Trophy } from "lucide-react";
+import { memo, type ReactNode } from "react";
 
 import { formatRelativeTimeForCard } from "@/lib/format-relative-time";
 
@@ -9,6 +9,7 @@ import {
   resolvePlayerId,
   type PlayerPhotoRef,
 } from "@/components/game/player-avatar";
+import { LockInGroupBadge } from "@/components/game/lock-in-group-badge";
 import { PlayerEndorsementStatusBadge } from "@/components/game/player-endorsement-status-badge";
 import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-menu";
 import { UndefeatedBadge } from "@/components/game/undefeated-badge";
@@ -28,7 +29,7 @@ export type QueueEntryView = {
   playerId: PlayerPhotoRef;
   registeredAt: string;
   lastMatchResult: "win" | "loss" | "none";
-  /** Durable lock-in group — members stay adjacent in the queue. */
+  /** Durable lock-in pair — members stay partners in the queue. */
   lockInGroupId?: string | null;
   /** Set when the player checked out of the waiting queue. */
   checkedOutAt?: string;
@@ -430,7 +431,44 @@ type QueueEntryRowProps = {
   hideActions?: boolean;
 };
 
-export function QueueEntryRow({
+function queueEntryRowPropsAreEqual(
+  prev: QueueEntryRowProps,
+  next: QueueEntryRowProps,
+) {
+  return (
+    prev.entry === next.entry &&
+    prev.index === next.index &&
+    prev.isNextUp === next.isNextUp &&
+    prev.canReplace === next.canReplace &&
+    prev.replacePending === next.replacePending &&
+    prev.hideReplacePanel === next.hideReplacePanel &&
+    prev.removePending === next.removePending &&
+    prev.removePlayerPending === next.removePlayerPending &&
+    prev.checkedOut === next.checkedOut &&
+    prev.checkBackInPending === next.checkBackInPending &&
+    prev.highlighted === next.highlighted &&
+    prev.inWaitingLine === next.inWaitingLine &&
+    prev.compactName === next.compactName &&
+    prev.compactView === next.compactView &&
+    prev.hideSessionStats === next.hideSessionStats &&
+    prev.showSessionRecordBelowName === next.showSessionRecordBelowName &&
+    prev.showSessionRecordInPillSlot === next.showSessionRecordInPillSlot &&
+    prev.gameId === next.gameId &&
+    prev.allowCheckInAsPlayer === next.allowCheckInAsPlayer &&
+    prev.showLeaderboardRank === next.showLeaderboardRank &&
+    prev.leaderboardRankMap === next.leaderboardRankMap &&
+    prev.showCardSharedStatus === next.showCardSharedStatus &&
+    prev.showEndorsementStatus === next.showEndorsementStatus &&
+    prev.showEndorsementInPlayerLabel === next.showEndorsementInPlayerLabel &&
+    prev.endorsementCount === next.endorsementCount &&
+    prev.hideActions === next.hideActions &&
+    prev.dragHandle === next.dragHandle &&
+    prev.shareAction === next.shareAction &&
+    prev.endorseAction === next.endorseAction
+  );
+}
+
+export const QueueEntryRow = memo(function QueueEntryRow({
   entry,
   index,
   isNextUp,
@@ -599,16 +637,7 @@ export function QueueEntryRow({
                   onClick={onEndorsementClick}
                 />
               ) : null}
-              {entry.lockInGroupId ? (
-                <Badge
-                  variant="outline"
-                  className="gap-1 text-[10px] font-medium"
-                  title="Lock-in group"
-                >
-                  <Lock className="h-3 w-3" aria-hidden />
-                  Lock-in
-                </Badge>
-              ) : null}
+              {entry.lockInGroupId ? <LockInGroupBadge groupId={entry.lockInGroupId} /> : null}
               {sharedBadge}
               {endorsedBadge}
               {undefeatedBadge}
@@ -672,16 +701,7 @@ export function QueueEntryRow({
             onClick={onEndorsementClick}
           />
         ) : null}
-        {entry.lockInGroupId ? (
-          <Badge
-            variant="outline"
-            className="gap-1 text-[10px] font-medium"
-            title="Lock-in group"
-          >
-            <Lock className="h-3 w-3" aria-hidden />
-            Lock-in
-          </Badge>
-        ) : null}
+        {entry.lockInGroupId ? <LockInGroupBadge groupId={entry.lockInGroupId} /> : null}
       </>
     );
 
@@ -708,27 +728,29 @@ export function QueueEntryRow({
             />
           </div>
           {profileLayout ? (
-            <>
-              <div className="queue-next-up-card__identity">
-                {dragHandle}
-                <div className="queue-next-up-card__copy min-w-0 flex-1">
-                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    {nameNode}
-                    {identityBadges}
-                    {sharedBadge}
-                    {endorsedBadge}
-                    {undefeatedBadge}
+            <div className="queue-next-up-card__body queue-next-up-card__body--profile">
+              <div className="queue-next-up-card__header">
+                <div className="queue-next-up-card__identity">
+                  {dragHandle}
+                  <div className="queue-next-up-card__copy min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      {nameNode}
+                      {identityBadges}
+                      {sharedBadge}
+                      {endorsedBadge}
+                      {undefeatedBadge}
+                    </div>
                   </div>
-                  {!hideSessionStats ? (
-                    <NextOnCourtStatTiles
-                      wins={sessionStats.wins}
-                      losses={sessionStats.losses}
-                    />
-                  ) : null}
                 </div>
+                {nextUpActions}
               </div>
-              {nextUpActions}
-            </>
+              {!hideSessionStats ? (
+                <NextOnCourtStatTiles
+                  wins={sessionStats.wins}
+                  losses={sessionStats.losses}
+                />
+              ) : null}
+            </div>
           ) : (
             <div className="queue-next-up-card__body">
               <div className="queue-next-up-card__identity">
@@ -815,16 +837,7 @@ export function QueueEntryRow({
                     onClick={onEndorsementClick}
                   />
                 ) : null}
-                {entry.lockInGroupId ? (
-                  <Badge
-                    variant="outline"
-                    className="gap-1 text-[10px] font-medium"
-                    title="Lock-in group"
-                  >
-                    <Lock className="h-3 w-3" aria-hidden />
-                    Lock-in
-                  </Badge>
-                ) : null}
+                {entry.lockInGroupId ? <LockInGroupBadge groupId={entry.lockInGroupId} /> : null}
               </div>
               {!checkedOut && !hideSessionStats && !inWaitingLine ? (
                 <QueueEntrySessionStatsRow
@@ -960,4 +973,4 @@ export function QueueEntryRow({
       ) : null}
     </div>
   );
-}
+}, queueEntryRowPropsAreEqual);

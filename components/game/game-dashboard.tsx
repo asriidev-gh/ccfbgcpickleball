@@ -64,6 +64,7 @@ import {
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
 import { resolvePlayerId } from "@/lib/resolve-player-id";
+import { hasLockInPair, playerIdsIncludeLockInPair } from "@/lib/lock-in-groups-shared";
 import { useAccountQuickGameCheckpoint } from "@/hooks/use-account-quick-game-checkpoint";
 import { useAuthMe } from "@/hooks/use-auth-me";
 import { useHydrateOperatorDashboardSessionCache } from "@/hooks/use-hydrate-operator-dashboard-session-cache";
@@ -105,7 +106,11 @@ import { SpectatorPlayerEndorseButton } from "@/components/game/spectator-player
 import { SpectatePlayerEndorseDialog } from "@/components/player/spectate-player-endorse-dialog";
 import { SpectatePlayerEndorsementsListDialog } from "@/components/player/spectate-player-endorsements-list-dialog";
 import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
-import { LockInPlayersDialog } from "@/components/game/lock-in-players-dialog";
+import {
+  fetchLockInGroups,
+  LockInPlayersDialog,
+  lockInGroupsQueryKey,
+} from "@/components/game/lock-in-players-dialog";
 import { databaseCheckInPlayersQueryKey } from "@/lib/operator-database-check-in-shared";
 import { AddCourtButton } from "@/components/game/add-court-button";
 import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
@@ -121,7 +126,6 @@ import { formatOpenPlayDate, formatOpenPlayScheduleLabel, formatVenueShareLabel 
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
 import { NextCourtMatchAnalysis } from "@/components/game/next-court-match-analysis";
 import {
-  applyRepeatLastMatchFoursomeAdjustment,
   buildQueueNextCourtWaitingSwapOrder,
   buildQueueOrderAfterNextCourtReplace,
   buildQueueOrderWithNextCourtFoursome,
@@ -246,7 +250,6 @@ import {
 import { SPECTATOR_LIVE_POLL_MS } from "@/lib/spectator-polling";
 import {
   operatorMatchHistoryQueryOptions,
-  OPERATOR_QUEUE_STALE_TIME_MS,
   operatorQueueLiveRefetchInterval,
   operatorQueueQueryOptions,
   operatorShellQueryOptions,
@@ -742,7 +745,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
   const operatorQueueQuery = useQuery({
     queryKey: operatorQueueQueryKey(gameId),
-    queryFn: () => fetchOperatorQueue(gameId),
+    queryFn: () =>
+      fetchOperatorQueue(
+        gameId,
+        queryClient.getQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId)),
+      ),
     enabled: !!gameId && operatorCanLoadData,
     ...operatorQueueQueryOptions,
     refetchInterval: (query) => {
@@ -2068,10 +2075,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         : dedupedQueue,
     [dedupedQueue, matchingType, usesWinnerLoserRotation],
   );
-  const applyOnDeckRepeatLastMatchFilter =
-    !isSpectator &&
-    isDoublesMatchupAnalysisMatchingType(matchingType, data?.game?.gameMode) &&
-    !usesWinnerLoserRotation;
   const naturalCourtFoursome = useMemo(() => {
     if (dedupedQueue.length === 0) return null;
     const foursome = pickDoublesCourtFoursome(dedupedQueue, matchingType);
@@ -2081,44 +2084,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       .map((entry) => byId.get(entry._id))
       .filter((entry): entry is (typeof queueWithStats)[number] => entry != null);
   }, [dedupedQueue, matchingType, queueWithStats]);
-  const onCourtWaitingLine = useMemo(() => {
-    if (!naturalCourtFoursome) return [];
-    const naturalIds = new Set(naturalCourtFoursome.map((entry) => entry._id));
-    return queueWithStats.filter((entry) => !naturalIds.has(entry._id));
-  }, [naturalCourtFoursome, queueWithStats]);
   const nextCourtFoursome = useMemo(() => {
     if (!naturalCourtFoursome) return null;
-    const adjusted =
-      !applyOnDeckRepeatLastMatchFilter || (data?.matches ?? []).length === 0
-        ? naturalCourtFoursome
-        : applyRepeatLastMatchFoursomeAdjustment(
-            naturalCourtFoursome,
-            onCourtWaitingLine,
-            data?.matches ?? [],
-          );
-
     if (nextCourtLockEntryKey) {
       const locked = resolveLockedNextCourtFoursome(queueWithStats, nextCourtLockEntryKey);
-      if (locked) {
-        const lockedKey = nextCourtOrderedEntryKey(locked);
-        const naturalKey = nextCourtOrderedEntryKey(naturalCourtFoursome);
-        const adjustedKey = nextCourtOrderedEntryKey(adjusted);
-        // An earlier auto-lock froze the rematch four before we could split it.
-        if (lockedKey === naturalKey && adjustedKey !== naturalKey) {
-          return adjusted;
-        }
-        return locked;
-      }
+      if (locked) return locked;
     }
-    return adjusted;
-  }, [
-    applyOnDeckRepeatLastMatchFilter,
-    data?.matches,
-    naturalCourtFoursome,
-    nextCourtLockEntryKey,
-    onCourtWaitingLine,
-    queueWithStats,
-  ]);
+    return naturalCourtFoursome;
+  }, [naturalCourtFoursome, nextCourtLockEntryKey, queueWithStats]);
   const nextCourtFoursomeIds = useMemo(
     () => new Set(nextCourtFoursome?.map((entry) => entry._id) ?? []),
     [nextCourtFoursome],
@@ -2159,43 +2132,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     [queueWithStats, nextCourtFoursomeIds],
   );
 
-  const nextCourtMatchHistoryReady =
-    isQuickGameSession ||
-    !operatorMatchHistoryEnabled ||
-    operatorMatchHistoryQuery.isFetched ||
-    operatorMatchHistoryQuery.isError ||
-    (data?.matches?.length ?? 0) > 0;
-
   useEffect(() => {
-    if (nextCourtLockEntryKey) {
-      const lockedIds = nextCourtLockEntryKey.split("|").filter(Boolean);
-      if (lockedIds.length === 0) return;
-      const queuedIds = new Set(queueWithStats.map((entry) => entry._id));
-      if (lockedIds.some((id) => !queuedIds.has(id))) {
-        setNextCourtLockEntryKey(null);
-        return;
-      }
-      if (
-        nextCourtFoursome &&
-        nextCourtFoursome.length === DOUBLES_PLAYERS_PER_COURT &&
-        nextCourtOrderedEntryKey(nextCourtFoursome) !== nextCourtLockEntryKey
-      ) {
-        setNextCourtLockEntryKey(nextCourtOrderedEntryKey(nextCourtFoursome));
-      }
-      return;
+    if (!nextCourtLockEntryKey) return;
+    const lockedIds = nextCourtLockEntryKey.split("|").filter(Boolean);
+    if (lockedIds.length === 0) return;
+    const queuedIds = new Set(queueWithStats.map((entry) => entry._id));
+    if (lockedIds.some((id) => !queuedIds.has(id))) {
+      setNextCourtLockEntryKey(null);
     }
-
-    if (!applyOnDeckRepeatLastMatchFilter) return;
-    if (!nextCourtMatchHistoryReady) return;
-    if (!nextCourtFoursome || nextCourtFoursome.length !== DOUBLES_PLAYERS_PER_COURT) return;
-    setNextCourtLockEntryKey(nextCourtOrderedEntryKey(nextCourtFoursome));
-  }, [
-    applyOnDeckRepeatLastMatchFilter,
-    nextCourtFoursome,
-    nextCourtLockEntryKey,
-    nextCourtMatchHistoryReady,
-    queueWithStats,
-  ]);
+  }, [nextCourtLockEntryKey, queueWithStats]);
 
   const lockNextCourtFoursome = useCallback((foursome: QueueEntryView[]) => {
     if (foursome.length !== DOUBLES_PLAYERS_PER_COURT) return;
@@ -2241,6 +2186,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     [checkedOutWithStats, data?.courts, queueWithStats],
   );
 
+  const lockInGroupsQuery = useQuery({
+    queryKey: lockInGroupsQueryKey(gameId),
+    queryFn: () => fetchLockInGroups(gameId),
+    enabled: Boolean(gameId) && operatorCanLoadData && !isSpectator && !isQuickGameSession,
+  });
+
   const lockInCandidates = useMemo(() => {
     const byId = new Map<
       string,
@@ -2281,7 +2232,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           photoUrl: player.photoUrl,
           photoPublicId: player.photoPublicId,
           statusLabel: "On court",
-          lockInGroupId: null,
+          lockInGroupId: lockInGroupsQuery.data?.groups.find((group) =>
+            group.players.some((member) => member.id === id),
+          )?.groupId ?? null,
         });
       }
     }
@@ -2289,7 +2242,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     return [...byId.values()].sort((a, b) =>
       `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
     );
-  }, [data?.courts, queueWithStats]);
+  }, [data?.courts, lockInGroupsQuery.data?.groups, queueWithStats]);
 
   const lockInGroupIdByEntryId = useMemo(() => {
     const map = new Map<string, string | null | undefined>();
@@ -2298,6 +2251,30 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     }
     return map;
   }, [queueDisplayEntries]);
+  const lockInGroupIdByPlayerId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const entry of queueWithStats) {
+      const playerId = resolvePlayerId(entry.playerId);
+      if (playerId && entry.lockInGroupId) map.set(playerId, entry.lockInGroupId);
+    }
+    for (const group of lockInGroupsQuery.data?.groups ?? []) {
+      for (const player of group.players) {
+        map.set(player.id, group.groupId);
+      }
+    }
+    return map;
+  }, [lockInGroupsQuery.data?.groups, queueWithStats]);
+  const nextCourtHasLockInPair = hasLockInPair(nextCourtFoursome ?? []);
+  const courtHasLockInPair = useCallback(
+    (court: CourtView) =>
+      playerIdsIncludeLockInPair(
+        [...(court.teamA?.playerIds ?? []), ...(court.teamB?.playerIds ?? [])].map((player) =>
+          resolvePlayerId(player),
+        ),
+        lockInGroupIdByPlayerId,
+      ),
+    [lockInGroupIdByPlayerId],
+  );
 
   /** Re-read on every queue update so highlight never drops after refetch or reorder. */
   const selfHighlightPlayerId = useMemo(
@@ -2340,16 +2317,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     ...spectatorEndorsementQueryOptions,
     refetchInterval: () => {
       if (!showLiveEndorsements) return false;
-      return isSpectator ? SPECTATOR_LIVE_POLL_MS : OPERATOR_QUEUE_STALE_TIME_MS;
+      return isSpectator ? SPECTATOR_LIVE_POLL_MS : 60_000;
     },
   });
-  const { data: shareCardClubBranding } = useQuery({
-    queryKey: spectatorLiveQueryKey(gameId),
-    queryFn: () => fetchSpectateGame(gameId, "live"),
-    select: (live) => live.clubBranding ?? null,
-    enabled: Boolean(gameId) && !isSpectator && !isQuickGameSession,
-    ...spectatorLiveQueryOptions,
-  });
+  const shareCardClubBranding = isSpectator
+    ? spectatorLiveQuery.data?.clubBranding ?? null
+    : operatorShellQuery.data?.clubBranding ?? null;
 
   useEffect(() => {
     if (!data?.courts) return;
@@ -2361,11 +2334,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       ),
     );
   }, [data?.courts]);
-
-  useEffect(() => {
-    if (!gameId || isSpectator || isQuickGameSession) return;
-    prefetchLeaderboardRecap(queryClient, gameId, false);
-  }, [gameId, isSpectator, isQuickGameSession, queryClient]);
 
   useEffect(() => {
     if (!uiPrefsHydrated || isLgViewport === null || !gameId || !data?.queue?.length) {
@@ -2798,7 +2766,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         allowCheckInAsPlayer={!isQuickGameSession}
         isNextUp={isNextUp}
         inWaitingLine={!isNextUp}
-        canReplace={!hideControls && isNextUp && waitingLineEntries.length > 0}
+        canReplace={
+          !hideControls &&
+          isNextUp &&
+          !nextCourtHasLockInPair &&
+          waitingLineEntries.some((waitingEntry) => !waitingEntry.lockInGroupId)
+        }
         onReplace={
           hideControls
             ? () => {}
@@ -3127,8 +3100,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                   {showNextCourtAnalysis && nextCourtFoursome ? (
                     <NextCourtMatchAnalysis
                       foursome={nextCourtFoursome}
-                      naturalFoursome={naturalCourtFoursome ?? undefined}
-                      waitingLine={onCourtWaitingLine}
+                      waitingLine={waitingLineEntries}
                       queue={matchupAnalysisQueue}
                       matchingType={matchingType}
                       matches={matches}
@@ -3138,14 +3110,17 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                         !operatorMatchHistoryQuery.data
                       }
                       onShuffle={
-                        canReorderQueue
+                        canReorderQueue && !nextCourtHasLockInPair
                           ? () => void shuffleNextMutation.mutateAsync(nextCourtFoursome ?? undefined)
                           : undefined
                       }
                       shufflePending={shuffleNextMutation.isPending}
-                      onSwapWaiting={canReorderQueue ? handleFillCourtQueueSwap : undefined}
+                      onSwapWaiting={
+                        canReorderQueue && !nextCourtHasLockInPair
+                          ? handleFillCourtQueueSwap
+                          : undefined
+                      }
                       swapWaitingPending={reorderQueueMutation.isPending}
-                      manualLineup={Boolean(nextCourtLockEntryKey)}
                       onAcceptLineup={
                         nextCourtFoursome
                           ? () => persistAndLockNextCourt(nextCourtFoursome)
@@ -3161,7 +3136,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                     compactName={compactQueue}
                     compactView={nextOnCourtDensity === "compact"}
                     onShuffle={
-                      canReorderQueue
+                      canReorderQueue && !nextCourtHasLockInPair
                         ? () => void shuffleNextMutation.mutateAsync(nextCourtFoursome ?? undefined)
                         : undefined
                     }
@@ -3461,10 +3436,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             court={court}
             playerSessionStats={playerSessionStats}
             canReplacePlayers={
-              !hideControls && court.status === "active" && queueWithStats.length > 0
+              !hideControls &&
+              court.status === "active" &&
+              !courtHasLockInPair(court) &&
+              queueWithStats.some((queuedEntry) => !queuedEntry.lockInGroupId)
             }
             onReplacePlayer={
-              hideControls
+              hideControls || courtHasLockInPair(court)
                 ? undefined
                 : ({ courtNumber, team, slotIndex, player }) =>
                     setReplaceDialog({
@@ -3483,7 +3461,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 : () => openEndGameDialog(court.courtNumber)
             }
             onSwapTeams={
-              hideControls
+              hideControls || courtHasLockInPair(court)
                 ? undefined
                 : () => {
                     swapCourtMutation.mutate(court.courtNumber);

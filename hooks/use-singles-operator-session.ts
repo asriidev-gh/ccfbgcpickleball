@@ -16,7 +16,11 @@ import {
 } from "@/lib/fetch-operator-game";
 import { isQuickGame } from "@/lib/local-game-id";
 import { mergeOperatorGamePayload } from "@/lib/operator-payload";
-import type { OperatorFullPayload, OperatorShellPayload } from "@/lib/operator-payload";
+import type {
+  OperatorFullPayload,
+  OperatorQueuePayload,
+  OperatorShellPayload,
+} from "@/lib/operator-payload";
 import {
   operatorDetailsQueryOptions,
   operatorQueueLiveRefetchInterval,
@@ -65,7 +69,11 @@ export function useSinglesOperatorSession(gameId: string) {
 
   const operatorQueueQuery = useQuery({
     queryKey: operatorQueueQueryKey(gameId),
-    queryFn: () => fetchOperatorQueue(gameId),
+    queryFn: () =>
+      fetchOperatorQueue(
+        gameId,
+        queryClient.getQueryData<OperatorQueuePayload>(operatorQueueQueryKey(gameId)),
+      ),
     enabled: Boolean(gameId) && operatorCanLoadData,
     ...operatorQueueQueryOptions,
     refetchInterval: (query) =>

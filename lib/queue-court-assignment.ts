@@ -1,6 +1,7 @@
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { Types } from "mongoose";
 import { randomMixedDoublesTeamSplit } from "@/lib/doubles/mixed-doubles-shuffle";
+import { keepLockInPartnersTogether, lockInPairsOccupyPartnerSlots } from "@/lib/lock-in-groups-shared";
 import { pickDoublesCourtFoursome } from "@/lib/doubles/doubles-queue-fill";
 import {
   type GameFormatSettings,
@@ -17,6 +18,7 @@ export type QueueEntryLike = {
   registeredAt?: Date | string;
   lastMatchResult?: QueueEntryView["lastMatchResult"];
   winStreak?: number;
+  lockInGroupId?: string | null;
 };
 
 export function toQueueEntryViewForPick(entry: QueueEntryLike): QueueEntryView {
@@ -43,6 +45,7 @@ export function toQueueEntryViewForPick(entry: QueueEntryLike): QueueEntryView {
           ? entry.registeredAt
           : new Date().toISOString(),
     lastMatchResult: entry.lastMatchResult ?? "none",
+    lockInGroupId: entry.lockInGroupId ?? null,
   };
 }
 
@@ -99,6 +102,16 @@ export function assignCourtTeams<T extends QueueEntryLike>(
       .filter((entry): entry is T => entry != null);
 
     if (teamA.length !== 2 || teamB.length !== 2) return null;
+    if (
+      !lockInPairsOccupyPartnerSlots([...teamA, ...teamB], (entry) => entry.lockInGroupId)
+    ) {
+      const aligned = keepLockInPartnersTogether(picked, (entry) => entry.lockInGroupId);
+      return {
+        picked,
+        teamA: aligned.slice(0, 2),
+        teamB: aligned.slice(2, 4),
+      };
+    }
     return { picked, teamA, teamB };
   }
 

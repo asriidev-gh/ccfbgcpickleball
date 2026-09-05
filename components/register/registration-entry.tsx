@@ -11,10 +11,9 @@ import {
   getRegistrationBlockedMessage,
   promptIfRegistrationFullFromStatus,
 } from "@/components/game/registration-capacity-prompt";
+import { CheckInLanding, CheckInPageShell } from "@/components/register/check-in-landing";
 import { useNavigateToSpectate } from "@/components/register/use-navigate-to-spectate";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import type { GameRegistrationStatus } from "@/lib/game-registration-limit";
 import { getActiveQueueHighlightPlayerIds } from "@/lib/queue-highlight";
 import { isQrIdRegistrationEnabled } from "@/lib/registration-feature";
@@ -264,63 +263,51 @@ export function RegistrationEntry({
 
   if (checkedInGate === "unknown") {
     return (
-      <main className="register-page">
-        <section className="register-shell">
-          <div
-            className="register-card flex min-h-[12rem] items-center justify-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-sm"
-            role="status"
-            aria-live="polite"
-          >
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-            Opening registration…
-          </div>
-        </section>
-      </main>
+      <CheckInPageShell title="Opening…" sessionLoading>
+        <div
+          className="flex min-h-[10rem] flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+          Opening registration…
+        </div>
+      </CheckInPageShell>
     );
   }
 
   if (checkedInGate === "yes") {
     return (
-      <main className="register-page">
-        <section className="register-shell">
-          <Card className="register-card border border-border bg-card shadow-sm">
-            <CardHeader className="register-card-header">
-              <div className="min-w-0">
-                <CardTitle className="section-title">Already checked in</CardTitle>
-                {registrationStatus?.gameTitle ? (
-                  <p className="caption mt-1 text-muted-foreground">
-                    {registrationStatus.gameTitle}
-                  </p>
-                ) : null}
-              </div>
-            </CardHeader>
-            <CardContent className="register-form-compact space-y-4">
-              <p className="text-sm text-muted-foreground">
-                You are already checked in for this session.
-              </p>
-              <Button
-                type="button"
-                size="lg"
-                className="register-submit w-full"
-                disabled={navigatingToSpectate}
-                onClick={() => void navigateToSpectate()}
-              >
-                {navigatingToSpectate ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
-                    Loading queue…
-                  </>
-                ) : (
-                  <>
-                    <Eye className="mr-2 h-5 w-5" aria-hidden />
-                    Go back to Game
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
-      </main>
+      <CheckInPageShell
+        title="You’re already in"
+        sessionTitle={registrationStatus?.gameTitle}
+        sessionLoading={statusLoading && !registrationStatus}
+        clubBranding={registrationStatus?.clubBranding}
+        showClubMark
+      >
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          You are already checked in for this session. Head back to the live queue anytime.
+        </p>
+        <Button
+          type="button"
+          size="lg"
+          className="register-submit w-full"
+          disabled={navigatingToSpectate}
+          onClick={() => void navigateToSpectate()}
+        >
+          {navigatingToSpectate ? (
+            <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" aria-hidden />
+              Loading queue…
+            </>
+          ) : (
+            <>
+              <Eye className="mr-2 h-5 w-5" aria-hidden />
+              Go back to game
+            </>
+          )}
+        </Button>
+      </CheckInPageShell>
     );
   }
 
@@ -350,266 +337,57 @@ export function RegistrationEntry({
 
   if (skipToUpload && statusLoading) {
     return (
-      <main className="register-page">
-        <section className="register-shell">
-          <div
-            className="register-card flex min-h-[12rem] items-center justify-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-sm"
-            role="status"
-            aria-live="polite"
-          >
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-            Opening registration…
-          </div>
-        </section>
-      </main>
+      <CheckInPageShell title="Opening…" sessionLoading>
+        <div
+          className="flex min-h-[10rem] flex-1 items-center justify-center gap-2 text-sm text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+          Opening registration…
+        </div>
+      </CheckInPageShell>
     );
   }
 
   if (statusError && !registrationStatus) {
     return (
-      <main className="register-page">
-        <section className="register-shell">
-          <Card className="register-card border border-border bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle className="section-title">Registration unavailable</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">{statusError}</p>
-              <Button type="button" className="w-full" onClick={() => router.refresh()}>
-                Try again
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
-      </main>
+      <CheckInPageShell title="Registration unavailable">
+        <p className="text-sm leading-relaxed text-muted-foreground">{statusError}</p>
+        <Button type="button" className="w-full" onClick={() => router.refresh()}>
+          Try again
+        </Button>
+      </CheckInPageShell>
     );
   }
 
   return (
-    <main className="register-page">
-      <section className="register-shell">
-        <Card className="register-card border border-border bg-card shadow-sm">
-          <CardHeader className="register-card-header">
-            <div className="min-w-0">
-              <CardTitle className="section-title">Check In</CardTitle>
-              {registrationStatus?.gameTitle ? (
-                <p className="caption mt-1 text-muted-foreground">
-                  {registrationStatus.gameTitle}
-                </p>
-              ) : statusLoading ? (
-                <p className="caption mt-1 flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                  Loading session…
-                </p>
-              ) : null}
-            </div>
-          </CardHeader>
-          <CardContent className="register-form-compact">
-            {registrationBlockedMessage ? (
-              <div
-                className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
-                role="alert"
-              >
-                {registrationBlockedMessage}
-              </div>
-            ) : null}
-
-            {entryStep === "role" ? (
-              <div className="register-block">
-                <Label className="register-label">Check In as:</Label>
-                <div className="flex flex-col gap-3">
-                  <Button
-                    type="button"
-                    size="lg"
-                    variant="outline"
-                    className="register-toggle-btn w-full"
-                    disabled={entryBusy || Boolean(registrationBlockedMessage)}
-                    onClick={() => void openHasQrStep("player")}
-                  >
-                    {pendingEntryAction === "player" ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                        Loading…
-                      </>
-                    ) : (
-                      "Player"
-                    )}
-                  </Button>
-                  {!isGenericForm ? (
-                    <Button
-                      type="button"
-                      size="lg"
-                      variant="outline"
-                      className="register-toggle-btn w-full"
-                      disabled={
-                        entryBusy ||
-                        Boolean(registrationBlockedMessage) ||
-                        (statusLoading && !registrationStatus)
-                      }
-                      onClick={() => void openHasQrStep("volunteer")}
-                    >
-                      {pendingEntryAction === "volunteer" ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                          Loading…
-                        </>
-                      ) : (
-                        "Volunteer"
-                      )}
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    size="lg"
-                    variant="outline"
-                    className="register-toggle-btn w-full"
-                    disabled={entryBusy}
-                    onClick={() => void handleSpectator()}
-                  >
-                    {pendingEntryAction === "spectator" || navigatingToSpectate ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                        Opening…
-                      </>
-                    ) : (
-                      "Spectator"
-                    )}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="register-back"
-                  onClick={() => {
-                    setCheckInAs(null);
-                    setEntryStep("role");
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  disabled={entryBusy}
-                >
-                  ← Back
-                </Button>
-
-                <div className="register-block">
-                  <Label className="register-label">
-                    {checkInAs === "volunteer"
-                      ? "Do you have a QR already?"
-                      : "How would you like to check in?"}
-                  </Label>
-                  {checkInAs === "volunteer" ? (
-                    <>
-                      <div className="register-toggle-row">
-                        <Button
-                          type="button"
-                          size="lg"
-                          variant="outline"
-                          className="register-toggle-btn"
-                          disabled={entryBusy || Boolean(registrationBlockedMessage)}
-                          onClick={() => void handleHasQrYes()}
-                        >
-                          {pendingEntryAction === "has-qr-yes" || pendingRole === "upload-qr" ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                              Loading…
-                            </>
-                          ) : (
-                            "Yes"
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="lg"
-                          variant="outline"
-                          className="register-toggle-btn"
-                          disabled={entryBusy || Boolean(registrationBlockedMessage)}
-                          onClick={() => void handleHasQrNo()}
-                        >
-                          {pendingEntryAction === "has-qr-no" || pendingRole === "volunteer" ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                              Loading…
-                            </>
-                          ) : (
-                            "No"
-                          )}
-                        </Button>
-                      </div>
-                      <p className="caption text-center text-muted-foreground">
-                        Choose Yes to check in with your saved QR ID, or No to register as a new
-                        volunteer.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex flex-col gap-3">
-                        <Button
-                          type="button"
-                          size="lg"
-                          variant="outline"
-                          className="register-toggle-btn w-full"
-                          disabled={entryBusy || Boolean(registrationBlockedMessage)}
-                          onClick={() => void handleViaQr()}
-                        >
-                          {pendingEntryAction === "via-qr" || pendingRole === "upload-qr" ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                              Loading…
-                            </>
-                          ) : (
-                            "Via QR"
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="lg"
-                          variant="outline"
-                          className="register-toggle-btn w-full"
-                          disabled={entryBusy || Boolean(registrationBlockedMessage)}
-                          onClick={() => void handleViaNameSearch()}
-                        >
-                          {pendingEntryAction === "via-name-search" ||
-                          pendingRole === "name-search" ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                              Loading…
-                            </>
-                          ) : (
-                            "Via Name Search"
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="lg"
-                          variant="outline"
-                          className="register-toggle-btn w-full"
-                          disabled={entryBusy || Boolean(registrationBlockedMessage)}
-                          onClick={() => void handleAsNewPlayer()}
-                        >
-                          {pendingEntryAction === "as-new-player" ||
-                          pendingRole === "new-player" ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                              Loading…
-                            </>
-                          ) : (
-                            "As New Player"
-                          )}
-                        </Button>
-                      </div>
-                      <p className="caption text-center text-muted-foreground">
-                        Use your saved QR, find your name, or register as a new player.
-                      </p>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-    </main>
+    <CheckInLanding
+      gameTitle={registrationStatus?.gameTitle}
+      clubBranding={registrationStatus?.clubBranding}
+      statusLoading={statusLoading}
+      statusReady={Boolean(registrationStatus)}
+      blockedMessage={registrationBlockedMessage}
+      entryStep={entryStep}
+      checkInAs={checkInAs}
+      isGenericForm={isGenericForm}
+      entryBusy={entryBusy}
+      pendingEntryAction={pendingEntryAction}
+      pendingRole={pendingRole}
+      navigatingToSpectate={navigatingToSpectate}
+      onPlayer={() => void openHasQrStep("player")}
+      onVolunteer={() => void openHasQrStep("volunteer")}
+      onSpectator={() => void handleSpectator()}
+      onBack={() => {
+        setCheckInAs(null);
+        setEntryStep("role");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }}
+      onHasQrYes={() => void handleHasQrYes()}
+      onHasQrNo={() => void handleHasQrNo()}
+      onViaQr={() => void handleViaQr()}
+      onViaNameSearch={() => void handleViaNameSearch()}
+      onAsNewPlayer={() => void handleAsNewPlayer()}
+    />
   );
 }
