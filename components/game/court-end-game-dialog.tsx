@@ -178,7 +178,7 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
 
   return (
     <Dialog open onOpenChange={(nextOpen) => (!nextOpen ? onClose() : undefined)}>
-      <DialogContent className="court-winner-dialog sm:max-w-lg md:max-w-2xl">
+      <DialogContent className="court-winner-dialog sm:max-w-lg md:max-w-3xl">
         <DialogHeader className="court-winner-dialog-header">
           <DialogTitle className="court-winner-dialog-title">
             {pendingWinner
@@ -231,11 +231,16 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
         ) : (
           <div className="court-winner-dialog-body court-winner-score-step flex flex-col gap-5 md:gap-6">
             {winningPlayers.length > 0 ? (
-              <div className="court-winner-winners-panel surface-muted flex flex-col gap-3 rounded-xl border p-4 md:p-5">
+              <div className="court-winner-winners-panel surface-muted flex flex-col gap-3 rounded-xl border p-4 md:gap-4 md:p-5">
                 <p className="court-winner-section-label text-muted-foreground">
                   Winners · Team {pendingWinner}
                 </p>
-                <ul className="flex flex-col gap-2.5 md:gap-3">
+                <ul
+                  className={cn(
+                    "court-winner-winners-grid",
+                    winningPlayers.length === 1 && "court-winner-winners-grid--single",
+                  )}
+                >
                   {winningPlayers.map((player, index) => (
                     <li
                       key={
@@ -243,17 +248,22 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                           ? `${String(player._id)}-${index}`
                           : `${player.firstName}-${player.lastName}-${index}`
                       }
-                      className="flex items-center gap-3"
+                      className="court-winner-winner-card"
                     >
                       <PlayerAvatar
                         player={player}
-                        size="sm"
-                        className="court-winner-player-avatar !size-10 sm:!size-11 md:!size-12"
+                        size="lg"
+                        className="court-winner-winner-avatar"
                       />
-                      <span className="court-winner-player-name inline-flex items-center gap-1.5 font-medium">
-                        {formatPlayerDisplayName(player.firstName, player.lastName)}
-                        <PlayerGenderPill gender={player.gender} birthdate={player.birthdate} />
-                      </span>
+                      <div className="court-winner-winner-copy">
+                        <span className="court-winner-player-name">
+                          {formatPlayerDisplayName(player.firstName, player.lastName)}
+                        </span>
+                        <PlayerGenderPill
+                          gender={player.gender}
+                          birthdate={player.birthdate}
+                        />
+                      </div>
                     </li>
                   ))}
                 </ul>

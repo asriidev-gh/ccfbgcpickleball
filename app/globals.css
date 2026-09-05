@@ -5128,7 +5128,7 @@
   }
 
   .court-winner-dialog {
-    @apply gap-0 overflow-hidden p-0 sm:max-w-lg md:max-w-2xl;
+    @apply gap-0 overflow-hidden p-0 sm:max-w-lg md:max-w-3xl;
   }
 
   .court-winner-dialog-header {
@@ -5164,7 +5164,39 @@
   }
 
   .court-winner-player-name {
-    @apply text-sm md:text-base;
+    @apply min-w-0 text-left text-sm font-medium leading-snug md:text-base;
+  }
+
+  .court-winner-winner-copy .court-winner-player-name {
+    @apply text-base font-semibold md:text-xl;
+  }
+
+  .court-winner-winners-grid {
+    @apply grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4;
+  }
+
+  .court-winner-winners-grid--single {
+    @apply sm:grid-cols-1;
+  }
+
+  .court-winner-winner-card {
+    @apply flex min-w-0 items-center gap-3.5 rounded-xl border border-border/60 bg-background/80 px-3 py-3 md:gap-4 md:px-4 md:py-4;
+  }
+
+  .court-winner-winner-avatar {
+    @apply !size-16 md:!size-20;
+  }
+
+  .court-winner-winner-card [data-slot="avatar-fallback"] {
+    @apply text-base font-semibold md:text-lg;
+  }
+
+  .court-winner-winner-copy {
+    @apply flex min-w-0 flex-1 flex-col items-start gap-1.5;
+  }
+
+  .court-winner-winner-copy .player-gender-pill {
+    @apply px-2 py-0.5 text-[11px] sm:text-xs md:px-2.5 md:text-sm;
   }
 
   .court-winner-section-label {
