@@ -49,12 +49,12 @@ function ReplaceDialogPlayerIdentity({
   name: string;
 }) {
   return (
-      <span className="flex min-w-0 flex-1 items-center gap-1.5">
-      <Avatar size="sm" className="!size-8 shrink-0 sm:!size-8">
+      <span className="replace-player-identity flex min-w-0 flex-1 items-center gap-1.5 md:gap-2.5">
+      <Avatar size="sm" className="replace-player-avatar !size-8 shrink-0">
         <AvatarImage src={resolvePlayerPhotoUrl(player)} alt="" />
-        <AvatarFallback className="text-xs">{playerInitials(player)}</AvatarFallback>
+        <AvatarFallback className="text-xs md:text-sm">{playerInitials(player)}</AvatarFallback>
       </Avatar>
-      <span className="min-w-0 truncate text-sm font-medium">{name}</span>
+      <span className="replace-player-name min-w-0 truncate text-sm font-medium">{name}</span>
       <PlayerGenderPill gender={player.gender} birthdate={player.birthdate} />
     </span>
   );
@@ -156,14 +156,14 @@ export function ReplacePlayerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="replace-player-dialog flex w-full max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="border-b border-border px-5 py-4">
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <ArrowLeftRight className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+      <DialogContent className="replace-player-dialog flex w-full max-w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg md:max-w-3xl">
+        <DialogHeader className="replace-player-dialog-header border-b border-border">
+          <DialogTitle className="replace-player-dialog-title flex items-center gap-2">
+            <ArrowLeftRight className="h-5 w-5 shrink-0 text-primary md:h-6 md:w-6" aria-hidden />
             Replace player
           </DialogTitle>
           {state ? (
-            <p className="caption text-left text-muted-foreground">
+            <p className="replace-player-dialog-copy caption text-left text-muted-foreground">
               Swap <span className="font-medium text-foreground">{sourceName}</span> with someone
               {isCourtReplace
                 ? " from the queue (next on court or waiting line)."
@@ -172,19 +172,19 @@ export function ReplacePlayerDialog({
           ) : null}
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="replace-player-dialog-body min-h-0 flex-1 overflow-y-auto">
           {candidateEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground md:text-base">
               {isCourtReplace
                 ? "No available players in the queue to replace with. Locked-in partners stay together."
                 : "No available players in the waiting line to replace with. Locked-in partners stay together."}
             </p>
           ) : (
             <>
-              <p className="caption mb-2 text-muted-foreground">
+              <p className="replace-player-dialog-label caption mb-2 text-muted-foreground">
                 {isCourtReplace ? "Queue" : "Waiting line"}
               </p>
-              <ul className="replace-player-dialog-list max-h-56 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-muted/25 p-2">
+              <ul className="replace-player-dialog-list space-y-1.5 overflow-y-auto rounded-lg border border-border bg-muted/25 p-2 md:space-y-2 md:p-3">
                 {candidateEntries.map((entry, offset) => {
                   const queuePosition = resolveCandidateQueueIndex(entry) + 1;
                   const isSelected = offset === selectedOffset;
@@ -205,7 +205,7 @@ export function ReplacePlayerDialog({
                       >
                         <span
                           className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums",
+                            "replace-player-rank flex shrink-0 items-center justify-center rounded-full font-bold tabular-nums",
                             isSelected
                               ? "bg-primary text-primary-foreground"
                               : "bg-muted text-muted-foreground",
@@ -226,7 +226,7 @@ export function ReplacePlayerDialog({
                 })}
               </ul>
               {selectedEntry && state ? (
-                <p className="caption mt-3 text-center text-muted-foreground">
+                <p className="replace-player-dialog-preview caption mt-3 text-center text-muted-foreground">
                   {sourceLabel} {sourceName} ↔ #{selectedTargetIndex + 1}{" "}
                   {formatPlayerDisplayName(
                     selectedEntry.playerId.firstName,
@@ -239,26 +239,26 @@ export function ReplacePlayerDialog({
         </div>
 
         <DialogFooter className="replace-player-dialog-footer !mx-0 !mb-0 mt-0 shrink-0 !flex-col gap-0 overflow-hidden rounded-none border-t border-border bg-muted/30 p-0 sm:!flex-col">
-          <div className="flex w-full min-w-0 flex-col gap-2.5 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-3 sm:px-5 sm:py-4">
+          <div className="replace-player-dialog-footer-row flex w-full min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
             <div
               className="flex min-w-0 justify-center sm:flex-1"
               role="group"
               aria-label="Browse replacement options"
             >
-              <div className="inline-flex w-full max-w-[11.5rem] items-center justify-between gap-0.5 rounded-lg border border-border bg-background p-1 sm:w-auto sm:max-w-none sm:justify-center sm:gap-1">
+              <div className="replace-player-pager inline-flex w-full max-w-[11.5rem] items-center justify-between gap-0.5 rounded-lg border border-border bg-background p-1 sm:w-auto sm:max-w-none sm:justify-center sm:gap-1">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-9 shrink-0"
+                  className="replace-player-pager-btn size-9 shrink-0"
                   aria-label="Previous player"
                   onClick={goPrevious}
                   disabled={candidateEntries.length <= 1}
                 >
-                  <ChevronLeft className="h-4 w-4" aria-hidden />
+                  <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" aria-hidden />
                 </Button>
                 <span
-                  className="min-w-0 flex-1 px-1 text-center text-xs font-medium tabular-nums text-muted-foreground sm:flex-none sm:min-w-[4.25rem] sm:text-sm"
+                  className="replace-player-pager-count min-w-0 flex-1 px-1 text-center text-xs font-medium tabular-nums text-muted-foreground sm:flex-none sm:min-w-[4.25rem] sm:text-sm"
                   aria-live="polite"
                 >
                   {candidateEntries.length > 0
@@ -269,19 +269,19 @@ export function ReplacePlayerDialog({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="size-9 shrink-0"
+                  className="replace-player-pager-btn size-9 shrink-0"
                   aria-label="Next player"
                   onClick={goNext}
                   disabled={candidateEntries.length <= 1}
                 >
-                  <ChevronRight className="h-4 w-4" aria-hidden />
+                  <ChevronRight className="h-4 w-4 md:h-5 md:w-5" aria-hidden />
                 </Button>
               </div>
             </div>
 
             <Button
               type="button"
-              className="h-9 w-full shrink-0 px-4 sm:w-auto sm:min-w-[7.75rem]"
+              className="replace-player-confirm-btn h-9 w-full shrink-0 px-4 sm:w-auto sm:min-w-[7.75rem]"
               disabled={!state || !selectedEntry || selectedTargetIndex < 0}
               onClick={() => {
                 if (!state || !selectedEntry) return;

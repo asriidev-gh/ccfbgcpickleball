@@ -4786,6 +4786,156 @@
     }
   }
 
+  /* Fill-court confirm dialog — tablet-first sizing */
+  .fill-court-confirm-dialog {
+    @apply w-full max-w-[calc(100%-1.5rem)] gap-0 overflow-hidden p-0 sm:max-w-lg md:max-w-3xl;
+  }
+
+  .fill-court-confirm-header {
+    @apply px-5 py-4 pr-12 sm:px-6 sm:py-5 sm:pr-14 md:px-8 md:py-6;
+  }
+
+  .fill-court-confirm-header-row {
+    @apply flex items-start justify-between gap-3 pr-2;
+  }
+
+  .fill-court-confirm-title {
+    @apply min-w-0 text-lg font-semibold tracking-tight md:text-2xl md:leading-snug;
+  }
+
+  .fill-court-replace-toggle {
+    @apply h-8 shrink-0 gap-1.5 px-2.5 text-xs md:h-10 md:px-3.5 md:text-sm;
+  }
+
+  .fill-court-replace-toggle--on {
+    @apply border-primary/50 bg-primary/10 text-foreground;
+  }
+
+  .fill-court-confirm-copy {
+    @apply text-sm leading-snug md:text-base;
+  }
+
+  .fill-court-teams {
+    @apply px-5 py-4 sm:px-6 md:px-8 md:py-6;
+  }
+
+  .fill-court-teams-grid {
+    @apply flex flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-stretch md:gap-5;
+  }
+
+  .fill-court-team-label {
+    @apply md:text-sm;
+  }
+
+  .fill-court-player-row {
+    @apply min-h-11 md:min-h-14;
+  }
+
+  .fill-court-player-avatar {
+    @apply md:!size-12;
+  }
+
+  .fill-court-replace-btn {
+    @apply h-9 px-2.5 text-sm md:h-11 md:px-4 md:text-base;
+  }
+
+  .fill-court-shuffle-row {
+    @apply md:self-center md:justify-center md:px-1 md:py-0;
+  }
+
+  .fill-court-shuffle-btn {
+    @apply md:size-12;
+  }
+
+  .fill-court-vs-label {
+    @apply md:text-sm;
+  }
+
+  .fill-court-confirm-footer {
+    @apply px-5 py-4 sm:px-6 md:px-8 md:py-5;
+  }
+
+  .fill-court-confirm-dialog [data-slot="dialog-close"] {
+    @apply md:top-3 md:right-3 md:size-10;
+  }
+
+  .fill-court-confirm-action {
+    @apply md:h-14 md:min-h-14 md:px-6 md:text-lg;
+  }
+
+  /* Replace-player dialog — tablet-first sizing */
+  .replace-player-dialog {
+    @apply w-full max-w-[calc(100%-1.5rem)] gap-0 overflow-hidden p-0 sm:max-w-lg md:max-w-3xl;
+  }
+
+  .replace-player-dialog-header {
+    @apply px-5 py-4 pr-12 sm:px-6 sm:py-5 sm:pr-14 md:px-8 md:py-6;
+  }
+
+  .replace-player-dialog-title {
+    @apply text-lg font-semibold tracking-tight md:text-2xl md:leading-snug;
+  }
+
+  .replace-player-dialog-copy {
+    @apply text-sm leading-snug md:text-base;
+  }
+
+  .replace-player-dialog-body {
+    @apply px-5 py-4 sm:px-6 md:px-8 md:py-6;
+  }
+
+  .replace-player-dialog-label {
+    @apply md:mb-3 md:text-sm;
+  }
+
+  .replace-player-dialog-list {
+    @apply max-h-56 md:max-h-[28rem];
+  }
+
+  .replace-player-dialog-option {
+    @apply min-h-11 md:min-h-16 md:gap-4 md:rounded-xl md:px-4 md:py-3.5;
+  }
+
+  .replace-player-rank {
+    @apply h-8 w-8 text-sm md:h-12 md:w-12 md:text-base;
+  }
+
+  .replace-player-avatar {
+    @apply md:!size-12;
+  }
+
+  .replace-player-name {
+    @apply md:text-base;
+  }
+
+  .replace-player-dialog-preview {
+    @apply md:mt-4 md:text-base;
+  }
+
+  .replace-player-dialog-footer-row {
+    @apply px-4 py-3.5 sm:px-5 sm:py-4 md:px-8 md:py-5;
+  }
+
+  .replace-player-pager {
+    @apply md:max-w-none md:gap-1.5 md:p-1.5;
+  }
+
+  .replace-player-pager-btn {
+    @apply md:size-12;
+  }
+
+  .replace-player-pager-count {
+    @apply md:min-w-[5.5rem] md:text-base;
+  }
+
+  .replace-player-confirm-btn {
+    @apply md:h-14 md:min-h-14 md:min-w-[12rem] md:px-6 md:text-lg;
+  }
+
+  .replace-player-dialog [data-slot="dialog-close"] {
+    @apply md:top-3 md:right-3 md:size-10;
+  }
+
   /* Fill-court shuffle roulette */
   .fill-court-teams--shuffling .fill-court-team-section {
     @apply border-primary/25 shadow-[0_0_24px_-4px] shadow-primary/20;
@@ -6241,13 +6391,13 @@
   }
 
   [data-theme="cupertino"] .fill-court-confirm-dialog [data-slot="dialog-footer"] {
-    @apply flex-row items-center justify-between gap-2 border-t px-5 py-4;
+    @apply flex-row items-center justify-between gap-2 border-t px-5 py-4 md:px-8 md:py-5;
     border-color: var(--cupertino-gray-border);
     background-color: var(--cupertino-gray-surface);
   }
 
   [data-theme="cupertino"] .fill-court-confirm-dialog [data-slot="dialog-footer"] .group\/button {
-    @apply min-h-11 w-auto flex-1 rounded-[10px] border text-[15px] font-semibold sm:flex-none;
+    @apply min-h-11 w-auto flex-1 rounded-[10px] border text-[15px] font-semibold sm:flex-none md:min-h-14 md:text-[17px];
     border-color: var(--cupertino-gray-border);
   }
 

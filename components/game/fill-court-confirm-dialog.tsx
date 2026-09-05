@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, type ReactNode } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeftRight, Loader2, Play, Shuffle, Volume2, VolumeX } from "lucide-react";
 
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
@@ -50,6 +50,7 @@ const FillCourtPlayerRow = memo(function FillCourtPlayerRow({
   canReplace,
   onReplace,
   replacePending,
+  showReplace,
   obscured,
 }: {
   entry: QueueEntryView;
@@ -57,6 +58,7 @@ const FillCourtPlayerRow = memo(function FillCourtPlayerRow({
   canReplace: boolean;
   onReplace: () => void;
   replacePending: boolean;
+  showReplace: boolean;
   obscured: boolean;
 }) {
   const name = formatPlayerDisplayName(
@@ -73,46 +75,50 @@ const FillCourtPlayerRow = memo(function FillCourtPlayerRow({
   return (
     <li
       className={cn(
-        "fill-court-player-row flex items-center gap-2 transition-[filter,opacity,transform] duration-150",
+        "fill-court-player-row flex items-center gap-2.5 transition-[filter,opacity,transform] duration-150 md:gap-3",
         obscured && "fill-court-player-row--obscured",
       )}
     >
       <Avatar
         size="sm"
         className={cn(
-          "player-avatar !size-9 shrink-0 sm:!size-9",
+          "player-avatar fill-court-player-avatar !size-9 shrink-0",
           obscured && "fill-court-player-avatar--obscured",
         )}
       >
         <AvatarImage src={photoUrl} alt="" loading="lazy" />
-        <AvatarFallback className="text-xs font-medium">{initials}</AvatarFallback>
+        <AvatarFallback className="text-xs font-medium md:text-sm">{initials}</AvatarFallback>
       </Avatar>
       <span
         className={cn(
-          "inline-flex min-w-0 flex-1 items-center gap-1.5",
+          "inline-flex min-w-0 flex-1 items-center gap-1.5 md:gap-2",
           obscured && "fill-court-player-name--obscured",
         )}
       >
-        <span className="min-w-0 truncate text-sm font-medium">{name}</span>
+        <span className="fill-court-player-name min-w-0 truncate text-sm font-medium md:text-base">
+          {name}
+        </span>
         <PlayerGenderPill gender={entry.playerId.gender} birthdate={entry.playerId.birthdate} />
       </span>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="fill-court-replace-btn shrink-0"
-        onClick={onReplace}
-        disabled={replacePending || !canReplace || obscured}
-      >
-        {replacePending ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-        ) : (
-          <>
-            <ArrowLeftRight className="mr-1 h-3.5 w-3.5" aria-hidden />
-            Replace
-          </>
-        )}
-      </Button>
+      {showReplace ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="fill-court-replace-btn shrink-0"
+          onClick={onReplace}
+          disabled={replacePending || !canReplace || obscured}
+        >
+          {replacePending ? (
+            <Loader2 className="h-4 w-4 animate-spin md:h-5 md:w-5" aria-hidden />
+          ) : (
+            <>
+              <ArrowLeftRight className="mr-1 h-3.5 w-3.5 md:mr-1.5 md:h-4 md:w-4" aria-hidden />
+              Replace
+            </>
+          )}
+        </Button>
+      ) : null}
     </li>
   );
 });
@@ -124,6 +130,7 @@ function FillCourtTeamSection({
   canReplace,
   onReplace,
   replacePendingSourceIndex,
+  showReplace,
   obscured,
 }: {
   label: string;
@@ -132,16 +139,19 @@ function FillCourtTeamSection({
   canReplace: boolean;
   onReplace: (sourceIndex: number, sourceEntry: QueueEntryView) => void;
   replacePendingSourceIndex: number | null;
+  showReplace: boolean;
   obscured: boolean;
 }) {
   return (
     <div
       className={cn(
-        "fill-court-team-section surface-muted flex flex-col gap-2 rounded-xl border p-3 transition-[box-shadow,border-color] duration-300",
+        "fill-court-team-section surface-muted flex flex-col gap-2 rounded-xl border p-3 transition-[box-shadow,border-color] duration-300 md:gap-3 md:p-4",
         obscured && "fill-court-team-section--obscured",
       )}
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="fill-court-team-label text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
       <ul className="flex flex-col gap-2">
         {entries.map((entry, offset) => {
           const queueIndex = queueIndexOffset + offset;
@@ -153,6 +163,7 @@ function FillCourtTeamSection({
               canReplace={canReplace}
               onReplace={() => onReplace(queueIndex, entry)}
               replacePending={replacePendingSourceIndex === queueIndex}
+              showReplace={showReplace}
               obscured={obscured}
             />
           );
@@ -198,26 +209,49 @@ function FillCourtConfirmDialogBody({
     awaitShuffle: false,
   });
 
+  const [showReplace, setShowReplace] = useState(false);
   const actionsDisabled = fillPending || isShuffling;
   const hasFullFoursome = displayTeamA.length + displayTeamB.length >= 4;
   const courtLabel = courtNumber != null ? `Court ${courtNumber}` : "the next court";
+  const replaceVisible = showReplace && canReplace;
 
   return (
     <>
-        <DialogHeader className="border-b border-border px-5 py-4">
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <Play className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-            Fill {courtLabel}?
-          </DialogTitle>
-          <p className="caption text-left text-muted-foreground">
-            These four players will start on {courtLabel}. Shuffle teams, replace anyone, then
-            confirm.
+        <DialogHeader className="fill-court-confirm-header border-b border-border">
+          <div className="fill-court-confirm-header-row">
+            <DialogTitle className="fill-court-confirm-title flex items-center gap-2">
+              <Play className="h-5 w-5 shrink-0 text-primary md:h-6 md:w-6" aria-hidden />
+              Fill {courtLabel}?
+            </DialogTitle>
+            {canReplace ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "fill-court-replace-toggle",
+                  replaceVisible && "fill-court-replace-toggle--on",
+                )}
+                onClick={() => setShowReplace((current) => !current)}
+                disabled={actionsDisabled}
+                aria-pressed={replaceVisible}
+                aria-label={replaceVisible ? "Hide replace actions" : "Show replace actions"}
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5 md:h-4 md:w-4" aria-hidden />
+                Replace
+              </Button>
+            ) : null}
+          </div>
+          <p className="fill-court-confirm-copy caption text-left text-muted-foreground">
+            {replaceVisible
+              ? `These four players will start on ${courtLabel}. Replace anyone, shuffle teams, then confirm.`
+              : `These four players will start on ${courtLabel}. Shuffle teams, then confirm.`}
           </p>
         </DialogHeader>
 
         <div
           className={cn(
-            "fill-court-teams relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4",
+            "fill-court-teams relative flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto",
             isShuffling && "fill-court-teams--shuffling",
             isRevealing && "fill-court-teams--reveal",
           )}
@@ -230,65 +264,69 @@ function FillCourtConfirmDialogBody({
             </p>
           ) : null}
 
-          <FillCourtTeamSection
-            label="Team A"
-            entries={displayTeamA}
-            queueIndexOffset={0}
-            canReplace={canReplace && !actionsDisabled}
-            onReplace={onReplace}
-            replacePendingSourceIndex={replacePendingSourceIndex}
-            obscured={obscured}
-          />
+          <div className="fill-court-teams-grid">
+            <FillCourtTeamSection
+              label="Team A"
+              entries={displayTeamA}
+              queueIndexOffset={0}
+              canReplace={canReplace && !actionsDisabled}
+              onReplace={onReplace}
+              replacePendingSourceIndex={replacePendingSourceIndex}
+              showReplace={replaceVisible}
+              obscured={obscured}
+            />
 
-          <div
-            className={cn(
-              "fill-court-shuffle-row relative flex flex-col items-center gap-1 py-0.5",
-              isShuffling && "fill-court-shuffle-row--active",
-            )}
-          >
-            {isShuffling ? (
-              <span className="fill-court-roulette-ring pointer-events-none" aria-hidden />
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
+            <div
               className={cn(
-                "fill-court-shuffle-btn relative z-10 size-9 shrink-0",
-                isShuffling && "fill-court-shuffle-btn--spinning",
+                "fill-court-shuffle-row relative flex flex-col items-center gap-1 py-0.5",
+                isShuffling && "fill-court-shuffle-row--active",
               )}
-              aria-label="Shuffle players into new teams"
-              title={
-                canShuffle
-                  ? "Shuffle teams (re-roll until it looks right)"
-                  : "Locked-in partners stay together"
-              }
-              disabled={!canShuffle || actionsDisabled}
-              onClick={() => void handleShuffleClick()}
             >
-              <Shuffle className="h-4 w-4" aria-hidden />
-            </Button>
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              VS
-            </span>
-          </div>
+              {isShuffling ? (
+                <span className="fill-court-roulette-ring pointer-events-none" aria-hidden />
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={cn(
+                  "fill-court-shuffle-btn relative z-10 size-9 shrink-0",
+                  isShuffling && "fill-court-shuffle-btn--spinning",
+                )}
+                aria-label="Shuffle players into new teams"
+                title={
+                  canShuffle
+                    ? "Shuffle teams (re-roll until it looks right)"
+                    : "Locked-in partners stay together"
+                }
+                disabled={!canShuffle || actionsDisabled}
+                onClick={() => void handleShuffleClick()}
+              >
+                <Shuffle className="h-4 w-4 md:h-5 md:w-5" aria-hidden />
+              </Button>
+              <span className="fill-court-vs-label text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                VS
+              </span>
+            </div>
 
-          <FillCourtTeamSection
-            label="Team B"
-            entries={displayTeamB}
-            queueIndexOffset={2}
-            canReplace={canReplace && !actionsDisabled}
-            onReplace={onReplace}
-            replacePendingSourceIndex={replacePendingSourceIndex}
-            obscured={obscured}
-          />
+            <FillCourtTeamSection
+              label="Team B"
+              entries={displayTeamB}
+              queueIndexOffset={2}
+              canReplace={canReplace && !actionsDisabled}
+              onReplace={onReplace}
+              replacePendingSourceIndex={replacePendingSourceIndex}
+              showReplace={replaceVisible}
+              obscured={obscured}
+            />
+          </div>
         </div>
 
-        <DialogFooter className="!mx-0 !mb-0 mt-0 shrink-0 !flex-row items-center justify-between gap-2 rounded-none border-t border-border bg-muted/30 px-5 py-4 sm:gap-3">
+        <DialogFooter className="fill-court-confirm-footer !mx-0 !mb-0 mt-0 shrink-0 !flex-row items-center justify-between gap-2 rounded-none border-t border-border bg-muted/30 sm:gap-3">
           <Button
             type="button"
             className={cn(
-              "call-names-btn h-11 min-w-0 flex-1 px-3 text-sm tracking-wide sm:min-w-[11rem] sm:flex-none sm:px-5",
+              "call-names-btn fill-court-confirm-action h-11 min-w-0 flex-1 px-3 text-sm tracking-wide sm:min-w-[11rem] sm:flex-none sm:px-5",
               callingNames && "call-names-btn--calling",
               callingNames && "call-names-btn--cancel",
               courtNumber != null && !callingNames && "call-names-btn--glow",
@@ -316,7 +354,7 @@ function FillCourtConfirmDialogBody({
           </Button>
           <Button
             type="button"
-            className="h-11 min-w-0 flex-1 sm:w-auto sm:flex-none"
+            className="fill-court-confirm-action h-11 min-w-0 flex-1 sm:w-auto sm:flex-none"
             disabled={actionsDisabled || !hasFullFoursome}
             onClick={onConfirmFill}
           >
@@ -350,7 +388,7 @@ export const FillCourtConfirmDialog = memo(function FillCourtConfirmDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {dialogBody ? (
-        <DialogContent className="fill-court-confirm-dialog flex w-full max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogContent className="fill-court-confirm-dialog flex w-full max-w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg md:max-w-3xl">
           {dialogBody}
         </DialogContent>
       ) : null}
