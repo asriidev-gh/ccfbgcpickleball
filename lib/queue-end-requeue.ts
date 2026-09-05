@@ -12,6 +12,7 @@ import {
   getLockInGroupIdByPlayerIds,
   keepLockInPartnersTogether,
 } from "@/lib/lock-in-groups";
+import { clusterQueuedLockInPairs } from "@/lib/lock-in-groups-shared";
 import { isMixedDoublesMatching } from "@/lib/quick-play-wizard-shared";
 import {
   isSinglesWinnerLoserRotation,
@@ -84,7 +85,7 @@ async function persistFinishedPlayersAtQueueTail(
     .map((playerId) => requeuedByPlayerId.get(playerId.toString()))
     .filter((entry): entry is (typeof queued)[number] => entry != null);
   if (tail.length !== finishedPlayerOrder.length) return;
-  await persistQueueOrder([...waiting, ...tail]);
+  await persistQueueOrder(clusterQueuedLockInPairs([...waiting, ...tail]));
 }
 
 async function markCourtEntriesDone(court: CourtDoc) {

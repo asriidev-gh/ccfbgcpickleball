@@ -67,6 +67,7 @@ import { playerIdsOnCourt, rememberEndedCourt } from "@/lib/recent-ended-court";
 import { resolvePlayerId } from "@/lib/resolve-player-id";
 import {
   applyLockInGroupIdFromPlayerMap,
+  clusterQueuedLockInPairs,
   hasLockInPair,
   lockInGroupIdByPlayerIdFromGroups,
   playerIdsIncludeLockInPair,
@@ -1174,7 +1175,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       if (previous) {
         const optimistic = isQuickGameSession
           ? applyEndGameWithHistoryOptimistic(previous, variables)
-          : applyEndGameOptimistic(previous, variables);
+          : applyEndGameOptimistic(previous, variables, lockInGroupIdByPlayerFromGroups);
         if (optimistic) {
           writeOperatorGamePayload(queryClient, gameId, optimistic);
         }
@@ -2075,11 +2076,13 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   );
   const queueWithStats = useMemo(
     () =>
-      dedupedQueue.map((entry) =>
-        applyLockInGroupIdFromPlayerMap(
-          attachSessionStatsToQueueEntry(entry, playerSessionStats),
-          resolvePlayerId(entry.playerId),
-          lockInGroupIdByPlayerFromGroups,
+      clusterQueuedLockInPairs(
+        dedupedQueue.map((entry) =>
+          applyLockInGroupIdFromPlayerMap(
+            attachSessionStatsToQueueEntry(entry, playerSessionStats),
+            resolvePlayerId(entry.playerId),
+            lockInGroupIdByPlayerFromGroups,
+          ),
         ),
       ),
     [dedupedQueue, lockInGroupIdByPlayerFromGroups, playerSessionStats],

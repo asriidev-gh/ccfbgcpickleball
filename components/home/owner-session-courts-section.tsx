@@ -59,6 +59,7 @@ import { useQuickGameSession } from "@/lib/quick-game-store";
 import type { CourtsViewCourtTheme } from "@/lib/courts-view-court-theme";
 import {
   applyLockInGroupIdFromPlayerMap,
+  clusterQueuedLockInPairs,
   hasLockInPair,
   lockInGroupIdByPlayerIdFromGroups,
   playerIdsIncludeLockInPair,
@@ -141,11 +142,13 @@ export function OwnerSessionCourtsSection({
 
   const queueWithStats = useMemo(
     () =>
-      session.queue.map((entry) =>
-        applyLockInGroupIdFromPlayerMap(
-          attachSessionStatsToQueueEntry(entry, playerSessionStats),
-          resolvePlayerId(entry.playerId),
-          lockInGroupIdByPlayerFromGroups,
+      clusterQueuedLockInPairs(
+        session.queue.map((entry) =>
+          applyLockInGroupIdFromPlayerMap(
+            attachSessionStatsToQueueEntry(entry, playerSessionStats),
+            resolvePlayerId(entry.playerId),
+            lockInGroupIdByPlayerFromGroups,
+          ),
         ),
       ),
     [lockInGroupIdByPlayerFromGroups, playerSessionStats, session.queue],

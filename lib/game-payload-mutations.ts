@@ -25,6 +25,8 @@ import {
 } from "@/lib/doubles/doubles-queue-fill";
 import { shuffleDoublesIntoNewHalves, randomMixedDoublesTeamSplit } from "@/lib/doubles/mixed-doubles-shuffle";
 import {
+  applyLockInGroupIdFromPlayerMap,
+  clusterQueuedLockInPairs,
   hasLockInPair,
   keepLockInPartnersTogether,
   lockInPairsOccupyPartnerSlots,
@@ -66,6 +68,7 @@ function buildOptimisticRequeueEntries(
   teamB: PlayerPhotoRef[],
   winnerTeam: "A" | "B",
   baseTime: number,
+  lockInGroupIdByPlayerId?: Map<string, string>,
 ): QueueEntryView[] {
   const slots = [
     { player: teamA[0], team: "A" as const },
@@ -74,16 +77,36 @@ function buildOptimisticRequeueEntries(
     { player: teamB[1], team: "B" as const },
   ].filter((slot): slot is { player: PlayerPhotoRef; team: "A" | "B" } => Boolean(slot.player));
 
-  return slots.map((slot, index) => {
+  const entries = slots.map((slot, index) => {
     const isWinner = slot.team === winnerTeam;
+    const playerId = resolvePlayerId(slot.player);
     return {
       _id: `optimistic-requeue-${baseTime}-${index}`,
-      queueType: isWinner ? "winner" : "loser",
+      queueType: isWinner ? ("winner" as const) : ("loser" as const),
       playerId: slot.player,
       registeredAt: new Date(baseTime + index).toISOString(),
-      lastMatchResult: isWinner ? "win" : "loss",
+      lastMatchResult: isWinner ? ("win" as const) : ("loss" as const),
+      lockInGroupId: playerId ? lockInGroupIdByPlayerId?.get(playerId) ?? null : null,
     };
   });
+
+  return keepLockInPartnersTogether(entries, (entry) => entry.lockInGroupId);
+}
+
+function clusterPayloadQueue(
+  queue: QueueEntryView[],
+  lockInGroupIdByPlayerId?: Map<string, string>,
+) {
+  const hydrated = lockInGroupIdByPlayerId
+    ? queue.map((entry) =>
+        applyLockInGroupIdFromPlayerMap(
+          entry,
+          resolvePlayerId(entry.playerId),
+          lockInGroupIdByPlayerId,
+        ),
+      )
+    : queue;
+  return clusterQueuedLockInPairs(hydrated);
 }
 
 
@@ -247,6 +270,7 @@ export function applyFillNextCourtOptimistic(
 export function applyEndGameOptimistic(
   payload: GamePayload,
   input: EndGameMutationInput,
+  lockInGroupIdByPlayerId?: Map<string, string>,
 ): GamePayload | null {
   const court = payload.courts.find((c) => c.courtNumber === input.courtNumber);
   if (!court || court.status !== "active") return null;
@@ -284,11 +308,15 @@ export function applyEndGameOptimistic(
       teamB,
       input.winnerTeam,
       baseTime,
+      lockInGroupIdByPlayerId,
     );
 
     return {
       ...payload,
-      queue: appendMixedDoublesRequeueEntries(payload.queue, requeueEntries, baseTime),
+      queue: clusterPayloadQueue(
+        appendMixedDoublesRequeueEntries(payload.queue, requeueEntries, baseTime),
+        lockInGroupIdByPlayerId,
+      ),
       courts: payload.courts.map((c) =>
         c.courtNumber === input.courtNumber
           ? {
@@ -313,7 +341,10 @@ export function applyEndGameOptimistic(
       input.winnerTeam,
       baseTime,
     );
-    const nextQueue = appendDoublesRequeueEntries(payload.queue, requeueEntries);
+    const nextQueue = clusterPayloadQueue(
+      appendDoublesRequeueEntries(payload.queue, requeueEntries),
+      lockInGroupIdByPlayerId,
+    );
 
     return {
       ...payload,
@@ -340,11 +371,15 @@ export function applyEndGameOptimistic(
     teamB,
     input.winnerTeam,
     baseTime,
+    lockInGroupIdByPlayerId,
   ).map((entry) => ({ ...entry, queueType: "normal" as const }));
 
   return {
     ...payload,
-    queue: appendRequeueEntriesWithoutDuplicates(payload.queue, requeueEntries),
+    queue: clusterPayloadQueue(
+      appendRequeueEntriesWithoutDuplicates(payload.queue, requeueEntries),
+      lockInGroupIdByPlayerId,
+    ),
     courts: payload.courts.map((c) =>
       c.courtNumber === input.courtNumber
         ? {
@@ -366,6 +401,7 @@ export function applyEndGameOptimistic(
 export function applyEndGameWithHistoryOptimistic(
   payload: GamePayload,
   input: EndGameMutationInput,
+  lockInGroupIdByPlayerId?: Map<string, string>,
 ): GamePayload | null {
   if (isSinglesGameMode(payload.game.gameMode)) {
     return applySinglesEndGameWithHistoryOptimistic(payload, input);
@@ -374,7 +410,7 @@ export function applyEndGameWithHistoryOptimistic(
   const court = payload.courts.find((c) => c.courtNumber === input.courtNumber);
   if (!court || court.status !== "active") return null;
 
-  const base = applyEndGameOptimistic(payload, input);
+  const base = applyEndGameOptimistic(payload, input, lockInGroupIdByPlayerId);
   if (!base || input.rematch) return base;
 
   const teamA = court.teamA?.playerIds ?? [];

@@ -161,6 +161,14 @@ export function alignLockInPairsToPartnerSlots<T>(
   return next;
 }
 
+/** Keep lock-in partners adjacent in queue/waiting-list order. */
+export function clusterQueuedLockInPairs<T extends { lockInGroupId?: string | null }>(
+  entries: T[],
+): T[] {
+  if (entries.length < 2) return entries;
+  return alignLockInPairsToPartnerSlots(entries, (entry) => entry.lockInGroupId ?? null);
+}
+
 export function lockInPairsOccupyPartnerSlots<T>(
   items: T[],
   getGroupId: (item: T) => string | null | undefined,
