@@ -8,6 +8,7 @@ import {
   type LockInGroupItem,
 } from "@/lib/lock-in-groups-shared";
 import { LockInGroup } from "@/models/LockInGroup";
+import { Player } from "@/models/Player";
 import { QueueEntry } from "@/models/QueueEntry";
 
 export {
@@ -201,33 +202,42 @@ export async function deleteLockInGroup(gameId: string, groupId: string) {
 export async function listLockInGroups(gameId: string): Promise<LockInGroupItem[]> {
   const groups = await LockInGroup.find({ gameId })
     .sort({ createdAt: -1 })
-    .populate("playerIds", "firstName lastName photoUrl photoPublicId")
+    .populate({
+      path: "playerIds",
+      model: Player,
+      select: "firstName lastName photoUrl photoPublicId",
+    })
     .lean<
       Array<{
         groupId: string;
         createdAt?: Date;
         playerIds: Array<{
-          _id: Types.ObjectId;
+          _id?: Types.ObjectId;
           firstName?: string;
           lastName?: string;
           photoUrl?: string | null;
           photoPublicId?: string | null;
-        }>;
+        } | Types.ObjectId | string>;
       }>
     >();
 
   return groups.map((group) => {
-    const players = (group.playerIds ?? []).map((player) => {
+    const players = (group.playerIds ?? []).flatMap((player) => {
+      if (player == null || typeof player !== "object" || !("_id" in player) || !player._id) {
+        return [];
+      }
       const firstName = player.firstName ?? "";
       const lastName = player.lastName ?? "";
-      return {
-        id: String(player._id),
-        firstName,
-        lastName,
-        name: `${firstName} ${lastName}`.trim() || "Player",
-        photoUrl: player.photoUrl,
-        photoPublicId: player.photoPublicId,
-      };
+      return [
+        {
+          id: String(player._id),
+          firstName,
+          lastName,
+          name: `${firstName} ${lastName}`.trim() || "Player",
+          photoUrl: player.photoUrl,
+          photoPublicId: player.photoPublicId,
+        },
+      ];
     });
 
     return {
