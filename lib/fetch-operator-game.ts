@@ -13,6 +13,7 @@ import {
   operatorShellQueryOptions,
 } from "@/lib/operator-query-options";
 import { reuseUnchangedOperatorQueue } from "@/lib/operator-queue-sync";
+import { applyRecentEndCourtGuard } from "@/lib/recent-ended-court";
 import type {
   OperatorDetailsPayload,
   OperatorMatchHistoryPayload,
@@ -78,7 +79,10 @@ export async function fetchOperatorQueue(
   gameId: string,
   previous?: OperatorQueuePayload,
 ) {
-  const data = (await fetchOperatorGame(gameId, "queue")) as OperatorQueuePayload;
+  const data = applyRecentEndCourtGuard(
+    gameId,
+    (await fetchOperatorGame(gameId, "queue")) as OperatorQueuePayload,
+  );
   writeOperatorQueueSessionCache(gameId, data);
   return reuseUnchangedOperatorQueue(previous, data);
 }

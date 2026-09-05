@@ -920,34 +920,94 @@ export async function replaceCourtPlayerWithWaiting(input: {
   return court;
 }
 
-async function recalculateLeaderboardWinRates(gameId: string) {
-  const allStats = await LeaderboardStats.find({ gameId });
-  await Promise.all(
-    allStats.map(async (stat) => {
-      stat.winRate = stat.gamesPlayed > 0 ? Math.round((stat.wins / stat.gamesPlayed) * 100) : 0;
-      await stat.save();
-    }),
+function leaderboardFinishedMatchUpdate(hasWon: boolean) {
+  return [
+    {
+      $set: {
+        gamesPlayed: { $add: [{ $ifNull: ["$gamesPlayed", 0] }, 1] },
+        wins: { $add: [{ $ifNull: ["$wins", 0] }, hasWon ? 1 : 0] },
+        losses: { $add: [{ $ifNull: ["$losses", 0] }, hasWon ? 0 : 1] },
+        currentStreak: { $add: [{ $ifNull: ["$currentStreak", 0] }, hasWon ? 1 : -1] },
+      },
+    },
+    {
+      $set: {
+        winRate: {
+          $cond: [
+            { $gt: ["$gamesPlayed", 0] },
+            { $round: [{ $multiply: [{ $divide: ["$wins", "$gamesPlayed"] }, 100] }, 0] },
+            0,
+          ],
+        },
+      },
+    },
+  ];
+}
+
+export async function incrementLeaderboardForFinishedCourt(input: {
+  gameId: string;
+  playerIds: Types.ObjectId[];
+  winnerPlayerIdSet: Set<string>;
+}) {
+  if (input.playerIds.length === 0) return;
+  await LeaderboardStats.bulkWrite(
+    input.playerIds.map((playerId) => ({
+      updateOne: {
+        filter: { gameId: input.gameId, playerId },
+        update: leaderboardFinishedMatchUpdate(input.winnerPlayerIdSet.has(playerId.toString())),
+        upsert: true,
+      },
+    })),
+    { ordered: false },
   );
 }
 
-export async function endGameAndRequeue(input: {
+export type FinishedCourtLeaderboardInput = {
   gameId: string;
-  courtNumber: number;
-  winnerTeam: "A" | "B";
-  teamAScore: number;
-  teamBScore: number;
-  rematch?: boolean;
-}) {
+  playerIds: Types.ObjectId[];
+  winnerPlayerIdSet: Set<string>;
+};
+
+export async function endGameAndRequeue(
+  input: {
+    gameId: string;
+    courtNumber: number;
+    winnerTeam: "A" | "B";
+    teamAScore: number;
+    teamBScore: number;
+    rematch?: boolean;
+  },
+  options?: {
+    /** Called after the court is free so fill can start before win rates finish. */
+    onCourtReady?: (leaderboard: FinishedCourtLeaderboardInput) => void;
+  },
+) {
   const court = await Court.findOne({
     gameId: input.gameId,
     courtNumber: input.courtNumber,
-    status: "active",
   });
   if (!court) throw new Error("Active court not found.");
+  if (court.status !== "active") {
+    return {
+      ok: true,
+      rematch: false,
+      alreadyEnded: true,
+      requeueMode: "standard" as const,
+      message: "Game ended and players returned to the queue.",
+    };
+  }
 
   const winnerPlayers = input.winnerTeam === "A" ? court.teamA.playerIds : court.teamB.playerIds;
   const loserPlayers = input.winnerTeam === "A" ? court.teamB.playerIds : court.teamA.playerIds;
   const winnerPlayerIdSet = new Set(winnerPlayers.map((id: Types.ObjectId) => id.toString()));
+  const courtPlayers = [...winnerPlayers, ...loserPlayers].map(
+    (id) => new Types.ObjectId(String(id)),
+  );
+  const leaderboardInput: FinishedCourtLeaderboardInput = {
+    gameId: input.gameId,
+    playerIds: courtPlayers,
+    winnerPlayerIdSet,
+  };
 
   const endedAt = new Date();
   finalizeCourtPauseDuration(court, endedAt);
@@ -968,39 +1028,30 @@ export async function endGameAndRequeue(input: {
       )
     : 0;
 
-  await MatchHistory.create({
-    gameId: input.gameId,
-    courtNumber: input.courtNumber,
-    teamAPlayerIds: court.teamA.playerIds,
-    teamBPlayerIds: court.teamB.playerIds,
-    winnerTeam: input.winnerTeam,
-    loserTeam: input.winnerTeam === "A" ? "B" : "A",
-    teamAScore: input.teamAScore,
-    teamBScore: input.teamBScore,
-    startedAt,
-    endedAt,
-    durationSeconds,
-  });
-
-  await Promise.all(
-    [...winnerPlayers, ...loserPlayers].map(async (playerId: Types.ObjectId) => {
-      const hasWon = winnerPlayerIdSet.has(playerId.toString());
-      await LeaderboardStats.findOneAndUpdate(
-        { gameId: input.gameId, playerId },
-        {
-          $inc: {
-            gamesPlayed: 1,
-            wins: hasWon ? 1 : 0,
-            losses: hasWon ? 0 : 1,
-            currentStreak: hasWon ? 1 : -1,
-          },
-        },
-        { upsert: true, returnDocument: 'after' },
-      );
+  const [game] = await Promise.all([
+    PickleGame.findOne({ gameId: input.gameId }).select("gameMode matchingType"),
+    MatchHistory.create({
+      gameId: input.gameId,
+      courtNumber: input.courtNumber,
+      teamAPlayerIds: court.teamA.playerIds,
+      teamBPlayerIds: court.teamB.playerIds,
+      winnerTeam: input.winnerTeam,
+      loserTeam: input.winnerTeam === "A" ? "B" : "A",
+      teamAScore: input.teamAScore,
+      teamBScore: input.teamBScore,
+      startedAt,
+      endedAt,
+      durationSeconds,
     }),
-  );
+  ]);
 
-  await recalculateLeaderboardWinRates(input.gameId);
+  const finishLeaderboard = async () => {
+    if (options?.onCourtReady) {
+      options.onCourtReady(leaderboardInput);
+      return;
+    }
+    await incrementLeaderboardForFinishedCourt(leaderboardInput);
+  };
 
   if (input.rematch) {
     court.startedAt = new Date();
@@ -1008,6 +1059,7 @@ export async function endGameAndRequeue(input: {
     court.isRematch = true;
     court.markModified("isRematch");
     await court.save();
+    await finishLeaderboard();
     return {
       ok: true,
       rematch: true,
@@ -1015,7 +1067,6 @@ export async function endGameAndRequeue(input: {
     };
   }
 
-  const game = await PickleGame.findOne({ gameId: input.gameId }).select("gameMode matchingType");
   const format = resolveGameFormatSettings(game ?? undefined);
 
   const requeueResult = await requeuePlayersAfterCourtEnd({
@@ -1032,6 +1083,7 @@ export async function endGameAndRequeue(input: {
   Object.assign(court, clearCourtTimerPauseFields());
   court.isRematch = false;
   await court.save();
+  await finishLeaderboard();
 
   return requeueResult;
 }

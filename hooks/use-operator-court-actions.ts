@@ -32,6 +32,7 @@ import {
   writeCourtsViewGamePayload,
 } from "@/lib/courts-view-cache";
 import { fetchOperatorQueue, operatorQueueQueryKey } from "@/lib/fetch-operator-game";
+import { playerIdsOnCourt, rememberEndedCourt } from "@/lib/recent-ended-court";
 import { isQuickGame } from "@/lib/local-game-id";
 import {
   beginCourtClearWait,
@@ -295,7 +296,15 @@ export function useOperatorCourtActions({
         body: JSON.stringify(input),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
+      if (!response.ok) {
+        if (data.message === "Active court not found.") {
+          return {
+            message: "Game ended and players returned to the queue.",
+            rematch: input.rematch,
+          };
+        }
+        throw new Error(data.message);
+      }
       return data as { message?: string; rematch?: boolean };
     },
     onMutate: (variables) => {
@@ -309,6 +318,12 @@ export function useOperatorCourtActions({
         beginCourtClearWait(courtClearWaitersRef, variables.courtNumber);
       }
       const previous = readCachedGamePayload();
+      const endingCourt = previous?.courts.find(
+        (court) => court.courtNumber === variables.courtNumber,
+      );
+      if (endingCourt && !variables.rematch) {
+        rememberEndedCourt(gameId, variables.courtNumber, playerIdsOnCourt(endingCourt));
+      }
       if (previous) {
         const optimistic = applyEndGameOptimistic(previous, variables);
         if (optimistic) {

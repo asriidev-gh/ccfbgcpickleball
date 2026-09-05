@@ -84,6 +84,7 @@ import {
   seedLocalGameOperatorCache,
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
+import { playerIdsOnCourt, rememberEndedCourt } from "@/lib/recent-ended-court";
 import { readQuickGamePayload } from "@/lib/quick-game-store";
 import { MAX_QUICK_PLAY_COURTS } from "@/lib/quick-play-wizard-shared";
 import { queueEntryPlayerId } from "@/lib/queue-highlight";
@@ -338,7 +339,12 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
           body: JSON.stringify(input),
         });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.message);
+        if (!response.ok) {
+          if (data.message === "Active court not found.") {
+            return { message: "Game ended and players returned to the queue." };
+          }
+          throw new Error(data.message);
+        }
         return data as { message?: string };
       }
       return input;
@@ -355,6 +361,10 @@ export function SinglesGameDashboard({ quickGameSurface }: SinglesGameDashboardP
       }
       const previous = readOperatorGamePayload(queryClient, gameId);
       if (!previous) return { previous: undefined };
+      const endingCourt = previous.courts.find((court) => court.courtNumber === input.courtNumber);
+      if (endingCourt && !input.rematch) {
+        rememberEndedCourt(gameId, input.courtNumber, playerIdsOnCourt(endingCourt));
+      }
       const optimistic = applySinglesEndGameWithHistoryOptimistic(previous, input);
       if (!optimistic) return { previous };
       writeOperatorGamePayload(queryClient, gameId, optimistic);

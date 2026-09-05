@@ -1,8 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
 import { runWithDatabase } from "@/lib/db";
 import { endGameSchema } from "@/lib/validations";
-import { endGameAndRequeue } from "@/lib/queue-engine";
+import {
+  endGameAndRequeue,
+  incrementLeaderboardForFinishedCourt,
+} from "@/lib/queue-engine";
 import { PickleGame } from "@/models/PickleGame";
 import { getAuthUserFromCookie } from "@/lib/auth";
 
@@ -23,7 +26,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const body = await request.json();
     const payload = endGameSchema.parse({ ...body, gameId: id });
-    const result = await endGameAndRequeue(payload);
+    const result = await endGameAndRequeue(payload, {
+      onCourtReady: (leaderboard) => {
+        after(() => {
+          void runWithDatabase(async () => {
+            await incrementLeaderboardForFinishedCourt(leaderboard);
+          }).catch((error) => {
+            console.error("[end-game] deferred leaderboard update failed", error);
+          });
+        });
+      },
+    });
     return NextResponse.json(result);
 
     });} catch (error) {

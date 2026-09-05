@@ -63,6 +63,7 @@ import {
   seedLocalGameOperatorCache,
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
+import { playerIdsOnCourt, rememberEndedCourt } from "@/lib/recent-ended-court";
 import { resolvePlayerId } from "@/lib/resolve-player-id";
 import {
   applyLockInGroupIdFromPlayerMap,
@@ -1147,7 +1148,15 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         body: JSON.stringify(input),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message);
+      if (!response.ok) {
+        if (data.message === "Active court not found.") {
+          return {
+            message: "Game ended and players returned to the queue.",
+            rematch: input.rematch,
+          };
+        }
+        throw new Error(data.message);
+      }
       return data as { message?: string; rematch?: boolean };
     },
     onMutate: async (variables) => {
@@ -1156,6 +1165,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         beginCourtClearWait(courtClearWaitersRef, variables.courtNumber);
       }
       const previous = readOperatorGamePayload(queryClient, gameId);
+      const endingCourt = previous?.courts.find(
+        (court) => court.courtNumber === variables.courtNumber,
+      );
+      if (endingCourt && !variables.rematch) {
+        rememberEndedCourt(gameId, variables.courtNumber, playerIdsOnCourt(endingCourt));
+      }
       if (previous) {
         const optimistic = isQuickGameSession
           ? applyEndGameWithHistoryOptimistic(previous, variables)
@@ -1212,7 +1227,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       teamBScore: number;
       rematch: boolean;
     }) => {
-      if (endTargetCourt == null) return;
+      if (endTargetCourt == null || endMutation.isPending) return;
       endMutation.mutate({
         courtNumber: endTargetCourt,
         ...input,

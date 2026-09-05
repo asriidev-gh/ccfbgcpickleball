@@ -24,18 +24,21 @@ export {
 function persistQueueOrder(
   orderedEntries: Array<{ _id: Types.ObjectId; registeredAt?: Date }>,
 ) {
+  if (orderedEntries.length === 0) return Promise.resolve();
+
   const baseTime =
-    orderedEntries.length > 0 && orderedEntries[0]?.registeredAt
+    orderedEntries[0]?.registeredAt != null
       ? new Date(orderedEntries[0].registeredAt).getTime()
       : Date.now();
 
-  return Promise.all(
-    orderedEntries.map((entry, index) =>
-      QueueEntry.updateOne(
-        { _id: entry._id },
-        { $set: { registeredAt: new Date(baseTime + index * 1000) } },
-      ),
-    ),
+  return QueueEntry.bulkWrite(
+    orderedEntries.map((entry, index) => ({
+      updateOne: {
+        filter: { _id: entry._id },
+        update: { $set: { registeredAt: new Date(baseTime + index * 1000) } },
+      },
+    })),
+    { ordered: false },
   );
 }
 
@@ -74,17 +77,21 @@ export async function clusterQueuedLockInGroups(gameId: string) {
     }
   }
 
-  // Ensure queued rows carry the current lock-in id from the group docs.
-  await Promise.all(
-    queued.map((entry) => {
-      const groupId = playerToGroup.get(String(entry.playerId)) ?? null;
-      if ((entry.lockInGroupId ?? null) === groupId) return null;
-      return QueueEntry.updateOne(
-        { _id: entry._id },
-        { $set: { lockInGroupId: groupId } },
-      );
-    }),
-  );
+  const lockInStamps = queued.flatMap((entry) => {
+    const groupId = playerToGroup.get(String(entry.playerId)) ?? null;
+    if ((entry.lockInGroupId ?? null) === groupId) return [];
+    return [
+      {
+        updateOne: {
+          filter: { _id: entry._id },
+          update: { $set: { lockInGroupId: groupId } },
+        },
+      },
+    ];
+  });
+  if (lockInStamps.length > 0) {
+    await QueueEntry.bulkWrite(lockInStamps, { ordered: false });
+  }
 
   const resolveGroupId = (entry: (typeof queued)[number]) =>
     entry.lockInGroupId || playerToGroup.get(String(entry.playerId)) || null;

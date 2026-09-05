@@ -32,13 +32,15 @@ async function persistQueueOrder(
       ? new Date(orderedEntries[0].registeredAt).getTime()
       : Date.now();
 
-  await Promise.all(
-    orderedEntries.map((entry, index) =>
-      QueueEntry.updateOne(
-        { _id: entry._id },
-        { $set: { registeredAt: new Date(baseTime + index * 1000) } },
-      ),
-    ),
+  if (orderedEntries.length === 0) return;
+  await QueueEntry.bulkWrite(
+    orderedEntries.map((entry, index) => ({
+      updateOne: {
+        filter: { _id: entry._id },
+        update: { $set: { registeredAt: new Date(baseTime + index * 1000) } },
+      },
+    })),
+    { ordered: false },
   );
 }
 
@@ -125,10 +127,13 @@ async function insertRequeueEntries(
     specs.map((spec) => spec.playerId),
   );
 
-  const lockInByPlayer = await getLockInGroupIdByPlayerIds(
-    gameId,
-    specs.map((spec) => spec.playerId),
-  );
+  const needsLockInLookup = specs.some((spec) => spec.lockInGroupId == null);
+  const lockInByPlayer = needsLockInLookup
+    ? await getLockInGroupIdByPlayerIds(
+        gameId,
+        specs.map((spec) => spec.playerId),
+      )
+    : new Map<string, string>();
 
   await QueueEntry.insertMany(
     specs.map((spec) => ({
@@ -250,6 +255,7 @@ async function requeueDoublesCourtStandard(input: {
         pairGroupId: isWinner ? winnerPairGroupId : loserPairGroupId,
         registeredAt: new Date(now + index),
         lastMatchResult: isWinner ? ("win" as const) : ("loss" as const),
+        lockInGroupId: lockInByPlayer.get(playerId.toString()) ?? null,
       };
     });
 
@@ -319,6 +325,7 @@ async function requeueDoublesCourtStandard(input: {
           pairGroupId: isWinner ? winnerPairGroupId : loserPairGroupId,
           registeredAt: new Date(now + index),
           lastMatchResult: isWinner ? "win" : "loss",
+          lockInGroupId: lockInByPlayer.get(playerId.toString()) ?? null,
         };
       }),
     );
@@ -338,9 +345,12 @@ async function requeueDoublesCourtStandard(input: {
     input.gameId,
     requeueOrder.map((playerId, index) => ({
       playerId,
-      queueType: "normal",
+      queueType: "normal" as const,
       registeredAt: new Date(now + index),
-      lastMatchResult: input.winnerPlayerIdSet.has(playerId.toString()) ? "win" : "loss",
+      lastMatchResult: input.winnerPlayerIdSet.has(playerId.toString())
+        ? ("win" as const)
+        : ("loss" as const),
+      lockInGroupId: lockInByPlayer.get(playerId.toString()) ?? null,
     })),
     { clusterLockInGroups: false },
   );
