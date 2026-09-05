@@ -3384,7 +3384,8 @@
 
   .queue-item.queue-waiting-line {
     content-visibility: auto;
-    contain-intrinsic-size: auto 4.75rem;
+    contain-intrinsic-size: auto 7.5rem;
+    overflow: visible;
   }
 
   /* Self-registration highlight — uses --primary so it matches the active theme */

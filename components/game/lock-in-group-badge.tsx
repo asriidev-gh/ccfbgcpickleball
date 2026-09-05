@@ -14,7 +14,7 @@ export function LockInGroupBadge({ groupId, className }: LockInGroupBadgeProps) 
     <Badge
       variant="outline"
       className={cn(
-        "gap-1 text-[10px] font-medium",
+        "shrink-0 gap-1 text-[10px] font-medium",
         lockInGroupToneClass(groupId),
         className,
       )}

@@ -64,7 +64,12 @@ import {
   writeOperatorGamePayload,
 } from "@/lib/operator-game-cache";
 import { resolvePlayerId } from "@/lib/resolve-player-id";
-import { hasLockInPair, playerIdsIncludeLockInPair } from "@/lib/lock-in-groups-shared";
+import {
+  applyLockInGroupIdFromPlayerMap,
+  hasLockInPair,
+  lockInGroupIdByPlayerIdFromGroups,
+  playerIdsIncludeLockInPair,
+} from "@/lib/lock-in-groups-shared";
 import { useAccountQuickGameCheckpoint } from "@/hooks/use-account-quick-game-checkpoint";
 import { useAuthMe } from "@/hooks/use-auth-me";
 import { useHydrateOperatorDashboardSessionCache } from "@/hooks/use-hydrate-operator-dashboard-session-cache";
@@ -760,6 +765,12 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       );
     },
     refetchIntervalInBackground: false,
+  });
+
+  const lockInGroupsQuery = useQuery({
+    queryKey: lockInGroupsQueryKey(gameId),
+    queryFn: () => fetchLockInGroups(gameId),
+    enabled: Boolean(gameId) && operatorCanLoadData && !isSpectator && !isQuickGameSession,
   });
 
   const openQrRegistrationDialog = useCallback(async () => {
@@ -2043,19 +2054,31 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     () => dedupeQueueEntriesByPlayerId(data?.queue ?? []),
     [data?.queue],
   );
+  const lockInGroupIdByPlayerFromGroups = useMemo(
+    () => lockInGroupIdByPlayerIdFromGroups(lockInGroupsQuery.data?.groups ?? []),
+    [lockInGroupsQuery.data?.groups],
+  );
   const queueWithStats = useMemo(
     () =>
       dedupedQueue.map((entry) =>
-        attachSessionStatsToQueueEntry(entry, playerSessionStats),
+        applyLockInGroupIdFromPlayerMap(
+          attachSessionStatsToQueueEntry(entry, playerSessionStats),
+          resolvePlayerId(entry.playerId),
+          lockInGroupIdByPlayerFromGroups,
+        ),
       ),
-    [dedupedQueue, playerSessionStats],
+    [dedupedQueue, lockInGroupIdByPlayerFromGroups, playerSessionStats],
   );
   const checkedOutWithStats = useMemo(
     () =>
       (data?.checkedOut ?? []).map((entry) =>
-        attachSessionStatsToQueueEntry(entry, playerSessionStats),
+        applyLockInGroupIdFromPlayerMap(
+          attachSessionStatsToQueueEntry(entry, playerSessionStats),
+          resolvePlayerId(entry.playerId),
+          lockInGroupIdByPlayerFromGroups,
+        ),
       ),
-    [data?.checkedOut, playerSessionStats],
+    [data?.checkedOut, lockInGroupIdByPlayerFromGroups, playerSessionStats],
   );
   const leaderboardRankMap = useMemo(
     () =>
@@ -2185,12 +2208,6 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       }),
     [checkedOutWithStats, data?.courts, queueWithStats],
   );
-
-  const lockInGroupsQuery = useQuery({
-    queryKey: lockInGroupsQueryKey(gameId),
-    queryFn: () => fetchLockInGroups(gameId),
-    enabled: Boolean(gameId) && operatorCanLoadData && !isSpectator && !isQuickGameSession,
-  });
 
   const lockInCandidates = useMemo(() => {
     const byId = new Map<

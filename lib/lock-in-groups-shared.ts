@@ -21,6 +21,36 @@ export function isLockedInEntry(entry: { lockInGroupId?: string | null } | null 
   return Boolean(entry?.lockInGroupId);
 }
 
+export function lockInGroupIdByPlayerIdFromGroups(
+  groups: Array<{
+    groupId: string;
+    playerIds?: Array<string | null | undefined>;
+    players?: Array<{ id: string }>;
+  }>,
+) {
+  const map = new Map<string, string>();
+  for (const group of groups) {
+    for (const playerId of group.playerIds ?? []) {
+      if (playerId) map.set(String(playerId), group.groupId);
+    }
+    for (const player of group.players ?? []) {
+      if (player.id) map.set(player.id, group.groupId);
+    }
+  }
+  return map;
+}
+
+export function applyLockInGroupIdFromPlayerMap<T extends { lockInGroupId?: string | null }>(
+  entry: T,
+  playerId: string | null | undefined,
+  groupIdByPlayerId: Map<string, string>,
+): T {
+  if (entry.lockInGroupId || !playerId) return entry;
+  const groupId = groupIdByPlayerId.get(playerId);
+  if (!groupId) return entry;
+  return { ...entry, lockInGroupId: groupId };
+}
+
 export const LOCKED_IN_LINEUP_LOCKED_MESSAGE =
   "Locked-in partners stay together. Remove the lock-in group to replace or shuffle.";
 

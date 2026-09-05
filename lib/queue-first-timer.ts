@@ -79,10 +79,13 @@ export function serializeQueueEntriesForPayload<T extends QueueEntryDoc>(
   return entries.map((entry) => {
     const plain = (entry.toObject?.() ?? entry) as T & QueueEntryDoc;
     const annotated = annotateQueueEntryFirstTimer(plain, firstTimerIdentityKeys);
+    const lockInGroupId =
+      (plain as { lockInGroupId?: string | null }).lockInGroupId ?? null;
     return {
       ...annotated,
       playerId: normalizePlayerPhotoRef(plain.playerId),
       cardSharedAt: serializeCardSharedAt(plain.cardSharedAt),
+      lockInGroupId,
     };
   });
 }

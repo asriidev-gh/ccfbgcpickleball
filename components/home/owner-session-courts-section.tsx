@@ -57,7 +57,12 @@ import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
 import { useQuickGameSession } from "@/lib/quick-game-store";
 import type { CourtsViewCourtTheme } from "@/lib/courts-view-court-theme";
-import { hasLockInPair, playerIdsIncludeLockInPair } from "@/lib/lock-in-groups-shared";
+import {
+  applyLockInGroupIdFromPlayerMap,
+  hasLockInPair,
+  lockInGroupIdByPlayerIdFromGroups,
+  playerIdsIncludeLockInPair,
+} from "@/lib/lock-in-groups-shared";
 import { resolvePlayerId } from "@/lib/resolve-player-id";
 import { cn } from "@/lib/utils";
 
@@ -124,10 +129,26 @@ export function OwnerSessionCourtsSection({
     [session.leaderboard],
   );
 
+  const lockInGroupsQuery = useQuery({
+    queryKey: lockInGroupsQueryKey(session.gameId),
+    queryFn: () => fetchLockInGroups(session.gameId),
+    enabled: Boolean(session.gameId) && canOperateSession && !isBrowserQuickGame,
+  });
+  const lockInGroupIdByPlayerFromGroups = useMemo(
+    () => lockInGroupIdByPlayerIdFromGroups(lockInGroupsQuery.data?.groups ?? []),
+    [lockInGroupsQuery.data?.groups],
+  );
+
   const queueWithStats = useMemo(
     () =>
-      session.queue.map((entry) => attachSessionStatsToQueueEntry(entry, playerSessionStats)),
-    [session.queue, playerSessionStats],
+      session.queue.map((entry) =>
+        applyLockInGroupIdFromPlayerMap(
+          attachSessionStatsToQueueEntry(entry, playerSessionStats),
+          resolvePlayerId(entry.playerId),
+          lockInGroupIdByPlayerFromGroups,
+        ),
+      ),
+    [lockInGroupIdByPlayerFromGroups, playerSessionStats, session.queue],
   );
 
   const matchingType = localPayload?.game.matchingType ?? session.matchingType;
@@ -225,11 +246,6 @@ export function OwnerSessionCourtsSection({
     [queueWithStats, session.checkedOut, session.courts],
   );
 
-  const lockInGroupsQuery = useQuery({
-    queryKey: lockInGroupsQueryKey(session.gameId),
-    queryFn: () => fetchLockInGroups(session.gameId),
-    enabled: Boolean(session.gameId) && canOperateSession && !isBrowserQuickGame,
-  });
   const lockInGroupIdByPlayerId = useMemo(() => {
     const map = new Map<string, string>();
     for (const entry of queueWithStats) {

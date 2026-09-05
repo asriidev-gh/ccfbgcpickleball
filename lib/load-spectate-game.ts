@@ -15,7 +15,9 @@ import {
 } from "@/lib/spectate-live-meta-cache";
 import { getSpectatorCount } from "@/lib/spectator-presence";
 import { normalizePlayerPhotoRef } from "@/lib/player-avatar-url";
+import { getLockInGroupIdByPlayerIds } from "@/lib/lock-in-groups";
 import { healOrphanedOnCourtEntries } from "@/lib/queue-on-court-orphans";
+import { Types } from "mongoose";
 import { Court } from "@/models/Court";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { MatchHistory } from "@/models/MatchHistory";
@@ -54,6 +56,17 @@ function serializeCourtForPayload(court: CourtDoc) {
   };
 }
 
+function queueEntryPlayerObjectId(playerId: unknown): Types.ObjectId | null {
+  if (playerId == null) return null;
+  if (typeof playerId === "object" && playerId !== null && "_id" in playerId) {
+    const id = (playerId as { _id?: Types.ObjectId | string })._id;
+    if (!id) return null;
+    return id instanceof Types.ObjectId ? id : new Types.ObjectId(String(id));
+  }
+  const raw = String(playerId);
+  return Types.ObjectId.isValid(raw) ? new Types.ObjectId(raw) : null;
+}
+
 export async function loadQueueCourtsAndCheckedOut(gameId: string) {
   // Self-heal players stuck as on_court with no court assignment so they reappear in the queue.
   await healOrphanedOnCourtEntries(gameId);
@@ -70,6 +83,18 @@ export async function loadQueueCourtsAndCheckedOut(gameId: string) {
       "teamB.playerIds",
     ]),
   ]);
+
+  const playerObjectIds = [...queue, ...checkedOut]
+    .map((entry) => queueEntryPlayerObjectId(entry.playerId))
+    .filter((id): id is Types.ObjectId => id != null);
+  const lockInByPlayer = await getLockInGroupIdByPlayerIds(gameId, playerObjectIds);
+
+  for (const entry of [...queue, ...checkedOut]) {
+    if (entry.lockInGroupId) continue;
+    const playerId = queueEntryPlayerObjectId(entry.playerId);
+    const groupId = playerId ? lockInByPlayer.get(String(playerId)) : undefined;
+    if (groupId) entry.lockInGroupId = groupId;
+  }
 
   return {
     queue,

@@ -629,15 +629,17 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 {slot}
               </span>
             ) : null}
-            <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-              {compactNameNode}
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <div className="min-w-0 flex-1 overflow-hidden">{compactNameNode}</div>
               {showEndorsedInPlayerLabel ? (
                 <PlayerEndorsementStatusBadge
                   count={endorsementCount}
                   onClick={onEndorsementClick}
                 />
               ) : null}
-              {entry.lockInGroupId ? <LockInGroupBadge groupId={entry.lockInGroupId} /> : null}
+              {entry.lockInGroupId ? (
+                <LockInGroupBadge groupId={entry.lockInGroupId} className="shrink-0" />
+              ) : null}
               {sharedBadge}
               {endorsedBadge}
               {undefeatedBadge}
@@ -813,12 +815,12 @@ export const QueueEntryRow = memo(function QueueEntryRow({
           ) : null}
           <div className="min-w-0 flex-1">
             <div className={cn("min-w-0", isNextUp ? "text-sm font-medium xl:text-base" : "body-lg")}>
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
                 <PlayerNameWithPhoto
                   player={entry.playerId}
                   onPlayerClick={onViewPlayerInfo}
                   className={cn(
-                    "min-w-0",
+                    "min-w-0 flex-1 overflow-hidden",
                     isNextUp && "gap-2 xl:gap-3",
                     checkedOut && "opacity-80",
                   )}
@@ -837,7 +839,9 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                     onClick={onEndorsementClick}
                   />
                 ) : null}
-                {entry.lockInGroupId ? <LockInGroupBadge groupId={entry.lockInGroupId} /> : null}
+                {entry.lockInGroupId ? (
+                  <LockInGroupBadge groupId={entry.lockInGroupId} className="shrink-0" />
+                ) : null}
               </div>
               {!checkedOut && !hideSessionStats && !inWaitingLine ? (
                 <QueueEntrySessionStatsRow
