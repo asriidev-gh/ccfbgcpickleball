@@ -17,9 +17,11 @@ function loadSwal() {
  * Drop-in lazy facade for SweetAlert2 so the library stays out of page bundles until a dialog opens.
  * `close` / `showLoading` queue behind the load, so they still run after a `fire` that started first.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- mirrors the library signature `fire<T = any>`
 const Swal = {
-  async fire<T = unknown>(options: SweetAlertOptions<T>): Promise<SweetAlertResult<T>> {
-    return (await loadSwal()).fire<T>(options);
+  async fire<T = any>(options: SweetAlertOptions): Promise<SweetAlertResult<Awaited<T>>> {
+    const swal = await loadSwal();
+    return swal.fire(options) as Promise<SweetAlertResult<Awaited<T>>>;
   },
   async close(result?: Parameters<SwalModule["close"]>[0]) {
     (await loadSwal()).close(result);
