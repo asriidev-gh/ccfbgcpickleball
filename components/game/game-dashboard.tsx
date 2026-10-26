@@ -117,13 +117,9 @@ import { AddCourtButton } from "@/components/game/add-court-button";
 import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
 import { promptIfRegistrationFullFromSession } from "@/components/game/registration-capacity-prompt";
 import { fetchGameRegistrationQr } from "@/lib/fetch-game-registration-qr";
-import {
-  MatchHistoryList,
-  type MatchHistoryView,
-} from "@/components/game/match-history-list";
+import type { MatchHistoryView } from "@/components/game/match-history-list";
 import { formatOpenPlayDate, formatOpenPlayScheduleLabel, formatVenueShareLabel } from "@/lib/open-play-time-range";
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
-import { NextCourtMatchAnalysis } from "@/components/game/next-court-match-analysis";
 import {
   buildQueueNextCourtWaitingSwapOrder,
   buildQueueOrderAfterNextCourtReplace,
@@ -134,10 +130,9 @@ import {
 } from "@/lib/next-court-match-analysis";
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
 import { LiveQueueOffBadge } from "@/components/home/live-queue-off-badge";
-import {
-  ReplacePlayerDialog,
-  type ReplacePlayerConfirmInput,
-  type ReplacePlayerDialogState,
+import type {
+  ReplacePlayerConfirmInput,
+  ReplacePlayerDialogState,
 } from "@/components/game/replace-player-dialog";
 import { QueueEntryRow, type QueueEntryView } from "@/components/game/queue-entry-row";
 import {
@@ -271,6 +266,15 @@ import {
 } from "@/lib/spectator-query-options";
 import { SPECTATOR_VIEW_UNAVAILABLE_MESSAGE } from "@/lib/spectator-availability-shared";
 
+const MatchHistoryList = dynamic(() =>
+  import("@/components/game/match-history-list").then((mod) => mod.MatchHistoryList),
+);
+const NextCourtMatchAnalysis = dynamic(() =>
+  import("@/components/game/next-court-match-analysis").then((mod) => mod.NextCourtMatchAnalysis),
+);
+const ReplacePlayerDialog = dynamic(() =>
+  import("@/components/game/replace-player-dialog").then((mod) => mod.ReplacePlayerDialog),
+);
 const CourtEndGameDialog = dynamic(() =>
   import("@/components/game/court-end-game-dialog").then((mod) => mod.CourtEndGameDialog),
 );
@@ -2334,14 +2338,17 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     [lockInGroupIdByPlayerId],
   );
 
-  /** Re-read on every queue update so highlight never drops after refetch or reorder. */
+  /**
+   * Re-read on every queue update so highlight never drops after refetch or reorder.
+   * Browser storage is unavailable during SSR, so wait for mount to keep hydration markup identical.
+   */
   const selfHighlightPlayerId = useMemo(
-    () => (gameId ? getActiveQueueHighlightPlayerId(gameId) : null),
-    [gameId, data?.queue],
+    () => (gameId && uiPrefsHydrated ? getActiveQueueHighlightPlayerId(gameId) : null),
+    [gameId, uiPrefsHydrated, data?.queue],
   );
   const selfPlayerIds = useMemo(
-    () => (gameId ? getActiveQueueHighlightPlayerIds(gameId) : []),
-    [gameId, data?.queue],
+    () => (gameId && uiPrefsHydrated ? getActiveQueueHighlightPlayerIds(gameId) : []),
+    [gameId, uiPrefsHydrated, data?.queue],
   );
   const endorserPlayerId = selfPlayerIds[0] ?? selfHighlightPlayerId ?? "";
   const showLiveEndorsements =

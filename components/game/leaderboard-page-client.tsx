@@ -188,9 +188,12 @@ export function LeaderboardPageClient({
     ? (localRecap?.insights ?? [])
     : (recapQuery.data?.insights ?? []);
 
+  // Session storage is unavailable during SSR; read it after mount so hydration markup matches.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const selfPlayerIds = useMemo(
-    () => (isSpectatorView && gameId ? getActiveQueueHighlightPlayerIds(gameId) : []),
-    [gameId, isSpectatorView],
+    () => (mounted && isSpectatorView && gameId ? getActiveQueueHighlightPlayerIds(gameId) : []),
+    [gameId, isSpectatorView, mounted],
   );
 
   const leaderboardRankMap = useMemo(

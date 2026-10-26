@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { Loader2, Archive, ArchiveRestore, Eye, Megaphone, Pencil, Plus, Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import Swal from "@/lib/swal";
 import { toast } from "sonner";
@@ -24,7 +25,6 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClubAnnouncementBody } from "@/components/my-club/club-announcement-body";
 import { ClubAnnouncementPlayerPreviewDialog } from "@/components/my-club/club-announcement-player-preview-dialog";
-import { ClubAnnouncementRichTextEditor } from "@/components/my-club/club-announcement-rich-text-editor";
 import type { ClubAnnouncementItem } from "@/lib/club-announcements-shared";
 import {
   announcementBodyHasContent,
@@ -46,6 +46,18 @@ import {
   myClubQueryOptions,
 } from "@/lib/my-club-queries";
 import { cn } from "@/lib/utils";
+
+// TipTap is large and only needed when the editor dialog is open; it needs the browser, so skip SSR.
+const ClubAnnouncementRichTextEditor = dynamic(
+  () =>
+    import("@/components/my-club/club-announcement-rich-text-editor").then(
+      (mod) => mod.ClubAnnouncementRichTextEditor,
+    ),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-40 animate-pulse rounded-md border bg-muted/30" aria-hidden />,
+  },
+);
 
 const alertOptions = {
   background: "#0f172a",

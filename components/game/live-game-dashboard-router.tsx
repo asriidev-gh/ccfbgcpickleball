@@ -1,12 +1,12 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { GameDashboard } from "@/components/game/game-dashboard";
-import { SinglesGameDashboard } from "@/components/singles/singles-game-dashboard";
 import { useHydrateOperatorDashboardSessionCache } from "@/hooks/use-hydrate-operator-dashboard-session-cache";
 import {
   fetchOperatorShell,
@@ -20,6 +20,20 @@ import {
 import type { OperatorQueuePayload, OperatorShellPayload } from "@/lib/operator-payload";
 import { isSinglesGameMode } from "@/lib/singles/singles-constants";
 import { operatorShellQueryOptions } from "@/lib/operator-query-options";
+
+const SinglesGameDashboard = dynamic(
+  () => import("@/components/singles/singles-game-dashboard").then((mod) => mod.SinglesGameDashboard),
+  {
+    loading: () => (
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" aria-hidden />
+          Loading session…
+        </div>
+      </main>
+    ),
+  },
+);
 
 type LiveGameDashboardRouterProps = {
   /** Server-loaded payloads; seed the cache so the dashboard needs no initial client fetches. */
