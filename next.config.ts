@@ -9,6 +9,10 @@ function getLanHostFromEnv() {
 const lanHost = getLanHostFromEnv();
 
 const nextConfig: NextConfig = {
+  // Import only the icons/functions used instead of whole barrel files.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "date-fns"],
+  },
   // Allow phones on your LAN to load Next.js dev client bundles (required for buttons/forms)
   allowedDevOrigins: [
     "localhost",
