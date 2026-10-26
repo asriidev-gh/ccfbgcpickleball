@@ -939,6 +939,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     },
   });
 
+  // Other observers of this query (nav, brand bar) can start the fetch before this subtree hydrates,
+  // so only reflect it after mount to keep the first client render identical to the server HTML.
+  const spectatorLiveFetching = uiPrefsHydrated && spectatorLiveQuery.isFetching;
   const spectatorGameStatus = spectatorLiveQuery.data?.game?.status;
   const spectatorMatchHistoryEnabled =
     isSpectator &&
@@ -2998,7 +3001,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     const spectatorQueueRefreshStatus =
       isSpectator && !isPastGame
         ? getSpectatorPanelRefreshStatus(
-            spectatorLiveQuery.isFetching,
+            spectatorLiveFetching,
             spectatorLiveQuery.isLoading,
             spectatorManualLiveRefresh,
           )
@@ -3023,11 +3026,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 size="sm"
                 className="queue-refresh-btn h-8 shrink-0 gap-1.5 px-2.5"
                 onClick={handleSpectatorLiveRefresh}
-                disabled={spectatorLiveQuery.isFetching}
+                disabled={spectatorLiveFetching}
                 aria-label="Refresh queue"
               >
                 <RefreshCw
-                  className={cn("h-4 w-4", spectatorLiveQuery.isFetching && "animate-spin")}
+                  className={cn("h-4 w-4", spectatorLiveFetching && "animate-spin")}
                 />
                 <span>Refresh</span>
               </Button>
@@ -3368,7 +3371,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       !isPastGame &&
       inSpectatorMobileTab
         ? getSpectatorPanelRefreshStatus(
-            spectatorLiveQuery.isFetching,
+            spectatorLiveFetching,
             spectatorLiveQuery.isLoading,
             spectatorManualLiveRefresh,
           )
@@ -3424,11 +3427,11 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             size="sm"
             className="courts-refresh-btn h-8 w-8 shrink-0 px-0"
             onClick={handleSpectatorLiveRefresh}
-            disabled={spectatorLiveQuery.isFetching}
+            disabled={spectatorLiveFetching}
             aria-label="Refresh courts"
           >
             <RefreshCw
-              className={cn("h-4 w-4", spectatorLiveQuery.isFetching && "animate-spin")}
+              className={cn("h-4 w-4", spectatorLiveFetching && "animate-spin")}
             />
           </Button>
         ) : null}

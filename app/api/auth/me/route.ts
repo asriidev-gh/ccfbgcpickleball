@@ -20,6 +20,12 @@ function clearAuthCookie(response: NextResponse) {
 }
 
 export async function GET() {
+  // No cookie means signed out; answer without waiting for a database connection.
+  const cookieStore = await cookies();
+  if (!cookieStore.get(getAuthCookieName())?.value) {
+    return NextResponse.json({ user: null }, { status: 401 });
+  }
+
   try {
     return await runWithDatabase(async () => {
       const user = await getAuthUserFromCookie();
@@ -37,7 +43,6 @@ export async function GET() {
         });
       }
 
-      const cookieStore = await cookies();
       const token = cookieStore.get(getAuthCookieName())?.value;
       if (!token) return NextResponse.json({ user: null }, { status: 401 });
 

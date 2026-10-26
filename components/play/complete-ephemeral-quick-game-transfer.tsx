@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -18,6 +18,12 @@ export function CompleteEphemeralQuickGameTransfer() {
   const pathname = usePathname();
   const runningRef = useRef(false);
   const isAuthPage = shouldHideAppBrandBar(pathname);
+  // Only check the session when a public session is waiting to be saved; skips a request on most pages.
+  const [hasPendingTransfer, setHasPendingTransfer] = useState(false);
+
+  useEffect(() => {
+    setHasPendingTransfer(Boolean(readPendingEphemeralQuickGameTransfer()));
+  }, [pathname]);
 
   const { data: authData } = useQuery({
     queryKey: ["auth-me"],
@@ -26,7 +32,7 @@ export function CompleteEphemeralQuickGameTransfer() {
       return (await response.json()) as { user: unknown | null };
     },
     staleTime: 60_000,
-    enabled: !isAuthPage,
+    enabled: !isAuthPage && hasPendingTransfer,
   });
 
   useEffect(() => {
