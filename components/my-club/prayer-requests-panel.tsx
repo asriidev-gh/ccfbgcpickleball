@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 import { toast } from "sonner";
 
 import { PlayerAvatar } from "@/components/game/player-avatar";

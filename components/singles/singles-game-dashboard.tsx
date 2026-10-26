@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 
 import { AddCourtButton } from "@/components/game/add-court-button";
 import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";

@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, EyeOff, Loader2, MonitorSmartphone } from "lucide-react";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

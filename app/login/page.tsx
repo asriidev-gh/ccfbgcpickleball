@@ -3,13 +3,11 @@
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { LoginVideoIntro } from "@/components/login/login-video-intro";
 import { DeveloperCreditLink } from "@/components/developer-credit-link";
-import { WatchDemoButton } from "@/components/watch-demo-button";
 import { APP_NAME } from "@/lib/app-config";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,14 +41,6 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
-  const skipIntro = searchParams.get("saveQuickPlay") === "1";
-  const [introPlayed, setIntroPlayed] = useState(false);
-  const introDone = skipIntro || introPlayed;
-
-  const handleIntroComplete = useCallback(() => {
-    setIntroPlayed(true);
-  }, []);
-
   useEffect(() => {
     const error = searchParams.get("error");
     if (error) {
@@ -125,22 +115,11 @@ function LoginForm() {
       <header className="login-page-header absolute inset-x-0 top-0 z-20 border-b border-border/60 bg-background/85 py-3 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-6">
           <span className="app-brand">{APP_NAME}</span>
-          <WatchDemoButton />
         </div>
       </header>
 
       <main className="login-page relative isolate z-10 flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden p-6">
-        {!introDone && !skipIntro ? <LoginVideoIntro onComplete={handleIntroComplete} /> : null}
-
-      <div
-        className={cn(
-          "relative z-10 flex w-full max-w-md flex-col items-center gap-6 transition-all duration-700 ease-out",
-          introDone
-            ? "-translate-y-[60px] opacity-100"
-            : "pointer-events-none translate-y-4 opacity-0",
-        )}
-        aria-hidden={!introDone}
-      >
+      <div className="relative z-10 flex w-full max-w-md -translate-y-[60px] flex-col items-center gap-6">
         <Card className="glass-panel w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="section-title">
@@ -197,7 +176,7 @@ function LoginForm() {
                 </button>
               </div>
             </div>
-            <Button className="w-full" onClick={submit} disabled={loading || !introDone}>
+            <Button className="w-full" onClick={submit} disabled={loading}>
               {loading ? "Please wait..." : mode === "login" ? "Login" : "Create Account"}
             </Button>
 
@@ -211,7 +190,7 @@ function LoginForm() {
               type="button"
               variant="outline"
               className={cn("w-full", WIZARD_OUTLINE_BUTTON_BORDER)}
-              disabled={loading || !introDone}
+              disabled={loading}
               onClick={() => {
                 window.location.href = "/api/auth/google";
               }}
@@ -223,7 +202,6 @@ function LoginForm() {
             <Button
               variant="ghost"
               className="w-full"
-              disabled={!introDone}
               onClick={() => setMode((prev) => (prev === "login" ? "register" : "login"))}
             >
               {mode === "login" ? "Need an account? Sign up" : "Already have an account? Log in"}

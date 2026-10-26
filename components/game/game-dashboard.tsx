@@ -18,6 +18,7 @@ import {
   Lock,
 } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -26,7 +27,7 @@ import {
 } from "@/lib/infrastructure-error";
 import { toastOperationError } from "@/lib/toast-error";
 import { useParams, useRouter } from "next/navigation";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 import { swalAlertBaseOptions, selfQueueCheckoutMessageHtml } from "@/lib/swal-theme";
 
 import {
@@ -96,23 +97,16 @@ import {
 } from "@/lib/ephemeral-quick-game-transfer";
 
 import { CourtCard, CourtsSummary, type CourtView } from "@/components/game/court-card";
-import { CourtEndGameDialog } from "@/components/game/court-end-game-dialog";
 import { DashboardPanelFullscreenButton } from "@/components/game/dashboard-panel-fullscreen-button";
 import { GamePlayerProfileProvider } from "@/components/game/game-player-profile-context";
-import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
 import type { LeaderboardRow } from "@/components/game/leaderboard-standings";
-import { PlayerSessionMatchHistoryDialog } from "@/components/game/player-session-match-history-dialog";
 import { GameDashboardMobileNav } from "@/components/game/game-dashboard-mobile-nav";
 import { OpenPlaySkillLevelPills } from "@/components/game/open-play-skill-level-pills";
 import { GameFormatHeaderBadges } from "@/components/game/game-format-header-badges";
 import { SpectateBirthdaysThisMonthBadge } from "@/components/player/spectate-birthdays-this-month";
 import { SpectateFirstTimersBadge } from "@/components/player/spectate-first-timers";
 import { SpectatorPlayerCardShareButton } from "@/components/game/spectator-player-card-share-button";
-import { SpectatorPlayerCardShareDialog } from "@/components/game/spectator-player-card-share-dialog";
 import { SpectatorPlayerEndorseButton } from "@/components/game/spectator-player-endorse-button";
-import { SpectatePlayerEndorseDialog } from "@/components/player/spectate-player-endorse-dialog";
-import { SpectatePlayerEndorsementsListDialog } from "@/components/player/spectate-player-endorsements-list-dialog";
-import { DatabaseCheckInDialog } from "@/components/game/database-check-in-dialog";
 import {
   fetchLockInGroups,
   LockInPlayersDialog,
@@ -120,9 +114,7 @@ import {
 } from "@/components/game/lock-in-players-dialog";
 import { databaseCheckInPlayersQueryKey } from "@/lib/operator-database-check-in-shared";
 import { AddCourtButton } from "@/components/game/add-court-button";
-import { AddManualPlayerDialog } from "@/components/game/add-manual-player-dialog";
 import { GameSessionActionsMenu } from "@/components/game/game-session-actions-menu";
-import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { promptIfRegistrationFullFromSession } from "@/components/game/registration-capacity-prompt";
 import { fetchGameRegistrationQr } from "@/lib/fetch-game-registration-qr";
 import {
@@ -278,6 +270,34 @@ import {
   spectatorRecapQueryOptions,
 } from "@/lib/spectator-query-options";
 import { SPECTATOR_VIEW_UNAVAILABLE_MESSAGE } from "@/lib/spectator-availability-shared";
+
+const CourtEndGameDialog = dynamic(() =>
+  import("@/components/game/court-end-game-dialog").then((mod) => mod.CourtEndGameDialog),
+);
+const PlayerSessionMatchHistoryDialog = dynamic(() =>
+  import("@/components/game/player-session-match-history-dialog").then((mod) => mod.PlayerSessionMatchHistoryDialog),
+);
+const SpectatorPlayerCardShareDialog = dynamic(() =>
+  import("@/components/game/spectator-player-card-share-dialog").then((mod) => mod.SpectatorPlayerCardShareDialog),
+);
+const SpectatePlayerEndorseDialog = dynamic(() =>
+  import("@/components/player/spectate-player-endorse-dialog").then((mod) => mod.SpectatePlayerEndorseDialog),
+);
+const SpectatePlayerEndorsementsListDialog = dynamic(() =>
+  import("@/components/player/spectate-player-endorsements-list-dialog").then((mod) => mod.SpectatePlayerEndorsementsListDialog),
+);
+const DatabaseCheckInDialog = dynamic(() =>
+  import("@/components/game/database-check-in-dialog").then((mod) => mod.DatabaseCheckInDialog),
+);
+const AddManualPlayerDialog = dynamic(() =>
+  import("@/components/game/add-manual-player-dialog").then((mod) => mod.AddManualPlayerDialog),
+);
+const GameQrDialog = dynamic(() =>
+  import("@/components/game/game-qr-dialog").then((mod) => mod.GameQrDialog),
+);
+const LeaderboardPageContent = dynamic(() =>
+  import("@/components/game/leaderboard-page-content").then((mod) => mod.LeaderboardPageContent),
+);
 
 export type GameDashboardMode = "operator" | "spectator";
 

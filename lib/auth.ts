@@ -38,11 +38,29 @@ export async function readAuthTokenPayload() {
   }
 }
 
+const AUTH_STATUS_TTL_MS = 30_000;
+const AUTH_STATUS_MAX_ENTRIES = 1_000;
+
+/** userId -> whether the account may sign in; avoids a User lookup on every API request. */
+const authStatusCache = new Map<string, { allowed: boolean; expiresAt: number }>();
+
+/** Call after changing a user's blocked state so this instance stops trusting the cached result. */
+export function invalidateAuthStatusCache(userId: string) {
+  authStatusCache.delete(userId);
+}
+
 /** Use inside runWithDatabase so auth shares the same connection as the route handler. */
 export async function authorizeAuthPayload(payload: AuthPayload) {
+  const now = Date.now();
+  const hit = authStatusCache.get(payload.userId);
+  if (hit && hit.expiresAt > now) return hit.allowed ? payload : null;
+
   const user = await User.findById(payload.userId).select("isBlocked").lean();
-  if (!user || isUserBlocked(user)) return null;
-  return payload;
+  const allowed = Boolean(user) && !isUserBlocked(user);
+
+  if (authStatusCache.size >= AUTH_STATUS_MAX_ENTRIES) authStatusCache.clear();
+  authStatusCache.set(payload.userId, { allowed, expiresAt: now + AUTH_STATUS_TTL_MS });
+  return allowed ? payload : null;
 }
 
 export async function getAuthUserFromCookie() {

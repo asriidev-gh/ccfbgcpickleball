@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 import { toast } from "sonner";
 
 import { applyEndOpenPlayOptimistic } from "@/lib/game-payload-mutations";

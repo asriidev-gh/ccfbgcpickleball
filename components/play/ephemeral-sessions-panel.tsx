@@ -5,7 +5,7 @@ import { AlertTriangle, LayoutGrid, Loader2, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";

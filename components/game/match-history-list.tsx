@@ -5,7 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, Clock, Loader2, MapPin, Search, Trash2, Trophy, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 
 import { PlayerPhotoTrigger, PlayerProfileTrigger } from "@/components/game/player-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";

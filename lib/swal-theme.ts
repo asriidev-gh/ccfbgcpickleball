@@ -1,4 +1,4 @@
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 
 /** Shared SweetAlert styling for queue checkout and related game dialogs. */
 export const swalAlertBaseOptions = {

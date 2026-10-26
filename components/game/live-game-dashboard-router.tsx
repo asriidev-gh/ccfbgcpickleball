@@ -3,26 +3,61 @@
 import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { GameDashboard } from "@/components/game/game-dashboard";
 import { SinglesGameDashboard } from "@/components/singles/singles-game-dashboard";
 import { useHydrateOperatorDashboardSessionCache } from "@/hooks/use-hydrate-operator-dashboard-session-cache";
 import {
   fetchOperatorShell,
+  operatorQueueQueryKey,
   operatorShellQueryKey,
 } from "@/lib/fetch-operator-game";
+import {
+  writeOperatorQueueSessionCache,
+  writeOperatorShellSessionCache,
+} from "@/lib/operator-dashboard-session-cache";
+import type { OperatorQueuePayload, OperatorShellPayload } from "@/lib/operator-payload";
 import { isSinglesGameMode } from "@/lib/singles/singles-constants";
 import { operatorShellQueryOptions } from "@/lib/operator-query-options";
 
-export function LiveGameDashboardRouter() {
+type LiveGameDashboardRouterProps = {
+  /** Server-loaded payloads; seed the cache so the dashboard needs no initial client fetches. */
+  initialShell?: OperatorShellPayload;
+  initialQueue?: OperatorQueuePayload;
+  /** Server data still streaming: show the loading state without fetching. */
+  pending?: boolean;
+};
+
+export function LiveGameDashboardRouter({
+  initialShell,
+  initialQueue,
+  pending = false,
+}: LiveGameDashboardRouterProps) {
   const gameId = String(useParams().id ?? "");
   const queryClient = useQueryClient();
+
+  // Seed before any query observer mounts; never overwrite data already in the cache.
+  useState(() => {
+    if (initialShell && !queryClient.getQueryData(operatorShellQueryKey(gameId))) {
+      queryClient.setQueryData(operatorShellQueryKey(gameId), initialShell);
+    }
+    if (initialQueue && !queryClient.getQueryData(operatorQueueQueryKey(gameId))) {
+      queryClient.setQueryData(operatorQueueQueryKey(gameId), initialQueue);
+    }
+  });
+
+  useEffect(() => {
+    if (initialShell) writeOperatorShellSessionCache(gameId, initialShell);
+    if (initialQueue) writeOperatorQueueSessionCache(gameId, initialQueue);
+  }, [gameId, initialShell, initialQueue]);
+
   useHydrateOperatorDashboardSessionCache(queryClient, gameId);
 
   const shellQuery = useQuery({
     queryKey: operatorShellQueryKey(gameId),
     queryFn: () => fetchOperatorShell(gameId),
-    enabled: Boolean(gameId),
+    enabled: Boolean(gameId) && !pending,
     ...operatorShellQueryOptions,
   });
 

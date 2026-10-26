@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getAuthUserFromCookie } from "@/lib/auth";
+import { getAuthUserFromCookie, invalidateAuthStatusCache } from "@/lib/auth";
 import { runWithDatabase } from "@/lib/db";
 import { getUserDemoOpenPlays, getUserOpenPlays, getUserQuickGameOpenPlays } from "@/lib/insights";
 import { isSuperAdmin } from "@/lib/superadmin";
@@ -97,6 +97,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     if (!user) return NextResponse.json({ message: "User not found." }, { status: 404 });
 
+    invalidateAuthStatusCache(id);
+
     const userPayload = {
       id: user._id.toString(),
       name: user.name,
@@ -175,6 +177,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
       );
     }
     const deleted = await User.findByIdAndDelete(id);
+    invalidateAuthStatusCache(id);
     if (!deleted) return NextResponse.json({ message: "User not found." }, { status: 404 });
 
     return NextResponse.json({ message: "User deleted." });

@@ -37,10 +37,12 @@ async function fetchGamesList() {
 }
 
 /** Load the signed-in owner's game list once; refetch manually (e.g. after mutations). */
-export function useGamesList() {
+export function useGamesList(options?: { initialData?: GamesListPayload; enabled?: boolean }) {
   return useQuery({
     queryKey: ["games"],
     queryFn: fetchGamesList,
+    initialData: options?.initialData,
+    enabled: options?.enabled ?? true,
     ...ownerHubQueryOptions,
     retry: (failureCount, error) => {
       if (error instanceof Error && /unauthorized/i.test(error.message)) {

@@ -14,7 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 import { toast } from "sonner";
 
 import { DgroupRemarksDialog } from "@/components/my-club/dgroup-remarks-dialog";

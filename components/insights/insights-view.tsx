@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 import { toast } from "sonner";
 
 import { ChangeUserPasswordDialog } from "@/components/insights/change-user-password-dialog";

@@ -23,12 +23,16 @@ const appSans = Plus_Jakarta_Sans({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  // Theme- or element-specific: fetched on first use instead of preloaded on every page.
+  preload: false,
   subsets: ["latin"],
   display: "swap",
 });
 
 const roboto = Roboto({
   variable: "--font-roboto",
+  // Theme- or element-specific: fetched on first use instead of preloaded on every page.
+  preload: false,
   subsets: ["latin"],
   weight: ["400", "500", "700"],
   display: "swap",
@@ -36,6 +40,8 @@ const roboto = Roboto({
 
 const outfit = Outfit({
   variable: "--font-outfit",
+  // Theme- or element-specific: fetched on first use instead of preloaded on every page.
+  preload: false,
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   display: "swap",
@@ -43,6 +49,8 @@ const outfit = Outfit({
 
 const bebasNeue = Bebas_Neue({
   variable: "--font-bebas",
+  // Theme- or element-specific: fetched on first use instead of preloaded on every page.
+  preload: false,
   subsets: ["latin"],
   weight: "400",
   display: "swap",
@@ -50,6 +58,8 @@ const bebasNeue = Bebas_Neue({
 
 const oswald = Oswald({
   variable: "--font-oswald",
+  // Theme- or element-specific: fetched on first use instead of preloaded on every page.
+  preload: false,
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",

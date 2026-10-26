@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { Loader2, MapPin, Pencil, Plus, Store, Trash2, Eye, EyeOff, Bell, Package, Truck, Wallet, ImageIcon, Tag } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";

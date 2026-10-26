@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   ChevronDown,
-  CirclePlay,
   ClipboardList,
   Clock,
   Download,
@@ -27,7 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import Swal from "sweetalert2";
+import Swal from "@/lib/swal";
 import { toast } from "sonner";
 
 import { CreateDemoOpenPlayDialog } from "@/components/game/create-demo-open-play-dialog";
@@ -38,13 +37,11 @@ import {
 } from "@/components/home/email-verification-banner";
 import { LiveQueueOffBadge } from "@/components/home/live-queue-off-badge";
 import { SwitchToCourtViewButton } from "@/components/game/switch-to-court-view-button";
-import { DemoVideoDialog } from "@/components/demo-video-dialog";
 import { EditGameDialog, type EditGameDialogGame } from "@/components/game/edit-game-dialog";
 import { EditQuickGameDialog } from "@/components/game/edit-quick-game-dialog";
 import { GameFormatHeaderBadges } from "@/components/game/game-format-header-badges";
 import { GameQrDialog } from "@/components/game/game-qr-dialog";
 import { GameSpectatorShareDialog } from "@/components/game/game-spectator-share-dialog";
-import { WatchDemoButton } from "@/components/watch-demo-button";
 import {
   GAME_LIST_DESKTOP_MEDIA,
   GameListViewToggle,
@@ -414,7 +411,6 @@ function GameListActionsMenu({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const isDemo = isDemoOpenPlayTitle(game.title);
   const dashboardHref = `/games/${game.gameId}`;
   const isEnded = game.status === "ended";
   const canReactivate =
@@ -425,7 +421,6 @@ function GameListActionsMenu({
   const spectatorUrl = getClientSpectatorShareUrl(game.gameId);
 
   const [shareOpen, setShareOpen] = useState(false);
-  const [demoOpen, setDemoOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
@@ -600,12 +595,6 @@ function GameListActionsMenu({
                 </DropdownMenuItem>
               </>
             )}
-            {isDemo ? (
-              <DropdownMenuItem className="game-list-actions-menu__item" onClick={() => setDemoOpen(true)}>
-                <CirclePlay aria-hidden />
-                Watch demo
-              </DropdownMenuItem>
-            ) : null}
             {!game.isLocalGame && !isEnded ? (
               <DropdownMenuItem className="game-list-actions-menu__item" onClick={() => onEdit(game)}>
                 <Pencil aria-hidden />
@@ -645,9 +634,6 @@ function GameListActionsMenu({
           mode={isSpectatorQr ? "spectator" : "registration"}
         />
       ) : null}
-      {isDemo ? (
-        <DemoVideoDialog open={demoOpen} onOpenChange={setDemoOpen} userType={userType ?? undefined} />
-      ) : null}
     </>
   );
 }
@@ -678,7 +664,6 @@ function GameListActions({
   hideToolbarOnMobile?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const isDemo = isDemoOpenPlayTitle(game.title);
   const dashboardHref = `/games/${game.gameId}`;
   const isEnded = game.status === "ended";
   const dashboardLabel = "Enter Game";
@@ -736,7 +721,6 @@ function GameListActions({
   if (compact) {
     return (
       <div className="game-list-actions game-list-actions--compact flex w-full flex-col gap-2.5">
-        {isDemo ? <WatchDemoButton className="w-full" userType={userType ?? undefined} /> : null}
         <div className="flex w-full items-stretch gap-2">
           <Link
             href={dashboardHref}
@@ -764,9 +748,6 @@ function GameListActions({
 
   return (
     <div className="game-list-actions w-full min-w-0 md:mx-auto md:max-w-[16rem]">
-      {isDemo ? (
-        <WatchDemoButton className="mb-0.5 w-full" userType={userType ?? undefined} />
-      ) : null}
       <div className="game-list-actions__primary">{dashboardButton}</div>
       <div className={cn("game-list-actions__toolbar mt-2 justify-center", toolbarPlacementClass)}>
         {iconToolbar}

@@ -1,6 +1,26 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import dns from "node:dns";
 import mongoose from "mongoose";
 
 import { isInfrastructureError } from "@/lib/infrastructure-error";
+
+// Some local networks/routers refuse SRV lookups (querySrv ECONNREFUSED) needed by mongodb+srv://.
+// In development only, fall back to public resolvers. Set MONGODB_DNS_SERVERS to override (comma-separated).
+// Re-applied before every connect attempt because a single call at module load was not reliable on cold start.
+function applyDevDnsServers() {
+  if (process.env.NODE_ENV === "production") return;
+  const servers = (process.env.MONGODB_DNS_SERVERS || "8.8.8.8,1.1.1.1")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  try {
+    dns.setServers(servers);
+  } catch (error) {
+    console.warn("[db] Could not set DNS servers:", error);
+  }
+}
+
+applyDevDnsServers();
 
 type MongooseCache = {
   conn: typeof mongoose | null;
@@ -61,27 +81,20 @@ const cached = ensureMongooseCache();
 
 const RUN_WITH_DATABASE_ATTEMPTS = 5;
 
+/** Per-request marker so nested calls skip retry/connect setup without affecting other requests. */
+const dbContext = new AsyncLocalStorage<boolean>();
+
 /** True while a `runWithDatabase` / `runQueuedDatabaseWork` handler is executing. */
 export function isInDatabaseContext() {
-  return cached.dbWorkDepth > 0;
+  return dbContext.getStore() === true;
 }
 
+/**
+ * Runs DB work concurrently (the driver pool bounds parallelism). It used to chain every call
+ * onto one global promise, which serialized all requests on an instance.
+ */
 function runQueuedDatabaseWork<T>(work: () => Promise<T>): Promise<T> {
-  const task = cached.dbOperationChain.then(async () => {
-    cached.dbWorkDepth += 1;
-    try {
-      return await work();
-    } finally {
-      cached.dbWorkDepth -= 1;
-    }
-  });
-
-  cached.dbOperationChain = task.then(
-    () => undefined,
-    () => undefined,
-  );
-
-  return task;
+  return dbContext.run(true, work);
 }
 
 function registerConnectionEvents() {
@@ -114,8 +127,9 @@ function getMongoOptions(dbNameOverride?: string) {
     serverSelectionTimeoutMS: 15_000,
     connectTimeoutMS: 15_000,
     socketTimeoutMS: 45_000,
-    // One connection per serverless instance — keeps Atlas Free tier under its 500-connection limit.
-    maxPoolSize: 1,
+    // Small pool so Promise.all queries run in parallel; override with MONGODB_MAX_POOL_SIZE.
+    // Keep (instances x pool) under the Atlas Free tier's 500-connection limit.
+    maxPoolSize: Math.max(1, Number(process.env.MONGODB_MAX_POOL_SIZE) || 5),
     minPoolSize: 0,
     // Fail fast when disconnected so runWithDatabase can retry instead of buffering 10s per query.
     bufferCommands: false,
@@ -247,6 +261,7 @@ async function connectToDatabaseOnce(dbNameOverride?: string): Promise<typeof mo
   const mongodbUri = getMongoUri();
   const targetDatabaseName = resolveDatabaseName(dbNameOverride);
 
+  applyDevDnsServers();
   registerConnectionEvents();
 
   if (adoptExistingConnection(targetDatabaseName) && (await verifyConnectionAlive())) {
@@ -291,7 +306,7 @@ async function connectToDatabaseOnce(dbNameOverride?: string): Promise<typeof mo
 export async function connectToDatabase(
   dbNameOverride?: string,
 ): Promise<typeof mongoose> {
-  if (cached.dbWorkDepth > 0) {
+  if (dbContext.getStore() === true) {
     await waitForDatabaseConnection(dbNameOverride);
     return mongoose;
   }
@@ -352,7 +367,7 @@ export async function runWithDatabase<T>(
   fn: () => Promise<T>,
   dbNameOverride?: string,
 ): Promise<T> {
-  if (cached.dbWorkDepth > 0) {
+  if (dbContext.getStore() === true) {
     await waitForDatabaseConnection(dbNameOverride);
     return fn();
   }
