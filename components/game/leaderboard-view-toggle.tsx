@@ -40,9 +40,11 @@ export function LeaderboardViewToggle({ value, onChange }: LeaderboardViewToggle
         type="button"
         size="sm"
         variant={value === "cards" ? "default" : "ghost"}
-        className={cn("leaderboard-view-toggle-btn h-8 gap-1.5 px-2.5 sm:px-3")}
+        className={cn("leaderboard-view-toggle-btn h-9 min-w-9 gap-1.5 px-2.5 sm:px-3")}
         onClick={() => onChange("cards")}
         aria-pressed={value === "cards"}
+        aria-label="Cards view"
+        title="Cards view"
       >
         <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />
         <span className="hidden sm:inline">Cards</span>
@@ -51,9 +53,11 @@ export function LeaderboardViewToggle({ value, onChange }: LeaderboardViewToggle
         type="button"
         size="sm"
         variant={value === "table" ? "default" : "ghost"}
-        className={cn("leaderboard-view-toggle-btn h-8 gap-1.5 px-2.5 sm:px-3")}
+        className={cn("leaderboard-view-toggle-btn h-9 min-w-9 gap-1.5 px-2.5 sm:px-3")}
         onClick={() => onChange("table")}
         aria-pressed={value === "table"}
+        aria-label="Table view"
+        title="Table view"
       >
         <Table2 className="h-4 w-4 shrink-0" aria-hidden />
         <span className="hidden sm:inline">Table</span>

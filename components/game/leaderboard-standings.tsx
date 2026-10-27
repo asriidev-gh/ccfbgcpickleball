@@ -49,8 +49,8 @@ export function FirstTimerPill({ className }: { className?: string }) {
       title="First session with this club"
       aria-label="1st timer — first session with this club"
     >
-      1st
       <Clock className="size-3 shrink-0" aria-hidden />
+      New
     </Badge>
   );
 }
@@ -64,6 +64,7 @@ function LeaderboardPlayerName({
   endorsementCounts,
   onEndorsementClick,
   hideUndefeated = false,
+  wrapName = false,
   pillsOnOwnRowFrom,
 }: {
   row: LeaderboardRow;
@@ -72,6 +73,7 @@ function LeaderboardPlayerName({
   className?: string;
   nameClassName?: string;
   hideUndefeated?: boolean;
+  wrapName?: boolean;
   pillsOnOwnRowFrom?: "md" | "lg";
 } & LeaderboardEndorsementProps) {
   const playerId = resolveLeaderboardPlayerId(row);
@@ -98,7 +100,8 @@ function LeaderboardPlayerName({
     >
       <span
         className={cn(
-          "min-w-0 truncate",
+          "min-w-0",
+          wrapName ? "line-clamp-2 break-words text-balance" : "truncate",
           stackMd && align === "center" && "md:w-full md:text-center",
           stackLg && align === "center" && "lg:w-full lg:text-center",
           stackMd && align === "start" && "md:w-full",
@@ -244,7 +247,13 @@ function PodiumCard({
         )}
       >
         <div className="leaderboard-podium-card__glow" aria-hidden />
-        <p className="leaderboard-podium-card__place relative z-[1]">
+        {/* Compact cards already show the medal; the text pill is redundant and costs height. */}
+        <p
+          className={cn(
+            "leaderboard-podium-card__place relative z-[1]",
+            compact && "sr-only",
+          )}
+        >
           {podiumPlaceLabel(rank)}
         </p>
         <RankDisplay
@@ -279,8 +288,9 @@ function PodiumCard({
             rank={rank}
             align="center"
             hideUndefeated
+            wrapName
             pillsOnOwnRowFrom={compact ? undefined : "lg"}
-            nameClassName={cn("font-semibold", compact ? "text-[11px]" : "body-lg")}
+            nameClassName={cn("font-semibold", compact ? "text-xs" : "text-sm sm:text-base")}
             endorsementCounts={endorsementCounts}
             onEndorsementClick={onEndorsementClick}
           />
@@ -303,7 +313,7 @@ function PodiumCard({
             <span
               className={cn(
                 "font-medium uppercase tracking-wide text-muted-foreground",
-                compact ? "text-[9px]" : "text-[10px] sm:text-xs",
+                "text-[11px] sm:text-xs",
               )}
             >
               Wins
@@ -321,20 +331,30 @@ function PodiumCard({
             <span
               className={cn(
                 "font-medium uppercase tracking-wide text-muted-foreground",
-                compact ? "text-[9px]" : "text-[10px] sm:text-xs",
+                "text-[11px] sm:text-xs",
               )}
             >
               Losses
             </span>
           </div>
         </div>
+        <p className="relative z-[1] mt-1.5 text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs">
+          {row.winRate}% win rate
+        </p>
         {onPodiumShareClick ? (
           <div className="relative z-[1] mt-2 flex justify-center">
+            {/* Icon-only on phones so three labelled buttons don't repeat; labelled from sm up. */}
             <SpectatorPlayerCardShareButton
-              compact={compact}
-              iconOnly={compact}
+              iconOnly
+              className={compact ? undefined : "sm:hidden"}
               onOpen={() => onPodiumShareClick(row)}
             />
+            {!compact ? (
+              <SpectatorPlayerCardShareButton
+                className="hidden sm:inline-flex"
+                onOpen={() => onPodiumShareClick(row)}
+              />
+            ) : null}
           </div>
         ) : null}
         <div className="leaderboard-podium-card__pedestal" aria-hidden />
@@ -381,7 +401,8 @@ function StandingRow({
             />
             {!compact ? (
               <p className="caption">
-                {row.gamesPlayed} {row.gamesPlayed === 1 ? "game" : "games"} played
+                {row.gamesPlayed} {row.gamesPlayed === 1 ? "game" : "games"} · {row.wins}W–
+                {row.losses}L · {row.winRate}%
               </p>
             ) : (
               <p className="text-[10px] text-muted-foreground">

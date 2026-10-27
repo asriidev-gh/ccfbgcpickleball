@@ -90,7 +90,7 @@ export function LeaderboardSection({
   };
 
   const panelOpen = !collapsible || open;
-  const standingsSummary = `${rows.length} ${rows.length === 1 ? "player" : "players"} · sorted by wins`;
+  const standingsSummary = `${rows.length} ${rows.length === 1 ? "player" : "players"} · sorted by wins, then win rate`;
 
   return (
     <Card className={cn("glass-panel leaderboard-panel min-w-0", compact && "h-full")}>

@@ -296,10 +296,10 @@ export function useOperatorDashboardLease(gameId: string, enabled: boolean) {
 /** Read-only lease check for pages like leaderboard (no acquire/heartbeat). */
 export function useOperatorDashboardLeaseCheck(gameId: string, enabled: boolean) {
   const [state, setState] = useState<"loading" | "active" | "blocked">(() => {
-    if (!enabled) return "active";
-    if (typeof window === "undefined") return "loading";
-    // No local lease → not the operator; skip the loading flash.
-    return getStoredLeaseId(gameId) ? "loading" : "blocked";
+    // Must not read localStorage here: the server always renders "loading", so a
+    // client-only "blocked" initial state causes a hydration mismatch. The effect
+    // below resolves a missing lease synchronously on mount.
+    return enabled ? "loading" : "active";
   });
 
   useEffect(() => {

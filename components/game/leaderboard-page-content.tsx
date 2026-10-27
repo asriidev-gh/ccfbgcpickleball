@@ -96,11 +96,14 @@ export function LeaderboardPageContent({
             : "flex flex-col gap-1",
         )}
       >
-        {loading ? (
-          <LeaderboardPanelLoading label="Loading session awards…" />
-        ) : (
-          <SessionInsightsGrid insights={insights} compact={isSplit} />
-        )}
+        {/* Stacked: standings first (what people open the page for); awards follow. */}
+        <div className={cn("min-w-0", !isSplit && "order-2")}>
+          {loading ? (
+            <LeaderboardPanelLoading label="Loading session awards…" />
+          ) : (
+            <SessionInsightsGrid insights={insights} compact={isSplit} />
+          )}
+        </div>
 
         {loading ? (
           <LeaderboardPanelLoading label="Loading standings…" />
