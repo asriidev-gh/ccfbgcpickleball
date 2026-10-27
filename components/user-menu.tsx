@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CircleUser, LogOut, ScrollText, Settings, ToggleLeft, TrendingUp } from "lucide-react";
+import { CircleUser, LogIn, LogOut, ScrollText, Settings, ToggleLeft, TrendingUp, Trophy } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -25,7 +26,7 @@ export function UserMenu() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["auth-me"],
     queryFn: async () => {
       const response = await fetch("/api/auth/me");
@@ -56,6 +57,17 @@ export function UserMenu() {
 
   return (
     <>
+      {!isLoading && !data?.user ? (
+        <Button
+          variant="outline"
+          className="h-11 shrink-0 gap-2 rounded-full border-border px-4 text-sm font-semibold"
+          nativeButton={false}
+          render={<Link href="/login" />}
+        >
+          <LogIn className="h-4 w-4" aria-hidden />
+          Log in
+        </Button>
+      ) : null}
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger
           render={
@@ -79,6 +91,15 @@ export function UserMenu() {
                 {data.user.email}
               </DropdownMenuLabel>
             </DropdownMenuGroup>
+          ) : null}
+          {data?.user ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/all-time-leaderboard")}>
+                <Trophy />
+                All-time Leaderboard
+              </DropdownMenuItem>
+            </>
           ) : null}
           {data?.user?.isSuperAdmin ? (
             <>
@@ -113,11 +134,23 @@ export function UserMenu() {
           ) : null}
           <DropdownMenuSeparator />
           <ThemeMenuItems />
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={logout}>
-            <LogOut />
-            Logout
-          </DropdownMenuItem>
+          {data?.user ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={logout}>
+                <LogOut />
+                Logout
+              </DropdownMenuItem>
+            </>
+          ) : isLoading ? null : (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/login")}>
+                <LogIn />
+                Log in
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {data?.user ? (

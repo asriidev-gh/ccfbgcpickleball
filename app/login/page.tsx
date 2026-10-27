@@ -25,6 +25,12 @@ import {
 } from "@/lib/wizard-field-styles";
 import { cn } from "@/lib/utils";
 
+/** Google sign-in is hidden for now; flip to true to bring it back. */
+const SHOW_GOOGLE_LOGIN = false;
+
+/** The "Need an account? Sign up" link is hidden for now; flip to true to bring it back. */
+const SHOW_SIGNUP_LINK = false;
+
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>
@@ -180,32 +186,38 @@ function LoginForm() {
               {loading ? "Please wait..." : mode === "login" ? "Login" : "Create Account"}
             </Button>
 
-            <div className="flex items-center gap-3">
-              <span className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">or</span>
-              <span className="h-px flex-1 bg-border" />
-            </div>
+            {SHOW_GOOGLE_LOGIN ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <span className="h-px flex-1 bg-border" />
+                  <span className="text-xs text-muted-foreground">or</span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              className={cn("w-full", WIZARD_OUTLINE_BUTTON_BORDER)}
-              disabled={loading}
-              onClick={() => {
-                window.location.href = "/api/auth/google";
-              }}
-            >
-              <GoogleIcon />
-              Continue with Google
-            </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn("w-full", WIZARD_OUTLINE_BUTTON_BORDER)}
+                  disabled={loading}
+                  onClick={() => {
+                    window.location.href = "/api/auth/google";
+                  }}
+                >
+                  <GoogleIcon />
+                  Continue with Google
+                </Button>
+              </>
+            ) : null}
 
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => setMode((prev) => (prev === "login" ? "register" : "login"))}
-            >
-              {mode === "login" ? "Need an account? Sign up" : "Already have an account? Log in"}
-            </Button>
+            {SHOW_SIGNUP_LINK || mode === "register" ? (
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => setMode((prev) => (prev === "login" ? "register" : "login"))}
+              >
+                {mode === "login" ? "Need an account? Sign up" : "Already have an account? Log in"}
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
         <p className="text-center text-xs text-muted-foreground">

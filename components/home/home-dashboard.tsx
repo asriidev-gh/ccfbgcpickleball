@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Building2, ChevronDown, LayoutDashboard, LayoutGrid, Store, Users } from "lucide-react";
+import { BarChart3, Building2, ChevronDown, LayoutDashboard, LayoutGrid, Store, Trophy, Users } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -158,8 +158,8 @@ export function HomeDashboard({
   const isSuperAdmin = Boolean(authData?.user?.isSuperAdmin);
   const sessionGames = sessionTab === "active" ? activeGames : pastGames;
   const dashboardTileCount = isAuthLoading
-    ? 4
-    : 1 + (showRegisteredPlayers ? 3 : 0) + (isSuperAdmin ? 1 : 0);
+    ? 5
+    : 1 + (showRegisteredPlayers ? 4 : 0) + (isSuperAdmin ? 1 : 0);
 
   return (
     <div className="home-dashboard space-y-5">
@@ -173,7 +173,8 @@ export function HomeDashboard({
       <div
         className={cn(
           "home-dashboard-tiles grid gap-2 sm:gap-3",
-          dashboardTileCount >= 5 && "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
+          dashboardTileCount >= 6 && "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6",
+          dashboardTileCount === 5 && "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
           dashboardTileCount === 4 && "grid-cols-2 sm:grid-cols-4",
           dashboardTileCount === 3 && "grid-cols-3",
           dashboardTileCount === 2 && "grid-cols-2 sm:max-w-xl",
@@ -190,7 +191,7 @@ export function HomeDashboard({
 
         {isAuthLoading ? (
           <>
-            {Array.from({ length: 3 }, (_, index) => (
+            {Array.from({ length: 4 }, (_, index) => (
               <Skeleton key={index} className="min-h-[5.5rem] rounded-2xl" aria-hidden />
             ))}
           </>
@@ -237,6 +238,18 @@ export function HomeDashboard({
               >
                 <Store className="h-6 w-6 text-primary" aria-hidden />
                 <span className="text-sm font-semibold text-foreground">Marketplace</span>
+              </Link>
+            ) : null}
+
+            {showRegisteredPlayers ? (
+              <Link
+                href="/all-time-leaderboard"
+                className="home-dashboard-tile flex min-h-[5.5rem] flex-col items-start justify-between rounded-2xl border border-border/70 bg-sky-500/8 p-4 text-left transition-colors hover:bg-sky-500/12 dark:bg-sky-400/10 dark:hover:bg-sky-400/15"
+              >
+                <Trophy className="h-6 w-6 text-primary" aria-hidden />
+                <span className="text-sm font-semibold text-foreground">
+                  All-time Leaderboard
+                </span>
               </Link>
             ) : null}
 

@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { APP_NAME } from "@/lib/app-config";
 
 const DEVELOPER_PHOTO = "/assets/images/andyradam.jpeg";
 const DEVELOPER_PHONE = "+63 947-512-7884";
@@ -50,7 +51,7 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
               className="size-28 object-cover sm:size-32"
             />
           </div>
-          <DialogTitle className="text-lg sm:text-xl">Welcome to Paddle Flow J316 🏓</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">Welcome to {APP_NAME} 🏓</DialogTitle>
         </DialogHeader>
 
         <div
@@ -58,12 +59,12 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
           className="developer-about-body min-h-0 flex-1 overflow-y-auto px-4 pb-4"
         >
           <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
-          <p className="text-foreground">Thank you for using Paddle Flow!</p>
+          <p className="text-foreground">Thank you for using {APP_NAME}!</p>
 
           <p>
-            Paddle Flow was created to help pickleball enthusiasts manage courts, player
+            {APP_NAME} was created to help pickleball enthusiasts manage courts, player
             rotations, and queues more efficiently. Whether you&apos;re participating in open play,
-            organizing club sessions, or running tournaments, Paddle Flow aims to create a fairer,
+            organizing club sessions, or running tournaments, it aims to create a fairer,
             smoother, and more enjoyable experience for everyone on the court.
           </p>
 
@@ -80,23 +81,23 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
             <h3 className="mb-2 font-semibold text-foreground">For the Pickleball Community</h3>
             <p>
               Pickleball continues to bring people together through sportsmanship, friendship, and
-              healthy competition. Paddle Flow is built to support that growing community and help
+              healthy competition. {APP_NAME} is built to support that growing community and help
               every session run smoothly.
             </p>
           </div>
 
           <p>
-            Your feedback, suggestions, and ideas are always welcome. Every improvement to Paddle
-            Flow starts with input from players like you.
+            Your feedback, suggestions, and ideas are always welcome. Every improvement to{" "}
+            {APP_NAME} starts with input from players like you.
           </p>
 
           <p className="font-medium text-foreground">Play fair. Stay active. Have fun.</p>
 
-          <p>Thank you for being part of the Paddle Flow community!</p>
+          <p>Thank you for being part of the {APP_NAME} community!</p>
 
           <div className="border-t border-border/60 pt-4">
             <p className="font-medium text-foreground">
-              — Andy Radam, Creator of Paddle Flow J316 🏓
+              — Andy Radam, Creator of {APP_NAME} 🏓
             </p>
             <p className="mt-2 italic text-muted-foreground">All glory to God.</p>
             <div className="mt-3">

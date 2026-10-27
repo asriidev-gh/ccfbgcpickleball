@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, LayoutGrid, Store, Users } from "lucide-react";
+import { Building2, LayoutGrid, Store, Trophy, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -30,6 +30,12 @@ const links = [
     label: "Marketplace",
     icon: Store,
     activeClass: "owner-hub-nav__link--active owner-hub-nav__link--marketplace",
+  },
+  {
+    href: "/all-time-leaderboard",
+    label: "All-time Leaderboard",
+    icon: Trophy,
+    activeClass: "owner-hub-nav__link--active owner-hub-nav__link--leaderboard",
   },
 ] as const;
 

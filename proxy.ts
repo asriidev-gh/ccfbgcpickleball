@@ -15,9 +15,9 @@ export function proxy(request: NextRequest) {
   const isSpectatorLeaderboard =
     pathname.startsWith("/leaderboard/") && searchParams.get("from") === "spectator";
   const isQuickGameLeaderboard = isQuickGame(leaderboardGameId(pathname));
+  // `/` is public: it renders the club landing page for visitors and the dashboard once signed in.
   const isProtectedRoute =
-    (pathname === "/" ||
-      pathname.startsWith("/games") ||
+    (pathname.startsWith("/games") ||
       pathname.startsWith("/leaderboard") ||
       pathname.startsWith("/insights") ||
       pathname.startsWith("/error-logs") ||
@@ -26,7 +26,8 @@ export function proxy(request: NextRequest) {
       pathname.startsWith("/users") ||
       pathname.startsWith("/my-games") ||
       pathname.startsWith("/my-club") ||
-      pathname.startsWith("/marketplace")) &&
+      pathname.startsWith("/marketplace") ||
+      pathname.startsWith("/all-time-leaderboard")) &&
     !isSpectatorGameRoute &&
     !isSpectatorLeaderboard &&
     !isQuickGameLeaderboard;
@@ -52,7 +53,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/",
     "/games/:path*",
     "/leaderboard/:path*",
     "/insights/:path*",
@@ -64,6 +64,7 @@ export const config = {
     "/my-games/:path*",
     "/my-club",
     "/marketplace",
+    "/all-time-leaderboard",
     "/login",
     "/signup",
     "/signin",

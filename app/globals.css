@@ -768,6 +768,18 @@
     text-transform: uppercase;
     color: var(--makati-text-dim);
   }
+
+  /* The landing page runs edge to edge: its sections carry their own gutters, so the
+     per-theme `main` padding above (which is !important) must not inset the hero. */
+  html[data-theme] body main.landing {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  html[data-theme] body main.landing > .landing-hero {
+    margin: 0 !important;
+    width: 100%;
+  }
 }
 
 @layer utilities {
@@ -8912,6 +8924,14 @@
     @apply bg-amber-950/10 text-amber-950;
   }
 
+  .owner-hub-nav__link--active.owner-hub-nav__link--leaderboard {
+    @apply border-rose-500/50 bg-rose-600 text-white shadow-md;
+  }
+
+  .owner-hub-nav__link--active.owner-hub-nav__link--leaderboard .owner-hub-nav__icon {
+    @apply bg-white/15 text-white;
+  }
+
   [data-theme="neon"] .my-club-tabs__bar,
   [data-theme="emerald"] .my-club-tabs__bar,
   [data-theme="sunset"] .my-club-tabs__bar {
@@ -9342,4 +9362,1040 @@
   border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
   background: color-mix(in oklab, var(--muted) 22%, transparent);
   padding: 0.875rem 1rem;
+}
+
+/* —— Public home / landing page —— */
+.landing {
+  --landing-card-border: color-mix(in oklab, var(--border) 70%, transparent);
+  --landing-card-bg: color-mix(in oklab, var(--card) 70%, transparent);
+}
+
+.landing-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+}
+
+.landing-hero__glow {
+  position: absolute;
+  inset: -25% -15% auto -15%;
+  z-index: -2;
+  height: 135%;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      40rem 26rem at 15% 10%,
+      color-mix(in oklab, var(--primary) 24%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      32rem 22rem at 88% 4%,
+      color-mix(in oklab, var(--accent) 20%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      28rem 20rem at 62% 100%,
+      color-mix(in oklab, var(--secondary) 18%, transparent),
+      transparent 75%
+    );
+}
+
+/* Court photo: bleeds in from the right, dissolving toward the copy and the section floor. */
+.landing-hero__photo {
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  pointer-events: none;
+  background-image: url("/assets/images/cc_bgc_pickleball/hero_bg.png");
+  background-size: cover;
+  background-position: 70% 60%;
+  background-repeat: no-repeat;
+  opacity: 0.55;
+  filter: saturate(0.85) contrast(1.05);
+  -webkit-mask-image:
+    linear-gradient(to left, #000 0%, rgb(0 0 0 / 0.75) 45%, transparent 95%),
+    linear-gradient(to bottom, #000 70%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to left, #000 0%, rgb(0 0 0 / 0.75) 45%, transparent 95%),
+    linear-gradient(to bottom, #000 70%, transparent 100%);
+  mask-composite: intersect;
+}
+
+/* Brand-tinted wash so the photo reads as part of the theme. */
+.landing-hero__photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--primary) 35%, transparent),
+    color-mix(in oklab, var(--accent) 25%, transparent)
+  );
+  mix-blend-mode: color;
+}
+
+.dark .landing-hero__photo {
+  opacity: 0.65;
+}
+
+@media (max-width: 1023px) {
+  .landing-hero__photo {
+    opacity: 0.32;
+    background-position: 62% 50%;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 90%);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 90%);
+  }
+}
+
+/* Faint court grid, faded out toward the edges. */
+.landing-hero__court {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklab, var(--foreground) 8%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--foreground) 8%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 4.5rem 4.5rem;
+  -webkit-mask-image: radial-gradient(75% 70% at 50% 25%, #000, transparent);
+  mask-image: radial-gradient(75% 70% at 50% 25%, #000, transparent);
+}
+
+.landing-title {
+  font-family: var(--font-heading);
+  font-size: clamp(2.5rem, 7vw, 4.25rem);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  color: var(--foreground);
+}
+
+.landing-title::after {
+  content: "";
+  display: block;
+  margin-top: 1rem;
+  width: 4.5rem;
+  height: 0.3125rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+.landing-lead {
+  max-width: 34rem;
+  font-size: clamp(1.0625rem, 2.2vw, 1.25rem);
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+.landing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--landing-card-border);
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+  padding: 0.4375rem 0.8125rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.landing-kicker {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--primary) 55%, var(--foreground));
+}
+
+/* —— Join / check-in card —— */
+/* Some themes (e.g. Cupertino) zero out `.glass-panel` padding; keep the join card's own. */
+[data-theme] .landing-join.glass-panel {
+  padding: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  [data-theme] .landing-join.glass-panel {
+    padding: 1.75rem;
+  }
+}
+
+.landing-join__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  border-radius: 0.875rem;
+  background: color-mix(in oklab, var(--primary) 16%, transparent);
+  color: color-mix(in oklab, var(--primary) 78%, var(--foreground));
+}
+
+.landing-join__modes {
+  display: inline-flex;
+  gap: 0.25rem;
+  max-width: 100%;
+  padding: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--landing-card-border);
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
+}
+
+.landing-join__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex: 1 1 auto;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.landing-join__mode:hover {
+  color: var(--foreground);
+}
+
+.landing-join__mode:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.landing-join__mode--active,
+.landing-join__mode--active:hover {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
+}
+
+/* —— Repeated panels —— */
+.landing-step,
+.landing-feature {
+  border-radius: 1.25rem;
+  border: 1px solid var(--landing-card-border);
+  background: var(--landing-card-bg);
+  padding: 1.25rem;
+  transition: border-color 150ms ease;
+}
+
+.landing-feature:hover {
+  border-color: color-mix(in oklab, var(--primary) 45%, transparent);
+}
+
+.landing-feature__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--primary) 14%, transparent);
+  color: color-mix(in oklab, var(--primary) 78%, var(--foreground));
+}
+
+.landing-step {
+  position: relative;
+  background: color-mix(in oklab, var(--card) 85%, transparent);
+}
+
+.landing-step__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— Organizer call to action —— */
+.landing-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid color-mix(in oklab, var(--primary) 30%, transparent);
+  background:
+    radial-gradient(
+      28rem 18rem at 100% 0%,
+      color-mix(in oklab, var(--accent) 18%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      26rem 18rem at 0% 100%,
+      color-mix(in oklab, var(--primary) 18%, transparent),
+      transparent 70%
+    ),
+    var(--card);
+  padding: 1.75rem;
+}
+
+.landing-cta__body {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .landing-cta {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2.5rem;
+    padding: 2.5rem;
+  }
+}
+
+
+/* —— All-time leaderboard —— */
+.all-time-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  background: color-mix(in oklab, var(--muted) 30%, transparent);
+  padding: 0.875rem 1rem;
+}
+
+.all-time-stat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.all-time-stat__value {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+.all-time-stat__label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+
+.all-time-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.all-time-row {
+  display: grid;
+  grid-template-columns: 2.25rem auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+  padding: 0.75rem 0.875rem;
+  transition: border-color 150ms ease;
+}
+
+.all-time-row:hover {
+  border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+}
+
+.all-time-row--podium {
+  border-color: color-mix(in oklab, var(--primary) 30%, transparent);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+}
+
+.all-time-row--rank1 {
+  border-color: color-mix(in oklab, #fbbf24 55%, transparent);
+}
+
+.all-time-row--rank2 {
+  border-color: color-mix(in oklab, #cbd5e1 55%, transparent);
+}
+
+.all-time-row--rank3 {
+  border-color: color-mix(in oklab, #ea580c 45%, transparent);
+}
+
+.all-time-row__rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+}
+
+.all-time-row__rank-number {
+  font-family: var(--font-mono);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.all-time-row__identity {
+  min-width: 0;
+}
+
+.all-time-row__name {
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--foreground);
+}
+
+.all-time-row__meta {
+  margin: 0.125rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--muted-foreground);
+}
+
+.all-time-row__stats {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  border-top: 1px dashed color-mix(in oklab, var(--border) 70%, transparent);
+  padding-top: 0.625rem;
+}
+
+.all-time-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 1.25rem;
+  border: 1px dashed color-mix(in oklab, var(--border) 80%, transparent);
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+/* From tablet up the stats sit on the same row as the player. */
+@media (min-width: 640px) {
+  .all-time-row {
+    grid-template-columns: 2.5rem auto minmax(0, 1fr) auto;
+    gap: 1rem;
+    padding: 0.75rem 1.25rem;
+  }
+
+  .all-time-row__stats {
+    grid-column: auto;
+    grid-template-columns: repeat(4, 3.75rem);
+    border-top: 0;
+    padding-top: 0;
+  }
+}
+
+.all-time-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+@media (min-width: 640px) {
+  .all-time-filters {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+/* —— Join card: Reclub notice, divider and club socials —— */
+.landing-join__divider {
+  margin: 1.25rem 0;
+  height: 1px;
+  background: color-mix(in oklab, var(--border) 70%, transparent);
+}
+
+.landing-social {
+  margin-top: 1.25rem;
+  border-top: 1px dashed color-mix(in oklab, var(--border) 70%, transparent);
+  padding-top: 1rem;
+}
+
+.landing-social__label {
+  margin: 0 0 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.landing-social__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-social__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  background: color-mix(in oklab, var(--muted) 35%, transparent);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--foreground);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.landing-social__link:hover {
+  border-color: color-mix(in oklab, var(--primary) 50%, transparent);
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+}
+
+.landing-social__link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* —— Club photo gallery (bento) —— */
+.club-gallery {
+  /* Both must finish inside CLUB_GALLERY_ROTATE_MS, the per-tile stagger included. */
+  --club-gallery-fade: 820ms;
+  --club-gallery-wipe: 940ms;
+
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 8.5rem;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.club-gallery__tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+}
+
+.club-gallery__tile--feature {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+/* Fills the tile so the whole photo is the click target, and `fill` images stay positioned. */
+.club-gallery__open {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  appearance: none;
+  cursor: zoom-in;
+}
+
+/* Inset, because the tile clips its overflow and an outset ring would be cut off. */
+.club-gallery__open:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -3px;
+}
+
+/*
+ * Three stacked layers per tile: one on screen, one fading out behind it, and one invisible
+ * that is already loading the next photo. The incoming photo is revealed through a diamond
+ * that grows from the centre of the tile while it fades up; the outgoing photo only fades, so
+ * the two cross rather than one wiping over a gap.
+ */
+.club-gallery__img {
+  object-fit: cover;
+  opacity: 0;
+  clip-path: polygon(50% 50%, 50% 50%, 50% 50%, 50% 50%);
+  will-change: opacity, clip-path;
+  transition:
+    opacity var(--club-gallery-fade) ease var(--tile-delay, 0ms),
+    /* Zero duration, delayed past the fade, so the shape only snaps back once this layer is
+       invisible. Without that the outgoing photo would shrink away instead of fading out. */
+      clip-path 0ms linear calc(var(--tile-delay, 0ms) + var(--club-gallery-fade)),
+    transform 400ms ease;
+}
+
+.club-gallery__img--on {
+  opacity: 1;
+  /* Points reach past the corners, so the open diamond covers the whole tile. */
+  clip-path: polygon(50% -62%, 162% 50%, 50% 162%, -62% 50%);
+  transition:
+    opacity var(--club-gallery-fade) ease var(--tile-delay, 0ms),
+    clip-path var(--club-gallery-wipe) cubic-bezier(0.22, 1, 0.36, 1) var(--tile-delay, 0ms),
+    transform 400ms ease;
+}
+
+.club-gallery__tile:hover .club-gallery__img--on {
+  transform: scale(1.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .club-gallery__img,
+  .club-gallery__img--on {
+    clip-path: none;
+    transition: none;
+    will-change: auto;
+  }
+
+  .club-gallery__tile:hover .club-gallery__img--on {
+    transform: none;
+  }
+}
+
+@media (min-width: 640px) {
+  .club-gallery {
+    grid-auto-rows: 10rem;
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .club-gallery {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: 11rem;
+  }
+}
+
+/* —— Photo lightbox ——
+ * Colours here are fixed rather than themed: the viewer puts a dark backdrop over the page in
+ * every theme, so themed foregrounds would be unreadable on the light ones.
+ */
+.club-lightbox__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgb(2 6 23 / 0.9);
+  transition: opacity 220ms ease;
+}
+
+.club-lightbox__backdrop[data-starting-style] {
+  opacity: 0;
+}
+
+@supports (backdrop-filter: blur(6px)) {
+  .club-lightbox__backdrop {
+    backdrop-filter: blur(6px);
+  }
+}
+
+.club-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.875rem;
+  padding: 3.75rem 1rem 1.5rem;
+  outline: none;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.club-lightbox[data-starting-style] {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.club-lightbox__figure {
+  display: flex;
+  max-width: min(68rem, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  /* Lets a vertical drag still scroll, while horizontal drags reach the swipe handler. */
+  touch-action: pan-y;
+}
+
+.club-lightbox__img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(70vh, 44rem);
+  border-radius: 0.875rem;
+  box-shadow: 0 24px 60px rgb(2 6 23 / 0.55);
+  animation: club-lightbox-photo-in 260ms ease both;
+}
+
+@keyframes club-lightbox-photo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.club-lightbox__caption {
+  display: flex;
+  max-width: 44rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem 0.75rem;
+  color: rgb(248 250 252 / 0.82);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.club-lightbox__count {
+  border-radius: 999px;
+  border: 1px solid rgb(248 250 252 / 0.24);
+  padding: 0.125rem 0.5rem;
+  color: rgb(248 250 252 / 0.95);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.club-lightbox__close,
+.club-lightbox__nav {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgb(248 250 252 / 0.22);
+  background: rgb(2 6 23 / 0.55);
+  color: rgb(248 250 252 / 0.92);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.club-lightbox__close:hover,
+.club-lightbox__nav:hover {
+  border-color: rgb(248 250 252 / 0.45);
+  background: rgb(2 6 23 / 0.8);
+  color: rgb(255 255 255);
+}
+
+.club-lightbox__close:focus-visible,
+.club-lightbox__nav:focus-visible {
+  outline: 2px solid rgb(248 250 252 / 0.85);
+  outline-offset: 2px;
+}
+
+.club-lightbox__close {
+  top: 1rem;
+  right: 1rem;
+  height: 2.5rem;
+  width: 2.5rem;
+}
+
+.club-lightbox__nav {
+  top: 50%;
+  height: 2.75rem;
+  width: 2.75rem;
+  transform: translateY(-50%);
+}
+
+.club-lightbox__nav--prev {
+  left: 0.75rem;
+}
+
+.club-lightbox__nav--next {
+  right: 0.75rem;
+}
+
+.club-lightbox__close svg,
+.club-lightbox__nav svg {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+@media (min-width: 1024px) {
+  .club-lightbox__nav {
+    height: 3rem;
+    width: 3rem;
+  }
+
+  .club-lightbox__nav--prev {
+    left: 1.75rem;
+  }
+
+  .club-lightbox__nav--next {
+    right: 1.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .club-lightbox,
+  .club-lightbox__backdrop {
+    transition: none;
+  }
+
+  .club-lightbox__img {
+    animation: none;
+  }
+}
+
+/* —— Full-bleed community band —— */
+.community-band {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  min-height: 22rem;
+  overflow: hidden;
+}
+
+.community-band__img {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Fixed dark scrim: this block keeps light text in every theme, including the light ones. */
+.community-band__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    to top,
+    rgb(2 6 23 / 0.92) 0%,
+    rgb(2 6 23 / 0.72) 38%,
+    rgb(2 6 23 / 0.35) 100%
+  );
+}
+
+.community-band__body {
+  width: 100%;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 2.5rem;
+}
+
+.community-band__kicker {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(186 230 253);
+}
+
+.community-band__title {
+  margin: 0;
+  max-width: 36rem;
+  font-family: var(--font-heading);
+  font-size: clamp(1.6rem, 3.6vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  color: #fff;
+}
+
+.community-band__text {
+  margin: 0.75rem 0 0;
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: rgb(226 232 240);
+}
+
+.community-band__verse {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 1.25rem 0 0;
+  padding-top: 1rem;
+  max-width: 34rem;
+  border-top: 1px solid rgb(255 255 255 / 0.22);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  font-style: italic;
+  color: rgb(241 245 249);
+}
+
+.community-band__verse svg {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  color: rgb(253 224 71);
+}
+
+.community-band__verse cite {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgb(203 213 225);
+}
+
+@media (min-width: 1024px) {
+  .community-band {
+    min-height: 28rem;
+  }
+
+  .community-band__body {
+    padding: 4rem 2.5rem 3.5rem;
+  }
+}
+
+/* —— Player marquee (home page) ——
+ * Two identical lists sit in one rail that slides by exactly half its width, left to right,
+ * so the loop has no visible seam. Each list ends in the same gap that separates tiles. */
+.player-marquee {
+  margin-top: 3.5rem;
+}
+
+@media (min-width: 1024px) {
+  .player-marquee {
+    margin-top: 5rem;
+  }
+}
+
+.player-marquee__viewport {
+  margin-top: 1.75rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+
+.player-marquee__rail {
+  display: flex;
+  width: max-content;
+  animation: player-marquee-slide var(--marquee-duration, 60s) linear infinite;
+  will-change: transform;
+}
+
+.player-marquee__viewport:hover .player-marquee__rail,
+.player-marquee__viewport:focus-within .player-marquee__rail {
+  animation-play-state: paused;
+}
+
+@keyframes player-marquee-slide {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.player-marquee__track {
+  display: flex;
+  flex-shrink: 0;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0.25rem 1.25rem 0.25rem 0;
+  list-style: none;
+}
+
+.player-marquee__tile {
+  display: flex;
+  width: 6.25rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: center;
+}
+
+.player-marquee__photo {
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 9999px;
+  object-fit: cover;
+  background: color-mix(in oklab, var(--muted) 60%, transparent);
+  border: 2px solid color-mix(in oklab, var(--primary) 45%, var(--border));
+  box-shadow: 0 6px 18px -8px color-mix(in oklab, var(--primary) 55%, transparent);
+}
+
+.player-marquee__name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+@media (min-width: 1024px) {
+  .player-marquee__tile {
+    width: 7.25rem;
+  }
+
+  .player-marquee__photo {
+    width: 6.25rem;
+    height: 6.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-marquee__viewport {
+    overflow-x: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .player-marquee__rail {
+    animation: none;
+  }
+
+  .player-marquee__track + .player-marquee__track {
+    display: none;
+  }
 }

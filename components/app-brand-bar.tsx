@@ -15,7 +15,6 @@ import {
   getSpectatorMenuGameId,
   getSpectatorViewedGameId,
 } from "@/lib/leaderboard-navigation";
-import { APP_NAME } from "@/lib/app-config";
 import {
   getBrandShellClasses,
   isGameDashboardPath,
@@ -65,7 +64,14 @@ function BrandTitle({
   const label = useClubBrand ? (
     <ClubBrandLabel branding={clubBranding} />
   ) : (
-    APP_NAME
+    <span className="inline-flex items-center gap-2.5">
+      <img
+        src="/assets/images/ccf_bgc_sports.jpg"
+        alt=""
+        className="app-brand__logo h-10 w-10 shrink-0 rounded-md object-cover md:h-11 md:w-11"
+      />
+      <span>CCF BGC Sports</span>
+    </span>
   );
 
   if (isSpectatorPath(pathname, fromParam)) {

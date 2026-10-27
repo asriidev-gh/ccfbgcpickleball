@@ -20,7 +20,7 @@ export function getBrandShellClasses(pathname: string) {
     };
   }
 
-  if (pathname === "/" || pathname === "/my-games" || pathname.startsWith("/my-games/") || pathname === "/my-club" || pathname === "/marketplace" || pathname === "/play" || pathname.startsWith("/play/") || pathname === "/quick-game") {
+  if (pathname === "/" || pathname === "/my-games" || pathname.startsWith("/my-games/") || pathname === "/my-club" || pathname === "/marketplace" || pathname === "/all-time-leaderboard" || pathname === "/play" || pathname.startsWith("/play/") || pathname === "/quick-game") {
     return {
       pad: "px-6 lg:px-10",
       container: "max-w-7xl",
@@ -50,10 +50,17 @@ export function isPublicAppPath(pathname: string, fromParam: string | null) {
   if (pathname.startsWith("/register")) return true;
   if (pathname.startsWith("/signup") || pathname.startsWith("/signin")) return true;
   if (pathname === "/play" || pathname.startsWith("/play/")) return true;
+  if (pathname === "/standings") return true;
   return false;
 }
 
-const OWNER_HUB_PATHS = new Set(["/my-games", "/users", "/my-club", "/marketplace"]);
+const OWNER_HUB_PATHS = new Set([
+  "/my-games",
+  "/users",
+  "/my-club",
+  "/marketplace",
+  "/all-time-leaderboard",
+]);
 
 function isOwnerHubPath(pathname: string) {
   return OWNER_HUB_PATHS.has(pathname) || pathname.startsWith("/my-games/");
@@ -65,6 +72,7 @@ const OWNER_DASHBOARD_NAV_HIDDEN_PATHS = new Set([
   "/my-club",
   "/my-games",
   "/marketplace",
+  "/all-time-leaderboard",
   "/insights",
 ]);
 
