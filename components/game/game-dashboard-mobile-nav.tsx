@@ -19,6 +19,7 @@ type GameDashboardMobileNavProps = {
   onQrClick: () => void;
   showDatabaseCheckIn: boolean;
   onDatabaseCheckInClick: () => void;
+  onSessionMenuOpen?: () => void;
   showLockInPlayers?: boolean;
   onLockInPlayersClick?: () => void;
   showAddPlayer?: boolean;
@@ -42,6 +43,7 @@ export function GameDashboardMobileNav({
   onQrClick,
   showDatabaseCheckIn,
   onDatabaseCheckInClick,
+  onSessionMenuOpen,
   showLockInPlayers = false,
   onLockInPlayersClick,
   showAddPlayer = false,
@@ -100,6 +102,7 @@ export function GameDashboardMobileNav({
         mobileNav
         showDatabaseCheckIn={showDatabaseCheckIn}
         onDatabaseCheckIn={onDatabaseCheckInClick}
+        onMenuOpen={onSessionMenuOpen}
         showLockInPlayers={showLockInPlayers}
         onLockInPlayers={onLockInPlayersClick}
         showAddPlayer={showAddPlayer}

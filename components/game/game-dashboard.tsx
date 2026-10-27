@@ -265,6 +265,7 @@ import {
   spectatorRecapQueryOptions,
 } from "@/lib/spectator-query-options";
 import { SPECTATOR_VIEW_UNAVAILABLE_MESSAGE } from "@/lib/spectator-availability-shared";
+import { prefetchDatabaseCheckInPlayers } from "@/lib/database-check-in-prefetch";
 
 const MatchHistoryList = dynamic(() =>
   import("@/components/game/match-history-list").then((mod) => mod.MatchHistoryList),
@@ -3906,6 +3907,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                     <GameSessionActionsMenu
                       showDatabaseCheckIn={!readOnly && !isPastGame && !isQuickGameSession}
                       onDatabaseCheckIn={() => setDatabaseCheckInOpen(true)}
+                      onMenuOpen={() => prefetchDatabaseCheckInPlayers(queryClient, gameId)}
                       showAddPlayer={showManualAddPlayer}
                       onAddPlayer={() => setAddPlayerOpen(true)}
                       showResetOpenPlay={!readOnly && canResetGame}
@@ -4216,6 +4218,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           onQrClick={openQrRegistrationDialog}
           showDatabaseCheckIn={!readOnly && !isPastGame && !isQuickGameSession}
           onDatabaseCheckInClick={() => setDatabaseCheckInOpen(true)}
+          onSessionMenuOpen={() => prefetchDatabaseCheckInPlayers(queryClient, gameId)}
           showLockInPlayers={!readOnly && !isPastGame && !isQuickGameSession}
           onLockInPlayersClick={() => setLockInPlayersOpen(true)}
           showAddPlayer={showManualAddPlayer}

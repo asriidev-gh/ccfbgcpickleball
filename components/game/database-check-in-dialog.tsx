@@ -24,14 +24,15 @@ import type {
   DatabaseCheckInPlayerItem,
   DatabaseCheckInPlayersPage,
 } from "@/lib/operator-database-check-in-shared";
+import {
+  DATABASE_CHECK_IN_PAGE_SIZE,
+  databaseCheckInQueryKey,
+  fetchDatabaseCheckInPlayers,
+} from "@/lib/database-check-in-prefetch";
 import { databaseCheckInPlayersQueryKey } from "@/lib/operator-database-check-in-shared";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE = 10;
-
-function databaseCheckInQueryKey(gameId: string, page: number, search: string) {
-  return ["database-check-in-players", gameId, page, search] as const;
-}
+const PAGE_SIZE = DATABASE_CHECK_IN_PAGE_SIZE;
 
 function queueStatusLabel(status: DatabaseCheckInPlayerItem["queueStatus"]) {
   switch (status) {
@@ -54,19 +55,6 @@ function queueStatusVariant(
   if (status === "on_court") return "secondary";
   if (status === "checked_out") return "outline";
   return "secondary";
-}
-
-async function fetchDatabaseCheckInPlayers(gameId: string, page: number, search: string) {
-  const params = new URLSearchParams({
-    page: String(page),
-    pageSize: String(PAGE_SIZE),
-  });
-  if (search) params.set("q", search);
-
-  const response = await fetch(`/api/games/${gameId}/database-check-in?${params.toString()}`);
-  const payload = (await response.json()) as DatabaseCheckInPlayersPage & { message?: string };
-  if (!response.ok) throw new Error(payload.message ?? "Failed to load players.");
-  return payload;
 }
 
 type DatabaseCheckInDialogProps = {

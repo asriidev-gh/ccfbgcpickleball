@@ -163,26 +163,26 @@
 /* Material UI 3 default palette: grey 50 canvas, blue primary, paper elevation */
 [data-theme="material"] {
   --radius: 0.25rem;
-  --background: oklch(0.985 0.002 264);
-  --foreground: oklch(0.27 0.01 264);
+  --background: oklch(0.975 0.006 255);
+  --foreground: oklch(0.25 0.02 258);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.27 0.01 264);
+  --card-foreground: oklch(0.25 0.02 258);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.27 0.01 264);
-  --primary: oklch(0.52 0.14 252);
+  --popover-foreground: oklch(0.25 0.02 258);
+  --primary: oklch(0.5 0.17 258);
   --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.55 0.19 328);
+  --secondary: oklch(0.5 0.17 305);
   --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.96 0.004 264);
-  --muted-foreground: oklch(0.52 0.02 264);
-  --accent: oklch(0.94 0.02 252);
-  --accent-foreground: oklch(0.45 0.12 252);
-  --destructive: oklch(0.55 0.2 25);
-  --border: oklch(0.9 0.006 264);
-  --input: oklch(0.97 0.004 264);
-  --ring: oklch(0.52 0.14 252);
-  --chart-1: oklch(0.52 0.14 252);
-  --chart-2: oklch(0.55 0.19 328);
+  --muted: oklch(0.955 0.008 255);
+  --muted-foreground: oklch(0.5 0.025 258);
+  --accent: oklch(0.94 0.025 255);
+  --accent-foreground: oklch(0.42 0.14 258);
+  --destructive: oklch(0.54 0.2 27);
+  --border: oklch(0.89 0.01 255);
+  --input: oklch(0.97 0.006 255);
+  --ring: oklch(0.5 0.17 258);
+  --chart-1: oklch(0.5 0.17 258);
+  --chart-2: oklch(0.5 0.17 305);
   --chart-3: oklch(0.62 0.16 145);
   --chart-4: oklch(0.55 0.2 25);
   --chart-5: oklch(0.68 0.14 75);
@@ -2342,7 +2342,7 @@
   }
 
   .queue-next-up-matchup--split.queue-next-up-matchup--compact-view .queue-next-up-vs--shuffle {
-    @apply overflow-hidden xl:w-16;
+    @apply overflow-visible xl:w-[5.5rem];
   }
 
   .queue-next-up--compact-split .queue-next-up-card__actions {
@@ -3521,7 +3521,7 @@
   }
 
   [data-theme="material"] .queue-list {
-    @apply gap-5 rounded-lg bg-[#eeeeee] p-4 py-4;
+    @apply gap-5 rounded-lg bg-[#eef1f6] p-4 py-4;
   }
 
   [data-theme="material"] .queue-item {
@@ -3544,7 +3544,7 @@
   }
 
   [data-theme="material"] .queue-next-up-group {
-    @apply flex flex-col gap-4 rounded-lg border border-[#90caf9] bg-[#e3f2fd]/60 p-5 shadow-none;
+    @apply flex flex-col gap-4 rounded-lg border border-[#bbdefb] bg-[#f1f7fe] p-5 shadow-none;
     box-shadow:
       0 2px 4px -1px rgb(25 118 210 / 18%),
       0 4px 8px 0 rgb(0 0 0 / 8%);
@@ -4781,7 +4781,7 @@
   }
 
   .fill-court-confirm-header {
-    @apply px-5 py-4 pr-12 sm:px-6 sm:py-5 sm:pr-14 md:px-8 md:py-6;
+    @apply px-5 py-4 pr-12 sm:px-6 sm:py-5 sm:pr-14 md:px-8 md:py-6 md:pr-16;
   }
 
   .fill-court-confirm-header-row {
@@ -5259,7 +5259,7 @@
   }
 
   [data-theme="material"] .court-card.court-active {
-    @apply border-solid border-[#66bb6a] bg-[#e8f5e9];
+    @apply border-solid border-[#81c784] bg-[#f1f8f2];
     box-shadow:
       0 2px 4px -1px rgb(46 125 50 / 22%),
       0 4px 8px 0 rgb(0 0 0 / 8%);
@@ -5270,11 +5270,20 @@
   }
 
   [data-theme="material"] .court-team-a {
-    @apply border-l-[#1976d2] bg-[#e3f2fd]/60;
+    /* Blue vs violet teams: both darkened so each reads clearly on the light green court */
+    @apply border-l-[#1565c0] bg-[#e6f0fb];
   }
 
   [data-theme="material"] .court-team-b {
-    @apply border-l-[#7b1fa2] bg-[#f3e5f5]/60;
+    @apply border-l-[#8e24aa] bg-[#f6e9fa];
+  }
+
+  [data-theme="material"] .court-end-btn {
+    @apply border-[#e57373] bg-white text-[#c62828];
+  }
+
+  [data-theme="material"] .court-end-btn:hover {
+    @apply bg-[#ffebee];
   }
 
   [data-theme="material"] .court-card:not(.court-card--pickleball) .court-empty-state {

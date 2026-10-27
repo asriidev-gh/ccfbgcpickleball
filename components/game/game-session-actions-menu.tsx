@@ -31,6 +31,8 @@ type SessionAction = {
 type GameSessionActionsMenuProps = {
   showDatabaseCheckIn?: boolean;
   onDatabaseCheckIn?: () => void;
+  /** Fired when the menu opens, so the check-in list can be preloaded. */
+  onMenuOpen?: () => void;
   showLockInPlayers?: boolean;
   onLockInPlayers?: () => void;
   showAddPlayer?: boolean;
@@ -50,6 +52,7 @@ type GameSessionActionsMenuProps = {
 export function GameSessionActionsMenu({
   showDatabaseCheckIn = false,
   onDatabaseCheckIn,
+  onMenuOpen,
   showLockInPlayers = false,
   onLockInPlayers,
   showAddPlayer = false,
@@ -205,7 +208,7 @@ export function GameSessionActionsMenu({
 
   if (mobileNav) {
     return (
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={(open) => open && onMenuOpen?.()}>
         <DropdownMenuTrigger
           render={
             <button
@@ -229,7 +232,7 @@ export function GameSessionActionsMenu({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => open && onMenuOpen?.()}>
       <DropdownMenuTrigger
         render={
           <Button
