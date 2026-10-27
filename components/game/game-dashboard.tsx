@@ -3019,9 +3019,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
 
     return (
     <Card ref={queuePanelRef} className="glass-panel dashboard-panel dashboard-panel--queue">
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <CardTitle className="hidden lg:block">Queue</CardTitle>
             <Badge variant="secondary" className="hidden tabular-nums lg:inline-flex">
               {queueWithStats.length}
@@ -3031,7 +3031,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 type="button"
                 variant="outline"
                 size="sm"
-                className="queue-refresh-btn h-8 shrink-0 gap-1.5 px-2.5"
+                className="queue-refresh-btn h-8 shrink-0 gap-1.5 px-2.5 max-xl:h-11 max-xl:px-4 max-xl:text-base lg:max-xl:w-11 lg:max-xl:px-0"
                 onClick={handleSpectatorLiveRefresh}
                 disabled={spectatorLiveFetching}
                 aria-label="Refresh queue"
@@ -3039,14 +3039,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 <RefreshCw
                   className={cn("h-4 w-4", spectatorLiveFetching && "animate-spin")}
                 />
-                <span>Refresh</span>
+                <span className="lg:max-xl:sr-only">Refresh</span>
               </Button>
             ) : !hideControls ? (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="queue-refresh-btn h-8 shrink-0 gap-1.5 px-2.5"
+                className="queue-refresh-btn h-8 shrink-0 gap-1.5 px-2.5 max-xl:h-11 max-xl:px-4 max-xl:text-base lg:max-xl:w-11 lg:max-xl:px-0"
                 onClick={() => void operatorQueueQuery.refetch()}
                 disabled={operatorQueueQuery.isFetching}
                 aria-label="Refresh queue"
@@ -3054,7 +3054,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                 <RefreshCw
                   className={cn("h-4 w-4", operatorQueueQuery.isFetching && "animate-spin")}
                 />
-                <span>Refresh</span>
+                <span className="lg:max-xl:sr-only">Refresh</span>
               </Button>
             ) : null}
             {showQueueEntryActionsToggle ? (
@@ -3076,6 +3076,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         <div className="flex shrink-0 items-center gap-2">
           {!hideControls ? (
             <Button
+              className="max-xl:h-11 max-xl:px-5 max-xl:text-base"
               onClick={() => fillCourtFlowRef.current?.openFillNextCourt()}
               disabled={!canFillNextCourt}
             >
@@ -3447,7 +3448,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
             type="button"
             variant="outline"
             size="sm"
-            className="courts-pause-all-btn shrink-0"
+            className="courts-pause-all-btn shrink-0 max-xl:h-11 max-xl:px-4 max-xl:text-base"
             disabled={pauseAllCourtsMutation.isPending}
             onClick={() => pauseAllCourtsMutation.mutate(!allActiveCourtsPaused)}
             aria-label={allActiveCourtsPaused ? "Unpause all courts" : "Pause all courts"}

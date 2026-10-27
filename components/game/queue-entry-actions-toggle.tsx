@@ -39,7 +39,7 @@ export function QueueEntryActionsToggle({
       type="button"
       variant="outline"
       size="sm"
-      className={cn("queue-entry-actions-toggle h-8 shrink-0 gap-1.5 px-2.5", className)}
+      className={cn("queue-entry-actions-toggle h-8 shrink-0 gap-1.5 px-2.5 max-xl:h-11 max-xl:px-4 lg:max-xl:w-11 lg:max-xl:px-0", className)}
       onClick={() => onShowActionsChange(!showActions)}
       aria-pressed={showActions}
       aria-label={showActions ? "Hide action" : "Show action"}
@@ -50,7 +50,7 @@ export function QueueEntryActionsToggle({
       ) : (
         <Eye className="h-4 w-4 shrink-0" aria-hidden />
       )}
-      <span className="whitespace-nowrap text-xs sm:text-sm">
+      <span className="whitespace-nowrap lg:max-xl:sr-only text-xs max-xl:text-base sm:text-sm">
         {showActions ? "Hide Action" : "Show Action"}
       </span>
     </Button>

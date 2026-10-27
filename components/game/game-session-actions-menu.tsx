@@ -14,6 +14,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+/** Larger touch targets on tablet and phone. */
+const MOBILE_ITEM_CLASS =
+  "max-xl:min-h-12 max-xl:gap-3 max-xl:px-3 max-xl:py-3 max-xl:text-base max-xl:[&_svg:not([class*='size-'])]:size-5";
+
 type SessionAction = {
   key: string;
   label: string;
@@ -168,12 +172,12 @@ export function GameSessionActionsMenu({
       align={mobileNav ? "center" : "end"}
       side={mobileNav ? "top" : "bottom"}
       sideOffset={mobileNav ? 8 : 4}
-      className={cn("w-56", mobileNav && "mb-1")}
+      className={cn("w-56 max-xl:w-72", mobileNav && "mb-1")}
     >
       {primaryActions.map((action) => (
         <DropdownMenuItem
           key={action.key}
-          className={action.className}
+          className={cn(action.className, MOBILE_ITEM_CLASS)}
           disabled={action.disabled}
           onClick={action.onClick}
         >
@@ -188,7 +192,7 @@ export function GameSessionActionsMenu({
         <DropdownMenuItem
           key={action.key}
           variant="destructive"
-          className={action.className}
+          className={cn(action.className, MOBILE_ITEM_CLASS)}
           disabled={action.disabled}
           onClick={action.onClick}
         >
