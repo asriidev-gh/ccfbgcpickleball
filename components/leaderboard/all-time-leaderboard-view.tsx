@@ -1,7 +1,7 @@
 "use client";
 
-import { Search, Trophy, X } from "lucide-react";
-import { useDeferredValue, useMemo, useState } from "react";
+import { Crown, Search, Trophy, X } from "lucide-react";
+import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -39,7 +39,17 @@ function initialsOf(row: AllTimeLeaderboardRow) {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: "win" | "loss" }) {
+function Stat({
+  label,
+  value,
+  tone,
+  icon,
+}: {
+  label: string;
+  value: string;
+  tone?: "win" | "loss";
+  icon?: ReactNode;
+}) {
   return (
     <div className="all-time-stat">
       <span
@@ -49,6 +59,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "wi
           tone === "loss" && "text-muted-foreground",
         )}
       >
+        {icon}
         {value}
       </span>
       <span className="all-time-stat__label">{label}</span>
@@ -92,6 +103,16 @@ function PlayerRow({ row, rank }: { row: AllTimeLeaderboardRow; rank: number }) 
         <Stat label="Lost" value={String(row.losses)} tone="loss" />
         <Stat label="Games" value={String(row.gamesPlayed)} />
         <Stat label="Win %" value={`${row.winRate}%`} />
+        <Stat
+          label="Undefeated"
+          value={String(row.undefeatedSessions)}
+          icon={<Trophy className="h-3.5 w-3.5 text-amber-500" aria-hidden />}
+        />
+        <Stat
+          label="MVP"
+          value={String(row.mvpSessions)}
+          icon={<Crown className="h-3.5 w-3.5 text-amber-500" aria-hidden />}
+        />
       </div>
     </li>
   );
@@ -183,8 +204,22 @@ function FilterSelect({
 }) {
   if (options.length === 0) return null;
 
+  const items = [
+    { value: ANY, label: allLabel },
+    ...options.map((option) => ({
+      value: option.value,
+      label: `${option.label} (${option.count})`,
+    })),
+  ];
+
   return (
-    <Select value={value} onValueChange={(next) => onChange(next ?? ANY)}>
+    // `items` lets the trigger show a label while the menu is closed; without it the raw
+    // value ("all") is what appears.
+    <Select
+      value={value}
+      onValueChange={(next) => onChange(next ?? ANY)}
+      items={items}
+    >
       <SelectTrigger aria-label={ariaLabel} className={cn("h-11 w-full rounded-xl", className)}>
         <SelectValue placeholder={allLabel} />
       </SelectTrigger>
@@ -275,7 +310,7 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
             setLimit(PAGE_SIZE);
           }}
           options={genderOptions}
-          allLabel="All genders"
+          allLabel="Select Genders"
           ariaLabel="Filter by gender"
           className="sm:w-44"
         />
@@ -366,6 +401,16 @@ export function AllTimeLeaderboardView() {
   return <StandingsList data={data} />;
 }
 
+/** Each cause needs a different fix, so say which one it is rather than a generic notice. */
+const UNAVAILABLE_BODY = {
+  "not-configured":
+    "The club account for the public leaderboard has not been set. An organizer can enable it from the server configuration.",
+  "unknown-email":
+    "The club account set for the public leaderboard was not found. An organizer should check that the configured email matches an existing account.",
+  ambiguous:
+    "More than one account has sessions and no club account is set for the public leaderboard. An organizer can choose one from the server configuration.",
+} as const;
+
 /** Public view: club-wide standings, no sign-in required. */
 export function PublicAllTimeLeaderboardView() {
   const { data, isLoading, isError, error } = usePublicAllTimeLeaderboard();
@@ -377,7 +422,7 @@ export function PublicAllTimeLeaderboardView() {
     return (
       <EmptyState
         title="Standings are not published yet"
-        body="The club account for the public leaderboard has not been set. An organizer can enable it from the server configuration."
+        body={UNAVAILABLE_BODY[data.unavailableReason ?? "not-configured"]}
       />
     );
   }

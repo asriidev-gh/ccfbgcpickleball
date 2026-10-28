@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Eye, ScanLine, Search } from "lucide-react";
+import { ArrowRight, ExternalLink, Eye, ScanLine, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
@@ -8,7 +8,7 @@ import { ClubSocialLinks } from "@/components/landing/club-social-links";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { APP_NAME } from "@/lib/app-config";
+import { APP_NAME, RECLUB_CLUB_URL } from "@/lib/app-config";
 import type { PublicClubLinks } from "@/lib/public-club-links";
 import { cn } from "@/lib/utils";
 
@@ -85,6 +85,15 @@ export function JoinSessionCard({ clubLinks }: { clubLinks?: PublicClubLinks }) 
             <span className="font-semibold text-foreground">&ldquo;{APP_NAME}&rdquo;</span> to see
             our open play schedule and reserve your slot.
           </p>
+          <a
+            href={RECLUB_CLUB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+          >
+            Open our Reclub page
+            <ExternalLink className="h-4 w-4" aria-hidden />
+          </a>
         </div>
       </div>
 

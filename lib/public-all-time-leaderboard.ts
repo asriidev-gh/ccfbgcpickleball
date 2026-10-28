@@ -5,6 +5,8 @@ export type PublicAllTimeLeaderboardPayload = AllTimeLeaderboardPayload & {
   clubName: string;
   /** False when no club account is resolved, so the page can explain instead of showing zero. */
   available: boolean;
+  /** Why no club account was resolved; only set when `available` is false. */
+  unavailableReason?: "not-configured" | "ambiguous" | "unknown-email";
 };
 
 /** Public standings are read far more often than they change. */
@@ -33,6 +35,7 @@ export async function loadPublicAllTimeLeaderboard(): Promise<PublicAllTimeLeade
         totals: { players: 0, sessions: 0, gamesPlayed: 0 },
         clubName: "",
         available: false,
+        unavailableReason: owner.reason === "configured" || owner.reason === "sole-owner" ? undefined : owner.reason,
       };
 
   // Only cache a resolved club. Caching the "not published" result would keep showing the

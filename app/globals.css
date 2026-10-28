@@ -1688,6 +1688,26 @@
     box-shadow: 0 8px 32px rgb(0 0 0 / 0.2);
   }
 
+  /* The card above is always dark, but title and label colours follow the theme, so light
+     themes ended up with dark text on a dark card. Smart Home is excluded: it swaps in a
+     light card of its own and keeps its dark text. Inputs keep their own colours. */
+  html:not([data-theme="smarthome"]) .login-page .glass-panel,
+  html:not([data-theme="smarthome"]) .signup-page .glass-panel {
+    color: #fff;
+  }
+
+  html:not([data-theme="smarthome"]) .login-page .glass-panel [data-slot="card-title"],
+  html:not([data-theme="smarthome"]) .signup-page .glass-panel [data-slot="card-title"],
+  html:not([data-theme="smarthome"]) .login-page .glass-panel [data-slot="label"],
+  html:not([data-theme="smarthome"]) .signup-page .glass-panel [data-slot="label"] {
+    color: #fff;
+  }
+
+  html:not([data-theme="smarthome"]) .login-page .text-muted-foreground,
+  html:not([data-theme="smarthome"]) .signup-page .text-muted-foreground {
+    color: rgb(226 232 240 / 0.85);
+  }
+
   .glass-panel {
     @apply border border-border bg-card text-card-foreground shadow-sm;
   }
@@ -9693,6 +9713,9 @@
 }
 
 .all-time-stat__value {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   font-family: var(--font-mono);
   font-size: 1rem;
   font-weight: 700;
@@ -9792,7 +9815,8 @@
 .all-time-row__stats {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* The last column is sized to its label: "Undefeated" is wider than the others. */
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto auto;
   gap: 0.5rem;
   border-top: 1px dashed color-mix(in oklab, var(--border) 70%, transparent);
   padding-top: 0.625rem;
@@ -9818,7 +9842,7 @@
 
   .all-time-row__stats {
     grid-column: auto;
-    grid-template-columns: repeat(4, 3.75rem);
+    grid-template-columns: repeat(4, 3.75rem) 5rem 3.75rem;
     border-top: 0;
     padding-top: 0;
   }
@@ -9835,6 +9859,46 @@
     flex-direction: row;
     align-items: center;
   }
+}
+
+/* The search box and both selects blend into the page background in several themes, so give
+   them a clear outline, a card-coloured fill and a light lift. Selector is deliberately
+   specific so per-theme input and select rules do not flatten it again. */
+html .all-time-filters [data-slot="select-trigger"],
+html .all-time-filters [data-slot="input"] {
+  /* One size for all three controls. The select component carries its own small default
+     height, and some themes restyle inputs, so both are pinned here. */
+  box-sizing: border-box;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  line-height: 1.25rem;
+  border: 1.5px solid color-mix(in oklab, var(--foreground) 28%, var(--border));
+  background-color: var(--card);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 10%, transparent);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+html .all-time-filters [data-slot="select-trigger"]:hover,
+html .all-time-filters [data-slot="input"]:hover {
+  border-color: color-mix(in oklab, var(--primary) 60%, var(--border));
+}
+
+@media (min-width: 768px) {
+  html .all-time-filters [data-slot="select-trigger"],
+  html .all-time-filters [data-slot="input"] {
+    font-size: 0.875rem;
+  }
+}
+
+html .all-time-filters [data-slot="select-trigger"]:focus-visible,
+html .all-time-filters [data-slot="input"]:focus-visible,
+html .all-time-filters [data-slot="select-trigger"][data-popup-open] {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary) 22%, transparent);
 }
 
 /* —— Join card: Reclub notice, divider and club socials —— */
