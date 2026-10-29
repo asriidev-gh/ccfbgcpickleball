@@ -120,6 +120,16 @@ export function NameSearchCheckInFlow({ gameId, onBack }: NameSearchCheckInFlowP
     await navigateToSpectate({ applyQueueHighlight: false });
   };
 
+  const handleReenter = async (playerId: string) => {
+    if (checkingInPlayerId || navigating) return;
+    setCheckingInPlayerId(playerId);
+    try {
+      await goToSpectatorView(playerId);
+    } finally {
+      setCheckingInPlayerId(null);
+    }
+  };
+
   const handleCheckIn = async (player: NameSearchPlayerItem) => {
     if (!player.canCheckIn || checkingInPlayerId || navigating) return;
     setCheckingInPlayerId(player.id);
@@ -236,6 +246,7 @@ export function NameSearchCheckInFlow({ gameId, onBack }: NameSearchCheckInFlowP
             {data?.players.map((player) => {
               const statusLabel = queueStatusLabel(player.queueStatus);
               const isCheckingIn = checkingInPlayerId === player.id;
+              const canReenter = !player.canCheckIn && player.queueStatus !== "checked_out";
 
               return (
                 <li
@@ -268,18 +279,27 @@ export function NameSearchCheckInFlow({ gameId, onBack }: NameSearchCheckInFlowP
                   <Button
                     type="button"
                     size="sm"
-                    variant={player.canCheckIn ? "default" : "outline"}
-                    className={cn("shrink-0", !player.canCheckIn && "pointer-events-none opacity-60")}
-                    disabled={!player.canCheckIn || busy}
-                    onClick={() => void handleCheckIn(player)}
+                    variant={player.canCheckIn || canReenter ? "default" : "outline"}
+                    className={cn(
+                      "shrink-0",
+                      !player.canCheckIn && !canReenter && "pointer-events-none opacity-60",
+                    )}
+                    disabled={(!player.canCheckIn && !canReenter) || busy}
+                    onClick={() =>
+                      canReenter
+                        ? void handleReenter(player.id)
+                        : void handleCheckIn(player)
+                    }
                   >
                     {isCheckingIn || (navigating && checkingInPlayerId === player.id) ? (
                       <>
                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
-                        Checking in…
+                        {canReenter ? "Opening…" : "Checking in…"}
                       </>
                     ) : player.canCheckIn ? (
                       "Check in"
+                    ) : canReenter ? (
+                      "Go to game"
                     ) : (
                       "Already in"
                     )}
