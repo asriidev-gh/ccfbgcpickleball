@@ -624,18 +624,27 @@ export const QueueEntryRow = memo(function QueueEntryRow({
         <div
           className={cn(
             "flex w-full min-w-0 gap-2",
-            splitCompact ? "flex-col items-stretch" : "items-center justify-between",
+            splitCompact
+              ? "flex-col items-stretch"
+              : // Phones: identity takes the full row and the actions wrap beneath it, instead
+                // of squeezing the name to nothing; from sm up everything stays on one line.
+                "flex-wrap items-center justify-between",
           )}
         >
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-2",
+              !splitCompact && "basis-full sm:basis-0",
+            )}
+          >
             {dragHandle}
             {!dragHandle ? (
               <span className="queue-rank" aria-label={`Queue position ${slot}`}>
                 {slot}
               </span>
             ) : null}
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <div className="min-w-0 flex-1 overflow-hidden">{compactNameNode}</div>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
+              <div className="min-w-[6rem] flex-[1_1_6rem] overflow-hidden">{compactNameNode}</div>
               {showEndorsedInPlayerLabel ? (
                 <PlayerEndorsementStatusBadge
                   count={endorsementCount}
@@ -690,13 +699,16 @@ export const QueueEntryRow = memo(function QueueEntryRow({
     const nameNode = onViewPlayerInfo ? (
       <button
         type="button"
-        className="queue-next-up-card__name min-w-0 truncate text-left"
+        className={cn(
+          "queue-next-up-card__name min-w-0 text-left",
+          profileLayout ? "break-words" : "truncate",
+        )}
         onClick={onViewPlayerInfo}
       >
         {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
       </button>
     ) : (
-      <p className="queue-next-up-card__name min-w-0 truncate">
+      <p className={cn("queue-next-up-card__name min-w-0", profileLayout ? "break-words" : "truncate")}>
         {formatPlayerDisplayName(entry.playerId.firstName, entry.playerId.lastName)}
       </p>
     );
