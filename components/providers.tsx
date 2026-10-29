@@ -6,6 +6,7 @@ import { useState } from "react";
 import { AppToaster } from "@/components/app-toaster";
 import { ClientErrorReporter } from "@/components/client-error-reporter";
 import { CompleteEphemeralQuickGameTransfer } from "@/components/play/complete-ephemeral-quick-game-transfer";
+import { PageVisitTracker } from "@/components/page-visit-tracker";
 import { ThemeManager } from "@/components/theme/theme-manager";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -17,6 +18,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ClientErrorReporter>
         <CompleteEphemeralQuickGameTransfer />
         <ThemeManager />
+        <PageVisitTracker />
         <TooltipProvider>{children}</TooltipProvider>
         <AppToaster />
       </ClientErrorReporter>

@@ -31,6 +31,7 @@ import { toast } from "sonner";
 
 import { ChangeUserPasswordDialog } from "@/components/insights/change-user-password-dialog";
 import { SystemLogsPanel } from "@/components/insights/system-logs-panel";
+import { TrafficPanel } from "@/components/insights/traffic-panel";
 import { buildImpersonateUrl } from "@/lib/browser-origin";
 import { PlayerAvatar } from "@/components/game/player-avatar";
 import { PlayerProfileViewDialog } from "@/components/game/player-profile-view-dialog";
@@ -1314,7 +1315,7 @@ function PlayersPanel() {
   );
 }
 
-type InsightsTab = "overview" | "users" | "players" | "system-logs";
+type InsightsTab = "overview" | "users" | "players" | "traffic" | "system-logs";
 
 export function InsightsView({ insights }: { insights: UserInsights }) {
   const [tab, setTab] = useState<InsightsTab>("overview");
@@ -1361,6 +1362,7 @@ export function InsightsView({ insights }: { insights: UserInsights }) {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">User List</TabsTrigger>
             <TabsTrigger value="players">Players Registered</TabsTrigger>
+            <TabsTrigger value="traffic">Traffic</TabsTrigger>
             <TabsTrigger value="system-logs">System Logs</TabsTrigger>
           </TabsList>
 
@@ -1448,6 +1450,10 @@ export function InsightsView({ insights }: { insights: UserInsights }) {
 
           <TabsContent value="players">
             {tab === "players" ? <PlayersPanel /> : null}
+          </TabsContent>
+
+          <TabsContent value="traffic">
+            {tab === "traffic" ? <TrafficPanel /> : null}
           </TabsContent>
 
           <TabsContent value="system-logs">
