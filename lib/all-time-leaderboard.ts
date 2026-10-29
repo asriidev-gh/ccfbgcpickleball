@@ -1,4 +1,3 @@
-import { getPlayerIdentityKey } from "@/lib/owner-session-insight-filter-shared";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
@@ -135,8 +134,27 @@ function compareRows(a: AllTimeLeaderboardRow, b: AllTimeLeaderboardRow) {
 }
 
 /**
+ * Who a stats row counts toward: the name the player registered with. Email is deliberately
+ * not used, because organizers often register guests and family under their own address, which
+ * would fold different people into one row. Email only identifies players with no usable name.
+ */
+function leaderboardIdentityKey(player: {
+  _id: { toString(): string };
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+}) {
+  const normalize = (value?: string) => (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  const name = `${normalize(player.firstName)}|${normalize(player.lastName)}`;
+  if (name !== "|") return `name:${name}`;
+
+  const email = normalize(player.email);
+  return email ? `email:${email}` : `id:${player._id.toString()}`;
+}
+
+/**
  * All-time standings for every player who has completed at least one match in one of this
- * owner's sessions. Per-session rows are summed per person, so someone who re-registered
+ * owner's sessions. Per-session rows are summed per name, so someone who re-registered
  * across sessions appears once. Call inside runWithDatabase.
  */
 export async function loadAllTimeLeaderboard(ownerId: string): Promise<AllTimeLeaderboardPayload> {
@@ -174,12 +192,7 @@ export async function loadAllTimeLeaderboard(ownerId: string): Promise<AllTimeLe
     const gamesPlayed = row.gamesPlayed ?? wins + losses;
     if (gamesPlayed <= 0 && wins <= 0 && losses <= 0) continue;
 
-    const key = getPlayerIdentityKey({
-      _id: player._id,
-      email: player.email,
-      firstName: player.firstName,
-      lastName: player.lastName,
-    });
+    const key = leaderboardIdentityKey(player);
 
     const existing = groups.get(key);
     if (existing) {

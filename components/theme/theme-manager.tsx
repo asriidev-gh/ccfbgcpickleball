@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 export const THEME_STORAGE_KEY = "ccf-theme";
-export const DEFAULT_THEME = "neon";
+export const DEFAULT_THEME = "travel";
 
 export type AppTheme =
   | "neon"

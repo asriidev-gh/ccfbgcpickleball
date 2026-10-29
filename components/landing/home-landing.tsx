@@ -113,20 +113,20 @@ export function HomeLanding({
               ))}
             </ul>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex w-full gap-2 sm:w-auto sm:gap-3">
               <Button
                 size="lg"
-                className="h-12 rounded-xl px-5 text-base font-semibold"
+                className="h-12 min-w-0 flex-1 rounded-xl px-3 text-sm font-semibold whitespace-nowrap sm:flex-none sm:px-5 sm:text-base"
                 nativeButton={false}
                 render={<Link href="/standings" />}
               >
-                <Trophy className="h-5 w-5" aria-hidden />
+                <Trophy className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
                 All-time Leaderboard
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 rounded-xl px-5 text-base font-semibold"
+                className="h-12 min-w-0 flex-1 rounded-xl px-3 text-sm font-semibold whitespace-nowrap sm:flex-none sm:px-5 sm:text-base"
                 nativeButton={false}
                 render={<Link href="#how-it-works" />}
               >
@@ -209,17 +209,17 @@ export function HomeLanding({
               size="lg"
               className="h-12 rounded-xl px-5 text-base font-semibold"
               nativeButton={false}
-              render={<Link href="/login" />}
+              render={<a href="https://www.paddlestacks.com/signup?saveQuickPlay=1&referrer=ccf" />}
             >
               <LogIn className="h-5 w-5" aria-hidden />
-              Organizer log in
+              Organizer sign up
             </Button>
             <Button
               size="lg"
               variant="outline"
               className="h-12 rounded-xl px-5 text-base font-semibold"
               nativeButton={false}
-              render={<Link href="/play" />}
+              render={<a href="https://www.paddlestacks.com/play?referrer=ccf" />}
             >
               <Sparkles className="h-5 w-5" aria-hidden />
               Quick session

@@ -12,6 +12,8 @@ import {
 
 const PHOTO_ROOT = path.join(process.cwd(), "public", "assets", "images", "cc_bgc_pickleball");
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".avif"]);
+/** Files in the folder that are page backgrounds, not gallery photos. */
+const EXCLUDED_FILES = new Set(["hero_bg.png"]);
 
 /** Minimal JPEG header read: enough to know orientation without pulling in an image library. */
 function readJpegSize(buffer: Buffer) {
@@ -55,6 +57,7 @@ export function listClubPhotos(): ClubPhoto[] {
   const photos: ClubPhoto[] = [];
 
   for (const file of files.sort()) {
+    if (EXCLUDED_FILES.has(file)) continue;
     if (!IMAGE_EXTENSIONS.has(path.extname(file).toLowerCase())) continue;
 
     let buffer: Buffer;

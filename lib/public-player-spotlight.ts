@@ -9,7 +9,7 @@ export type SpotlightPlayer = {
 };
 
 /** Enough to fill a wide screen without shipping the whole roster to every visitor. */
-const SPOTLIGHT_COUNT = 24;
+const SPOTLIGHT_COUNT = 60;
 
 function shuffle<T>(items: T[]) {
   const copy = [...items];
@@ -21,22 +21,27 @@ function shuffle<T>(items: T[]) {
 }
 
 /**
- * A random handful of club players who uploaded a photo, for the public home page.
+ * Every club player who uploaded a photo, sorted by first name so pages are stable.
  *
  * Reads the same cached club-wide standings the public leaderboard uses, so it adds no extra
- * query, and only the shuffle runs per request. Players with a generated avatar are skipped:
- * the strip is meant to show real faces. Call inside runWithDatabase.
+ * query. Players with a generated avatar are skipped: the point is to show real faces.
+ * Call inside runWithDatabase.
  */
-export async function loadPublicPlayerSpotlight(): Promise<SpotlightPlayer[]> {
+export async function loadPublicPlayerDirectory(): Promise<SpotlightPlayer[]> {
   const standings = await loadPublicAllTimeLeaderboard();
   if (!standings.available) return [];
 
-  const withPhotos = standings.rows.flatMap((row) => {
-    const firstName = row.firstName.trim();
-    const photoUrl = row.photoUrl?.trim();
-    if (!firstName || !photoUrl || !isUploadedPlayerPhoto(row)) return [];
-    return [{ id: row.id, firstName, photoUrl }];
-  });
+  return standings.rows
+    .flatMap((row) => {
+      const firstName = row.firstName.trim();
+      const photoUrl = row.photoUrl?.trim();
+      if (!firstName || !photoUrl || !isUploadedPlayerPhoto(row)) return [];
+      return [{ id: row.id, firstName, photoUrl }];
+    })
+    .sort((a, b) => a.firstName.localeCompare(b.firstName) || a.id.localeCompare(b.id));
+}
 
-  return shuffle(withPhotos).slice(0, SPOTLIGHT_COUNT);
+/** A random handful of those players, for the public home page. */
+export async function loadPublicPlayerSpotlight(): Promise<SpotlightPlayer[]> {
+  return shuffle(await loadPublicPlayerDirectory()).slice(0, SPOTLIGHT_COUNT);
 }
