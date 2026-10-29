@@ -15,13 +15,18 @@ import {
   type GenderOption,
   type PickleballLevel,
 } from "@/lib/player-profile-shared";
-import type { QrUploadProfileFormValues } from "@/lib/qr-upload-profile-shared";
+import type {
+  QrUploadProfileField,
+  QrUploadProfileFormValues,
+} from "@/lib/qr-upload-profile-shared";
 import { cn } from "@/lib/utils";
 
 type QrUploadProfileSectionProps = {
   values: QrUploadProfileFormValues;
   fieldErrors: Record<string, string>;
   disabled?: boolean;
+  /** Limit to these fields; all fields are shown when omitted. */
+  fields?: QrUploadProfileField[];
   onChange: (patch: Partial<QrUploadProfileFormValues>) => void;
 };
 
@@ -66,8 +71,11 @@ export function QrUploadProfileSection({
   values,
   fieldErrors,
   disabled = false,
+  fields,
   onChange,
 }: QrUploadProfileSectionProps) {
+  const show = (field: QrUploadProfileField) => !fields || fields.includes(field);
+
   return (
     <div className="register-block space-y-4 rounded-lg border border-border/70 bg-muted/5 p-4">
       <div>
@@ -77,6 +85,7 @@ export function QrUploadProfileSection({
         </p>
       </div>
 
+      {show("gender") ? (
       <div className="space-y-2">
         <Label htmlFor="qr-upload-gender">Gender</Label>
         <ProfileSelectField
@@ -94,7 +103,9 @@ export function QrUploadProfileSection({
           </p>
         ) : null}
       </div>
+      ) : null}
 
+      {show("birthdate") ? (
       <div className="space-y-2">
         <Label htmlFor="qr-upload-birthdate">Birthdate</Label>
         <Input
@@ -112,7 +123,9 @@ export function QrUploadProfileSection({
           </p>
         ) : null}
       </div>
+      ) : null}
 
+      {show("pickleballLevel") ? (
       <div className="space-y-2">
         <Label htmlFor="qr-upload-level">Self Rating Level</Label>
         <ProfileSelectField
@@ -130,6 +143,7 @@ export function QrUploadProfileSection({
           </p>
         ) : null}
       </div>
+      ) : null}
     </div>
   );
 }

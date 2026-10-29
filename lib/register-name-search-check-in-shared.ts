@@ -25,3 +25,9 @@ export type NameSearchPlayersPage = {
 };
 
 export const NAME_SEARCH_MIN_QUERY_LENGTH = 2;
+
+export type NameSearchProfileUpdate = {
+  gender?: string;
+  birthdate?: string;
+  pickleballLevel?: string;
+};

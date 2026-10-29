@@ -5,6 +5,11 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { PlayerAvatar } from "@/components/game/player-avatar";
+import { QrUploadProfileSection } from "@/components/register/qr-upload-profile-section";
+import type {
+  QrUploadProfileField,
+  QrUploadProfileFormValues,
+} from "@/lib/qr-upload-profile-shared";
 import { useNavigateToSpectate } from "@/components/register/use-navigate-to-spectate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +33,12 @@ import { toastOperationError } from "@/lib/toast-error";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
+
+const emptyProfileForm = (): QrUploadProfileFormValues => ({
+  gender: "",
+  birthdate: "",
+  pickleballLevel: "",
+});
 
 function queueStatusLabel(status: NameSearchPlayerItem["queueStatus"]) {
   switch (status) {
@@ -72,6 +83,12 @@ export function NameSearchCheckInFlow({ gameId, onBack }: NameSearchCheckInFlowP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkingInPlayerId, setCheckingInPlayerId] = useState<string | null>(null);
+  const [profilePrompt, setProfilePrompt] = useState<{
+    player: NameSearchPlayerItem;
+    missingFields: QrUploadProfileField[];
+  } | null>(null);
+  const [profileForm, setProfileForm] = useState<QrUploadProfileFormValues>(emptyProfileForm);
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -130,24 +147,56 @@ export function NameSearchCheckInFlow({ gameId, onBack }: NameSearchCheckInFlowP
     }
   };
 
-  const handleCheckIn = async (player: NameSearchPlayerItem) => {
+  const handleCheckIn = async (player: NameSearchPlayerItem, withProfile = false) => {
     if (!player.canCheckIn || checkingInPlayerId || navigating) return;
+
+    if (withProfile) {
+      const errors: Record<string, string> = {};
+      if (profilePrompt?.missingFields.includes("gender") && !profileForm.gender) {
+        errors.gender = "Select your gender.";
+      }
+      if (profilePrompt?.missingFields.includes("birthdate") && !profileForm.birthdate) {
+        errors.birthdate = "Enter your birthdate.";
+      }
+      if (profilePrompt?.missingFields.includes("pickleballLevel") && !profileForm.pickleballLevel) {
+        errors.pickleballLevel = "Select your self-rate level.";
+      }
+      setProfileErrors(errors);
+      const firstError = Object.values(errors)[0];
+      if (firstError) {
+        toast.error(firstError);
+        return;
+      }
+    }
+
     setCheckingInPlayerId(player.id);
     try {
       const response = await fetch("/api/register/name-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gameId, playerId: player.id }),
+        body: JSON.stringify({
+          gameId,
+          playerId: player.id,
+          ...(withProfile ? { profile: profileForm } : {}),
+        }),
       });
       const payload = (await response.json()) as {
         message?: string;
         playerId?: string;
         alreadyRegistered?: boolean;
         checkedOut?: boolean;
+        needsProfileCompletion?: boolean;
+        missingFields?: QrUploadProfileField[];
         player?: { _id?: string };
       };
 
       if (!response.ok) {
+        if (payload.needsProfileCompletion && payload.missingFields?.length) {
+          setProfileForm(emptyProfileForm());
+          setProfileErrors({});
+          setProfilePrompt({ player, missingFields: payload.missingFields });
+          return;
+        }
         if (payload.checkedOut) {
           toast.error(payload.message ?? CHECKED_OUT_RE_REGISTER_MESSAGE);
           return;
@@ -175,6 +224,56 @@ export function NameSearchCheckInFlow({ gameId, onBack }: NameSearchCheckInFlowP
   const queryTooShort = searchQuery.length < NAME_SEARCH_MIN_QUERY_LENGTH;
   const showInitialLoading = loading && !data;
   const busy = checkingInPlayerId !== null || navigating;
+
+  if (profilePrompt) {
+    const { player: promptPlayer, missingFields } = profilePrompt;
+    const canSubmit = missingFields.every((field) => Boolean(profileForm[field]));
+
+    return (
+      <div className="space-y-4">
+        <Button
+          type="button"
+          variant="outline"
+          className="register-back"
+          onClick={() => setProfilePrompt(null)}
+          disabled={busy}
+        >
+          ← Back
+        </Button>
+
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm">
+          Welcome back, <span className="font-medium">{promptPlayer.name}</span>!
+        </div>
+
+        <QrUploadProfileSection
+          values={profileForm}
+          fieldErrors={profileErrors}
+          disabled={busy}
+          fields={missingFields}
+          onChange={(patch) => setProfileForm((current) => ({ ...current, ...patch }))}
+        />
+
+        <div className="register-submit-bar">
+          <Button
+            type="button"
+            size="lg"
+            className="register-submit w-full"
+            disabled={!canSubmit || busy}
+            onClick={() => void handleCheckIn(promptPlayer, true)}
+          >
+            {busy ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                Please wait..
+              </>
+            ) : (
+              "Save & check in"
+            )}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

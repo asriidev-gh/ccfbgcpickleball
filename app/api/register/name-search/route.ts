@@ -4,6 +4,7 @@ import { runWithDatabase } from "@/lib/db";
 import { RegistrationLimitError } from "@/lib/game-registration-limit";
 import {
   checkInPlayerByNameSearch,
+  ProfileCompletionRequiredError,
   searchPlayersByNameForRegistration,
 } from "@/lib/register-name-search-check-in";
 import { recordCheckinAttemptNotification } from "@/lib/organizer-notifications";
@@ -63,10 +64,26 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "playerId is required." }, { status: 400 });
       }
 
-      const result = await checkInPlayerByNameSearch(gameId, playerId);
+      const profile = body?.profile;
+      const result = await checkInPlayerByNameSearch(gameId, playerId, {
+        gender: typeof profile?.gender === "string" ? profile.gender : undefined,
+        birthdate: typeof profile?.birthdate === "string" ? profile.birthdate : undefined,
+        pickleballLevel:
+          typeof profile?.pickleballLevel === "string" ? profile.pickleballLevel : undefined,
+      });
       return NextResponse.json(result);
     });
   } catch (error) {
+    if (error instanceof ProfileCompletionRequiredError) {
+      return NextResponse.json(
+        {
+          message: error.message,
+          needsProfileCompletion: true,
+          missingFields: error.missingFields,
+        },
+        { status: 422 },
+      );
+    }
     if (error instanceof RegistrationLimitError) {
       const gameId = gameIdFromRequest;
       const playerId = error.playerId;

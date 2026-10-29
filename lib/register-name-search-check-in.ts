@@ -8,7 +8,15 @@ import { buildOwnerRegisteredPlayerAccountGroupKey } from "@/lib/owner-registere
 import { isUploadedPlayerPhoto } from "@/lib/player-avatar-url";
 import { recordPlayerRegisteredNotification } from "@/lib/organizer-notifications";
 import {
+  formatQrUploadBirthdate,
+  listMissingQrUploadProfileFields,
+  type QrUploadProfileField,
+} from "@/lib/qr-upload-profile-shared";
+import { QR_UPLOAD_REGISTRATION_SOURCE } from "@/lib/registration-feature";
+import { qrUploadSkipExistingPlayerSchema } from "@/lib/validations";
+import {
   NAME_SEARCH_MIN_QUERY_LENGTH,
+  type NameSearchProfileUpdate,
   type NameSearchPlayerItem,
   type NameSearchPlayersPage,
   type NameSearchQueueStatus,
@@ -306,7 +314,17 @@ export async function searchPlayersByNameForRegistration(
   };
 }
 
-export async function checkInPlayerByNameSearch(gameId: string, playerId: string) {
+export class ProfileCompletionRequiredError extends Error {
+  constructor(public missingFields: QrUploadProfileField[]) {
+    super("Please complete your profile details to check in.");
+  }
+}
+
+export async function checkInPlayerByNameSearch(
+  gameId: string,
+  playerId: string,
+  profileUpdate?: NameSearchProfileUpdate,
+) {
   await connectToDatabase();
 
   if (!Types.ObjectId.isValid(playerId)) {
@@ -317,13 +335,16 @@ export async function checkInPlayerByNameSearch(gameId: string, playerId: string
   const [{ game, ownerGameIds }, player] = await Promise.all([
     getOwnerGameIdsForSession(gameId),
     Player.findById(playerObjectId)
-      .select("firstName lastName email personalQrCode")
+      .select("firstName lastName email personalQrCode gender birthdate pickleballLevel")
       .lean<{
         _id: Types.ObjectId;
         firstName?: string;
         lastName?: string;
         email?: string;
         personalQrCode?: string;
+        gender?: string | null;
+        birthdate?: Date | null;
+        pickleballLevel?: string | null;
       } | null>(),
   ]);
 
@@ -349,7 +370,35 @@ export async function checkInPlayerByNameSearch(gameId: string, playerId: string
     playerId,
   });
 
-  await Player.updateOne({ _id: player._id }, { $set: { lastAttendedAt: new Date() } });
+  const missingFields = listMissingQrUploadProfileFields(player);
+  const profileSet: Record<string, unknown> = {};
+  if (missingFields.length > 0) {
+    // Only fill what is missing; existing details are never overwritten here.
+    const parsed = qrUploadSkipExistingPlayerSchema.safeParse({
+      gameId,
+      personalQrCode: player.personalQrCode || "P-unknown",
+      registrationSource: QR_UPLOAD_REGISTRATION_SOURCE,
+      requiresProfileUpdate: true,
+      gender: profileUpdate?.gender || player.gender || "",
+      birthdate: profileUpdate?.birthdate || formatQrUploadBirthdate(player.birthdate),
+      pickleballLevel: profileUpdate?.pickleballLevel || player.pickleballLevel || "",
+    });
+    if (!parsed.success) {
+      throw new ProfileCompletionRequiredError(missingFields);
+    }
+    if (missingFields.includes("gender")) profileSet.gender = parsed.data.gender;
+    if (missingFields.includes("birthdate")) {
+      profileSet.birthdate = new Date(`${parsed.data.birthdate}T00:00:00.000Z`);
+    }
+    if (missingFields.includes("pickleballLevel")) {
+      profileSet.pickleballLevel = parsed.data.pickleballLevel;
+    }
+  }
+
+  await Player.updateOne(
+    { _id: player._id },
+    { $set: { ...profileSet, lastAttendedAt: new Date() } },
+  );
   const reactivated = await tryReactivateCheckedOutQueueEntry(gameId, playerId);
   if (!reactivated) {
     await QueueEntry.create({
