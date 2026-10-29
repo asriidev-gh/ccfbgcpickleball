@@ -1,9 +1,10 @@
 "use client";
 
-import { Crown, Search, Trophy, X } from "lucide-react";
+import { Crown, Handshake, Search, Trophy, X } from "lucide-react";
 import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
+import { AllTimePartnersView } from "@/components/leaderboard/all-time-partners-view";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -237,6 +238,7 @@ function FilterSelect({
 
 /** Ranked list shared by the owner and public pages. */
 function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
+  const [view, setView] = useState<"players" | "partners">("players");
   const [query, setQuery] = useState("");
   const [gender, setGender] = useState<string>(ANY);
   const [level, setLevel] = useState<string>(ANY);
@@ -277,13 +279,55 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
     setLimit(PAGE_SIZE);
   };
 
+  const totals = (
+    <div className="all-time-totals">
+      <Stat label="Players" value={String(data.totals.players)} />
+      <Stat label="Sessions" value={String(data.totals.sessions)} />
+      <Stat label="Games played" value={String(data.totals.gamesPlayed)} />
+    </div>
+  );
+  const viewTabs = (
+    <div
+      className="flex w-full rounded-lg border border-border bg-muted/40 p-0.5 sm:inline-flex sm:w-fit"
+      role="group"
+      aria-label="Leaderboard view"
+    >
+      {(
+        [
+          { value: "players", label: "Players", Icon: Trophy },
+          { value: "partners", label: "Partners", Icon: Handshake },
+        ] as const
+      ).map(({ value, label, Icon }) => (
+        <Button
+          key={value}
+          type="button"
+          size="sm"
+          variant={view === value ? "default" : "ghost"}
+          className="h-9 flex-1 gap-1.5 px-5 sm:flex-none"
+          aria-pressed={view === value}
+          onClick={() => setView(value)}
+        >
+          <Icon className="h-4 w-4 shrink-0" aria-hidden />
+          {label}
+        </Button>
+      ))}
+    </div>
+  );
+
+  if (view === "partners") {
+    return (
+      <div className="space-y-5">
+        {totals}
+        {viewTabs}
+        <AllTimePartnersView pairs={data.partners ?? []} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      <div className="all-time-totals">
-        <Stat label="Players" value={String(data.totals.players)} />
-        <Stat label="Sessions" value={String(data.totals.sessions)} />
-        <Stat label="Games played" value={String(data.totals.gamesPlayed)} />
-      </div>
+      {totals}
+      {viewTabs}
 
       <div className="all-time-filters">
         <div className="relative min-w-0 flex-1">

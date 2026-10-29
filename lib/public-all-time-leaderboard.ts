@@ -32,6 +32,7 @@ export async function loadPublicAllTimeLeaderboard(): Promise<PublicAllTimeLeade
       }
     : {
         rows: [],
+        partners: [],
         totals: { players: 0, sessions: 0, gamesPlayed: 0 },
         clubName: "",
         available: false,

@@ -1,3 +1,5 @@
+import type { AllTimePartnerPair } from "@/lib/all-time-partners-shared";
+import { loadAllTimePartnerPairs } from "@/lib/all-time-partners";
 import { leaderboardIdentityKey } from "@/lib/player-identity-key";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { PickleGame } from "@/models/PickleGame";
@@ -31,6 +33,8 @@ export type AllTimeLeaderboardRow = {
 
 export type AllTimeLeaderboardPayload = {
   rows: AllTimeLeaderboardRow[];
+  /** Doubles pairs with enough games together, best win rate first. */
+  partners: AllTimePartnerPair[];
   totals: {
     players: number;
     sessions: number;
@@ -142,6 +146,7 @@ function compareRows(a: AllTimeLeaderboardRow, b: AllTimeLeaderboardRow) {
 export async function loadAllTimeLeaderboard(ownerId: string): Promise<AllTimeLeaderboardPayload> {
   const empty: AllTimeLeaderboardPayload = {
     rows: [],
+    partners: [],
     totals: { players: 0, sessions: 0, gamesPlayed: 0 },
   };
 
@@ -246,6 +251,7 @@ export async function loadAllTimeLeaderboard(ownerId: string): Promise<AllTimeLe
 
   return {
     rows,
+    partners: await loadAllTimePartnerPairs(ownerGameIds, playersById),
     totals: {
       players: rows.length,
       sessions: countedSessions.size,
