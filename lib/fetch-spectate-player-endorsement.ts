@@ -30,6 +30,22 @@ export async function fetchSpectatePlayerEndorsements(gameId: string, endorserPl
   return (data.endorsements ?? []) as SpectatePlayerEndorsementSummary[];
 }
 
+export function spectateEndorsedIdentitiesQueryKey(gameId: string, endorserPlayerId: string) {
+  return ["spectate-endorsed-identities", gameId, endorserPlayerId] as const;
+}
+
+/** Identity keys of everyone this player has endorsed in any session, not just this one. */
+export async function fetchSpectateEndorsedIdentities(gameId: string, endorserPlayerId: string) {
+  const response = await fetch(
+    `/api/games/${gameId}/spectate/player/endorsement?endorserPlayerId=${encodeURIComponent(endorserPlayerId)}&endorsedIdentities=1`,
+  );
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message ?? "Failed to load endorsements.");
+  }
+  return (data.identityKeys ?? []) as string[];
+}
+
 export async function fetchSpectateGameEndorsementCounts(gameId: string) {
   const response = await fetch(`/api/games/${gameId}/spectate/player/endorsement?counts=1`);
   const data = await response.json();

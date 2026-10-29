@@ -36,6 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   fetchSpectatePlayerEndorsements,
   spectateGameEndorsementCountsQueryKey,
+  spectateEndorsedIdentitiesQueryKey,
   spectatePlayerEndorsementsQueryKey,
   submitSpectatePlayerEndorsement,
 } from "@/lib/fetch-spectate-player-endorsement";
@@ -127,6 +128,9 @@ export function SpectatePlayerEndorseDialog({
       toast.success(payload.message);
       void queryClient.invalidateQueries({
         queryKey: spectatePlayerEndorsementsQueryKey(gameId, endorserPlayerId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: spectateEndorsedIdentitiesQueryKey(gameId, endorserPlayerId),
       });
       void queryClient.invalidateQueries({
         queryKey: spectateGameEndorsementCountsQueryKey(gameId),

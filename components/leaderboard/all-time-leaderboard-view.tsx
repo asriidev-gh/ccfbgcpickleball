@@ -4,11 +4,6 @@ import { Crown, Search, Trophy, X } from "lucide-react";
 import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
-import { PlayerEndorsementStatusBadge } from "@/components/game/player-endorsement-status-badge";
-import {
-  AllTimeEndorsementsDialog,
-  type AllTimeEndorsementsScope,
-} from "@/components/leaderboard/all-time-endorsements-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,15 +67,7 @@ function Stat({
   );
 }
 
-function PlayerRow({
-  row,
-  rank,
-  onEndorsementsClick,
-}: {
-  row: AllTimeLeaderboardRow;
-  rank: number;
-  onEndorsementsClick: (row: AllTimeLeaderboardRow) => void;
-}) {
+function PlayerRow({ row, rank }: { row: AllTimeLeaderboardRow; rank: number }) {
   const name = formatPlayerTableName(row.firstName, row.lastName);
   const medal = rank <= 3 ? (rank as 1 | 2 | 3) : null;
 
@@ -100,14 +87,7 @@ function PlayerRow({
       </Avatar>
 
       <div className="all-time-row__identity">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="all-time-row__name">{name}</p>
-          <PlayerEndorsementStatusBadge
-            count={row.endorsements ?? 0}
-            alwaysShowCount
-            onClick={() => onEndorsementsClick(row)}
-          />
-        </div>
+        <p className="all-time-row__name">{name}</p>
         <p className="all-time-row__meta">
           {[
             `${row.sessionsPlayed} ${row.sessionsPlayed === 1 ? "session" : "sessions"}`,
@@ -256,14 +236,7 @@ function FilterSelect({
 }
 
 /** Ranked list shared by the owner and public pages. */
-function StandingsList({
-  data,
-  scope,
-}: {
-  data: AllTimeLeaderboardPayload;
-  scope: AllTimeEndorsementsScope;
-}) {
-  const [endorsementsRow, setEndorsementsRow] = useState<AllTimeLeaderboardRow | null>(null);
+function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
   const [query, setQuery] = useState("");
   const [gender, setGender] = useState<string>(ANY);
   const [level, setLevel] = useState<string>(ANY);
@@ -379,12 +352,7 @@ function StandingsList({
         <>
           <ol className="all-time-list">
             {visible.slice(0, limit).map(({ row, rank }) => (
-              <PlayerRow
-                key={row.id}
-                row={row}
-                rank={rank}
-                onEndorsementsClick={setEndorsementsRow}
-              />
+              <PlayerRow key={row.id} row={row} rank={rank} />
             ))}
           </ol>
 
@@ -406,20 +374,6 @@ function StandingsList({
           ) : null}
         </>
       )}
-
-      <AllTimeEndorsementsDialog
-        scope={scope}
-        rowId={endorsementsRow?.id ?? null}
-        playerName={
-          endorsementsRow
-            ? formatPlayerTableName(endorsementsRow.firstName, endorsementsRow.lastName)
-            : "Player"
-        }
-        open={endorsementsRow != null}
-        onOpenChange={(open) => {
-          if (!open) setEndorsementsRow(null);
-        }}
-      />
     </div>
   );
 }
@@ -444,7 +398,7 @@ export function AllTimeLeaderboardView() {
   if (!data || data.rows.length === 0) {
     return <EmptyState title="No results yet" body={NO_RESULTS_BODY} />;
   }
-  return <StandingsList data={data} scope="owner" />;
+  return <StandingsList data={data} />;
 }
 
 /** Each cause needs a different fix, so say which one it is rather than a generic notice. */
@@ -477,5 +431,5 @@ export function PublicAllTimeLeaderboardView() {
     return <EmptyState title="No results yet" body={NO_RESULTS_BODY} />;
   }
 
-  return <StandingsList data={data} scope="public" />;
+  return <StandingsList data={data} />;
 }

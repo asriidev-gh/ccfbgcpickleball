@@ -68,7 +68,6 @@ export async function GET(request: NextRequest) {
           sessionsPlayed: row.sessionsPlayed,
           undefeatedSessions: row.undefeatedSessions,
           mvpSessions: row.mvpSessions,
-          endorsements: row.endorsements,
         })),
         pagination: {
           page,

@@ -1,7 +1,7 @@
+import { leaderboardIdentityKey } from "@/lib/player-identity-key";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
-import { PlayerEndorsement } from "@/models/PlayerEndorsement";
 
 /** One person's combined record across every session run by the owner. */
 export type AllTimeLeaderboardRow = {
@@ -27,8 +27,6 @@ export type AllTimeLeaderboardRow = {
   undefeatedSessions: number;
   /** Sessions where the player was named MVP, by the same rule the session insights use. */
   mvpSessions: number;
-  /** Endorsements received from other players across all of these sessions. */
-  endorsements: number;
 };
 
 export type AllTimeLeaderboardPayload = {
@@ -137,25 +135,6 @@ function compareRows(a: AllTimeLeaderboardRow, b: AllTimeLeaderboardRow) {
 }
 
 /**
- * Who a stats row counts toward: the name the player registered with. Email is deliberately
- * not used, because organizers often register guests and family under their own address, which
- * would fold different people into one row. Email only identifies players with no usable name.
- */
-export function leaderboardIdentityKey(player: {
-  _id: { toString(): string };
-  email?: string;
-  firstName?: string;
-  lastName?: string;
-}) {
-  const normalize = (value?: string) => (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
-  const name = `${normalize(player.firstName)}|${normalize(player.lastName)}`;
-  if (name !== "|") return `name:${name}`;
-
-  const email = normalize(player.email);
-  return email ? `email:${email}` : `id:${player._id.toString()}`;
-}
-
-/**
  * All-time standings for every player who has completed at least one match in one of this
  * owner's sessions. Per-session rows are summed per name, so someone who re-registered
  * across sessions appears once. Call inside runWithDatabase.
@@ -239,22 +218,6 @@ export async function loadAllTimeLeaderboard(ownerId: string): Promise<AllTimeLe
 
   const mvpCounts = countMvpSessions(groups);
 
-  // Endorsements follow the person, not the profile: map every counted profile to its group.
-  const groupKeyByPlayerId = new Map<string, string>();
-  for (const player of players) {
-    groupKeyByPlayerId.set(player._id.toString(), leaderboardIdentityKey(player));
-  }
-  const endorsementRows = await PlayerEndorsement.aggregate<{ _id: unknown; count: number }>([
-    { $match: { gameId: { $in: ownerGameIds } } },
-    { $group: { _id: "$endorsedPlayerId", count: { $sum: 1 } } },
-  ]);
-  const endorsementCounts = new Map<string, number>();
-  for (const row of endorsementRows) {
-    const key = groupKeyByPlayerId.get(String(row._id));
-    if (!key) continue;
-    endorsementCounts.set(key, (endorsementCounts.get(key) ?? 0) + row.count);
-  }
-
   const rows: AllTimeLeaderboardRow[] = [...groups.values()]
     .map((group) => ({
       id: group.id,
@@ -273,7 +236,6 @@ export async function loadAllTimeLeaderboard(ownerId: string): Promise<AllTimeLe
       sessionsPlayed: group.sessions.size,
       undefeatedSessions: countUndefeatedSessions(group.sessions),
       mvpSessions: mvpCounts.get(group.id) ?? 0,
-      endorsements: endorsementCounts.get(group.id) ?? 0,
     }))
     .sort(compareRows);
 

@@ -26,7 +26,6 @@ export async function GET(request: Request) {
           sessionsPlayed: row.sessionsPlayed,
           undefeatedSessions: row.undefeatedSessions,
           mvpSessions: row.mvpSessions,
-          endorsements: row.endorsements,
         })),
       });
     });

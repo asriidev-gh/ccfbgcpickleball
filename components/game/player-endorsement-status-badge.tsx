@@ -8,15 +8,12 @@ type PlayerEndorsementStatusBadgeProps = {
   count: number;
   onClick?: () => void;
   className?: string;
-  /** Show the count even for a single endorsement ("Endorsed (1)"). */
-  alwaysShowCount?: boolean;
 };
 
 export function PlayerEndorsementStatusBadge({
   count,
   onClick,
   className,
-  alwaysShowCount = false,
 }: PlayerEndorsementStatusBadgeProps) {
   if (count <= 0) return null;
 
@@ -33,7 +30,7 @@ export function PlayerEndorsementStatusBadge({
       aria-label={label}
     >
       <ThumbsUp className="size-3 shrink-0" aria-hidden />
-      Endorsed{count > 1 || alwaysShowCount ? ` (${count})` : ""}
+      Endorsed{count > 1 ? ` (${count})` : ""}
     </Badge>
   );
 

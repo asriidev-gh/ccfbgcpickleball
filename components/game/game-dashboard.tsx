@@ -205,9 +205,12 @@ import { GameCheckoutNotificationBell } from "@/components/game/spectator-notifi
 import {
   fetchSpectatePlayerEndorsements,
   fetchSpectateGameEndorsementCounts,
+  fetchSpectateEndorsedIdentities,
   spectatePlayerEndorsementsQueryKey,
   spectateGameEndorsementCountsQueryKey,
+  spectateEndorsedIdentitiesQueryKey,
 } from "@/lib/fetch-spectate-player-endorsement";
+import { leaderboardIdentityKey } from "@/lib/player-identity-key";
 import { dispatchSpectatorCheckoutNotification } from "@/lib/spectator-checkout-notifications";
 import {
   mergeSpectatorGamePayload,
@@ -2376,6 +2379,18 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     () => new Set(myPlayerEndorsements.map((item) => item.endorsedPlayerId)),
     [myPlayerEndorsements],
   );
+  // Each session registers a fresh Player row, so people endorsed in earlier sessions are
+  // matched by name.
+  const { data: endorsedIdentityKeyList = [] } = useQuery({
+    queryKey: spectateEndorsedIdentitiesQueryKey(gameId, endorserPlayerId),
+    queryFn: () => fetchSpectateEndorsedIdentities(gameId, endorserPlayerId),
+    enabled: isSpectator && showLiveEndorsements && Boolean(endorserPlayerId),
+    ...spectatorEndorsementQueryOptions,
+  });
+  const endorsedIdentityKeys = useMemo(
+    () => new Set(endorsedIdentityKeyList),
+    [endorsedIdentityKeyList],
+  );
   const { data: gameEndorsementCounts = {} } = useQuery({
     queryKey: spectateGameEndorsementCountsQueryKey(gameId),
     queryFn: () => fetchSpectateGameEndorsementCounts(gameId),
@@ -2729,7 +2744,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       return undefined;
     }
 
-    const endorsed = endorsedPlayerIds.has(playerId);
+    const endorsed =
+      endorsedPlayerIds.has(playerId) ||
+      endorsedIdentityKeys.has(leaderboardIdentityKey(entry.playerId));
 
     if (endorsed) {
       return undefined;

@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 
 import { runWithDatabase } from "@/lib/db";
 import { formatZodError } from "@/lib/format-zod-error";
-import { PlayerProfileAccessError } from "@/lib/player-profile";
+import { assertPlayerRegisteredForGame, PlayerProfileAccessError } from "@/lib/player-profile";
 import {
   getSpectatePlayerEndorsement,
+  listEndorsedIdentityKeysForEndorser,
   listSpectateGameEndorsementCounts,
   listSpectatePlayerEndorsements,
   listSpectatePlayerEndorsementsReceived,
@@ -25,6 +26,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if (counts) {
         const endorsementCounts = await listSpectateGameEndorsementCounts(gameId);
         return NextResponse.json({ counts: endorsementCounts });
+      }
+
+      if (endorserPlayerId && url.searchParams.get("endorsedIdentities") === "1") {
+        await assertPlayerRegisteredForGame(gameId, endorserPlayerId);
+        const identityKeys = await listEndorsedIdentityKeysForEndorser(gameId, endorserPlayerId);
+        return NextResponse.json({ identityKeys });
       }
 
       if (endorsedPlayerId && received) {

@@ -6,6 +6,7 @@ import {
   type PlayerEndorsementBadge,
 } from "@/lib/player-endorsement-shared";
 import { assertPlayerRegisteredForGame, PlayerProfileAccessError } from "@/lib/player-profile";
+import { leaderboardIdentityKey } from "@/lib/player-identity-key";
 import { formatPlayerDisplayName } from "@/lib/utils";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
@@ -102,6 +103,58 @@ export async function listSpectateGameEndorsementCounts(
     counts[String(row._id)] = row.count;
   }
   return counts;
+}
+
+/**
+ * Identity keys (see leaderboardIdentityKey) of everyone this person has ever endorsed in any
+ * of the host's sessions. Each session registers a fresh Player row, so matching is by name,
+ * the same way the all-time standings treat one person. Used to hide Endorse for repeats.
+ */
+export async function listEndorsedIdentityKeysForEndorser(
+  gameId: string,
+  endorserPlayerId: string,
+): Promise<string[]> {
+  await connectToDatabase();
+
+  const game = await PickleGame.findOne({ gameId }).select("ownerId").lean<{ ownerId?: unknown } | null>();
+  if (!game?.ownerId) return [];
+
+  const ownerGames = await PickleGame.find({ ownerId: game.ownerId })
+    .select("gameId")
+    .lean<Array<{ gameId: string }>>();
+  const endorsements = await PlayerEndorsement.find({
+    gameId: { $in: ownerGames.map((item) => item.gameId) },
+  })
+    .select("endorserPlayerId endorsedPlayerId")
+    .lean();
+  if (endorsements.length === 0) return [];
+
+  const endorserIds = [...new Set(endorsements.map((row) => String(row.endorserPlayerId)))];
+  const endorserPlayers = await Player.find({ _id: { $in: endorserIds } })
+    .select("firstName lastName email")
+    .lean<Array<{ _id: { toString(): string }; firstName?: string; lastName?: string; email?: string }>>();
+  const self = endorserPlayers.find((player) => player._id.toString() === endorserPlayerId);
+  if (!self) return [];
+
+  const selfKey = leaderboardIdentityKey(self);
+  const myIds = new Set(
+    endorserPlayers
+      .filter((player) => leaderboardIdentityKey(player) === selfKey)
+      .map((player) => player._id.toString()),
+  );
+  const endorsedIds = [
+    ...new Set(
+      endorsements
+        .filter((row) => myIds.has(String(row.endorserPlayerId)))
+        .map((row) => String(row.endorsedPlayerId)),
+    ),
+  ];
+  if (endorsedIds.length === 0) return [];
+
+  const endorsedPlayers = await Player.find({ _id: { $in: endorsedIds } })
+    .select("firstName lastName email")
+    .lean<Array<{ _id: { toString(): string }; firstName?: string; lastName?: string; email?: string }>>();
+  return [...new Set(endorsedPlayers.map((player) => leaderboardIdentityKey(player)))];
 }
 
 export async function listSpectatePlayerEndorsementsReceived(

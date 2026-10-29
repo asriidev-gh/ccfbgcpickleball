@@ -257,11 +257,16 @@ function QueueEntryStatusLine({
   return (
     <div
       className="queue-entry-status"
+      // The wait/checkout label is relative to "now", so server and client can differ by a
+      // tick across an hour boundary; the client value is the correct one.
+      suppressHydrationWarning
       aria-label={`${primaryLabel}. Last match: ${lastMatchLabel}${showRecord ? `. Session record ${sessionRecordLabel}` : ""}.`}
     >
       <span className="queue-entry-status__segment queue-entry-status__wait">
         <Clock className="queue-entry-status__icon" aria-hidden />
-        <span className="queue-entry-status__wait-text">{primaryLabel}</span>
+        <span className="queue-entry-status__wait-text" suppressHydrationWarning>
+          {primaryLabel}
+        </span>
       </span>
       <QueueEntryStatusDivider />
       <span
