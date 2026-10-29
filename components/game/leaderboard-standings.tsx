@@ -43,7 +43,8 @@ export function FirstTimerPill({ className }: { className?: string }) {
     <Badge
       variant="outline"
       className={cn(
-        "gap-0.5 whitespace-nowrap border-sky-500/35 bg-sky-500/10 text-sky-800 dark:text-sky-200",
+        "gap-0.5 whitespace-nowrap border-sky-500/35 bg-sky-500/10 text-sky-800",
+        "dark-theme:border-sky-400/50 dark-theme:bg-sky-400/15 dark-theme:text-sky-200",
         className,
       )}
       title="First session with this club"
@@ -101,7 +102,9 @@ function LeaderboardPlayerName({
       <span
         className={cn(
           "min-w-0",
-          wrapName ? "line-clamp-2 break-words text-balance" : "truncate",
+          wrapName
+            ? "line-clamp-3 text-balance [overflow-wrap:anywhere]"
+            : "truncate",
           stackMd && align === "center" && "md:w-full md:text-center",
           stackLg && align === "center" && "lg:w-full lg:text-center",
           stackMd && align === "start" && "md:w-full",
@@ -114,7 +117,8 @@ function LeaderboardPlayerName({
       {hasPills ? (
         <span
           className={cn(
-            "inline-flex flex-wrap items-center gap-1",
+            "inline-flex max-w-full flex-wrap items-center gap-1",
+            wrapName && "leaderboard-podium-pills",
             align === "center" ? "justify-center" : "justify-start",
             stackMd && "md:w-full md:justify-center",
             stackLg && "lg:w-full lg:justify-center",
@@ -233,15 +237,15 @@ function PodiumCard({
       rank={rank}
       compact={compact}
       className={cn(
-        rank === 1 && !compact && "leaderboard-podium-card--first md:-mt-3",
-        rank === 2 && !compact && "leaderboard-podium-card--second md:pb-3.5",
-        rank === 3 && !compact && "leaderboard-podium-card--third md:pb-3",
+        rank === 1 && "leaderboard-podium-card--first",
+        rank === 2 && "leaderboard-podium-card--second",
+        rank === 3 && "leaderboard-podium-card--third",
       )}
     >
       <article
         className={cn(
-          "leaderboard-podium-card flex w-full min-w-0 flex-col items-center text-center",
-          compact ? "leaderboard-podium-card--compact px-1.5 py-2" : "px-3 py-3 sm:px-4 sm:py-4",
+          "leaderboard-podium-card flex w-full min-w-0 flex-1 flex-col items-center text-center",
+          compact ? "leaderboard-podium-card--compact px-1.5 py-2" : "px-2 py-3 sm:px-4 sm:py-4",
           podiumClass,
           rank === 1 && !compact && "md:py-5",
         )}
@@ -298,6 +302,7 @@ function PodiumCard({
         <div
           className={cn(
             "leaderboard-podium-stats relative z-[1] mt-2 grid w-full max-w-[8.5rem] grid-cols-2 gap-px overflow-hidden rounded-lg",
+            "[&>*]:min-w-0",
             compact ? "mt-1.5 max-w-full" : "mt-3",
           )}
         >
@@ -310,14 +315,7 @@ function PodiumCard({
             >
               {row.wins}
             </span>
-            <span
-              className={cn(
-                "font-medium uppercase tracking-wide text-muted-foreground",
-                "text-[11px] sm:text-xs",
-              )}
-            >
-              Wins
-            </span>
+            <span className="leaderboard-podium-stats__label">Wins</span>
           </div>
           <div className="leaderboard-podium-stats__cell flex flex-col items-center px-1 py-1.5 sm:py-2">
             <span
@@ -328,14 +326,7 @@ function PodiumCard({
             >
               {row.losses}
             </span>
-            <span
-              className={cn(
-                "font-medium uppercase tracking-wide text-muted-foreground",
-                "text-[11px] sm:text-xs",
-              )}
-            >
-              Losses
-            </span>
+            <span className="leaderboard-podium-stats__label">Losses</span>
           </div>
         </div>
         <p className="relative z-[1] mt-1.5 text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs">
@@ -380,7 +371,7 @@ function StandingRow({
     <li
       className={cn(
         "leaderboard-standing-row surface-muted border",
-        compact ? "rounded-lg p-2" : "rounded-xl p-3 sm:p-4",
+        compact ? "rounded-lg p-2" : "rounded-2xl p-4 pb-5 sm:p-5",
         isPodium && "leaderboard-standing-row-top",
         rank === 1 && "leaderboard-standing-row-gold",
         rank === 2 && "leaderboard-standing-row-silver",
@@ -395,14 +386,14 @@ function StandingRow({
             <LeaderboardPlayerName
               row={row}
               rank={rank}
+              className={compact ? undefined : "flex-col items-start gap-1"}
               nameClassName={cn("font-semibold", compact ? "text-sm" : "body-lg")}
               endorsementCounts={endorsementCounts}
               onEndorsementClick={onEndorsementClick}
             />
             {!compact ? (
-              <p className="caption">
-                {row.gamesPlayed} {row.gamesPlayed === 1 ? "game" : "games"} · {row.wins}W–
-                {row.losses}L · {row.winRate}%
+              <p className="caption mt-1">
+                {row.gamesPlayed} {row.gamesPlayed === 1 ? "game" : "games"} played
               </p>
             ) : (
               <p className="text-[10px] text-muted-foreground">
@@ -413,19 +404,23 @@ function StandingRow({
         </div>
 
         {!compact ? (
-          <div className="flex w-full flex-wrap items-end justify-between gap-3 sm:w-auto sm:justify-end">
-            <div className="leaderboard-stat-group grid grid-cols-3 gap-3 sm:gap-4">
-              <div className="text-center sm:text-right">
+          <div className="w-full sm:w-auto">
+            <div className="leaderboard-stat-group grid grid-cols-3 divide-x divide-border/60 rounded-lg bg-background/40 py-2 sm:min-w-[16rem]">
+              <div className="flex flex-col items-center gap-1 px-3">
                 <p className="caption">Wins</p>
-                <p className="stat-num text-base font-bold text-emerald-600 dark:text-emerald-400">{row.wins}</p>
+                <p className="stat-num flex h-6 items-center text-base font-bold text-emerald-600 dark:text-emerald-400">
+                  {row.wins}
+                </p>
               </div>
-              <div className="text-center sm:text-right">
+              <div className="flex flex-col items-center gap-1 px-3">
                 <p className="caption">Losses</p>
-                <p className="text-base font-semibold tabular-nums">{row.losses}</p>
+                <p className="flex h-6 items-center text-base font-semibold tabular-nums">
+                  {row.losses}
+                </p>
               </div>
-              <div className="text-center sm:text-right">
+              <div className="flex flex-col items-center gap-1 px-3">
                 <p className="caption">Streak</p>
-                <div className="mt-0.5 flex justify-center sm:justify-end">
+                <div className="flex h-6 items-center">
                   <StreakBadge streak={row.currentStreak} />
                 </div>
               </div>
@@ -439,7 +434,7 @@ function StandingRow({
       </div>
 
       {!compact ? (
-        <div className="leaderboard-winrate mt-3">
+        <div className="leaderboard-winrate mt-4 px-1">
           <div className="mb-1 flex items-center justify-between gap-2">
             <span className="caption">Win rate</span>
             <span className="text-sm font-semibold tabular-nums">{row.winRate}%</span>
@@ -486,8 +481,10 @@ export function LeaderboardStandings({
           <div className={cn("leaderboard-podium-stage", compact && "leaderboard-podium-stage--compact")}>
             <div
               className={cn(
-                "leaderboard-podium grid items-end",
-                compact ? "grid-cols-3 gap-1.5" : "grid-cols-3 gap-2 sm:gap-3",
+                "leaderboard-podium grid items-stretch",
+                compact
+                  ? "grid-cols-3 gap-1.5"
+                  : "grid-cols-[1fr_1.12fr_1fr] gap-2 sm:gap-3",
               )}
             >
               <PodiumCard

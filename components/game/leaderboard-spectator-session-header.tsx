@@ -8,16 +8,19 @@ import { formatOpenPlayDate, formatVenueShareLabel } from "@/lib/open-play-time-
 type LeaderboardSpectatorSessionHeaderProps = {
   game?: SpectateGameSummary | null;
   loading?: boolean;
+  /** The parent renders the eyebrow itself (e.g. in the back-button row). */
+  hideEyebrow?: boolean;
 };
 
 export function LeaderboardSpectatorSessionHeader({
   game,
   loading = false,
+  hideEyebrow = false,
 }: LeaderboardSpectatorSessionHeaderProps) {
   if (loading) {
     return (
       <div className="space-y-2">
-        <LeaderboardPageEyebrow />
+        {hideEyebrow ? null : <LeaderboardPageEyebrow />}
         <p className="caption flex items-center gap-2 text-muted-foreground">
           <Loader2 className="size-3.5 animate-spin" aria-hidden />
           Loading session…
@@ -27,7 +30,7 @@ export function LeaderboardSpectatorSessionHeader({
   }
 
   if (!game) {
-    return <LeaderboardPageEyebrow />;
+    return hideEyebrow ? null : <LeaderboardPageEyebrow />;
   }
 
   const openPlayDateLabel = formatOpenPlayDate(game.openPlayDate);
@@ -62,7 +65,7 @@ export function LeaderboardSpectatorSessionHeader({
           </Badge>
         ) : null}
       </div>
-      <LeaderboardPageEyebrow />
+      {hideEyebrow ? null : <LeaderboardPageEyebrow />}
     </div>
   );
 }

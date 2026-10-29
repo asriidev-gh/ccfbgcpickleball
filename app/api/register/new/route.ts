@@ -258,6 +258,9 @@ export async function POST(request: Request) {
         photoUrl,
         photoPublicId,
         lastAttendedAt: new Date(),
+        ...("pickleballLevel" in payload && payload.pickleballLevel
+          ? { pickleballLevel: payload.pickleballLevel }
+          : {}),
       };
 
       let player;

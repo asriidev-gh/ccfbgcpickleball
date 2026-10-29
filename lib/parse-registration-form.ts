@@ -43,6 +43,7 @@ export function parseGenericPlayerPayloadFromFormData(formData: FormData) {
     birthdate: formString(formData, "birthdate"),
     mobileNumber: formString(formData, "mobileNumber"),
     email: formString(formData, "email"),
+    pickleballLevel: formString(formData, "pickleballLevel") || undefined,
   };
 
   return genericPlayerSchema.safeParse(body);
@@ -87,6 +88,7 @@ export function parseNewPlayerPayloadFromFormData(
     birthdate: formString(formData, "birthdate"),
     mobileNumber: formString(formData, "mobileNumber"),
     email: formString(formData, "email"),
+    pickleballLevel: formString(formData, "pickleballLevel"),
     firstTimeSportsMinistry: formBoolean(formData, "firstTimeSportsMinistry"),
     isPartOfDgroup: formBoolean(formData, "isPartOfDgroup"),
     wantsToJoinDgroup: formNullableBoolean(formData, "wantsToJoinDgroup"),

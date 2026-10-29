@@ -304,6 +304,11 @@ export const updateGameSchema = z
     }
   });
 
+const registrationSelfRatingSchema = z.enum(
+  ["beginner", "low_intermediate", "intermediate", "high_intermediate", "advanced", "pro"],
+  { message: "Select your self rating level." },
+);
+
 export const genericPlayerSchema = z.object({
   gameId: z.string().min(4),
   firstName: z.string().min(1, "First name is required."),
@@ -322,6 +327,7 @@ export const genericPlayerSchema = z.object({
     .min(1, "Mobile number is required.")
     .min(7, "Enter a valid mobile number (at least 7 digits)."),
   email: z.string().min(1, "Email is required.").email("Enter a valid email address."),
+  pickleballLevel: registrationSelfRatingSchema.optional(),
 });
 
 const volunteerTypeSchema = z.enum(["Pickleball", "Running", "Badminton", "Other"]);
@@ -391,6 +397,7 @@ export const newPlayerSchema = z
       .min(1, "Mobile number is required.")
       .min(7, "Enter a valid mobile number (at least 7 digits)."),
     email: z.string().min(1, "Email is required.").email("Enter a valid email address."),
+    pickleballLevel: registrationSelfRatingSchema,
     firstTimeSportsMinistry: z.boolean().optional().default(false),
     isPartOfDgroup: z.boolean(),
     wantsToJoinDgroup: z.boolean().nullable().optional(),

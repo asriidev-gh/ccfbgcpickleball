@@ -19,6 +19,14 @@ export function buildGameHistoryLeaderboardHref(pastGameId: string, currentGameI
   return buildSpectatorLeaderboardHref(pastGameId, { returnGameId: currentGameId });
 }
 
+/** Public all-time page that remembers which session leaderboard to return to. */
+export function buildAllTimeStandingsHref(gameId: string, options?: { returnGameId?: string }) {
+  const params = new URLSearchParams({ session: gameId });
+  const returnGameId = options?.returnGameId?.trim();
+  if (returnGameId) params.set("returnGame", returnGameId);
+  return `/standings?${params.toString()}`;
+}
+
 export function parseSpectatorLeaderboardReturnGameId(
   returnGame: string | null | undefined,
 ) {

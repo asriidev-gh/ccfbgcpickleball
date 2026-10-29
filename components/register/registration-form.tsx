@@ -46,6 +46,14 @@ import {
   volunteerExistingPlayerSchema,
   volunteerNewPlayerSchema,
 } from "@/lib/validations";
+import { PICKLEBALL_LEVELS, type PickleballLevel } from "@/lib/player-profile-shared";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 const UploadQrIdFlow = dynamic(
@@ -176,6 +184,7 @@ export function RegistrationForm({
     birthdate: "",
     mobileNumber: "",
     email: "",
+    pickleballLevel: "" as PickleballLevel | "",
     personalQrCode: "",
     isPartOfDgroup: null as boolean | null,
     wantsToJoinDgroup: null as boolean | null,
@@ -188,6 +197,7 @@ export function RegistrationForm({
   const dgroupBlockRef = useRef<HTMLDivElement>(null);
   const joinDgroupBlockRef = useRef<HTMLDivElement>(null);
   const genderBlockRef = useRef<HTMLDivElement>(null);
+  const levelBlockRef = useRef<HTMLDivElement>(null);
 
   const registrationBlockedMessage = registrationStatus
     ? getRegistrationBlockedMessage(registrationStatus)
@@ -402,6 +412,10 @@ export function RegistrationForm({
       genderBlockRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    if (name === "pickleballLevel") {
+      levelBlockRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     if (name === "attendedEvents") {
       eventsBlockRef.current?.focus();
       eventsBlockRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -531,6 +545,7 @@ export function RegistrationForm({
         birthdate: form.birthdate,
         mobileNumber: form.mobileNumber,
         email: form.email,
+        pickleballLevel: role === "new-player" ? form.pickleballLevel : "",
       };
     }
 
@@ -567,6 +582,9 @@ export function RegistrationForm({
     body.append("birthdate", payload.birthdate);
     body.append("mobileNumber", payload.mobileNumber);
     body.append("email", payload.email);
+    if (role === "new-player" && form.pickleballLevel) {
+      body.append("pickleballLevel", form.pickleballLevel);
+    }
 
     if (!isGenericForm && role === "volunteer") {
       const volunteerPayload = payload as ReturnType<typeof buildNewPlayerPayload> & {
@@ -615,6 +633,15 @@ export function RegistrationForm({
       const endpoint = isExisting ? "/api/register/existing" : "/api/register/new";
 
       const payload = buildNewPlayerPayload();
+
+      if (role === "new-player" && !form.pickleballLevel) {
+        const message = "Select your self rating level.";
+        setFieldErrors({ pickleballLevel: message });
+        toast.error(message);
+        requestAnimationFrame(() => focusField("pickleballLevel"));
+        setSubmitting(false);
+        return;
+      }
 
       const validation = isExisting
         ? isVolunteer
@@ -971,6 +998,42 @@ export function RegistrationForm({
                       />
                       {renderFieldError("email")}
                     </div>
+                    {role === "new-player" ? (
+                      <div
+                        ref={levelBlockRef}
+                        className="register-field space-y-1.5 md:col-span-2"
+                      >
+                        <Label htmlFor="registration-level" className="register-label">
+                          Self Rating Level
+                        </Label>
+                        <Select
+                          value={form.pickleballLevel || null}
+                          disabled={submitting}
+                          onValueChange={(next) =>
+                            updateForm("pickleballLevel", (next ?? "") as PickleballLevel | "")
+                          }
+                        >
+                          <SelectTrigger
+                            id="registration-level"
+                            aria-invalid={Boolean(fieldErrors.pickleballLevel)}
+                            className={cn(
+                              "register-input h-12 w-full bg-background text-foreground md:h-11",
+                              fieldErrors.pickleballLevel && "border-destructive",
+                            )}
+                          >
+                            <SelectValue placeholder="Select your pickleball level" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover text-popover-foreground">
+                            {PICKLEBALL_LEVELS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {renderFieldError("pickleballLevel")}
+                      </div>
+                    ) : null}
                     <div className="register-field md:col-span-2">
                       <RegistrationPhotoField
                         disabled={submitting}

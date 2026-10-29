@@ -114,7 +114,7 @@ export function QrUploadProfileSection({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="qr-upload-level">Self-rate level</Label>
+        <Label htmlFor="qr-upload-level">Self Rating Level</Label>
         <ProfileSelectField
           id="qr-upload-level"
           placeholder="Select your pickleball level"

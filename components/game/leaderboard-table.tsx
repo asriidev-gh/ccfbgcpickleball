@@ -1,4 +1,4 @@
-import { PlayerNameWithPhoto } from "@/components/game/player-avatar";
+import { PlayerAvatar, PlayerProfileTrigger } from "@/components/game/player-avatar";
 import { formatPlayerTableName } from "@/lib/utils";
 import {
   Table,
@@ -42,27 +42,38 @@ export function LeaderboardTable({
             const rank = index + 1;
             const playerId = resolveLeaderboardPlayerId(row);
             const endorsementCount = endorsementCounts?.[playerId] ?? 0;
+            const undefeated = isSessionUndefeated({ wins: row.wins, losses: row.losses });
+            const hasBadges = row.isFirstTimer || undefeated || endorsementCount > 0;
             return (
               <TableRow key={row.id}>
                 <TableCell className="font-semibold tabular-nums">#{rank}</TableCell>
                 <TableCell className="font-medium">
-                  <span className="inline-flex max-w-full flex-wrap items-center gap-1.5">
-                    <PlayerNameWithPhoto player={row}>
-                      {formatPlayerTableName(row.firstName, row.lastName)}
-                    </PlayerNameWithPhoto>
-                    {row.isFirstTimer ? <FirstTimerPill /> : null}
-                    {isSessionUndefeated({ wins: row.wins, losses: row.losses }) ? (
-                      <UndefeatedBadge className="leaderboard-undefeated-badge" />
-                    ) : null}
-                    {endorsementCount > 0 ? (
-                      <PlayerEndorsementStatusBadge
-                        count={endorsementCount}
-                        onClick={
-                          onEndorsementClick ? () => onEndorsementClick(row) : undefined
-                        }
-                      />
-                    ) : null}
-                  </span>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <PlayerAvatar player={row} />
+                    <div className="flex min-w-0 flex-col items-start gap-1">
+                      <PlayerProfileTrigger player={row} className="max-w-full truncate">
+                        <span className="min-w-0 truncate">
+                          {formatPlayerTableName(row.firstName, row.lastName)}
+                        </span>
+                      </PlayerProfileTrigger>
+                      {hasBadges ? (
+                        <div className="flex flex-wrap items-center gap-1">
+                          {row.isFirstTimer ? <FirstTimerPill /> : null}
+                          {undefeated ? (
+                            <UndefeatedBadge className="leaderboard-undefeated-badge" />
+                          ) : null}
+                          {endorsementCount > 0 ? (
+                            <PlayerEndorsementStatusBadge
+                              count={endorsementCount}
+                              onClick={
+                                onEndorsementClick ? () => onEndorsementClick(row) : undefined
+                              }
+                            />
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 </TableCell>
                 <TableCell className="stat-num text-right text-emerald-600 dark:text-emerald-400">
                   {row.wins}

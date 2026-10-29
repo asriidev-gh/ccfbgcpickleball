@@ -3,6 +3,18 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* Every dark surface: the `.dark` class plus the dark named themes (which don't set `.dark`). */
+@custom-variant dark-theme (
+  &:is(
+    .dark *,
+    [data-theme="neon"] *,
+    [data-theme="emerald"] *,
+    [data-theme="sunset"] *,
+    [data-theme="cosmos"] *,
+    [data-theme="session"] *,
+    [data-theme="makati"] *
+  )
+);
 
 @theme inline {
   --color-background: var(--background);
@@ -920,11 +932,10 @@
     border-radius: 1rem;
     border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
     padding: 0.875rem;
+    /* One soft spotlight on the champion; the rest stays a quiet surface. */
     background:
-      radial-gradient(ellipse 85% 70% at 50% -10%, rgb(251 191 36 / 0.14), transparent 62%),
-      radial-gradient(ellipse 55% 45% at 18% 100%, rgb(148 163 184 / 0.1), transparent 58%),
-      radial-gradient(ellipse 55% 45% at 82% 100%, rgb(234 88 12 / 0.1), transparent 58%),
-      linear-gradient(180deg, color-mix(in srgb, var(--muted) 55%, transparent), transparent 72%);
+      radial-gradient(ellipse 70% 55% at 50% -8%, rgb(251 191 36 / 0.1), transparent 65%),
+      linear-gradient(180deg, color-mix(in srgb, var(--muted) 45%, transparent), transparent 72%);
     box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
   }
 
@@ -982,15 +993,15 @@
     inset: 0;
     z-index: 0;
     border-radius: inherit;
-    opacity: 0.34;
-    filter: blur(24px);
-    transform: scale(1.06);
+    opacity: 0.16;
+    filter: blur(18px);
+    transform: scale(1.03);
     background: linear-gradient(-30deg, var(--podium-frame-light), transparent, var(--podium-frame-color));
   }
 
   .leaderboard-podium-frame--animated .leaderboard-podium-frame__halo {
-    opacity: 0.42;
-    filter: blur(28px);
+    opacity: 0.28;
+    filter: blur(22px);
   }
 
   .leaderboard-podium-frame__shell {
@@ -1058,12 +1069,12 @@
 
   .leaderboard-podium-frame__overlay-1 {
     z-index: 1;
-    opacity: 0.55;
+    opacity: 0.2;
   }
 
   .leaderboard-podium-frame__overlay-2 {
     z-index: 1;
-    opacity: 0.28;
+    opacity: 0.1;
   }
 
   .leaderboard-podium-frame__content {
@@ -1087,9 +1098,14 @@
 
   @media (prefers-reduced-motion: reduce) {
     .leaderboard-podium-frame--gold .leaderboard-podium-frame__halo {
-      opacity: 0.34;
-      filter: blur(24px);
+      opacity: 0.16;
+      filter: blur(18px);
     }
+  }
+
+  /* Keep one crisp border; the second blurred border only adds noise. */
+  .leaderboard-podium-frame__glow-2 {
+    opacity: 0.35;
   }
 
   .leaderboard-podium-card {
@@ -1102,6 +1118,68 @@
 
   .leaderboard-podium-card--compact {
     border-radius: 0.75rem;
+  }
+
+  /*
+   * Size podium text from the card's own width (container units) so labels and badges shrink
+   * with narrow phone columns instead of overflowing. Floors keep text legible.
+   */
+  .leaderboard-podium-card {
+    container-type: inline-size;
+  }
+
+  .leaderboard-podium-stats__label {
+    max-width: 100%;
+    font-size: clamp(0.5rem, 7.5cqi, 0.75rem);
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  .leaderboard-podium-pills {
+    justify-content: center;
+    font-size: clamp(0.5rem, 8cqi, 0.75rem);
+  }
+
+  .leaderboard-podium-pills > *,
+  .leaderboard-podium-pills [class*="rounded-4xl"] {
+    max-width: 100%;
+    font-size: inherit;
+  }
+
+  .leaderboard-podium-pills [class*="rounded-4xl"] {
+    height: auto;
+    min-height: 1.125rem;
+    padding-inline: 0.375rem;
+  }
+
+  /* Undefeated badge: inset from the card edges and shrink with the card width. */
+  .leaderboard-podium-card .leaderboard-podium-undefeated {
+    padding-inline: 0.25rem;
+    min-width: 0;
+  }
+
+  .leaderboard-podium-card .leaderboard-podium-undefeated .leaderboard-undefeated-badge {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 100%;
+    gap: clamp(0.125rem, 2cqi, 0.25rem);
+    padding-inline: clamp(0.25rem, 4cqi, 0.5rem);
+  }
+
+  .leaderboard-podium-card .leaderboard-podium-undefeated .queue-undefeated-badge-icon {
+    width: clamp(0.625rem, 8cqi, 0.75rem);
+    height: clamp(0.625rem, 8cqi, 0.75rem);
+  }
+
+  .leaderboard-podium-card .leaderboard-podium-undefeated .queue-undefeated-badge-text {
+    font-size: clamp(0.4375rem, 6.5cqi, 0.6875rem);
+    letter-spacing: 0.02em;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .leaderboard-podium-card__glow {
@@ -1185,7 +1263,16 @@
     color: rgb(120 53 15);
   }
 
-  .dark .leaderboard-podium-card-gold .leaderboard-podium-card__place {
+  :is(
+    .dark,
+    [data-theme="neon"],
+    [data-theme="emerald"],
+    [data-theme="sunset"],
+    [data-theme="cosmos"],
+    [data-theme="session"],
+    [data-theme="makati"]
+  )
+    .leaderboard-podium-card-gold .leaderboard-podium-card__place {
     color: rgb(254 243 199);
   }
 
@@ -1220,7 +1307,16 @@
     color: rgb(51 65 85);
   }
 
-  .dark .leaderboard-podium-card-silver .leaderboard-podium-card__place {
+  :is(
+    .dark,
+    [data-theme="neon"],
+    [data-theme="emerald"],
+    [data-theme="sunset"],
+    [data-theme="cosmos"],
+    [data-theme="session"],
+    [data-theme="makati"]
+  )
+    .leaderboard-podium-card-silver .leaderboard-podium-card__place {
     color: rgb(241 245 249);
   }
 
@@ -1251,7 +1347,16 @@
     color: rgb(124 45 18);
   }
 
-  .dark .leaderboard-podium-card-bronze .leaderboard-podium-card__place {
+  :is(
+    .dark,
+    [data-theme="neon"],
+    [data-theme="emerald"],
+    [data-theme="sunset"],
+    [data-theme="cosmos"],
+    [data-theme="session"],
+    [data-theme="makati"]
+  )
+    .leaderboard-podium-card-bronze .leaderboard-podium-card__place {
     color: rgb(255 237 213);
   }
 
@@ -1259,13 +1364,95 @@
     background: linear-gradient(90deg, rgb(124 45 18), rgb(251 146 60), rgb(124 45 18));
   }
 
-  .leaderboard-podium-card--first {
-    z-index: 2;
+  /*
+   * Podium steps: every frame stretches to the row height, so bottoms always align and the
+   * row is as tall as the tallest content. Top margins create the 1st > 2nd > 3rd steps
+   * regardless of how many badges/name lines a card wraps to.
+   */
+  .leaderboard-podium-frame:is(
+      .leaderboard-podium-card--first,
+      .leaderboard-podium-card--second,
+      .leaderboard-podium-card--third
+    ),
+  .leaderboard-podium-frame:is(
+      .leaderboard-podium-card--first,
+      .leaderboard-podium-card--second,
+      .leaderboard-podium-card--third
+    )
+    :is(.leaderboard-podium-frame__shell, .leaderboard-podium-frame__content) {
+    display: flex;
+    flex-direction: column;
   }
 
-  .leaderboard-podium-card--second,
+  .leaderboard-podium-frame:is(
+      .leaderboard-podium-card--first,
+      .leaderboard-podium-card--second,
+      .leaderboard-podium-card--third
+    )
+    :is(.leaderboard-podium-frame__shell, .leaderboard-podium-frame__content) {
+    flex: 1 1 auto;
+  }
+
+  /*
+   * Dark themes: flat surface bodies. The metal colour lives on the frame, medal and a thin top
+   * highlight instead of a full-height gradient, so text sits on a calm, even background.
+   */
+  :is(
+    .dark,
+    [data-theme="neon"],
+    [data-theme="emerald"],
+    [data-theme="sunset"],
+    [data-theme="cosmos"],
+    [data-theme="session"],
+    [data-theme="makati"]
+  ) {
+    & .leaderboard-podium-card-gold,
+    & .leaderboard-podium-card-silver,
+    & .leaderboard-podium-card-bronze,
+    & .leaderboard-podium-frame--animated .leaderboard-podium-card-gold {
+      background:
+        linear-gradient(180deg, var(--podium-tint) 0%, transparent 28%),
+        color-mix(in srgb, var(--card, var(--background)) 94%, transparent);
+    }
+
+    & .leaderboard-podium-card-gold {
+      --podium-tint: rgb(251 191 36 / 0.16);
+    }
+
+    & .leaderboard-podium-card-silver {
+      --podium-tint: rgb(203 213 225 / 0.12);
+    }
+
+    & .leaderboard-podium-card-bronze {
+      --podium-tint: rgb(251 146 60 / 0.14);
+    }
+
+    & .leaderboard-podium-card__glow {
+      opacity: 0.35;
+    }
+  }
+
+  .leaderboard-podium-card--first {
+    z-index: 2;
+    margin-top: 0;
+  }
+
+  .leaderboard-podium-card--second {
+    z-index: 1;
+    margin-top: 1.75rem;
+  }
+
   .leaderboard-podium-card--third {
     z-index: 1;
+    margin-top: 2.75rem;
+  }
+
+  .leaderboard-podium-frame--compact.leaderboard-podium-card--second {
+    margin-top: 1rem;
+  }
+
+  .leaderboard-podium-frame--compact.leaderboard-podium-card--third {
+    margin-top: 1.5rem;
   }
 
   .leaderboard-podium-undefeated {

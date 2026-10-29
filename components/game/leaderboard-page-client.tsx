@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { LeaderboardPageContent } from "@/components/game/leaderboard-page-content";
 import { LeaderboardPageEyebrow } from "@/components/game/leaderboard-page-eyebrow";
+import { LeaderboardScopeTabs } from "@/components/game/leaderboard-scope-tabs";
 import { LeaderboardSpectatorSessionHeader } from "@/components/game/leaderboard-spectator-session-header";
 import { SpectatorPlayerCardShareDialog } from "@/components/game/spectator-player-card-share-dialog";
 import type { LeaderboardRow } from "@/components/game/leaderboard-standings";
@@ -42,7 +43,10 @@ import {
   isQuickGame,
 } from "@/lib/local-game-id";
 import { buildLocalLeaderboardRecap } from "@/lib/local-leaderboard-recap";
-import { parseSpectatorLeaderboardReturnGameId } from "@/lib/leaderboard-navigation";
+import {
+  buildAllTimeStandingsHref,
+  parseSpectatorLeaderboardReturnGameId,
+} from "@/lib/leaderboard-navigation";
 import { persistLeaderboardSessionCacheFromClient } from "@/lib/leaderboard-session-cache";
 
 type LeaderboardPageClientProps = {
@@ -253,24 +257,33 @@ export function LeaderboardPageClient({
     <main className="min-h-screen p-6">
       <section className="mx-auto flex max-w-7xl flex-col gap-1">
         <div className="mb-4 flex flex-col gap-3">
-          {isGameHistoryLeaderboard && showBackButton ? (
-            <Link href={backHref} className="self-start">
-              <Button variant="outline">
-                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-                {backLabel}
-              </Button>
-            </Link>
-          ) : null}
+          <div className="flex items-center justify-between gap-3">
+            {showBackButton ? (
+              <Link href={backHref}>
+                <Button variant="outline">
+                  {isEndedEphemeralPublic ? (
+                    <LogOut className="mr-2 h-4 w-4" aria-hidden />
+                  ) : (
+                    <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+                  )}
+                  {backLabel}
+                </Button>
+              </Link>
+            ) : (
+              <span />
+            )}
+            <LeaderboardPageEyebrow />
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
               {isSpectatorView ? (
                 <LeaderboardSpectatorSessionHeader
                   game={sessionGame}
                   loading={sessionGameLoading}
+                  hideEyebrow
                 />
               ) : (
                 <div className="space-y-2">
-                  <LeaderboardPageEyebrow />
                   {isEphemeralQuickGame(gameId) ? (
                     <p className="caption text-muted-foreground">
                       Public quick play — standings live in this browser only.
@@ -283,19 +296,18 @@ export function LeaderboardPageClient({
                 </div>
               )}
             </div>
-            {!isGameHistoryLeaderboard && showBackButton ? (
-              <Link href={backHref}>
-                <Button variant="outline">
-                  {isEndedEphemeralPublic ? (
-                    <LogOut className="mr-2 h-4 w-4" aria-hidden />
-                  ) : (
-                    <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-                  )}
-                  {backLabel}
-                </Button>
-              </Link>
-            ) : null}
           </div>
+          {!isEphemeralQuickGame(gameId) ? (
+            <LeaderboardScopeTabs
+              active="session"
+              sessionHref={`/leaderboard/${gameId}`}
+              allTimeHref={
+                isSpectatorView
+                  ? buildAllTimeStandingsHref(gameId, { returnGameId: spectatorReturnGameId })
+                  : "/all-time-leaderboard"
+              }
+            />
+          ) : null}
         </div>
         {isEndedEphemeralPublic && quickPayload ? (
           <EphemeralLeaderboardSaveBanner gameId={gameId} payload={quickPayload} />
