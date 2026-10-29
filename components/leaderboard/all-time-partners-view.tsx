@@ -5,6 +5,7 @@ import { useDeferredValue, useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { PhotoLightboxTrigger } from "@/components/leaderboard/photo-lightbox-trigger";
 import { Input } from "@/components/ui/input";
 import {
   MIN_PARTNER_GAMES,
@@ -77,9 +78,13 @@ function PartnerRow({ pair, rank }: { pair: AllTimePartnerPair; rank: number }) 
         <span className="all-time-row__rank-number">{rank}</span>
       </div>
 
-      <div className="flex shrink-0 items-center -space-x-3" aria-hidden>
-        <PartnerAvatar player={first} />
-        <PartnerAvatar player={second} />
+      <div className="flex shrink-0 items-center -space-x-3">
+        <PhotoLightboxTrigger player={first}>
+          <PartnerAvatar player={first} />
+        </PhotoLightboxTrigger>
+        <PhotoLightboxTrigger player={second}>
+          <PartnerAvatar player={second} />
+        </PhotoLightboxTrigger>
       </div>
 
       <div className="all-time-row__identity">
@@ -134,7 +139,7 @@ export function AllTimePartnersView({ pairs }: { pairs: AllTimePartnerPair[] }) 
         <p className="mt-3 text-base font-semibold text-foreground">No partner stats yet</p>
         <p className="caption mt-1 max-w-sm">
           Pairs show up here once they&apos;ve played more than {MIN_PARTNER_GAMES - 1} doubles games
-          together.
+          together and won at least once.
         </p>
       </div>
     );
@@ -185,7 +190,7 @@ export function AllTimePartnersView({ pairs }: { pairs: AllTimePartnerPair[] }) 
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Pairs with more than {MIN_PARTNER_GAMES - 1} doubles games together.
+        Pairs with more than {MIN_PARTNER_GAMES - 1} doubles games together and at least one win.
       </p>
 
       {visible.length === 0 ? (

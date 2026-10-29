@@ -115,7 +115,8 @@ export async function loadAllTimePartnerPairs(
         winRate: Math.round((pair.wins / gamesTogether) * 100),
       };
     })
-    .filter((pair) => pair.gamesTogether >= MIN_PARTNER_GAMES)
+    // Pairs that never won together aren't ranked, however often they played.
+    .filter((pair) => pair.gamesTogether >= MIN_PARTNER_GAMES && pair.wins > 0)
     .sort(
       (a, b) =>
         b.winRate - a.winRate || b.gamesTogether - a.gamesTogether || b.wins - a.wins,

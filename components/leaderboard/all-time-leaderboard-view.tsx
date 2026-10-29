@@ -5,6 +5,7 @@ import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
 import { AllTimePartnersView } from "@/components/leaderboard/all-time-partners-view";
+import { PhotoLightboxTrigger } from "@/components/leaderboard/photo-lightbox-trigger";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,10 +83,12 @@ function PlayerRow({ row, rank }: { row: AllTimeLeaderboardRow; rank: number }) 
         )}
       </div>
 
-      <Avatar size="lg" className="all-time-row__avatar shrink-0">
-        <AvatarImage src={resolvePlayerPhotoUrl(row)} alt="" />
-        <AvatarFallback className="text-sm font-medium">{initialsOf(row)}</AvatarFallback>
-      </Avatar>
+      <PhotoLightboxTrigger player={row}>
+        <Avatar size="lg" className="all-time-row__avatar shrink-0">
+          <AvatarImage src={resolvePlayerPhotoUrl(row)} alt="" />
+          <AvatarFallback className="text-sm font-medium">{initialsOf(row)}</AvatarFallback>
+        </Avatar>
+      </PhotoLightboxTrigger>
 
       <div className="all-time-row__identity">
         <p className="all-time-row__name">{name}</p>
