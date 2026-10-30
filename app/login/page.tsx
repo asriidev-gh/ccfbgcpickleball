@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Eye, EyeOff, ScanFace } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
@@ -154,7 +155,16 @@ function LoginForm() {
 
       <header className="login-page-header absolute inset-x-0 top-0 z-20 border-b border-border/60 bg-background/85 py-3 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-6">
-          <span className="app-brand">{APP_NAME}</span>
+          <Link href="/" className="app-brand app-brand--action inline-flex items-center gap-2.5">
+            <Image
+              src="/assets/images/ccf_bgc_sports.jpg"
+              alt=""
+              width={44}
+              height={44}
+              className="app-brand__logo h-10 w-10 shrink-0 rounded-md object-cover md:h-11 md:w-11"
+            />
+            <span>{APP_NAME}</span>
+          </Link>
         </div>
       </header>
 
@@ -171,13 +181,22 @@ function LoginForm() {
               </p>
             ) : null}
           </CardHeader>
-          <CardContent className={cn("space-y-4", WIZARD_PRIMARY_FIELDS_SCOPE)}>
+          <CardContent
+            className={cn("space-y-4", WIZARD_PRIMARY_FIELDS_SCOPE)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && event.target instanceof HTMLInputElement && !loading) {
+                void submit();
+              }
+            }}
+          >
             {mode === "register" ? (
               <div className="space-y-2">
                 <Label>Name</Label>
                 <Input
                   className={cn("h-11 text-base", WIZARD_PRIMARY_FIELD_BORDER)}
                   value={form.name}
+                  placeholder="Your name"
+                  autoComplete="name"
                   onChange={(event) => setForm({ ...form, name: event.target.value })}
                 />
               </div>
@@ -188,6 +207,8 @@ function LoginForm() {
                 type="email"
                 className={cn("h-11 text-base", WIZARD_PRIMARY_FIELD_BORDER)}
                 value={form.email}
+                placeholder="you@example.com"
+                autoComplete="email"
                 onChange={(event) => setForm({ ...form, email: event.target.value })}
               />
             </div>
@@ -197,6 +218,7 @@ function LoginForm() {
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={form.password}
+                  placeholder="Password"
                   onChange={(event) => setForm({ ...form, password: event.target.value })}
                   className={cn("h-11 pr-9 text-base", WIZARD_PRIMARY_FIELD_BORDER)}
                   autoComplete={mode === "login" ? "current-password" : "new-password"}

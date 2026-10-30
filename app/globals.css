@@ -1875,23 +1875,30 @@
     box-shadow: 0 8px 32px rgb(0 0 0 / 0.2);
   }
 
-  /* The card above is always dark, but title and label colours follow the theme, so light
-     themes ended up with dark text on a dark card. Smart Home is excluded: it swaps in a
-     light card of its own and keeps its dark text. Inputs keep their own colours. */
-  html:not([data-theme="smarthome"]) .login-page .glass-panel,
-  html:not([data-theme="smarthome"]) .signup-page .glass-panel {
+  /* The card above is always dark in every theme, so its text is always light. Light-card themes
+     (Smart Home, Travel, ...) also paint the header and content white, which hid the white title
+     and labels; keep those transparent here. Inputs keep their own colours. */
+  html .login-page .glass-panel [data-slot="card-header"],
+  html .signup-page .glass-panel [data-slot="card-header"],
+  html .login-page .glass-panel [data-slot="card-content"],
+  html .signup-page .glass-panel [data-slot="card-content"] {
+    background-color: transparent;
+    border-color: rgb(255 255 255 / 0.18);
+  }
+  html .login-page .glass-panel,
+  html .signup-page .glass-panel {
     color: #fff;
   }
 
-  html:not([data-theme="smarthome"]) .login-page .glass-panel [data-slot="card-title"],
-  html:not([data-theme="smarthome"]) .signup-page .glass-panel [data-slot="card-title"],
-  html:not([data-theme="smarthome"]) .login-page .glass-panel [data-slot="label"],
-  html:not([data-theme="smarthome"]) .signup-page .glass-panel [data-slot="label"] {
+  html .login-page .glass-panel [data-slot="card-title"],
+  html .signup-page .glass-panel [data-slot="card-title"],
+  html .login-page .glass-panel [data-slot="label"],
+  html .signup-page .glass-panel [data-slot="label"] {
     color: #fff;
   }
 
-  html:not([data-theme="smarthome"]) .login-page .text-muted-foreground,
-  html:not([data-theme="smarthome"]) .signup-page .text-muted-foreground {
+  html .login-page .text-muted-foreground,
+  html .signup-page .text-muted-foreground {
     color: rgb(226 232 240 / 0.85);
   }
 
