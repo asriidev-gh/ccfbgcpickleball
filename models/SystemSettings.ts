@@ -11,6 +11,7 @@ const systemSettingsSchema = new Schema(
     _id: { type: String, required: true, default: SYSTEM_SETTINGS_ID },
     features: {
       quickGame: { type: Boolean, default: DEFAULT_SYSTEM_FEATURES.quickGame },
+      passkeyLogin: { type: Boolean, default: DEFAULT_SYSTEM_FEATURES.passkeyLogin },
     },
   },
   { timestamps: true, collection: "system_settings" },

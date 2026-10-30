@@ -27,6 +27,11 @@ export function useSystemFeatures() {
   });
 }
 
+export function usePasskeyFeatureEnabled() {
+  const { data } = useSystemFeatures();
+  return data?.features.passkeyLogin === true;
+}
+
 export function useQuickGameFeatureEnabled() {
   const { data, isLoading } = useSystemFeatures();
   return {

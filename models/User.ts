@@ -45,6 +45,20 @@ const userSchema = new Schema(
     playerQrIncludeClubLogo: { type: Boolean },
     linkedPlayerId: { type: Schema.Types.ObjectId, ref: "Player", index: true, sparse: true },
     registeredDevice: { type: String, trim: true },
+    /** WebAuthn passkeys (Face ID / fingerprint / Windows Hello). Public keys only. */
+    passkeys: {
+      type: [
+        {
+          credentialId: { type: String, required: true },
+          publicKey: { type: String, required: true },
+          counter: { type: Number, default: 0 },
+          transports: { type: [String], default: [] },
+          deviceLabel: { type: String, trim: true, maxlength: 120, default: "" },
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
     lastLoginAt: { type: Date },
     lastLoginDevice: { type: String, trim: true },
     isBlocked: { type: Boolean, default: false },

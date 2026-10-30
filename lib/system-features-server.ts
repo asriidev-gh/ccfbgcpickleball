@@ -12,6 +12,11 @@ export async function getRawSystemFeatures(): Promise<SystemFeaturesState> {
   return normalizeSystemFeatures(doc?.features);
 }
 
+/** Raw flag (no superadmin bypass): gates public passkey sign-in. */
+export async function isPasskeyLoginEnabled() {
+  return (await getRawSystemFeatures()).passkeyLogin;
+}
+
 export async function updateSystemFeature(
   key: SystemFeatureKey,
   enabled: boolean,

@@ -2,6 +2,7 @@ export const SYSTEM_SETTINGS_ID = "global";
 
 export const SYSTEM_FEATURE_KEYS = {
   quickGame: "quickGame",
+  passkeyLogin: "passkeyLogin",
 } as const;
 
 export type SystemFeatureKey = keyof typeof SYSTEM_FEATURE_KEYS;
@@ -10,6 +11,7 @@ export type SystemFeaturesState = Record<SystemFeatureKey, boolean>;
 
 export const DEFAULT_SYSTEM_FEATURES: SystemFeaturesState = {
   quickGame: true,
+  passkeyLogin: false,
 };
 
 export type SystemFeatureDefinition = {
@@ -25,6 +27,12 @@ export const SYSTEM_FEATURE_DEFINITIONS: SystemFeatureDefinition[] = [
     description:
       "Shows Quick Game in the Create menu for account holders. When off, only superadmins still see it.",
   },
+  {
+    key: "passkeyLogin",
+    label: "Face ID / passkey login",
+    description:
+      "Lets users sign in with Face ID, fingerprint or Windows Hello, and shows the setup option in the account menu. When off, only superadmins can set up passkeys.",
+  },
 ];
 
 export function normalizeSystemFeatures(
@@ -32,6 +40,7 @@ export function normalizeSystemFeatures(
 ): SystemFeaturesState {
   return {
     quickGame: raw?.quickGame ?? DEFAULT_SYSTEM_FEATURES.quickGame,
+    passkeyLogin: raw?.passkeyLogin ?? DEFAULT_SYSTEM_FEATURES.passkeyLogin,
   };
 }
 
@@ -40,7 +49,7 @@ export function resolveEffectiveSystemFeatures(
   isSuperAdmin: boolean,
 ): SystemFeaturesState {
   if (isSuperAdmin) {
-    return { quickGame: true };
+    return { quickGame: true, passkeyLogin: true };
   }
   return raw;
 }

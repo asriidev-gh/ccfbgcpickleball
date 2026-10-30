@@ -17,7 +17,7 @@ import {
 import { isSuperAdmin } from "@/lib/superadmin";
 
 const updateSchema = z.object({
-  key: z.enum([SYSTEM_FEATURE_KEYS.quickGame]),
+  key: z.enum([SYSTEM_FEATURE_KEYS.quickGame, SYSTEM_FEATURE_KEYS.passkeyLogin]),
   enabled: z.boolean(),
 });
 

@@ -1,10 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ScanFace } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { DeveloperCreditLink } from "@/components/developer-credit-link";
@@ -18,6 +18,7 @@ import {
   readPendingEphemeralQuickGameTransfer,
 } from "@/lib/ephemeral-quick-game-transfer";
 import { getQuickGameDashboardPath } from "@/lib/local-game-id";
+import { isPasskeySupported, signInWithPasskey } from "@/lib/passkey-client";
 import {
   WIZARD_OUTLINE_BUTTON_BORDER,
   WIZARD_PRIMARY_FIELD_BORDER,
@@ -47,6 +48,21 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
+  const browserSupportsPasskeys = useSyncExternalStore(
+    () => () => {},
+    isPasskeySupported,
+    () => false,
+  );
+  const { data: passkeyStatus } = useQuery({
+    queryKey: ["passkey-status"],
+    queryFn: async () => {
+      const response = await fetch("/api/auth/passkey/status");
+      return (await response.json()) as { enabled: boolean };
+    },
+    staleTime: 60_000,
+  });
+  const passkeySupported = browserSupportsPasskeys && passkeyStatus?.enabled === true;
+
   useEffect(() => {
     const error = searchParams.get("error");
     if (error) {
@@ -68,6 +84,40 @@ function LoginForm() {
     router.replace("/login");
   }, [queryClient, router, searchParams]);
 
+  const finishSignIn = async (successMessage: string) => {
+    void queryClient.invalidateQueries({ queryKey: ["auth-me"] });
+
+    if (readPendingEphemeralQuickGameTransfer()) {
+      const newGameId = await completePendingEphemeralQuickGameTransfer(queryClient);
+      if (newGameId) {
+        toast.success("Your public session has been saved in your account.");
+        router.push(getQuickGameDashboardPath(newGameId));
+        router.refresh();
+        return;
+      }
+    }
+
+    toast.success(successMessage);
+
+    const returnTo = searchParams.get("returnTo");
+    const destination =
+      returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
+    router.push(destination);
+    router.refresh();
+  };
+
+  const submitPasskey = async () => {
+    try {
+      setLoading(true);
+      await signInWithPasskey();
+      await finishSignIn("Welcome back!");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Passkey sign-in failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submit = async () => {
     try {
       setLoading(true);
@@ -79,25 +129,9 @@ function LoginForm() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
 
-      void queryClient.invalidateQueries({ queryKey: ["auth-me"] });
-
-      if (readPendingEphemeralQuickGameTransfer()) {
-        const newGameId = await completePendingEphemeralQuickGameTransfer(queryClient);
-        if (newGameId) {
-          toast.success("Your public session has been saved in your account.");
-          router.push(getQuickGameDashboardPath(newGameId));
-          router.refresh();
-          return;
-        }
-      }
-
-      toast.success(mode === "login" ? "Welcome back!" : "Account created. Check your email to verify your account.");
-
-      const returnTo = searchParams.get("returnTo");
-      const destination =
-        returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/";
-      router.push(destination);
-      router.refresh();
+      await finishSignIn(
+        mode === "login" ? "Welcome back!" : "Account created. Check your email to verify your account.",
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Authentication failed.");
     } finally {
@@ -185,6 +219,19 @@ function LoginForm() {
             <Button className="w-full" onClick={submit} disabled={loading}>
               {loading ? "Please wait..." : mode === "login" ? "Login" : "Create Account"}
             </Button>
+
+            {mode === "login" && passkeySupported ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={cn("w-full", WIZARD_OUTLINE_BUTTON_BORDER)}
+                disabled={loading}
+                onClick={submitPasskey}
+              >
+                <ScanFace className="size-4" aria-hidden />
+                Sign in with Face ID / passkey
+              </Button>
+            ) : null}
 
             {SHOW_GOOGLE_LOGIN ? (
               <>

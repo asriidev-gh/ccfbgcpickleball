@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CircleUser, LogIn, LogOut, ScrollText, Settings, ToggleLeft, TrendingUp, Trophy } from "lucide-react";
+import { CircleUser, LogIn, LogOut, ScanFace, ScrollText, Settings, ToggleLeft, TrendingUp, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -10,7 +10,9 @@ import { toast } from "sonner";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
 import { ThemeMenuItems } from "@/components/theme-menu";
 import { Button } from "@/components/ui/button";
+import { usePasskeyFeatureEnabled } from "@/hooks/use-system-features";
 import { performClientLogout } from "@/lib/client-logout";
+import { isPasskeySupported, registerPasskey } from "@/lib/passkey-client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +27,7 @@ export function UserMenu() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const passkeyEnabled = usePasskeyFeatureEnabled();
 
   const { data, isLoading } = useQuery({
     queryKey: ["auth-me"],
@@ -130,6 +133,25 @@ export function UserMenu() {
                 <Settings />
                 Settings
               </DropdownMenuItem>
+              {passkeyEnabled ? (
+              <DropdownMenuItem
+                onClick={() => {
+                  setMenuOpen(false);
+                  if (!isPasskeySupported()) {
+                    toast.error("This device or browser does not support passkeys.");
+                    return;
+                  }
+                  registerPasskey().then(
+                    () => toast.success("Face ID / passkey login is set up on this device."),
+                    (error: unknown) =>
+                      toast.error(error instanceof Error ? error.message : "Passkey setup failed."),
+                  );
+                }}
+              >
+                <ScanFace />
+                Set up Face ID login
+              </DropdownMenuItem>
+              ) : null}
             </>
           ) : null}
           <DropdownMenuSeparator />
