@@ -79,6 +79,71 @@ const FEATURES = [
   },
 ];
 
+/** Hole pattern for the hero pickleball: one centre hole, an inner ring of 6, an outer ring of 8. */
+function ballRing(radius: number, count: number, offsetDeg: number, size: number) {
+  return Array.from({ length: count }, (_, index) => {
+    const angle = ((offsetDeg + (index * 360) / count) * Math.PI) / 180;
+    return [
+      Math.round((32 + radius * Math.cos(angle)) * 100) / 100,
+      Math.round((32 + radius * Math.sin(angle)) * 100) / 100,
+      size,
+    ] as const;
+  });
+}
+
+const BALL_HOLES = [[32, 32, 3.2] as const, ...ballRing(12, 6, 0, 3), ...ballRing(21, 8, 22.5, 2.4)];
+
+function PickleballGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-hidden>
+      <defs>
+        <radialGradient id="landing-ball-shade" cx="0.36" cy="0.3" r="0.75">
+          <stop offset="0" stopColor="#fbffd6" />
+          <stop offset="0.45" stopColor="#e3f046" />
+          <stop offset="1" stopColor="#a9ba1f" />
+        </radialGradient>
+      </defs>
+      <circle cx="32" cy="32" r="29" fill="url(#landing-ball-shade)" />
+      {BALL_HOLES.map(([cx, cy, r]) => (
+        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} fill="rgb(70 82 10 / 0.38)" />
+      ))}
+    </svg>
+  );
+}
+
+/**
+ * Top-down pickleball court (1 unit = 0.1 ft: 20 x 44 ft, kitchen 7 ft each side of the net)
+ * that CSS tips back into perspective, with a ball rallying over the net. Positions in
+ * globals.css (net, ball baselines) are derived from this viewBox.
+ */
+function HeroCourtFloor() {
+  return (
+    <div className="landing-hero__floor" aria-hidden>
+      <div className="landing-court">
+        <svg className="landing-court__svg" viewBox="-120 -40 440 520" preserveAspectRatio="none">
+          <rect className="landing-court__apron" x="-120" y="-40" width="440" height="520" />
+          <rect className="landing-court__surface" x="0" y="0" width="200" height="440" />
+          <rect className="landing-court__kitchen" x="0" y="150" width="200" height="140" />
+          <g className="landing-court__lines">
+            <rect x="0" y="0" width="200" height="440" />
+            <line x1="0" y1="150" x2="200" y2="150" />
+            <line x1="0" y1="290" x2="200" y2="290" />
+            <line x1="100" y1="0" x2="100" y2="150" />
+            <line x1="100" y1="290" x2="100" y2="440" />
+          </g>
+        </svg>
+        <div className="landing-court__net" />
+        <div className="landing-court__run">
+          <span className="landing-court__shadow" />
+          <div className="landing-court__hop">
+            <span className="landing-court__ball" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HomeLanding({
   clubLinks,
   players = [],
@@ -89,22 +154,31 @@ export function HomeLanding({
   return (
     <main className="landing">
       <section className="landing-hero">
-        <div className="landing-hero__photo" aria-hidden />
+        <div className="landing-hero__sky" aria-hidden />
         <div className="landing-hero__glow" aria-hidden />
-        <div className="landing-hero__court" aria-hidden />
+        <div className="landing-hero__beams" aria-hidden />
+        <HeroCourtFloor />
+        <div className="landing-hero__scrim" aria-hidden />
+        <div className="landing-hero__grain" aria-hidden />
 
         <div className="relative mx-auto grid max-w-7xl gap-10 px-6 py-14 lg:grid-cols-[1.05fr_minmax(0,0.95fr)] lg:items-center lg:gap-16 lg:px-10 lg:py-20">
           <div className="flex flex-col items-start gap-6">
-            <div className="space-y-4">
-              <p className="landing-kicker inline-flex items-center gap-2">
+            <div className="landing-rise space-y-4">
+              <p className="landing-kicker landing-kicker--pill inline-flex items-center gap-2">
                 <Cross className="h-3.5 w-3.5" aria-hidden />
                 Fellowship on the court
               </p>
               <h1 className="landing-title">{APP_NAME}</h1>
+              <div className="landing-rally" aria-hidden>
+                <span className="landing-rally__track" />
+                <span className="landing-rally__x">
+                  <span className="landing-rally__ball" />
+                </span>
+              </div>
               <p className="landing-lead">{APP_TAGLINE}</p>
             </div>
 
-            <ul className="flex flex-wrap gap-2">
+            <ul className="landing-rise landing-rise--2 flex flex-wrap gap-2">
               {HERO_CHIPS.map(({ icon: Icon, label }) => (
                 <li key={label} className="landing-chip">
                   <Icon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
@@ -113,7 +187,7 @@ export function HomeLanding({
               ))}
             </ul>
 
-            <div className="flex w-full gap-2 sm:w-auto sm:gap-3">
+            <div className="landing-rise landing-rise--3 flex w-full gap-2 sm:w-auto sm:gap-3">
               <Button
                 size="lg"
                 className="h-12 min-w-0 flex-1 rounded-xl px-3 text-sm font-semibold whitespace-nowrap sm:flex-none sm:px-5 sm:text-base"
@@ -121,7 +195,9 @@ export function HomeLanding({
                 render={<Link href="/standings" />}
               >
                 <Trophy className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden />
-                All-time Leaderboard
+                {/* The full label overflows its half of the row on phones. */}
+                <span className="sm:hidden">Leaderboard</span>
+                <span className="hidden sm:inline">All-time Leaderboard</span>
               </Button>
               <Button
                 size="lg"
@@ -135,7 +211,10 @@ export function HomeLanding({
             </div>
           </div>
 
-          <JoinSessionCard clubLinks={clubLinks} />
+          <div className="landing-rise landing-rise--card relative">
+            <PickleballGlyph className="landing-float-ball" />
+            <JoinSessionCard clubLinks={clubLinks} />
+          </div>
         </div>
       </section>
 
@@ -156,14 +235,16 @@ export function HomeLanding({
             </p>
           </header>
 
-          <ol className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <ol className="landing-steps mt-10">
             {STEPS.map(({ title, body }, index) => (
               <li key={title} className="landing-step">
                 <span className="landing-step__num" aria-hidden>
                   {index + 1}
                 </span>
-                <h3 className="mt-4 text-base font-semibold text-foreground">{title}</h3>
-                <p className="caption mt-1.5">{body}</p>
+                <div className="landing-step__body">
+                  <h3 className="text-base font-semibold text-foreground">{title}</h3>
+                  <p className="caption mt-1.5">{body}</p>
+                </div>
               </li>
             ))}
           </ol>
@@ -182,8 +263,10 @@ export function HomeLanding({
               <span className="landing-feature__icon" aria-hidden>
                 <Icon className="h-5 w-5" />
               </span>
-              <h3 className="mt-4 text-base font-semibold text-foreground">{title}</h3>
-              <p className="caption mt-1.5">{body}</p>
+              <div className="min-w-0">
+                <h3 className="text-base font-semibold text-foreground">{title}</h3>
+                <p className="caption mt-1">{body}</p>
+              </div>
             </article>
           ))}
         </div>

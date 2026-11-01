@@ -28,8 +28,25 @@ export const CLUB_PHOTO_DIR = "/assets/images/cc_bgc_pickleball";
  */
 export const CLUB_GALLERY_ROTATE_MS = 3000;
 
-/** Number of tiles in the bento grid. The first is the large feature tile. */
-export const CLUB_GALLERY_TILE_COUNT = 5;
+export type ClubPhotoOrientation = "landscape" | "portrait";
+
+/**
+ * Shape of each tile in the bento grid, in order: the large feature tile, one tall tile, then
+ * two small ones. Portrait photos only ever go in the tall tile and landscape photos in the
+ * rest, because a portrait shot cropped into a wide tile loses over half its height, and with
+ * it either the players' heads or their feet. The grid in `globals.css` assumes this order.
+ */
+export const CLUB_GALLERY_SLOTS: readonly ClubPhotoOrientation[] = [
+  "landscape",
+  "portrait",
+  "landscape",
+  "landscape",
+];
+
+/** Photos whose size could not be read count as landscape. */
+export function orientationOf(photo: ClubPhoto): ClubPhotoOrientation {
+  return photo.width && photo.height && photo.height > photo.width ? "portrait" : "landscape";
+}
 
 /** Used when a photo has not been individually reviewed. True of every photo in the folder. */
 export const CLUB_PHOTO_DEFAULT_ALT = "Players during an open play session at CCF BGC Pickleball.";
