@@ -14,8 +14,8 @@ export function AppFooter() {
   if (pathname.startsWith("/register")) return null;
 
   return (
-    <footer className="app-footer mt-auto border-t border-border/60 bg-muted/20 px-6 py-4 text-center text-xs text-muted-foreground">
-      <div className="flex flex-col items-center gap-2">
+    <footer className="app-footer mt-auto border-t border-border/60 bg-muted/20 px-6 py-4 text-xs text-muted-foreground">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
         <p>
           {APP_NAME} v{APP_VERSION}
         </p>

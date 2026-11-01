@@ -15,12 +15,6 @@ import { APP_NAME } from "@/lib/app-config";
 const DEVELOPER_PHOTO = "/assets/images/andyradam.jpeg";
 const DEVELOPER_PHONE = "+63 947-512-7884";
 const DEVELOPER_PHONE_TEL = "+639475127884";
-const GOALS = [
-  "Fair and transparent player rotations",
-  "Faster court assignments",
-  "Easier player check-ins",
-  "Better experience for clubs, organizers, and players",
-];
 
 type DeveloperAboutDialogProps = {
   open: boolean;
@@ -60,22 +54,6 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
         >
           <div className="space-y-4 text-sm leading-relaxed text-muted-foreground">
           <p className="text-foreground">Thank you for using {APP_NAME}!</p>
-
-          <p>
-            {APP_NAME} was created to help pickleball enthusiasts manage courts, player
-            rotations, and queues more efficiently. Whether you&apos;re participating in open play,
-            organizing club sessions, or running tournaments, it aims to create a fairer,
-            smoother, and more enjoyable experience for everyone on the court.
-          </p>
-
-          <div>
-            <h3 className="mb-2 font-semibold text-foreground">Our Goal</h3>
-            <ul className="list-disc space-y-1 pl-5">
-              {GOALS.map((goal) => (
-                <li key={goal}>{goal}</li>
-              ))}
-            </ul>
-          </div>
 
           <div>
             <h3 className="mb-2 font-semibold text-foreground">For the Pickleball Community</h3>
