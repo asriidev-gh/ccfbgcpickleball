@@ -1,9 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Shuffle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import { ClubPhotoLightbox } from "@/components/landing/club-photo-lightbox";
+import { Button } from "@/components/ui/button";
 import {
   CLUB_GALLERY_ROTATE_MS,
   orientationOf,
@@ -171,9 +173,12 @@ function DiamondTile({
 export function ClubGalleryRotator({
   photos,
   slots,
+  header,
 }: {
   photos: ClubPhoto[];
   slots: readonly ClubPhotoOrientation[];
+  /** Heading shown at the left of the toolbar row, with the shuffle button at the right. */
+  header: ReactNode;
 }) {
   const pools = useMemo(() => poolsFor(photos), [photos]);
 
@@ -193,9 +198,24 @@ export function ClubGalleryRotator({
   // Holding the gallery still while a photo is open: otherwise the tiles would shuffle behind
   // the backdrop, and the photo you clicked would be gone when you closed the viewer.
   const isViewing = viewing !== null;
+  const canRotate = photos.length > slots.length;
+
+  const advance = useCallback(() => {
+    setRotation((state) => ({
+      previous: state.current,
+      // Promoting the set that has been loading for the last interval, so the wipe reveals
+      // a photo that is already decoded rather than an empty tile.
+      current: state.upcoming,
+      upcoming: nextSelection(pools, slots, [...state.upcoming, ...state.current]),
+      generation: state.generation + 1,
+    }));
+  }, [pools, slots]);
+
+  // Bumped by the shuffle button, so the timer restarts and the new photos get a full interval.
+  const [manualTurns, setManualTurns] = useState(0);
 
   useEffect(() => {
-    if (photos.length <= slots.length) return;
+    if (!canRotate) return;
     if (isViewing) return;
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -203,23 +223,37 @@ export function ClubGalleryRotator({
     const timer = window.setInterval(() => {
       // Nothing to see on a background tab, and it would burn through the pool unwatched.
       if (document.visibilityState !== "visible") return;
-      setRotation((state) => ({
-        previous: state.current,
-        // Promoting the set that has been loading for the last interval, so the wipe reveals
-        // a photo that is already decoded rather than an empty tile.
-        current: state.upcoming,
-        upcoming: nextSelection(pools, slots, [...state.upcoming, ...state.current]),
-        generation: state.generation + 1,
-      }));
+      advance();
     }, CLUB_GALLERY_ROTATE_MS);
 
     return () => window.clearInterval(timer);
-  }, [photos.length, pools, slots, isViewing]);
+  }, [canRotate, advance, isViewing, manualTurns]);
 
   if (rotation.current.length === 0) return null;
 
   return (
     <>
+      <div className="flex items-end justify-between gap-4">
+        {/* Alone in its own wrapper: a server-rendered element beside siblings trips React's key warning. */}
+        <div className="min-w-0">{header}</div>
+        {canRotate && (
+          <Button
+            type="button"
+            size="lg"
+            className="club-gallery__shuffle"
+            onClick={() => {
+              advance();
+              setManualTurns((turns) => turns + 1);
+            }}
+          >
+            {/* Keyed by turn so the spin replays on every click. */}
+            <Shuffle key={manualTurns} className="club-gallery__shuffle-icon" aria-hidden />
+            <span className="hidden sm:inline">Shuffle photos</span>
+            <span className="sm:hidden">Shuffle</span>
+          </Button>
+        )}
+      </div>
+
       <ul className="club-gallery mt-8">
         {rotation.current.map((photo, index) => (
           <DiamondTile

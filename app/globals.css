@@ -10757,6 +10757,85 @@ html .all-time-filters [data-slot="select-trigger"][data-popup-open] {
   grid-row: span 2;
 }
 
+/* —— Landing buttons ——
+   One modern look for every button on the page: filled ones are a primary gradient pill with a
+   glow that lifts on hover, outlined ones keep the pill shape and lift the same way. Scoped to
+   `.landing`, so the app's other screens keep the standard buttons. Variants are told apart by
+   the utility classes the shared Button puts on them (`bg-primary`, `border-border`). */
+.landing [data-slot="button"].bg-primary,
+.landing [data-slot="button"].border-border {
+  border-radius: 999px;
+  font-weight: 600;
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease,
+    background-color 150ms ease;
+}
+
+.landing [data-slot="button"].bg-primary {
+  background-image: linear-gradient(
+    135deg,
+    var(--primary),
+    color-mix(in oklab, var(--primary) 70%, var(--foreground))
+  );
+  color: var(--primary-foreground);
+  box-shadow: 0 8px 20px -8px color-mix(in oklab, var(--primary) 70%, transparent);
+}
+
+.landing [data-slot="button"].bg-primary:hover {
+  box-shadow: 0 12px 26px -8px color-mix(in oklab, var(--primary) 80%, transparent);
+}
+
+.landing [data-slot="button"].border-border:hover {
+  border-color: color-mix(in oklab, var(--primary) 45%, transparent);
+  box-shadow: 0 8px 20px -10px color-mix(in oklab, var(--primary) 45%, transparent);
+}
+
+.landing [data-slot="button"].bg-primary:hover,
+.landing [data-slot="button"].border-border:hover {
+  transform: translateY(-2px);
+}
+
+.landing [data-slot="button"].bg-primary:active,
+.landing [data-slot="button"].border-border:active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* The shuffle button is a little roomier than the rest, and its icon spins once per click. */
+.club-gallery__shuffle {
+  flex-shrink: 0;
+  height: 2.75rem;
+  gap: 0.5rem;
+  padding-inline: 1.25rem;
+}
+
+.club-gallery__shuffle-icon {
+  animation: club-gallery-shuffle-spin 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes club-gallery-shuffle-spin {
+  from {
+    transform: rotate(-180deg) scale(0.8);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing [data-slot="button"].bg-primary,
+  .landing [data-slot="button"].border-border,
+  .club-gallery__shuffle-icon {
+    animation: none;
+    transition: none;
+  }
+
+  .landing [data-slot="button"].bg-primary:hover,
+  .landing [data-slot="button"].border-border:hover {
+    transform: none;
+  }
+}
+
 /* Fills the tile so the whole photo is the click target, and `fill` images stay positioned. */
 .club-gallery__open {
   position: absolute;
