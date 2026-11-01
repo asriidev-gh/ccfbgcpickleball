@@ -4,9 +4,10 @@ import Image from "next/image";
 import { CLUB_BANNER_PHOTO } from "@/lib/club-photos";
 
 /**
- * Full-bleed community photo with a dark scrim.
+ * Full-bleed community photo on a fixed navy panel: above the copy on phones, behind it with a
+ * dark scrim from lg (see `.community-band` in globals.css).
  *
- * The scrim is always dark and the text on it always light, so this block reads the same in
+ * The navy is always dark and the text on it always light, so this block reads the same in
  * every theme rather than depending on theme tokens that flip between light and dark.
  */
 export function CommunityBand() {

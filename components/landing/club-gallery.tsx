@@ -1,5 +1,5 @@
 import { ClubGalleryRotator } from "@/components/landing/club-gallery-rotator";
-import { CLUB_GALLERY_TILE_COUNT } from "@/lib/club-photos";
+import { CLUB_GALLERY_SLOTS } from "@/lib/club-photos";
 import { listClubPhotos } from "@/lib/club-photos-server";
 
 /**
@@ -12,12 +12,16 @@ export function ClubGallery() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 pt-14 lg:px-10 lg:pt-20">
-      <header className="max-w-2xl">
-        <p className="landing-kicker">On the court</p>
-        <h2 className="page-title mt-2">This is what a session looks like</h2>
-      </header>
-
-      <ClubGalleryRotator photos={photos} tileCount={CLUB_GALLERY_TILE_COUNT} />
+      <ClubGalleryRotator
+        photos={photos}
+        slots={CLUB_GALLERY_SLOTS}
+        header={
+          <header className="max-w-2xl">
+            <p className="landing-kicker">On the court</p>
+            <h2 className="page-title mt-2">This is what a session looks like</h2>
+          </header>
+        }
+      />
     </section>
   );
 }
