@@ -1897,6 +1897,20 @@
     color: #fff;
   }
 
+  /* Inputs stay light inside the dark card, so they must not inherit the card's white text. */
+  html .login-page .glass-panel [data-slot="input"],
+  html .signup-page .glass-panel [data-slot="input"] {
+    color: #0f172a;
+    caret-color: #0f172a;
+    -webkit-text-fill-color: #0f172a;
+  }
+
+  html .login-page .glass-panel [data-slot="input"]::placeholder,
+  html .signup-page .glass-panel [data-slot="input"]::placeholder {
+    color: #64748b;
+    -webkit-text-fill-color: #64748b;
+  }
+
   html .login-page .text-muted-foreground,
   html .signup-page .text-muted-foreground {
     color: rgb(226 232 240 / 0.85);
