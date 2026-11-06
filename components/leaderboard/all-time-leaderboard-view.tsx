@@ -241,7 +241,7 @@ function FilterSelect({
 
 /** Ranked list shared by the owner and public pages. */
 function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
-  const [view, setView] = useState<"players" | "partners">("players");
+  const [view, setView] = useState<"players" | "mvp" | "partners">("players");
   const [query, setQuery] = useState("");
   const [gender, setGender] = useState<string>(ANY);
   const [level, setLevel] = useState<string>(ANY);
@@ -258,8 +258,18 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
       (row) =>
         matchesFilter(row.gender, gender) && matchesFilter(row.pickleballLevel, level),
     );
-    return field.map((row, index) => ({ row, rank: index + 1 }));
-  }, [rows, gender, level]);
+    if (view !== "mvp") return field.map((row, index) => ({ row, rank: index + 1 }));
+
+    // MVP board: only players who have won MVP, most first. Equal counts share a rank.
+    const winners = field
+      .filter((row) => row.mvpSessions > 0)
+      .sort((a, b) => b.mvpSessions - a.mvpSessions);
+    let rank = 0;
+    return winners.map((row, index) => {
+      if (index === 0 || row.mvpSessions !== winners[index - 1].mvpSessions) rank = index + 1;
+      return { row, rank };
+    });
+  }, [rows, gender, level, view]);
 
   const genderOptions = useMemo(() => buildFilterOptions(rows, "gender", GENDER_ORDER), [rows]);
   const levelOptions = useMemo(
@@ -298,6 +308,7 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
       {(
         [
           { value: "players", label: "Players", Icon: Trophy },
+          { value: "mvp", label: "MVP", Icon: Crown },
           { value: "partners", label: "Partners", Icon: Handshake },
         ] as const
       ).map(({ value, label, Icon }) => (
@@ -389,7 +400,9 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
 
       {ranked.length === 0 ? (
         <p className="px-1 py-8 text-center text-sm text-muted-foreground">
-          No player matches these filters.
+          {view === "mvp"
+            ? "No MVP winners match these filters."
+            : "No player matches these filters."}
         </p>
       ) : visible.length === 0 ? (
         <p className="px-1 py-8 text-center text-sm text-muted-foreground">
