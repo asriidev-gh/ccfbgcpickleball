@@ -1,4 +1,5 @@
 import { loadAllTimeLeaderboard, type AllTimeLeaderboardPayload } from "@/lib/all-time-leaderboard";
+import { DEFAULT_SPORT, type Sport } from "@/lib/sports";
 import { resolvePublicLeaderboardOwner } from "@/lib/public-leaderboard-owner";
 
 export type PublicAllTimeLeaderboardPayload = AllTimeLeaderboardPayload & {
@@ -12,21 +13,24 @@ export type PublicAllTimeLeaderboardPayload = AllTimeLeaderboardPayload & {
 /** Public standings are read far more often than they change. */
 const PUBLIC_STANDINGS_TTL_MS = 5 * 60_000;
 
-let cached: { value: PublicAllTimeLeaderboardPayload; expiresAt: number } | null = null;
+const cached = new Map<Sport, { value: PublicAllTimeLeaderboardPayload; expiresAt: number }>();
 
 export function clearPublicAllTimeLeaderboardCache() {
-  cached = null;
+  cached.clear();
 }
 
 /** Club-wide all-time standings for the public page. Call inside runWithDatabase. */
-export async function loadPublicAllTimeLeaderboard(): Promise<PublicAllTimeLeaderboardPayload> {
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
+export async function loadPublicAllTimeLeaderboard(
+  sport: Sport = DEFAULT_SPORT,
+): Promise<PublicAllTimeLeaderboardPayload> {
+  const hit = cached.get(sport);
+  if (hit && hit.expiresAt > Date.now()) return hit.value;
 
   const owner = await resolvePublicLeaderboardOwner();
 
   const value: PublicAllTimeLeaderboardPayload = owner.ownerId
     ? {
-        ...(await loadAllTimeLeaderboard(owner.ownerId)),
+        ...(await loadAllTimeLeaderboard(owner.ownerId, sport)),
         clubName: owner.clubName,
         available: true,
       }
@@ -42,7 +46,7 @@ export async function loadPublicAllTimeLeaderboard(): Promise<PublicAllTimeLeade
   // Only cache a resolved club. Caching the "not published" result would keep showing the
   // notice for a full TTL after the configuration is corrected.
   if (value.available) {
-    cached = { value, expiresAt: Date.now() + PUBLIC_STANDINGS_TTL_MS };
+    cached.set(sport, { value, expiresAt: Date.now() + PUBLIC_STANDINGS_TTL_MS });
   }
   return value;
 }

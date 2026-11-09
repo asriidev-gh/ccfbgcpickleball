@@ -5,9 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import type { AllTimeLeaderboardPayload } from "@/lib/all-time-leaderboard";
 import type { PublicAllTimeLeaderboardPayload } from "@/lib/public-all-time-leaderboard";
 import { ownerHubQueryOptions } from "@/lib/owner-hub-query-options";
+import { DEFAULT_SPORT, type Sport } from "@/lib/sports";
 
-export const allTimeLeaderboardQueryKey = ["all-time-leaderboard"] as const;
-export const publicAllTimeLeaderboardQueryKey = ["all-time-leaderboard", "public"] as const;
+export const allTimeLeaderboardQueryKey = (sport: Sport = DEFAULT_SPORT) =>
+  ["all-time-leaderboard", sport] as const;
+export const publicAllTimeLeaderboardQueryKey = (sport: Sport = DEFAULT_SPORT) =>
+  ["all-time-leaderboard", "public", sport] as const;
 
 async function fetchStandings(url: string) {
   const response = await fetch(url);
@@ -18,28 +21,32 @@ async function fetchStandings(url: string) {
   return await response.json();
 }
 
-export async function fetchAllTimeLeaderboard(): Promise<AllTimeLeaderboardPayload> {
-  return (await fetchStandings("/api/leaderboard/all-time")) as AllTimeLeaderboardPayload;
+export async function fetchAllTimeLeaderboard(
+  sport: Sport = DEFAULT_SPORT,
+): Promise<AllTimeLeaderboardPayload> {
+  return (await fetchStandings(`/api/leaderboard/all-time?sport=${sport}`)) as AllTimeLeaderboardPayload;
 }
 
-export async function fetchPublicAllTimeLeaderboard(): Promise<PublicAllTimeLeaderboardPayload> {
-  return (await fetchStandings("/api/standings")) as PublicAllTimeLeaderboardPayload;
+export async function fetchPublicAllTimeLeaderboard(
+  sport: Sport = DEFAULT_SPORT,
+): Promise<PublicAllTimeLeaderboardPayload> {
+  return (await fetchStandings(`/api/standings?sport=${sport}`)) as PublicAllTimeLeaderboardPayload;
 }
 
-/** Owner view: standings across the signed-in account's own sessions. */
-export function useAllTimeLeaderboard() {
+/** Owner view: standings across the signed-in account's own sessions of one sport. */
+export function useAllTimeLeaderboard(sport: Sport = DEFAULT_SPORT) {
   return useQuery({
-    queryKey: allTimeLeaderboardQueryKey,
-    queryFn: fetchAllTimeLeaderboard,
+    queryKey: allTimeLeaderboardQueryKey(sport),
+    queryFn: () => fetchAllTimeLeaderboard(sport),
     ...ownerHubQueryOptions,
   });
 }
 
-/** Public view: club-wide standings, no sign-in required. */
-export function usePublicAllTimeLeaderboard() {
+/** Public view: club-wide standings for one sport, no sign-in required. */
+export function usePublicAllTimeLeaderboard(sport: Sport = DEFAULT_SPORT) {
   return useQuery({
-    queryKey: publicAllTimeLeaderboardQueryKey,
-    queryFn: fetchPublicAllTimeLeaderboard,
+    queryKey: publicAllTimeLeaderboardQueryKey(sport),
+    queryFn: () => fetchPublicAllTimeLeaderboard(sport),
     ...ownerHubQueryOptions,
   });
 }

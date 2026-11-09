@@ -6,6 +6,7 @@ import { createGameSchema } from "@/lib/validations";
 import { runWithDatabase } from "@/lib/db";
 import { createPreRegisteredPlayers } from "@/lib/create-game-players";
 import { buildGameRegistrationQr } from "@/lib/game-qr";
+import { resolveSport } from "@/lib/sports";
 import { PickleGame } from "@/models/PickleGame";
 import { Court } from "@/models/Court";
 import { getAuthUserFromCookie } from "@/lib/auth";
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
       venueName: payload.venueName ?? "",
       venueAddress: payload.venueAddress ?? "",
       venueGoogleMapEmbedUrl: payload.venueGoogleMapEmbedUrl ?? "",
+      sport: resolveSport(payload.sport),
       openPlayType: payload.openPlayType,
       courtCount: payload.courtCount,
       expectedPlayers,

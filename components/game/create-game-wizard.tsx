@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { OpenPlayTimeField } from "@/components/game/open-play-time-field";
 import { OpenPlayTypePicker } from "@/components/game/open-play-type-picker";
+import { DEFAULT_SPORT, SPORTS, SPORT_LABELS, type Sport } from "@/lib/sports";
 import {
   QuickPlayFormatStep,
   QuickPlayGameFormatFields,
@@ -79,6 +80,7 @@ import { WIZARD_PRIMARY_FIELDS_SCOPE } from "@/lib/wizard-field-styles";
 import { useUiStore } from "@/store/ui-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { WIZARD_OPTION_SELECTED, WIZARD_OPTION_UNSELECTED } from "@/lib/wizard-field-styles";
 
 function liveQueueMinPlayers(form: CreateGameForm) {
   return getMinExpectedPlayersForGameMode(form.gameMode);
@@ -89,6 +91,7 @@ type Meridiem = OpenPlayMeridiem;
 
 type CreateGameForm = {
   title: string;
+  sport: Sport;
   openPlayType: string;
   openPlayDate: string;
   openPlayFromHour: string;
@@ -110,6 +113,7 @@ function createInitialForm(userType?: string | null): CreateGameForm {
 
   return {
     title: "",
+    sport: DEFAULT_SPORT,
     openPlayType: "Beginner",
     openPlayDate: getTodayOpenPlayDateInputValue(),
     openPlayFromHour: "7",
@@ -765,6 +769,28 @@ export function CreateGameWizard() {
 
           {!isQuickGamePreset && stepKind === "sessionBasics" ? (
             <div className="space-y-6">
+              <div className="space-y-3">
+                <Label className="text-base">Sport</Label>
+                <div className="grid grid-cols-2 gap-2" role="group" aria-label="Sport">
+                  {SPORTS.map((sport) => (
+                    <Button
+                      key={sport}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-pressed={form.sport === sport}
+                      className={cn(
+                        "h-auto min-h-12 w-full justify-center border px-3 py-2.5 text-sm",
+                        form.sport === sport ? WIZARD_OPTION_SELECTED : WIZARD_OPTION_UNSELECTED,
+                      )}
+                      onClick={() => setForm((prev) => ({ ...prev, sport }))}
+                    >
+                      {SPORT_LABELS[sport]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Separator />
               <OpenPlayTypePicker
                 key={`create-session-${wizardInstanceId}`}
                 value={form.openPlayType}

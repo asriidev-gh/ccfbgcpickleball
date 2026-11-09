@@ -26,6 +26,7 @@ import type {
   AllTimeLeaderboardPayload,
   AllTimeLeaderboardRow,
 } from "@/lib/all-time-leaderboard";
+import { DEFAULT_SPORT, SPORTS, SPORT_LABELS, type Sport } from "@/lib/sports";
 import { resolvePlayerPhotoUrl } from "@/lib/player-avatar-url";
 import { cn, formatPlayerDisplayName, formatPlayerTableName } from "@/lib/utils";
 
@@ -446,19 +447,56 @@ function ErrorState({ error }: { error: unknown }) {
   );
 }
 
-const NO_RESULTS_BODY =
-  "Standings appear once matches have been played and scored in a session.";
+function noResultsBody(sport: Sport) {
+  return `${SPORT_LABELS[sport]} standings appear once matches have been played and scored in a ${SPORT_LABELS[sport].toLowerCase()} session.`;
+}
+
+/** Each sport ranks on its own board, so pick one before the standings. */
+function SportTabs({ value, onChange }: { value: Sport; onChange: (sport: Sport) => void }) {
+  return (
+    <div
+      className="flex w-full rounded-lg border border-border bg-muted/40 p-0.5 sm:inline-flex sm:w-fit"
+      role="group"
+      aria-label="Sport"
+    >
+      {SPORTS.map((sport) => (
+        <Button
+          key={sport}
+          type="button"
+          size="sm"
+          variant={value === sport ? "default" : "ghost"}
+          className="h-9 flex-1 px-5 sm:flex-none"
+          aria-pressed={value === sport}
+          onClick={() => onChange(sport)}
+        >
+          {SPORT_LABELS[sport]}
+        </Button>
+      ))}
+    </div>
+  );
+}
 
 /** Signed-in owner view: standings across their own sessions. */
 export function AllTimeLeaderboardView() {
-  const { data, isLoading, isError, error } = useAllTimeLeaderboard();
+  const [sport, setSport] = useState<Sport>(DEFAULT_SPORT);
+  const { data, isLoading, isError, error } = useAllTimeLeaderboard(sport);
 
-  if (isLoading) return <LoadingRows />;
-  if (isError) return <ErrorState error={error} />;
-  if (!data || data.rows.length === 0) {
-    return <EmptyState title="No results yet" body={NO_RESULTS_BODY} />;
+  let body: ReactNode;
+  if (isLoading) body = <LoadingRows />;
+  else if (isError) body = <ErrorState error={error} />;
+  else if (!data || data.rows.length === 0) {
+    body = <EmptyState title="No results yet" body={noResultsBody(sport)} />;
+  } else {
+    // Keyed by sport so filters and the selected view reset when the board changes.
+    body = <StandingsList key={sport} data={data} />;
   }
-  return <StandingsList data={data} />;
+
+  return (
+    <div className="space-y-5">
+      <SportTabs value={sport} onChange={setSport} />
+      {body}
+    </div>
+  );
 }
 
 /** Each cause needs a different fix, so say which one it is rather than a generic notice. */
@@ -473,23 +511,29 @@ const UNAVAILABLE_BODY = {
 
 /** Public view: club-wide standings, no sign-in required. */
 export function PublicAllTimeLeaderboardView() {
-  const { data, isLoading, isError, error } = usePublicAllTimeLeaderboard();
+  const [sport, setSport] = useState<Sport>(DEFAULT_SPORT);
+  const { data, isLoading, isError, error } = usePublicAllTimeLeaderboard(sport);
 
-  if (isLoading) return <LoadingRows />;
-  if (isError) return <ErrorState error={error} />;
-
-  if (data && !data.available) {
-    return (
+  let body: ReactNode;
+  if (isLoading) body = <LoadingRows />;
+  else if (isError) body = <ErrorState error={error} />;
+  else if (data && !data.available) {
+    body = (
       <EmptyState
         title="Standings are not published yet"
         body={UNAVAILABLE_BODY[data.unavailableReason ?? "not-configured"]}
       />
     );
+  } else if (!data || data.rows.length === 0) {
+    body = <EmptyState title="No results yet" body={noResultsBody(sport)} />;
+  } else {
+    body = <StandingsList key={sport} data={data} />;
   }
 
-  if (!data || data.rows.length === 0) {
-    return <EmptyState title="No results yet" body={NO_RESULTS_BODY} />;
-  }
-
-  return <StandingsList data={data} />;
+  return (
+    <div className="space-y-5">
+      <SportTabs value={sport} onChange={setSport} />
+      {body}
+    </div>
+  );
 }

@@ -3,12 +3,15 @@ import { NextResponse } from "next/server";
 import { runWithDatabase } from "@/lib/db";
 import { handleApiError } from "@/lib/handle-api-error";
 import { loadPublicAllTimeLeaderboard } from "@/lib/public-all-time-leaderboard";
+import { resolveSport } from "@/lib/sports";
 
 /** Public club-wide all-time standings (no auth). */
 export async function GET(request: Request) {
   try {
     return await runWithDatabase(async () => {
-      const standings = await loadPublicAllTimeLeaderboard();
+      const standings = await loadPublicAllTimeLeaderboard(
+        resolveSport(new URL(request.url).searchParams.get("sport")),
+      );
       return NextResponse.json({
         ...standings,
         // Unauthenticated endpoint: never expose QR codes or storage ids.

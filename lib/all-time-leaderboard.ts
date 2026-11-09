@@ -2,6 +2,7 @@ import type { AllTimePartnerPair } from "@/lib/all-time-partners-shared";
 import { loadAllTimePartnerPairs } from "@/lib/all-time-partners";
 import { leaderboardIdentityKey } from "@/lib/player-identity-key";
 import { LeaderboardStats } from "@/models/LeaderboardStats";
+import { DEFAULT_SPORT, sportQueryFilter, type Sport } from "@/lib/sports";
 import { PickleGame } from "@/models/PickleGame";
 import { Player } from "@/models/Player";
 
@@ -143,14 +144,17 @@ function compareRows(a: AllTimeLeaderboardRow, b: AllTimeLeaderboardRow) {
  * owner's sessions. Per-session rows are summed per name, so someone who re-registered
  * across sessions appears once. Call inside runWithDatabase.
  */
-export async function loadAllTimeLeaderboard(ownerId: string): Promise<AllTimeLeaderboardPayload> {
+export async function loadAllTimeLeaderboard(
+  ownerId: string,
+  sport: Sport = DEFAULT_SPORT,
+): Promise<AllTimeLeaderboardPayload> {
   const empty: AllTimeLeaderboardPayload = {
     rows: [],
     partners: [],
     totals: { players: 0, sessions: 0, gamesPlayed: 0 },
   };
 
-  const ownerGames = await PickleGame.find({ ownerId })
+  const ownerGames = await PickleGame.find({ ownerId, ...sportQueryFilter(sport) })
     .select("gameId")
     .lean<Array<{ gameId: string }>>();
   const ownerGameIds = ownerGames.map((game) => game.gameId);

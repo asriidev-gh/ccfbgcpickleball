@@ -120,6 +120,7 @@ function playerDisplayNameSchema() {
 export const createGameSchema = z
   .object({
     title: z.string().min(2, "Game title is required.").max(80),
+    sport: z.enum(["pickleball", "badminton"]).optional(),
     openPlayType: openPlayTypeSchema,
     openPlayDate: openPlayDateSchema,
     openPlayTimeRange: z

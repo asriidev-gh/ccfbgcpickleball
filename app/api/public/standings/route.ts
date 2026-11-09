@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { runWithDatabase } from "@/lib/db";
 import { guardPublicApiRequest, publicApiCorsHeaders } from "@/lib/public-api-guard";
 import { loadPublicAllTimeLeaderboard } from "@/lib/public-all-time-leaderboard";
+import { resolveSport } from "@/lib/sports";
 import { formatPlayerTableName } from "@/lib/utils";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -20,7 +21,7 @@ export function OPTIONS(request: NextRequest) {
 }
 
 /**
- * GET /api/public/standings?page=1&pageSize=50
+ * GET /api/public/standings?page=1&pageSize=50&sport=pickleball|badminton
  *
  * Auth: `Authorization: Bearer <key>` or `X-API-Key: <key>` (see lib/public-api-guard.ts).
  * Same all-time ranking as the /standings page, best record first. Contact and QR data
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
   const requestedPage = positiveInt(params.get("page"), 1);
 
   try {
-    const standings = await runWithDatabase(() => loadPublicAllTimeLeaderboard());
+    const standings = await runWithDatabase(() => loadPublicAllTimeLeaderboard(resolveSport(params.get("sport"))));
 
     if (!standings.available) {
       return NextResponse.json(

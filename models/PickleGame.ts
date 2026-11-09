@@ -5,6 +5,11 @@ const pickleGameSchema = new Schema(
     title: { type: String, required: true },
     gameId: { type: String, required: true, unique: true, index: true },
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    sport: {
+      type: String,
+      enum: ["pickleball", "badminton"],
+      default: "pickleball",
+    },
     openPlayType: {
       type: String,
       required: true,
