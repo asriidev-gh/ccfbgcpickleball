@@ -49,7 +49,7 @@ export function orientationOf(photo: ClubPhoto): ClubPhotoOrientation {
 }
 
 /** Used when a photo has not been individually reviewed. True of every photo in the folder. */
-export const CLUB_PHOTO_DEFAULT_ALT = "Players during an open play session at CCF BGC Pickleball.";
+export const CLUB_PHOTO_DEFAULT_ALT = "Players during an open play session at CCF BGC Sports Ministry.";
 
 /** Wide community shot used for the full-bleed band. Deliberately not part of the rotation. */
 export const CLUB_BANNER_PHOTO = {

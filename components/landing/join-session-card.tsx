@@ -8,7 +8,8 @@ import { ClubSocialLinks } from "@/components/landing/club-social-links";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { APP_NAME, RECLUB_CLUB_URL } from "@/lib/app-config";
+import { HeroSportName } from "@/components/landing/hero-sports";
+import { RECLUB_CLUB_URL } from "@/lib/app-config";
 import type { PublicClubLinks } from "@/lib/public-club-links";
 import { cn } from "@/lib/utils";
 
@@ -82,7 +83,10 @@ export function JoinSessionCard({ clubLinks }: { clubLinks?: PublicClubLinks }) 
           </h2>
           <p className="caption mt-1">
             Open the Reclub app and look for{" "}
-            <span className="font-semibold text-foreground">&ldquo;{APP_NAME}&rdquo;</span> to see
+            <span className="font-semibold text-foreground">&ldquo;
+              <HeroSportName />
+              &rdquo;
+            </span> to see
             our open play schedule and reserve your slot.
           </p>
           <a

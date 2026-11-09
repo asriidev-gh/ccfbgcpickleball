@@ -45,7 +45,7 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
               className="size-28 object-cover sm:size-32"
             />
           </div>
-          <DialogTitle className="text-lg sm:text-xl">Welcome to {APP_NAME} 🏓</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">Welcome to {APP_NAME} 🏅</DialogTitle>
         </DialogHeader>
 
         <div
@@ -56,9 +56,9 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
           <p className="text-foreground">Thank you for using {APP_NAME}!</p>
 
           <div>
-            <h3 className="mb-2 font-semibold text-foreground">For the Pickleball Community</h3>
+            <h3 className="mb-2 font-semibold text-foreground">For the Sports Community</h3>
             <p>
-              Pickleball continues to bring people together through sportsmanship, friendship, and
+              Sports continue to bring people together through sportsmanship, friendship, and
               healthy competition. {APP_NAME} is built to support that growing community and help
               every session run smoothly.
             </p>
@@ -75,7 +75,7 @@ export function DeveloperAboutDialog({ open, onOpenChange }: DeveloperAboutDialo
 
           <div className="border-t border-border/60 pt-4">
             <p className="font-medium text-foreground">
-              — Andy Radam, Creator of {APP_NAME} 🏓
+              — Andy Radam, Volunteer Developer of {APP_NAME} App! 🏅
             </p>
             <p className="mt-2 italic text-muted-foreground">All glory to God.</p>
             <div className="mt-3">

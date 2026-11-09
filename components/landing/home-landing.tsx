@@ -15,9 +15,15 @@ import Link from "next/link";
 import { ClubGallery } from "@/components/landing/club-gallery";
 import { PlayerMarquee } from "@/components/landing/player-marquee";
 import { CommunityBand } from "@/components/landing/community-band";
+import {
+  HeroCourtFloor,
+  HeroFloatBall,
+  HeroSportSection,
+  HeroSportTitle,
+} from "@/components/landing/hero-sports";
 import { JoinSessionCard } from "@/components/landing/join-session-card";
 import { Button } from "@/components/ui/button";
-import { APP_NAME, APP_TAGLINE } from "@/lib/app-config";
+import { APP_TAGLINE } from "@/lib/app-config";
 import type { PublicClubLinks } from "@/lib/public-club-links";
 import type { SpotlightPlayer } from "@/lib/public-player-spotlight";
 
@@ -79,71 +85,6 @@ const FEATURES = [
   },
 ];
 
-/** Hole pattern for the hero pickleball: one centre hole, an inner ring of 6, an outer ring of 8. */
-function ballRing(radius: number, count: number, offsetDeg: number, size: number) {
-  return Array.from({ length: count }, (_, index) => {
-    const angle = ((offsetDeg + (index * 360) / count) * Math.PI) / 180;
-    return [
-      Math.round((32 + radius * Math.cos(angle)) * 100) / 100,
-      Math.round((32 + radius * Math.sin(angle)) * 100) / 100,
-      size,
-    ] as const;
-  });
-}
-
-const BALL_HOLES = [[32, 32, 3.2] as const, ...ballRing(12, 6, 0, 3), ...ballRing(21, 8, 22.5, 2.4)];
-
-function PickleballGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 64 64" className={className} aria-hidden>
-      <defs>
-        <radialGradient id="landing-ball-shade" cx="0.36" cy="0.3" r="0.75">
-          <stop offset="0" stopColor="#fbffd6" />
-          <stop offset="0.45" stopColor="#e3f046" />
-          <stop offset="1" stopColor="#a9ba1f" />
-        </radialGradient>
-      </defs>
-      <circle cx="32" cy="32" r="29" fill="url(#landing-ball-shade)" />
-      {BALL_HOLES.map(([cx, cy, r]) => (
-        <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={r} fill="rgb(70 82 10 / 0.38)" />
-      ))}
-    </svg>
-  );
-}
-
-/**
- * Top-down pickleball court (1 unit = 0.1 ft: 20 x 44 ft, kitchen 7 ft each side of the net)
- * that CSS tips back into perspective, with a ball rallying over the net. Positions in
- * globals.css (net, ball baselines) are derived from this viewBox.
- */
-function HeroCourtFloor() {
-  return (
-    <div className="landing-hero__floor" aria-hidden>
-      <div className="landing-court">
-        <svg className="landing-court__svg" viewBox="-120 -40 440 520" preserveAspectRatio="none">
-          <rect className="landing-court__apron" x="-120" y="-40" width="440" height="520" />
-          <rect className="landing-court__surface" x="0" y="0" width="200" height="440" />
-          <rect className="landing-court__kitchen" x="0" y="150" width="200" height="140" />
-          <g className="landing-court__lines">
-            <rect x="0" y="0" width="200" height="440" />
-            <line x1="0" y1="150" x2="200" y2="150" />
-            <line x1="0" y1="290" x2="200" y2="290" />
-            <line x1="100" y1="0" x2="100" y2="150" />
-            <line x1="100" y1="290" x2="100" y2="440" />
-          </g>
-        </svg>
-        <div className="landing-court__net" />
-        <div className="landing-court__run">
-          <span className="landing-court__shadow" />
-          <div className="landing-court__hop">
-            <span className="landing-court__ball" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function HomeLanding({
   clubLinks,
   players = [],
@@ -153,7 +94,7 @@ export function HomeLanding({
 }) {
   return (
     <main className="landing">
-      <section className="landing-hero">
+      <HeroSportSection>
         <div className="landing-hero__sky" aria-hidden />
         <div className="landing-hero__glow" aria-hidden />
         <div className="landing-hero__beams" aria-hidden />
@@ -168,7 +109,7 @@ export function HomeLanding({
                 <Cross className="h-3.5 w-3.5" aria-hidden />
                 Fellowship on the court
               </p>
-              <h1 className="landing-title">{APP_NAME}</h1>
+              <HeroSportTitle />
               <div className="landing-rally" aria-hidden>
                 <span className="landing-rally__track" />
                 <span className="landing-rally__x">
@@ -212,11 +153,11 @@ export function HomeLanding({
           </div>
 
           <div className="landing-rise landing-rise--card relative">
-            <PickleballGlyph className="landing-float-ball" />
+            <HeroFloatBall />
             <JoinSessionCard clubLinks={clubLinks} />
           </div>
         </div>
-      </section>
+      </HeroSportSection>
 
       <PlayerMarquee players={players} />
 

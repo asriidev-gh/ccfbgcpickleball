@@ -11432,3 +11432,74 @@ html .all-time-filters [data-slot="select-trigger"][data-popup-open] {
     animation: none;
   }
 }
+
+/* Hero sport rotation: every sport's scene stays mounted and stacked; the active one fades in.
+   Inactive scenes pause their animations so only one rally runs at a time. */
+.hero-scene {
+  transition:
+    opacity 0.9s ease,
+    visibility 0.9s;
+}
+
+.hero-scene:not(.is-active) {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.hero-scene:not(.is-active),
+.hero-scene:not(.is-active) * {
+  animation-play-state: paused;
+}
+
+.landing-title__sport {
+  display: grid;
+}
+
+.landing-title__word {
+  grid-area: 1 / 1;
+  transition:
+    opacity 0.9s ease,
+    transform 0.9s ease,
+    visibility 0.9s;
+}
+
+.landing-title__word:not(.is-active) {
+  transform: translateY(0.35em);
+}
+
+.landing-float-ball > .hero-scene {
+  filter: none;
+}
+
+/* The shuttlecock replaces the ball's texture and is a touch larger so the feathers read. */
+.landing-court__ball--shuttle {
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: -1.625rem 0 0 -1.625rem;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  filter: drop-shadow(0 0 1rem rgb(255 255 255 / 0.55));
+}
+
+/* Underline ball turns into a white one while the hero is on badminton. */
+.landing-hero[data-sport="badminton"] .landing-rally__ball {
+  background: radial-gradient(circle at 36% 30%, #ffffff, #eef2f6 55%, #c3ccd6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-scene,
+  .landing-title__word {
+    transition: none;
+  }
+}
+
+/* Inline sport word inside running text (the Reclub search hint). */
+.landing-name__sport {
+  display: inline-grid;
+  vertical-align: baseline;
+}
+
+.landing-name__word {
+  grid-area: 1 / 1;
+}

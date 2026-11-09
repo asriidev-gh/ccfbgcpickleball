@@ -1,4 +1,4 @@
-export const DEFAULT_QR_BRAND_NAME = "CCF BGC Pickleball";
+export const DEFAULT_QR_BRAND_NAME = "CCF BGC Sports Ministry";
 export const MAX_PLAYER_QR_TITLE_LENGTH = 20;
 
 export type PlayerQrBranding = {

@@ -1,6 +1,6 @@
 import packageJson from "../package.json";
 
-export const APP_NAME = "CCF BGC Pickleball";
+export const APP_NAME = "CCF BGC Sports Ministry";
 export const APP_VERSION = packageJson.version;
 
 /** One-line summary used on the public home page and in its metadata. */
