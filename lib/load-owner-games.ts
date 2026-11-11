@@ -13,7 +13,7 @@ export async function loadOwnerGamesList(authUser: { userId: string; email: stri
       .sort({ createdAt: -1 })
       .limit(20)
       .select(
-        "title gameId openPlayType courtCount expectedPlayers strictPlayerCount allowQrRegistration registrationMode status openPlayDate openPlayTimeRange gameMode matchingType createdAt updatedAt",
+        "title gameId openPlayType courtCount expectedPlayers strictPlayerCount allowQrRegistration registrationMode status openPlayDate openPlayTimeRange gameMode matchingType sport createdAt updatedAt",
       ),
     PickleGame.exists({
       ownerId: authUser.userId,

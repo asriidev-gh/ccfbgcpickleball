@@ -20,6 +20,7 @@ export type GamesListPayload = {
     openPlayTimeRange?: string | null;
     gameMode?: "doubles" | "singles";
     matchingType?: "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
+    sport?: "pickleball" | "badminton";
     updatedAt?: string;
     createdAt?: string;
   }>;

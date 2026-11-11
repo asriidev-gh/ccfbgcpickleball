@@ -94,6 +94,11 @@ import { useSavedQuickGames, savedQuickGamesQueryKey } from "@/hooks/use-saved-q
 import { useQuickGameFeatureEnabled } from "@/hooks/use-system-features";
 import { useLocalGameStore } from "@/store/local-game-store";
 import { cn } from "@/lib/utils";
+import { SPORTS, SPORT_LABELS, resolveSport, type Sport } from "@/lib/sports";
+
+// Let tab pills size to their content so the active ring never clips the count badge.
+const gamesTabListClass = "h-auto group-data-horizontal/tabs:h-auto max-w-full flex-wrap gap-1.5 p-1.5";
+const gamesTabTriggerClass = "h-auto flex-none gap-2 px-3.5 py-1.5";
 
 const deleteAlertOptions = {
   background: "#0f172a",
@@ -117,6 +122,7 @@ type GameCard = {
   openPlayTimeRange?: string | null;
   gameMode?: "doubles" | "singles";
   matchingType?: "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
+  sport?: Sport;
   updatedAt?: string;
   isLocalGame?: boolean;
   isSavedQuickGame?: boolean;
@@ -933,6 +939,7 @@ export function MyGamesView() {
   const [viewReady, setViewReady] = useState(false);
   const [gamesTab, setGamesTab] = useState<"active" | "past" | "quick">("active");
   const [showEndedQuickGames, setShowEndedQuickGames] = useState(false);
+  const [sportFilter, setSportFilter] = useState<Sport | null>(null);
   const [demoDialogOpen, setDemoDialogOpen] = useState(false);
   const { enabled: quickGameFeatureEnabled } = useQuickGameFeatureEnabled();
 
@@ -1207,6 +1214,21 @@ export function MyGamesView() {
   const games = data?.games ?? [];
   const activeGames = games.filter((game) => game.status !== "ended");
   const pastGames = games.filter((game) => game.status === "ended");
+
+  // Sport sub-tabs appear only when 2+ sports are active; the same tabs then filter Past Games.
+  const activeSports = SPORTS.filter((sport) =>
+    activeGames.some((game) => resolveSport(game.sport) === sport),
+  );
+  const showSportTabs = activeSports.length >= 2;
+  const selectedSport: Sport | null = showSportTabs
+    ? sportFilter && activeSports.includes(sportFilter)
+      ? sportFilter
+      : activeSports[0]
+    : null;
+  const filterBySport = <T extends { sport?: Sport }>(list: T[]) =>
+    selectedSport ? list.filter((game) => resolveSport(game.sport) === selectedSport) : list;
+  const visibleActiveGames = filterBySport(activeGames);
+  const visiblePastGames = filterBySport(pastGames);
   const activeQuickGames = quickGames.filter((game) => game.status !== "ended");
   const displayedQuickGames = showEndedQuickGames ? quickGames : activeQuickGames;
   const quickGamesEmptyMessage =
@@ -1284,8 +1306,8 @@ export function MyGamesView() {
         </CardHeader>
         <CardContent>
           <Tabs value={gamesTab} onValueChange={handleGamesTabChange} className="gap-4">
-              <TabsList>
-                <TabsTrigger value="active">
+              <TabsList className={gamesTabListClass}>
+                <TabsTrigger value="active" className={gamesTabTriggerClass}>
                   Active Games
                   {activeGames.length > 0 ? (
                     <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-xs">
@@ -1293,7 +1315,7 @@ export function MyGamesView() {
                     </Badge>
                   ) : null}
                 </TabsTrigger>
-                <TabsTrigger value="past">
+                <TabsTrigger value="past" className={gamesTabTriggerClass}>
                   Past Games
                   {pastGames.length > 0 ? (
                     <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-xs">
@@ -1302,7 +1324,7 @@ export function MyGamesView() {
                   ) : null}
                 </TabsTrigger>
                 {showQuickGamesTab ? (
-                <TabsTrigger value="quick">
+                <TabsTrigger value="quick" className={gamesTabTriggerClass}>
                   Quick Games (live queuing off)
                   <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-xs">
                     {quickGames.length}
@@ -1319,6 +1341,28 @@ export function MyGamesView() {
                   <span className="text-sm text-muted-foreground">Show Ended</span>
                 </label>
               ) : null}
+              {showSportTabs && selectedSport && (gamesTab === "active" || gamesTab === "past") ? (
+                <Tabs
+                  className="mt-2 mb-3"
+                  value={selectedSport}
+                  onValueChange={(value) => setSportFilter(resolveSport(value as string))}
+                >
+                  <TabsList aria-label="Filter by sport" className={gamesTabListClass}>
+                    {activeSports.map((sport) => {
+                      const source = gamesTab === "active" ? activeGames : pastGames;
+                      const count = source.filter((game) => resolveSport(game.sport) === sport).length;
+                      return (
+                        <TabsTrigger key={sport} value={sport} className={gamesTabTriggerClass}>
+                          {SPORT_LABELS[sport]}
+                          <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-xs">
+                            {count}
+                          </Badge>
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
+                </Tabs>
+              ) : null}
               <TabsContent value="active">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-16 text-muted-foreground">
@@ -1328,7 +1372,7 @@ export function MyGamesView() {
                 ) : (
                   <GameList
                     key={`active-${listViewForTab}`}
-                    games={activeGames}
+                    games={visibleActiveGames}
                     variant="active"
                     view={listViewForTab}
                     emptyMessage="No active games. Create one to start queuing."
@@ -1348,7 +1392,7 @@ export function MyGamesView() {
                 ) : (
                   <GameList
                     key={`past-${listViewForTab}`}
-                    games={pastGames}
+                    games={visiblePastGames}
                     variant="past"
                     view={listViewForTab}
                     emptyMessage="No past games yet. Ended open play sessions will appear here."
