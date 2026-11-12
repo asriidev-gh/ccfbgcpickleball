@@ -260,7 +260,21 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
       (row) =>
         matchesFilter(row.gender, gender) && matchesFilter(row.pickleballLevel, level),
     );
-    if (view !== "mvp") return field.map((row, index) => ({ row, rank: index + 1 }));
+    if (view !== "mvp") {
+      // Players with the same wins, win rate and games played are tied and share a rank
+      // (1, 2, 3, 3, 5); the server already orders the field by exactly those fields.
+      let rank = 0;
+      return field.map((row, index) => {
+        const prev = field[index - 1];
+        const tied =
+          prev &&
+          prev.wins === row.wins &&
+          prev.winRate === row.winRate &&
+          prev.gamesPlayed === row.gamesPlayed;
+        if (!tied) rank = index + 1;
+        return { row, rank };
+      });
+    }
 
     // MVP board: only players who have won MVP, most first. Equal counts share a rank.
     const winners = field
