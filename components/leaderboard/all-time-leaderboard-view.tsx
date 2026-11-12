@@ -1,7 +1,8 @@
 "use client";
 
 import { Crown, Handshake, Search, Trophy, X } from "lucide-react";
-import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { LeaderboardMedalIcon } from "@/components/game/leaderboard-medal-icon";
 import { AllTimePartnersView } from "@/components/leaderboard/all-time-partners-view";
@@ -476,9 +477,34 @@ function SportTabs({ value, onChange }: { value: Sport; onChange: (sport: Sport)
   );
 }
 
+/**
+ * Selected sport, driven by the `?sport=badminton|pickleball` query param so a link can open a
+ * specific tab. Changing the tab rewrites the param in place without adding history entries.
+ */
+function useSportParam(): [Sport, (sport: Sport) => void] {
+  const searchParams = useSearchParams();
+  const raw = searchParams.get("sport")?.toLowerCase();
+  const fromUrl = SPORTS.find((item) => item === raw) ?? DEFAULT_SPORT;
+  const [sport, setSportState] = useState<Sport>(fromUrl);
+
+  // Follow later URL changes (back/forward, in-app links to the other sport).
+  useEffect(() => {
+    setSportState(fromUrl);
+  }, [fromUrl]);
+
+  const setSport = (next: Sport) => {
+    setSportState(next);
+    const params = new URLSearchParams(window.location.search);
+    params.set("sport", next);
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  };
+
+  return [sport, setSport];
+}
+
 /** Signed-in owner view: standings across their own sessions. */
 export function AllTimeLeaderboardView() {
-  const [sport, setSport] = useState<Sport>(DEFAULT_SPORT);
+  const [sport, setSport] = useSportParam();
   const { data, isLoading, isError, error } = useAllTimeLeaderboard(sport);
 
   let body: ReactNode;
@@ -511,7 +537,7 @@ const UNAVAILABLE_BODY = {
 
 /** Public view: club-wide standings, no sign-in required. */
 export function PublicAllTimeLeaderboardView() {
-  const [sport, setSport] = useState<Sport>(DEFAULT_SPORT);
+  const [sport, setSport] = useSportParam();
   const { data, isLoading, isError, error } = usePublicAllTimeLeaderboard(sport);
 
   let body: ReactNode;

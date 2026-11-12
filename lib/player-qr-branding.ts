@@ -3,6 +3,7 @@ import {
   buildPlayerQrBrandingFromTitle,
   type PlayerQrBranding,
 } from "@/lib/player-qr-branding-shared";
+import { resolveSport } from "@/lib/sports";
 import { PickleGame } from "@/models/PickleGame";
 import { QueueEntry } from "@/models/QueueEntry";
 import { User } from "@/models/User";
@@ -13,6 +14,8 @@ export {
   buildPlayerQrBrandingFromTitle,
   type PlayerQrBranding,
 } from "@/lib/player-qr-branding-shared";
+
+const BADMINTON_QR_BRAND_NAME = "CCF BGC Badminton";
 
 const OWNER_QR_RENDER_SELECT = "playerQrTitle playerQrIncludeClubLogo clubLogoUrl";
 
@@ -58,7 +61,7 @@ export async function resolvePlayerQrRenderOptionsForGame(
   gameId: string,
 ): Promise<PlayerQrRenderOptions> {
   await connectToDatabase();
-  const game = await PickleGame.findOne({ gameId }).select("ownerId").lean();
+  const game = await PickleGame.findOne({ gameId }).select("ownerId sport").lean();
   if (!game?.ownerId) {
     return {
       branding: buildPlayerQrBrandingFromTitle(undefined),
@@ -66,7 +69,24 @@ export async function resolvePlayerQrRenderOptionsForGame(
       clubLogoUrl: "",
     };
   }
-  return resolvePlayerQrRenderOptionsForOwner(game.ownerId.toString());
+  const options = await resolvePlayerQrRenderOptionsForOwner(game.ownerId.toString());
+  if (resolveSport(game.sport) !== "badminton") return options;
+  return { ...options, branding: toBadmintonBranding(options.branding) };
+}
+
+/**
+ * Badminton sessions show a badminton header on the player QR: "Pickleball" in the owner's
+ * custom title becomes "Badminton", and the untouched default title becomes "CCF BGC Badminton".
+ * A custom title that doesn't mention pickleball is the owner's own wording, so it is kept.
+ */
+function toBadmintonBranding(branding: PlayerQrBranding): PlayerQrBranding {
+  if (branding.brandSubtitle === null) {
+    return { ...branding, headerTitle: BADMINTON_QR_BRAND_NAME };
+  }
+  return {
+    ...branding,
+    headerTitle: branding.headerTitle.replace(/pickleball/gi, "Badminton"),
+  };
 }
 
 export async function resolvePlayerQrBrandingForGame(gameId: string): Promise<PlayerQrBranding> {
