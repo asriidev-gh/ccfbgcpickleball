@@ -67,6 +67,32 @@ export function hasLockInPair(
   return false;
 }
 
+/**
+ * A two-slot block of the queue can be swapped as a unit when it holds two players and does
+ * not split a lock-in pair (both unlocked, or both members of the same lock-in group).
+ */
+export function isSwappableQueuePair(
+  queue: Array<{ lockInGroupId?: string | null } | null | undefined>,
+  startIndex: number,
+): boolean {
+  const first = queue[startIndex];
+  const second = queue[startIndex + 1];
+  if (!first || !second) return false;
+  return (first.lockInGroupId ?? null) === (second.lockInGroupId ?? null);
+}
+
+/** True when at least one next-on-court pair and one waiting-line pair can trade places. */
+export function canSwapNextCourtWaiting(
+  queue: Array<{ lockInGroupId?: string | null } | null | undefined>,
+): boolean {
+  const nextPairOk = isSwappableQueuePair(queue, 0) || isSwappableQueuePair(queue, 2);
+  if (!nextPairOk) return false;
+  for (let start = 4; start + 1 < queue.length; start += 2) {
+    if (isSwappableQueuePair(queue, start)) return true;
+  }
+  return false;
+}
+
 export function playerIdsIncludeLockInPair(
   playerIds: Array<string | null | undefined>,
   groupIdByPlayerId: Map<string, string | null | undefined>,

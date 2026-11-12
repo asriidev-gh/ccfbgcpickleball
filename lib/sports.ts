@@ -21,3 +21,15 @@ export function resolveSport(value?: string | null): Sport {
 export function sportQueryFilter(sport: Sport): { sport: Sport | { $ne: Sport } } {
   return sport === "badminton" ? { sport: "badminton" } : { sport: { $ne: "badminton" } };
 }
+
+/** Badminton games are recorded with the shuttlecock condition they were played with. */
+export const SHUTTLECOCK_CONDITIONS = ["new", "old"] as const;
+
+export type ShuttlecockCondition = (typeof SHUTTLECOCK_CONDITIONS)[number];
+
+export const SHUTTLECOCK_LABELS: Record<ShuttlecockCondition, string> = {
+  new: "New shuttlecock",
+  old: "Old shuttlecock",
+};
+
+export const DEFAULT_SHUTTLECOCK: ShuttlecockCondition = "new";

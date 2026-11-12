@@ -1,6 +1,6 @@
 "use client";
 
-import { Crown, Handshake, Search, Trophy, X } from "lucide-react";
+import { Crown, Handshake, Search, ShieldCheck, Trophy, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 
@@ -243,7 +243,7 @@ function FilterSelect({
 
 /** Ranked list shared by the owner and public pages. */
 function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
-  const [view, setView] = useState<"players" | "mvp" | "partners">("players");
+  const [view, setView] = useState<"players" | "mvp" | "undefeated" | "partners">("players");
   const [query, setQuery] = useState("");
   const [gender, setGender] = useState<string>(ANY);
   const [level, setLevel] = useState<string>(ANY);
@@ -260,7 +260,7 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
       (row) =>
         matchesFilter(row.gender, gender) && matchesFilter(row.pickleballLevel, level),
     );
-    if (view !== "mvp") {
+    if (view !== "mvp" && view !== "undefeated") {
       // Players with the same wins, win rate and games played are tied and share a rank
       // (1, 2, 3, 3, 5); the server already orders the field by exactly those fields.
       let rank = 0;
@@ -276,13 +276,14 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
       });
     }
 
-    // MVP board: only players who have won MVP, most first. Equal counts share a rank.
-    const winners = field
-      .filter((row) => row.mvpSessions > 0)
-      .sort((a, b) => b.mvpSessions - a.mvpSessions);
+    // MVP / Undefeated boards: only players with at least one, most first. Equal counts share
+    // a rank; wins break nothing here, so ties stay ties.
+    const countOf = (row: AllTimeLeaderboardRow) =>
+      view === "mvp" ? row.mvpSessions : row.undefeatedSessions;
+    const winners = field.filter((row) => countOf(row) > 0).sort((a, b) => countOf(b) - countOf(a));
     let rank = 0;
     return winners.map((row, index) => {
-      if (index === 0 || row.mvpSessions !== winners[index - 1].mvpSessions) rank = index + 1;
+      if (index === 0 || countOf(row) !== countOf(winners[index - 1])) rank = index + 1;
       return { row, rank };
     });
   }, [rows, gender, level, view]);
@@ -325,6 +326,7 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
         [
           { value: "players", label: "Players", Icon: Trophy },
           { value: "mvp", label: "MVP", Icon: Crown },
+          { value: "undefeated", label: "Undefeated", Icon: ShieldCheck },
           { value: "partners", label: "Partners", Icon: Handshake },
         ] as const
       ).map(({ value, label, Icon }) => (
@@ -418,7 +420,9 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
         <p className="px-1 py-8 text-center text-sm text-muted-foreground">
           {view === "mvp"
             ? "No MVP winners match these filters."
-            : "No player matches these filters."}
+            : view === "undefeated"
+              ? "No undefeated players match these filters."
+              : "No player matches these filters."}
         </p>
       ) : visible.length === 0 ? (
         <p className="px-1 py-8 text-center text-sm text-muted-foreground">

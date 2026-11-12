@@ -19,6 +19,7 @@ import {
   parseEndGameScoreField,
 } from "@/lib/match-score-validation";
 import { cn, formatPlayerDisplayName } from "@/lib/utils";
+import { SHUTTLECOCK_CONDITIONS, SHUTTLECOCK_LABELS, type ShuttlecockCondition, type Sport } from "@/lib/sports";
 import {
   resolveSessionPlayer,
   resolveSessionPlayers,
@@ -29,6 +30,10 @@ type CourtEndGameDialogProps = {
   endCourt?: CourtView;
   playerLookup?: Map<string, PlayerPhotoRef>;
   gameMode?: "doubles" | "singles";
+  /** Badminton shows a shuttlecock (new/old) choice before the game is recorded. */
+  sport?: Sport;
+  shuttlecock?: ShuttlecockCondition;
+  onShuttlecockChange?: (value: ShuttlecockCondition) => void;
   pendingWinner: "A" | "B" | null;
   onPendingWinnerChange: (winner: "A" | "B" | null) => void;
   endGameRematch: boolean;
@@ -39,11 +44,15 @@ type CourtEndGameDialogProps = {
   onTeamBScoreChange: (value: string) => void;
   endGameScoreError: string | null;
   onClose: () => void;
+  /** When set, shows a "Cancel game" action that sends the players to the end of the queue. */
+  onCancelGame?: () => void;
+  cancelGamePending?: boolean;
   onSubmit: (input: {
     winnerTeam: "A" | "B";
     teamAScore: number;
     teamBScore: number;
     rematch: boolean;
+    shuttlecock?: ShuttlecockCondition;
   }) => void;
 };
 
@@ -111,6 +120,9 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
   endCourt,
   playerLookup,
   gameMode = "doubles",
+  sport,
+  shuttlecock = "new",
+  onShuttlecockChange,
   pendingWinner,
   onPendingWinnerChange,
   endGameRematch,
@@ -121,9 +133,12 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
   onTeamBScoreChange,
   endGameScoreError,
   onClose,
+  onCancelGame,
+  cancelGamePending = false,
   onSubmit,
 }: CourtEndGameDialogProps) {
   const isSingles = gameMode === "singles";
+  const showShuttlecock = sport === "badminton" && onShuttlecockChange != null;
   const rematchHint = isSingles
     ? "Same two, fresh clock on this court."
     : "Same four, fresh clock on this court.";
@@ -227,6 +242,24 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                 playerLookup={playerLookup}
               />
             </div>
+            {onCancelGame ? (
+              <div className="sm:col-span-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  className="court-winner-cancel-game-btn w-full text-muted-foreground"
+                  disabled={cancelGamePending}
+                  onClick={onCancelGame}
+                >
+                  {cancelGamePending ? "Cancelling…" : "Cancel game"}
+                </Button>
+                <p className="mt-1 text-center text-xs text-muted-foreground">
+                  No result is recorded. {isSingles ? "Both players go" : "All four players go"} to
+                  the end of the queue.
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="court-winner-dialog-body court-winner-score-step flex flex-col gap-5 md:gap-6">
@@ -330,6 +363,29 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                 {endGameScoreError}
               </p>
             ) : null}
+            {showShuttlecock ? (
+              <div className="end-game-shuttlecock-block flex flex-col gap-2">
+                <span className="end-game-rematch-label">Shuttlecock used</span>
+                <div
+                  className="grid grid-cols-2 gap-2"
+                  role="group"
+                  aria-label="Shuttlecock used"
+                >
+                  {SHUTTLECOCK_CONDITIONS.map((condition) => (
+                    <Button
+                      key={condition}
+                      type="button"
+                      size="lg"
+                      variant={shuttlecock === condition ? "default" : "outline"}
+                      aria-pressed={shuttlecock === condition}
+                      onClick={() => onShuttlecockChange?.(condition)}
+                    >
+                      {SHUTTLECOCK_LABELS[condition]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="end-game-rematch-block">
               <div className="end-game-rematch-row">
                 <span className="end-game-rematch-label">Rematch?</span>
@@ -387,6 +443,7 @@ export const CourtEndGameDialog = memo(function CourtEndGameDialog({
                     teamAScore: a === "" ? 0 : Number(a),
                     teamBScore: b === "" ? 0 : Number(b),
                     rematch: endGameRematch,
+                    ...(showShuttlecock ? { shuttlecock } : {}),
                   });
                 }}
               >

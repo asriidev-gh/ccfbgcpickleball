@@ -27,6 +27,7 @@ import {
   fetchLockInGroups,
   lockInGroupsQueryKey,
 } from "@/components/game/lock-in-players-dialog";
+import type { PairSwapSelection } from "@/components/game/swap-in-pairs-dialog";
 import { ReplacePlayerDialog } from "@/components/game/replace-player-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +52,7 @@ import { isSinglesGameMode } from "@/lib/singles/singles-constants";
 import { pickSinglesCourtPair } from "@/lib/singles/singles-queue-fill";
 import { SINGLES_MIN_QUEUE_TO_FILL } from "@/lib/singles/singles-constants";
 import { COURTS_VIEW_QUERY_KEY } from "@/lib/courts-view-cache";
-import { buildQueueNextCourtWaitingSwapOrder } from "@/lib/next-court-match-analysis";
+import { buildQueuePairSwapOrder } from "@/lib/next-court-match-analysis";
 import { buildSessionPlayerLookup } from "@/lib/session-player-lookup";
 import { getMatchScoreInputError } from "@/lib/match-score-validation";
 import type { OwnerCourtsViewSession } from "@/lib/owner-courts-view-payload";
@@ -62,6 +63,7 @@ import {
   clusterQueuedLockInPairs,
   hasLockInPair,
   lockInGroupIdByPlayerIdFromGroups,
+  canSwapNextCourtWaiting,
   playerIdsIncludeLockInPair,
 } from "@/lib/lock-in-groups-shared";
 import { resolvePlayerId } from "@/lib/resolve-player-id";
@@ -454,11 +456,15 @@ export function OwnerSessionCourtsSection({
             }
             shuffleNextPending={courtActions.shuffleNextMutation.isPending}
             onSwapWaiting={
-              canOperateSession && !nextCourtHasLockInPair
-                ? async () => {
-                    const order = buildQueueNextCourtWaitingSwapOrder(matchupAnalysisQueue);
+              canOperateSession && canSwapNextCourtWaiting(matchupAnalysisQueue)
+                ? async (selection: PairSwapSelection) => {
+                    const order = buildQueuePairSwapOrder(
+                      matchupAnalysisQueue,
+                      selection.nextPairStart,
+                      selection.waitingPairStart,
+                    );
                     if (!order) {
-                      toast.error("Need at least six players in the queue to swap.");
+                      toast.error("That pair swap isn't available.");
                       return;
                     }
                     await courtActions.swapNextWaitingMutation.mutateAsync(order);

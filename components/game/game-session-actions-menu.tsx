@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 /** Larger touch targets on tablet and phone. */
 const MOBILE_ITEM_CLASS =
-  "max-xl:min-h-12 max-xl:gap-3 max-xl:px-3 max-xl:py-3 max-xl:text-base max-xl:[&_svg:not([class*='size-'])]:size-5";
+  "min-h-12 gap-3 px-3 py-3 text-base [&_svg:not([class*='size-'])]:size-5";
 
 type SessionAction = {
   key: string;
@@ -175,7 +175,7 @@ export function GameSessionActionsMenu({
       align={mobileNav ? "center" : "end"}
       side={mobileNav ? "top" : "bottom"}
       sideOffset={mobileNav ? 8 : 4}
-      className={cn("w-56 max-xl:w-72", mobileNav && "mb-1")}
+      className={cn("w-72", mobileNav && "mb-1")}
     >
       {primaryActions.map((action) => (
         <DropdownMenuItem

@@ -462,7 +462,7 @@ export function ClubSettingsTab({ hideLivePreview = false }: { hideLivePreview?:
                   id="club-name"
                   value={form.clubName}
                   maxLength={MAX_CLUB_NAME_LENGTH}
-                  placeholder="e.g. CCF Pickleball Club"
+                  placeholder="e.g. CCF BGC Sports Ministry"
                   disabled={saveMutation.isPending}
                   className="club-profile-field club-profile-surface h-11"
                   onChange={(event) =>

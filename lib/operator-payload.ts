@@ -26,6 +26,7 @@ export type OperatorGameSummary = {
   /** Browser quick game: account sessions may sync to QuickGameSession; ephemeral never saves. */
   quickGamePersistence?: "account" | "ephemeral";
   gameMode?: "doubles" | "singles";
+  sport?: "pickleball" | "badminton";
   matchingType?: "auto-balanced" | "winner-loser-groups" | "mixed-doubles";
   expectedPlayers?: number;
   strictPlayerCount?: boolean;

@@ -672,9 +672,9 @@ export function useOperatorCourtActions({
           queryClient,
           gameId,
           (payload) => applyQueueReorderOptimistic(payload, orderedEntryIds),
-          "Need at least six players in the queue to swap.",
+          "That pair swap is not available.",
         );
-        return { message: "Swapped in the next two players from the waiting line." };
+        return { message: "Swapped in the selected pair from the waiting line." };
       }
 
       const response = await fetch(`/api/games/${gameId}/reorder-queue`, {
@@ -684,7 +684,7 @@ export function useOperatorCourtActions({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
-      return { message: "Swapped in the next two players from the waiting line." };
+      return { message: "Swapped in the selected pair from the waiting line." };
     },
     onMutate: (orderedEntryIds) => {
       if (isLocalGame) return {};

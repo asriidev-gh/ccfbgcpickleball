@@ -259,6 +259,28 @@ export function buildQueueNextCourtWaitingSwapOrder(
   return [ids[0]!, ids[1]!, ids[4]!, ids[5]!, ids[2]!, ids[3]!, ...ids.slice(6)];
 }
 
+/**
+ * Trade one next-on-court pair (slots 1–2 or 3–4) with one waiting-line pair (5–6, 7–8, …).
+ * Returns the full queue order of entry ids, or null when the selection is invalid.
+ */
+export function buildQueuePairSwapOrder(
+  queue: Array<{ _id: string | { toString(): string } }>,
+  nextPairStart: number,
+  waitingPairStart: number,
+): string[] | null {
+  if (nextPairStart !== 0 && nextPairStart !== 2) return null;
+  if (waitingPairStart < 4 || waitingPairStart % 2 !== 0) return null;
+  const ids = queue.map((entry) => stringifyQueueEntryId(entry._id)).filter(Boolean);
+  if (waitingPairStart + 1 >= ids.length) return null;
+  const next = ids.slice();
+  [next[nextPairStart], next[waitingPairStart]] = [next[waitingPairStart]!, next[nextPairStart]!];
+  [next[nextPairStart + 1], next[waitingPairStart + 1]] = [
+    next[waitingPairStart + 1]!,
+    next[nextPairStart + 1]!,
+  ];
+  return next;
+}
+
 function getPlayerLastMatch(matches: AnalysisMatch[], playerId: string): AnalysisMatch | null {
   for (const match of matches) {
     if ([...match.teamAIds, ...match.teamBIds].includes(playerId)) {

@@ -71,6 +71,7 @@ import {
   clusterQueuedLockInPairs,
   hasLockInPair,
   lockInGroupIdByPlayerIdFromGroups,
+  canSwapNextCourtWaiting,
   playerIdsIncludeLockInPair,
 } from "@/lib/lock-in-groups-shared";
 import { useAccountQuickGameCheckpoint } from "@/hooks/use-account-quick-game-checkpoint";
@@ -121,7 +122,7 @@ import type { MatchHistoryView } from "@/components/game/match-history-list";
 import { formatOpenPlayDate, formatOpenPlayScheduleLabel, formatVenueShareLabel } from "@/lib/open-play-time-range";
 import { FillCourtFlow, type FillCourtFlowHandle } from "@/components/game/fill-court-flow";
 import {
-  buildQueueNextCourtWaitingSwapOrder,
+  buildQueuePairSwapOrder,
   buildQueueOrderAfterNextCourtReplace,
   buildQueueOrderWithNextCourtFoursome,
   isDoublesMatchupAnalysisMatchingType,
@@ -276,6 +277,9 @@ const MatchHistoryList = dynamic(() =>
 const NextCourtMatchAnalysis = dynamic(() =>
   import("@/components/game/next-court-match-analysis").then((mod) => mod.NextCourtMatchAnalysis),
 );
+import type { PairSwapSelection } from "@/components/game/swap-in-pairs-dialog";
+import { DEFAULT_SHUTTLECOCK, type ShuttlecockCondition } from "@/lib/sports";
+
 const ReplacePlayerDialog = dynamic(() =>
   import("@/components/game/replace-player-dialog").then((mod) => mod.ReplacePlayerDialog),
 );
@@ -619,6 +623,8 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
   const [endTargetCourt, setEndTargetCourt] = useState<number | null>(null);
   const [pendingWinner, setPendingWinner] = useState<"A" | "B" | null>(null);
   const [endGameRematch, setEndGameRematch] = useState(false);
+  // Remembered between games so a session using old shuttlecocks only picks it once.
+  const [shuttlecock, setShuttlecock] = useState<ShuttlecockCondition>(DEFAULT_SHUTTLECOCK);
   const [teamAScore, setTeamAScore] = useState("");
   const [teamBScore, setTeamBScore] = useState("");
   const [showWaitingList, setShowWaitingList] = useState(true);
@@ -1258,6 +1264,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       teamAScore: number;
       teamBScore: number;
       rematch: boolean;
+      shuttlecock?: ShuttlecockCondition;
     }) => {
       if (endTargetCourt == null || endMutation.isPending) return;
       endMutation.mutate({
@@ -1598,6 +1605,64 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         writeOperatorGamePayload(queryClient, gameId, context.previous);
       }
       toastOperationError(error, "Failed to cancel rematch.");
+    },
+  });
+
+  const cancelGameMutation = useMutation({
+    mutationFn: async (courtNumber: number) => {
+      if (isQuickGameSession) {
+        return { message: "Game cancelled — players moved to the end of the queue." };
+      }
+
+      await waitForCourtClearIfNeeded(courtClearWaitersRef, courtNumber);
+      await waitForPendingCourtFillIfNeeded(pendingFillCourtNumbersRef, courtNumber);
+
+      beginCourtClearWait(courtClearWaitersRef, courtNumber);
+      try {
+        const response = await fetch(`/api/games/${gameId}/cancel-game`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ courtNumber }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        return data as { message: string };
+      } finally {
+        endCourtClearWait(courtClearWaitersRef, courtNumber);
+      }
+    },
+    onMutate: async (courtNumber) => {
+      beginOperatorQueueMutation(queryClient, gameId, queueMutationLockRef);
+      const previous = readOperatorGamePayload(queryClient, gameId);
+      if (previous) {
+        const optimistic = applyCancelRematchOptimistic(previous, courtNumber, {
+          anyGame: true,
+        });
+        if (optimistic) {
+          writeOperatorGamePayload(queryClient, gameId, optimistic);
+        }
+      }
+      setRematchCourtNumbers((prev) => {
+        const next = new Set(prev);
+        next.delete(courtNumber);
+        return next;
+      });
+      closeEndDialog();
+      return { previous };
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+    },
+    onSettled: () => {
+      void endOperatorQueueMutation(queryClient, gameId, queueMutationLockRef, {
+        skipRefetch: isQuickGameSession,
+      });
+    },
+    onError: (error, _courtNumber, context) => {
+      if (context?.previous && queueMutationLockRef.current <= 1) {
+        writeOperatorGamePayload(queryClient, gameId, context.previous);
+      }
+      toastOperationError(error, "Failed to cancel game.");
     },
   });
 
@@ -2231,10 +2296,14 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
     [lockNextCourtFoursome, queueWithStats, reorderQueueMutation],
   );
 
-  const handleFillCourtQueueSwap = useCallback(async () => {
-    const order = buildQueueNextCourtWaitingSwapOrder(matchupAnalysisQueue);
+  const handleFillCourtQueueSwap = useCallback(async (selection: PairSwapSelection) => {
+    const order = buildQueuePairSwapOrder(
+      matchupAnalysisQueue,
+      selection.nextPairStart,
+      selection.waitingPairStart,
+    );
     if (!order) {
-      toast.error("Need at least six players in the queue to swap.");
+      toast.error("That pair swap isn't available.");
       return;
     }
     const nextFour = order
@@ -2245,7 +2314,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
       lockNextCourtFoursome(nextFour);
     }
     await reorderQueueMutation.mutateAsync(order);
-    toast.success("Swapped in the next two players from the waiting line.");
+    toast.success("Swapped in the selected pair from the waiting line.");
   }, [lockNextCourtFoursome, matchupAnalysisQueue, reorderQueueMutation]);
 
   const sessionPlayerLookup = useMemo(
@@ -2852,7 +2921,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
         canReplace={
           !hideControls &&
           isNextUp &&
-          !nextCourtHasLockInPair &&
+          !entry.lockInGroupId &&
           waitingLineEntries.some((waitingEntry) => !waitingEntry.lockInGroupId)
         }
         onReplace={
@@ -3200,7 +3269,7 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
                       }
                       shufflePending={shuffleNextMutation.isPending}
                       onSwapWaiting={
-                        canReorderQueue && !nextCourtHasLockInPair
+                        canReorderQueue && canSwapNextCourtWaiting(matchupAnalysisQueue)
                           ? handleFillCourtQueueSwap
                           : undefined
                       }
@@ -4210,6 +4279,9 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           endCourt={endCourt}
           playerLookup={sessionPlayerLookup}
           gameMode={game.gameMode ?? "doubles"}
+          sport={game.sport}
+          shuttlecock={shuttlecock}
+          onShuttlecockChange={setShuttlecock}
           pendingWinner={pendingWinner}
           onPendingWinnerChange={setPendingWinner}
           endGameRematch={endGameRematch}
@@ -4220,6 +4292,21 @@ export function GameDashboard({ mode = "operator", quickGameSurface }: GameDashb
           onTeamBScoreChange={setTeamBScore}
           endGameScoreError={endGameScoreError}
           onClose={closeEndDialog}
+          onCancelGame={async () => {
+            if (endTargetCourt == null || cancelGameMutation.isPending) return;
+            const courtNumber = endTargetCourt;
+            const result = await Swal.fire({
+              ...alertBaseOptions,
+              title: `Cancel game on Court ${courtNumber}?`,
+              text: "No result will be recorded. All players on this court go to the end of the queue.",
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonText: "Yes, cancel game",
+              cancelButtonText: "Keep playing",
+            });
+            if (result.isConfirmed) cancelGameMutation.mutate(courtNumber);
+          }}
+          cancelGamePending={cancelGameMutation.isPending}
           onSubmit={handleSubmitEndGame}
         />
       ) : null}

@@ -9467,13 +9467,15 @@
   }
 
   .game-list-actions-menu__content {
-    @apply gap-2 p-2.5;
+    @apply gap-1.5 p-3;
   }
 
   .game-list-actions-menu__item {
-    @apply my-0.5 rounded-lg transition-[background-color,box-shadow,transform] duration-150 ease-out;
+    @apply my-0.5 min-h-12 gap-3 rounded-lg px-4 py-3 text-base transition-[background-color,box-shadow,transform] duration-150 ease-out;
   }
-
+  .game-list-actions-menu__item svg {
+    @apply size-5;
+  }
   .game-list-actions-menu__item:hover:not([data-disabled]) {
     @apply bg-accent shadow-sm;
   }

@@ -16,13 +16,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MatchHistoryView } from "@/components/game/match-history-list";
 import type { QueueEntryView } from "@/components/game/queue-entry-row";
 import { NextCourtMatchupHelpDialog } from "@/components/game/next-court-matchup-help-dialog";
+import { SwapInPairsDialog, type PairSwapSelection } from "@/components/game/swap-in-pairs-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   canSwapWaitingLinePlayers,
   computeNextCourtMatchSuggestions,
@@ -46,7 +41,7 @@ type NextCourtMatchAnalysisProps = {
   matchesLoading?: boolean;
   onShuffle?: () => void;
   shufflePending?: boolean;
-  onSwapWaiting?: () => void;
+  onSwapWaiting?: (selection: PairSwapSelection) => void | Promise<void>;
   swapWaitingPending?: boolean;
   onAcceptLineup?: () => void;
   maxVisible?: number;
@@ -94,6 +89,7 @@ export function NextCourtMatchAnalysis({
   className,
 }: NextCourtMatchAnalysisProps) {
   const [helpOpen, setHelpOpen] = useState(false);
+  const [swapDialogOpen, setSwapDialogOpen] = useState(false);
   const [dismissedFoursomeKey, setDismissedFoursomeKey] = useState<string | null>(null);
   const [shuffleExhaustedKey, setShuffleExhaustedKey] = useState<string | null>(null);
   const [balancedCollapsed, setBalancedCollapsed] = useState(false);
@@ -149,18 +145,12 @@ export function NextCourtMatchAnalysis({
           canSwapWaiting: waitingLineSwapAvailable,
         })
       : null;
-  const showSwap =
-    Boolean(onSwapWaiting) &&
-    (queueSwapSuggestion != null ||
-      (waitingLineSwapAvailable &&
-        (Boolean(leastBalanceNote) || (shuffleOptionalOnly && suggestions.some((item) => item.suggestsShuffle)))));
   const showShuffle =
     Boolean(onShuffle) &&
     suggestions.some((item) => item.suggestsShuffle) &&
     suggestions.every((item) => item.tone !== "balanced") &&
     (!shuffleExhausted || shuffleOptionalOnly);
   const showFooter = !warningsDismissed && hasActionableWarnings;
-  const showBothActions = showShuffle && showSwap;
   const showQueueSwapAfterShuffle = shuffleExhausted && queueSwapSuggestion != null;
 
   const handleShuffleClick = async () => {
@@ -226,6 +216,23 @@ export function NextCourtMatchAnalysis({
         ) : null}
       </div>
       <div className="next-court-analysis__header-actions">
+        {onSwapWaiting ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="next-court-analysis__swap-btn h-7 shrink-0 gap-1.5 px-2 text-xs"
+            onClick={() => setSwapDialogOpen(true)}
+            disabled={swapWaitingPending}
+          >
+            {swapWaitingPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <ArrowDownUp className="h-3.5 w-3.5" aria-hidden />
+            )}
+            Swap in
+          </Button>
+        ) : null}
         {helpButton}
         {collapseToggle}
       </div>
@@ -318,17 +325,13 @@ export function NextCourtMatchAnalysis({
           {showFooter ? (
             <div className="next-court-analysis__footer">
               <p className="next-court-analysis__footer-hint">
-                {showBothActions
-                  ? "Shuffle partners, swap in waiting players (5th and 6th), or accept to keep this lineup."
-                  : showSwap
-                    ? "Swap in waiting players, or accept to keep this lineup."
-                    : shuffleExhausted
-                      ? shuffleOptionalOnly
-                        ? "Shuffle is optional, or accept to keep this lineup."
-                        : "Accept to proceed with this lineup."
-                      : shuffleOptionalOnly
-                        ? "Shuffle is optional, or accept to keep this lineup."
-                        : "Shuffle finds the best balance once, or accept to keep this lineup."}
+                {shuffleExhausted
+                  ? shuffleOptionalOnly
+                    ? "Shuffle is optional, or accept to keep this lineup."
+                    : "Accept to proceed with this lineup."
+                  : shuffleOptionalOnly
+                    ? "Shuffle is optional, or accept to keep this lineup."
+                    : "Shuffle finds the best balance once, or accept to keep this lineup."}
               </p>
               <div className="next-court-analysis__actions">
                 <Button
@@ -344,63 +347,7 @@ export function NextCourtMatchAnalysis({
                   <Check className="h-3.5 w-3.5" aria-hidden />
                   Accept
                 </Button>
-                {showBothActions ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="next-court-analysis__adjust-btn h-8 shrink-0 gap-1.5 px-2.5 text-xs"
-                          disabled={shufflePending || swapWaitingPending}
-                        />
-                      }
-                    >
-                      {shufflePending || swapWaitingPending ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                      ) : (
-                        <Shuffle className="h-3.5 w-3.5" aria-hidden />
-                      )}
-                      Adjust
-                      <ChevronDown className="h-3.5 w-3.5 opacity-70" aria-hidden />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[11rem]">
-                      <DropdownMenuItem
-                        className="gap-2 text-xs"
-                        disabled={shufflePending}
-                        onClick={() => void handleShuffleClick()}
-                      >
-                        <Shuffle className="h-3.5 w-3.5" aria-hidden />
-                        Shuffle partners
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="gap-2 text-xs"
-                        disabled={swapWaitingPending}
-                        onClick={() => void onSwapWaiting?.()}
-                      >
-                        <ArrowDownUp className="h-3.5 w-3.5" aria-hidden />
-                        Swap in (5th & 6th)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : showSwap ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="next-court-analysis__swap-btn h-8 shrink-0 gap-1.5 px-2.5 text-xs"
-                    onClick={onSwapWaiting}
-                    disabled={swapWaitingPending}
-                  >
-                    {swapWaitingPending ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-                    ) : (
-                      <ArrowDownUp className="h-3.5 w-3.5" aria-hidden />
-                    )}
-                    Swap in
-                  </Button>
-                ) : showShuffle ? (
+                {showShuffle ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -423,6 +370,18 @@ export function NextCourtMatchAnalysis({
         </>
       ) : null}
       <NextCourtMatchupHelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+      {onSwapWaiting ? (
+        <SwapInPairsDialog
+          open={swapDialogOpen}
+          onOpenChange={setSwapDialogOpen}
+          queue={queue}
+          pending={swapWaitingPending}
+          onConfirm={async (selection) => {
+            await onSwapWaiting(selection);
+            setSwapDialogOpen(false);
+          }}
+        />
+      ) : null}
     </section>
   );
 }

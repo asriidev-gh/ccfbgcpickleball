@@ -11,6 +11,7 @@ import {
   Clock,
   Download,
   FlaskConical,
+  Flag,
   Gauge,
   LayoutGrid,
   Loader2,
@@ -430,6 +431,7 @@ function GameListActionsMenu({
   const [qrOpen, setQrOpen] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [endingOpenPlay, setEndingOpenPlay] = useState(false);
   const [registerUrl, setRegisterUrl] = useState<string | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [isSpectatorQr, setIsSpectatorQr] = useState(false);
@@ -475,6 +477,35 @@ function GameListActionsMenu({
       toast.error(error instanceof Error ? error.message : "Failed to load registration QR.");
     } finally {
       setQrLoading(false);
+    }
+  };
+
+  // Browser-only quick games end from inside their own dashboard.
+  const canEndOpenPlay = !isEnded && !game.isLocalGame;
+
+  const handleEndOpenPlay = async () => {
+    const result = await Swal.fire({
+      ...deleteAlertOptions,
+      title: "End Open Play?",
+      text: "This will mark this game as ended.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, end it",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+
+    setEndingOpenPlay(true);
+    try {
+      const response = await fetch(`/api/games/${game.gameId}/end-open-play`, { method: "POST" });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) throw new Error(payload?.message ?? "Failed to end open play.");
+      toast.success("Open play ended.");
+      await queryClient.invalidateQueries({ queryKey: ["games"] });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to end open play.");
+    } finally {
+      setEndingOpenPlay(false);
     }
   };
 
@@ -526,7 +557,7 @@ function GameListActionsMenu({
           />
           <DropdownMenuContent
             align="center"
-            className="game-list-actions-menu__content w-(--anchor-width) min-w-[12rem] sm:min-w-56"
+            className="game-list-actions-menu__content w-(--anchor-width) min-w-[14rem] sm:min-w-64"
           >
             <DropdownMenuItem
               className="game-list-actions-menu__item"
@@ -605,6 +636,21 @@ function GameListActionsMenu({
               <DropdownMenuItem className="game-list-actions-menu__item" onClick={() => onEdit(game)}>
                 <Pencil aria-hidden />
                 Edit open session
+              </DropdownMenuItem>
+            ) : null}
+            {canEndOpenPlay ? (
+              <DropdownMenuItem
+                className="game-list-actions-menu__item"
+                variant="destructive"
+                disabled={endingOpenPlay}
+                onClick={() => void handleEndOpenPlay()}
+              >
+                {endingOpenPlay ? (
+                  <Loader2 className="animate-spin" aria-hidden />
+                ) : (
+                  <Flag aria-hidden />
+                )}
+                End open play
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem

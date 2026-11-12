@@ -1,5 +1,6 @@
 "use client";
 
+import type { PairSwapSelection } from "@/components/game/swap-in-pairs-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Play, Users, Volume2, VolumeX, Zap } from "lucide-react";
@@ -74,7 +75,7 @@ type SpectatorNextOnQueueButtonProps = {
   matches?: MatchHistoryView[];
   onShuffleNext?: () => void | Promise<void>;
   shuffleNextPending?: boolean;
-  onSwapWaiting?: () => void | Promise<void>;
+  onSwapWaiting?: (selection: PairSwapSelection) => void | Promise<void>;
   swapWaitingPending?: boolean;
 };
 

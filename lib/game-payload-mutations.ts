@@ -49,6 +49,7 @@ export type EndGameMutationInput = {
   teamAScore: number;
   teamBScore: number;
   rematch: boolean;
+  shuttlecock?: "new" | "old";
 };
 
 export type ReplaceQueueMutationInput = {
@@ -458,6 +459,7 @@ export function applyEndGameWithHistoryOptimistic(
     startedAt: startedAt.toISOString(),
     endedAt: endedAt.toISOString(),
     durationSeconds,
+    shuttlecock: input.shuttlecock ?? null,
   };
 
   let leaderboard = base.leaderboard ?? [];
@@ -789,16 +791,20 @@ export function applyCancelCourtAssignmentOptimistic(
 export function applyCancelRematchOptimistic(
   payload: GamePayload,
   courtNumber: number,
+  options: { anyGame?: boolean } = {},
 ): GamePayload | null {
   const court = payload.courts.find(
-    (item) => item.courtNumber === courtNumber && item.status === "active" && item.isRematch,
+    (item) =>
+      item.courtNumber === courtNumber &&
+      item.status === "active" &&
+      (options.anyGame || item.isRematch),
   );
   if (!court) return null;
 
   const teamA = court.teamA?.playerIds ?? [];
   const teamB = court.teamB?.playerIds ?? [];
   const courtPlayers = [teamA[0], teamA[1], teamB[0], teamB[1]].filter(Boolean);
-  if (courtPlayers.length < 4) return null;
+  if (courtPlayers.length < (options.anyGame ? 1 : 4)) return null;
 
   const baseMs =
     payload.queue.length > 0

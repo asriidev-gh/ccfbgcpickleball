@@ -649,6 +649,7 @@ export const endGameSchema = z
     teamAScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE),
     teamBScore: z.coerce.number().int().min(0).max(MAX_MATCH_SCORE),
     rematch: z.boolean().optional().default(false),
+    shuttlecock: z.enum(["new", "old"]).optional(),
   })
   .superRefine((data, ctx) => {
     if (loserScoreExceedsWinner(data.winnerTeam, data.teamAScore, data.teamBScore)) {

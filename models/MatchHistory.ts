@@ -12,6 +12,8 @@ const matchHistorySchema = new Schema(
     teamBScore: { type: Number, default: null },
     startedAt: { type: Date, default: null },
     durationSeconds: { type: Number, default: 0 },
+    /** Badminton only: which shuttlecock the game was played with. */
+    shuttlecock: { type: String, enum: ["new", "old"], default: null },
     endedAt: { type: Date, default: () => new Date() },
   },
   { timestamps: true }

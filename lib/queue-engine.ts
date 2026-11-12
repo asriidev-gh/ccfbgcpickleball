@@ -726,27 +726,40 @@ export async function cancelCourtAssignment(input: { gameId: string; courtNumber
 
 /** End a rematch early — return the four players to the queue (no history or stats changes). */
 export async function cancelRematch(input: { gameId: string; courtNumber: number }) {
+  return returnCourtToQueueEnd(input, { rematchOnly: true });
+}
+
+/** Cancel the game on a court — no result recorded; the players go to the end of the queue. */
+export async function cancelGame(input: { gameId: string; courtNumber: number }) {
+  return returnCourtToQueueEnd(input, { rematchOnly: false });
+}
+
+async function returnCourtToQueueEnd(
+  input: { gameId: string; courtNumber: number },
+  options: { rematchOnly: boolean },
+) {
   const court = await Court.findOne({
     gameId: input.gameId,
     courtNumber: input.courtNumber,
     status: "active",
   });
   if (!court) throw new Error("Active court not found.");
-  if (!court.isRematch) {
-    throw new Error("This court is not in a rematch.");
-  }
 
-  if (!court.startedAt) {
-    throw new Error("Court start time is missing.");
-  }
-
-  const elapsedMs = getCourtEffectiveElapsedMs(toCourtTimerClock(court));
-  if (elapsedMs > COURT_CANCEL_GRACE_MS) {
-    throw new Error("The cancel window has expired. Players are already in play.");
+  if (options.rematchOnly) {
+    if (!court.isRematch) {
+      throw new Error("This court is not in a rematch.");
+    }
+    if (!court.startedAt) {
+      throw new Error("Court start time is missing.");
+    }
+    const elapsedMs = getCourtEffectiveElapsedMs(toCourtTimerClock(court));
+    if (elapsedMs > COURT_CANCEL_GRACE_MS) {
+      throw new Error("The cancel window has expired. Players are already in play.");
+    }
   }
 
   const courtQueueEntryIds = [...court.teamA.queueEntryIds, ...court.teamB.queueEntryIds];
-  if (courtQueueEntryIds.length !== 4) {
+  if (courtQueueEntryIds.length === 0 || (options.rematchOnly && courtQueueEntryIds.length !== 4)) {
     throw new Error("Court does not have a full assignment to cancel.");
   }
 
@@ -755,7 +768,7 @@ export async function cancelRematch(input: { gameId: string; courtNumber: number
     gameId: input.gameId,
     status: "on_court",
   });
-  if (courtEntries.length !== 4) {
+  if (courtEntries.length !== courtQueueEntryIds.length) {
     throw new Error("One or more court players are no longer on court.");
   }
 
@@ -976,6 +989,7 @@ export async function endGameAndRequeue(
     teamAScore: number;
     teamBScore: number;
     rematch?: boolean;
+    shuttlecock?: "new" | "old";
   },
   options?: {
     /** Called after the court is free so fill can start before win rates finish. */
@@ -1042,6 +1056,7 @@ export async function endGameAndRequeue(
       startedAt,
       endedAt,
       durationSeconds,
+      shuttlecock: input.shuttlecock ?? null,
     }),
   ]);
 

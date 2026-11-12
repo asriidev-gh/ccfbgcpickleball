@@ -57,6 +57,7 @@ export type MatchHistoryView = {
   teamBScore?: number | null;
   startedAt?: string | null;
   durationSeconds: number;
+  shuttlecock?: "new" | "old" | null;
   endedAt: string;
 };
 
@@ -446,6 +447,11 @@ export function MatchHistoryList({
               <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-sm font-semibold">
                 <MapPin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                 Court {match.courtNumber}
+                {match.shuttlecock ? (
+                  <span className="rounded bg-background px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                    {match.shuttlecock === "old" ? "Old shuttle" : "New shuttle"}
+                  </span>
+                ) : null}
               </span>
               <p
                 className="caption inline-flex max-w-full items-center justify-end gap-x-1.5 overflow-x-auto whitespace-nowrap text-right"
