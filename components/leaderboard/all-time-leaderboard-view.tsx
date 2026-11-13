@@ -277,13 +277,28 @@ function StandingsList({ data }: { data: AllTimeLeaderboardPayload }) {
     }
 
     // MVP / Undefeated boards: only players with at least one, most first. Equal counts share
-    // a rank; wins break nothing here, so ties stay ties.
+    // a rank only if wins, win rate and games played also match; otherwise those break the tie.
     const countOf = (row: AllTimeLeaderboardRow) =>
       view === "mvp" ? row.mvpSessions : row.undefeatedSessions;
-    const winners = field.filter((row) => countOf(row) > 0).sort((a, b) => countOf(b) - countOf(a));
+    const winners = field
+      .filter((row) => countOf(row) > 0)
+      .sort(
+        (a, b) =>
+          countOf(b) - countOf(a) ||
+          b.wins - a.wins ||
+          b.winRate - a.winRate ||
+          b.gamesPlayed - a.gamesPlayed,
+      );
     let rank = 0;
     return winners.map((row, index) => {
-      if (index === 0 || countOf(row) !== countOf(winners[index - 1])) rank = index + 1;
+      const prev = winners[index - 1];
+      const tied =
+        prev &&
+        countOf(prev) === countOf(row) &&
+        prev.wins === row.wins &&
+        prev.winRate === row.winRate &&
+        prev.gamesPlayed === row.gamesPlayed;
+      if (!tied) rank = index + 1;
       return { row, rank };
     });
   }, [rows, gender, level, view]);
