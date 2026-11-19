@@ -1,3 +1,4 @@
+import { loadNewBallCounts, withNewBallCounts } from "@/lib/new-ball-counts";
 import { loadGameLeaderboardRecap } from "@/lib/game-leaderboard-recap";
 import { getGameBirthdaysThisMonth } from "@/lib/game-birthdays-this-month";
 import { resolveClubBranding } from "@/lib/club-branding";
@@ -115,13 +116,21 @@ export async function loadSpectateLive(gameId: string): Promise<SpectateLivePayl
     : null;
   const cachedBirthdayCount = getCachedBirthdayThisMonthCount(gameId);
 
-  const [owner, queueState, leaderboardRows, firstTimerIdentityKeys, birthdaysThisMonth] =
+  const [
+    owner,
+    queueState,
+    leaderboardRowsRaw,
+    newBallCounts,
+    firstTimerIdentityKeys,
+    birthdaysThisMonth,
+  ] =
     await Promise.all([
       ownerId
         ? User.findById(ownerId).select("name clubName clubLogoUrl clubTagline").lean()
         : Promise.resolve(null),
       loadQueueCourtsAndCheckedOut(gameId),
       LeaderboardStats.find({ gameId }).select("playerId gamesPlayed wins losses").lean(),
+      loadNewBallCounts(gameId),
       cachedFirstTimerKeys != null
         ? Promise.resolve(cachedFirstTimerKeys)
         : ownerId
@@ -138,6 +147,7 @@ export async function loadSpectateLive(gameId: string): Promise<SpectateLivePayl
           }),
     ]);
   const { queue, checkedOut, courts } = queueState;
+  const leaderboardRows = withNewBallCounts(leaderboardRowsRaw, newBallCounts);
 
   return {
     game: game.toObject() as SpectateLivePayload["game"],
@@ -187,13 +197,15 @@ export async function loadSpectateDetails(gameId: string): Promise<SpectateDetai
   const game = await PickleGame.findOne({ gameId }).select("status");
   if (!game) return null;
 
-  const [leaderboard, matches, recap] = await Promise.all([
+  const [leaderboardRaw, matches, recap, newBallCounts] = await Promise.all([
     LeaderboardStats.find({ gameId }).select("playerId gamesPlayed wins losses").populate("playerId"),
     MatchHistory.find({ gameId })
       .sort({ endedAt: -1 })
       .populate(["teamAPlayerIds", "teamBPlayerIds"]),
     game.status === "ended" ? loadGameLeaderboardRecap(gameId) : Promise.resolve(null),
+    loadNewBallCounts(gameId),
   ]);
+  const leaderboard = withNewBallCounts(leaderboardRaw, newBallCounts);
 
   return {
     leaderboard: leaderboard as unknown as SpectateDetailsPayload["leaderboard"],

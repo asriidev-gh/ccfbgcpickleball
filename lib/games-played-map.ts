@@ -2,6 +2,8 @@ export type PlayerSessionStats = {
   gamesPlayed: number;
   wins: number;
   losses: number;
+  /** Badminton: games this session played with a new shuttlecock. */
+  newBalls?: number;
 };
 
 export type LeaderboardGamesPlayedRow = {
@@ -9,6 +11,7 @@ export type LeaderboardGamesPlayedRow = {
   gamesPlayed?: number;
   wins?: number;
   losses?: number;
+  newBalls?: number;
 };
 
 function resolvePlayerId(
@@ -32,6 +35,7 @@ export function buildPlayerSessionStatsMap(
       gamesPlayed: row.gamesPlayed ?? 0,
       wins: row.wins ?? 0,
       losses: row.losses ?? 0,
+      newBalls: row.newBalls ?? 0,
     });
   }
   return map;
@@ -46,10 +50,16 @@ export function getPlayerSessionStats(
   return map.get(id) ?? { gamesPlayed: 0, wins: 0, losses: 0 };
 }
 
-/** e.g. "(W1/L0)" */
+/** e.g. "2 new ball" — empty when no new shuttlecock was used. */
+export function formatNewBallLabel(newBalls: number | undefined) {
+  return newBalls && newBalls > 0 ? `${newBalls} new ball` : "";
+}
+
+/** e.g. "(W1/L0)" or "(W1/L0 · 2 new ball)" */
 export function formatSessionRecordLabel(stats: PlayerSessionStats) {
   const { wins, losses } = stats;
-  return `(W${wins}/L${losses})`;
+  const balls = formatNewBallLabel(stats.newBalls);
+  return `(W${wins}/L${losses}${balls ? ` · ${balls}` : ""})`;
 }
 
 /** No games played this session yet (unranked). */
@@ -83,7 +93,8 @@ export function formatSessionRecordWithRankLabel(
   if (!canShowSessionRank(stats) || rank == null) return formatSessionRecordLabel(stats);
 
   const { wins, losses } = stats;
-  return `(W${wins}/L${losses}/R${rank})`;
+  const balls = formatNewBallLabel(stats.newBalls);
+  return `(W${wins}/L${losses}/R${rank}${balls ? ` · ${balls}` : ""})`;
 }
 
 function leaderboardWinRate(stats: Pick<PlayerSessionStats, "wins" | "losses" | "gamesPlayed">) {

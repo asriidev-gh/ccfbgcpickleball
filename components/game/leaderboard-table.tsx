@@ -23,6 +23,8 @@ export function LeaderboardTable({
   endorsementCounts?: Record<string, number>;
   onEndorsementClick?: (row: LeaderboardRow) => void;
 }) {
+  const showNewBalls = rows.some((row) => (row.newBalls ?? 0) > 0);
+
   return (
     <div className="leaderboard-table leaderboard-table-wrap overflow-x-auto rounded-lg border border-border">
       <Table>
@@ -35,6 +37,7 @@ export function LeaderboardTable({
             <TableHead className="text-right">Games</TableHead>
             <TableHead className="text-right">Win %</TableHead>
             <TableHead className="text-right">Streak</TableHead>
+            {showNewBalls ? <TableHead className="text-right">New ball</TableHead> : null}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -82,6 +85,9 @@ export function LeaderboardTable({
                 <TableCell className="text-right tabular-nums">{row.gamesPlayed}</TableCell>
                 <TableCell className="text-right tabular-nums">{row.winRate}%</TableCell>
                 <TableCell className="text-right tabular-nums">{row.currentStreak}</TableCell>
+                {showNewBalls ? (
+                  <TableCell className="text-right tabular-nums">{row.newBalls ?? 0}</TableCell>
+                ) : null}
               </TableRow>
             );
           })}

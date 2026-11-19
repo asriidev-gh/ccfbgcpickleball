@@ -1,6 +1,7 @@
 import { ensureGameRegistrationQr } from "@/lib/game-qr";
 import { resolveClubBranding } from "@/lib/club-branding";
 import { getGameBirthdaysThisMonth } from "@/lib/game-birthdays-this-month";
+import { loadNewBallCounts, withNewBallCounts } from "@/lib/new-ball-counts";
 import { loadGameLeaderboardRecap } from "@/lib/game-leaderboard-recap";
 import { loadQueueCourtsAndCheckedOut } from "@/lib/load-spectate-game";
 import {
@@ -58,10 +59,17 @@ export async function loadOperatorQueueState(
   const cachedFirstTimerKeys = getCachedFirstTimerIdentityKeys(firstTimerKey);
   const cachedBirthdayCount = getCachedBirthdayThisMonthCount(gameId);
 
-  const [{ queue, checkedOut, courts }, leaderboardRows, firstTimerIdentityKeys, birthdaysThisMonth] =
+  const [
+    { queue, checkedOut, courts },
+    leaderboardRowsRaw,
+    newBallCounts,
+    firstTimerIdentityKeys,
+    birthdaysThisMonth,
+  ] =
     await Promise.all([
       loadQueueCourtsAndCheckedOut(gameId),
       LeaderboardStats.find({ gameId }).select("playerId gamesPlayed wins losses").lean(),
+      loadNewBallCounts(gameId),
       cachedFirstTimerKeys != null
         ? Promise.resolve(cachedFirstTimerKeys)
         : loadFirstTimerIdentityKeysForGame(ownerId, gameId).then((keys) => {
@@ -75,6 +83,8 @@ export async function loadOperatorQueueState(
             return result;
           }),
     ]);
+
+  const leaderboardRows = withNewBallCounts(leaderboardRowsRaw, newBallCounts);
 
   return {
     status: game.status as OperatorQueuePayload["status"],
@@ -118,14 +128,16 @@ export async function loadOperatorDetails(
   const game = await PickleGame.findOne({ gameId, ownerId });
   if (!game) return null;
 
-  const [leaderboard, matches, recap, qr] = await Promise.all([
+  const [leaderboardRaw, matches, recap, qr, newBallCounts] = await Promise.all([
     LeaderboardStats.find({ gameId }).sort({ wins: -1 }).populate("playerId"),
     MatchHistory.find({ gameId })
       .sort({ endedAt: -1 })
       .populate(["teamAPlayerIds", "teamBPlayerIds"]),
     game.status === "ended" ? loadGameLeaderboardRecap(gameId) : Promise.resolve(null),
     ensureGameRegistrationQr(game),
+    loadNewBallCounts(gameId),
   ]);
+  const leaderboard = withNewBallCounts(leaderboardRaw, newBallCounts);
 
   return {
     leaderboard: leaderboard as unknown as OperatorDetailsPayload["leaderboard"],

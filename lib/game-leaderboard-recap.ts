@@ -20,6 +20,8 @@ export type GameLeaderboardRecapRow = {
   gamesPlayed: number;
   winRate: number;
   currentStreak: number;
+  /** Badminton: games played with a new shuttlecock. */
+  newBalls?: number;
   isFirstTimer: boolean;
 };
 
@@ -63,6 +65,19 @@ export async function loadGameLeaderboardRecap(gameId: string): Promise<{
     Boolean(item.playerId),
   );
 
+  const newBallCounts = new Map<string, number>();
+  for (const match of matches as unknown as Array<{
+    shuttlecock?: string | null;
+    teamAPlayerIds: Array<{ _id?: { toString(): string } } | null>;
+    teamBPlayerIds: Array<{ _id?: { toString(): string } } | null>;
+  }>) {
+    if (match.shuttlecock !== "new") continue;
+    for (const player of [...match.teamAPlayerIds, ...match.teamBPlayerIds]) {
+      const id = player?._id?.toString();
+      if (id) newBallCounts.set(id, (newBallCounts.get(id) ?? 0) + 1);
+    }
+  }
+
   const rows: GameLeaderboardRecapRow[] = safeStats.map((item) => {
     const player = item.playerId!;
     const identityKey = getPlayerIdentityKey({
@@ -85,6 +100,7 @@ export async function loadGameLeaderboardRecap(gameId: string): Promise<{
       gamesPlayed: item.gamesPlayed,
       winRate: item.winRate,
       currentStreak: item.currentStreak,
+      newBalls: newBallCounts.get(String(player._id)) ?? 0,
       isFirstTimer: firstTimerIdentityKeys.has(identityKey),
     };
   });

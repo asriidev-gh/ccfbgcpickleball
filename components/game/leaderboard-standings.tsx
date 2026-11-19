@@ -18,6 +18,7 @@ export type LeaderboardRow = PlayerPhotoRef & {
   gamesPlayed: number;
   winRate: number;
   currentStreak: number;
+  newBalls?: number;
   isFirstTimer?: boolean;
 };
 

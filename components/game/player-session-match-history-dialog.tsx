@@ -41,10 +41,15 @@ export function PlayerSessionMatchHistoryDialog({
     () => filterMatchesForViewer(matches, [playerId]),
     [matches, playerId],
   );
+  const newBalls = useMemo(
+    () => playerMatches.filter((match) => match.shuttlecock === "new").length,
+    [playerMatches],
+  );
   const recordLabel = formatSessionRecordLabel({
     wins,
     losses,
     gamesPlayed: wins + losses,
+    newBalls,
   });
 
   return (

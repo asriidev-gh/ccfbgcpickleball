@@ -105,6 +105,13 @@ export function buildLocalLeaderboardRecap(payload: OperatorFullPayload): Leader
       gamesPlayed,
       winRate,
       currentStreak: computeCurrentStreak(playerId, matches),
+      newBalls: matches.filter(
+        (match) =>
+          match.shuttlecock === "new" &&
+          [...match.teamAPlayerIds, ...match.teamBPlayerIds].some(
+            (p) => resolvePlayerId(p) === playerId,
+          ),
+      ).length,
       isFirstTimer: false,
     });
   }

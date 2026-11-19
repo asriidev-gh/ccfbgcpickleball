@@ -156,6 +156,7 @@ function bumpLeaderboardRow(
   rows: LeaderboardGamesPlayedRow[],
   player: PlayerPhotoRef,
   won: boolean,
+  newBall = false,
 ): LeaderboardGamesPlayedRow[] {
   const playerId = resolvePlayerId(player);
   if (!playerId) return rows;
@@ -171,6 +172,7 @@ function bumpLeaderboardRow(
         wins,
         losses,
         gamesPlayed: wins + losses,
+        newBalls: (row.newBalls ?? 0) + (newBall ? 1 : 0),
       };
     });
   }
@@ -182,6 +184,7 @@ function bumpLeaderboardRow(
       wins: won ? 1 : 0,
       losses: won ? 0 : 1,
       gamesPlayed: 1,
+      newBalls: newBall ? 1 : 0,
     },
   ];
 }
@@ -464,10 +467,10 @@ export function applyEndGameWithHistoryOptimistic(
 
   let leaderboard = base.leaderboard ?? [];
   for (const player of teamA) {
-    leaderboard = bumpLeaderboardRow(leaderboard, player, input.winnerTeam === "A");
+    leaderboard = bumpLeaderboardRow(leaderboard, player, input.winnerTeam === "A", input.shuttlecock === "new");
   }
   for (const player of teamB) {
-    leaderboard = bumpLeaderboardRow(leaderboard, player, input.winnerTeam === "B");
+    leaderboard = bumpLeaderboardRow(leaderboard, player, input.winnerTeam === "B", input.shuttlecock === "new");
   }
 
   return {

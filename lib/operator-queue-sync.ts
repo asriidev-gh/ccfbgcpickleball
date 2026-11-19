@@ -42,7 +42,7 @@ function leaderboardFingerprint(row: LeaderboardGamesPlayedRow) {
     typeof row.playerId === "object" && row.playerId != null && "_id" in row.playerId
       ? String(row.playerId._id)
       : String(row.playerId ?? "");
-  return `${playerId}:${row.gamesPlayed}:${row.wins}:${row.losses}`;
+  return `${playerId}:${row.gamesPlayed}:${row.wins}:${row.losses}:${row.newBalls ?? 0}`;
 }
 
 export function operatorQueueSyncFingerprint(payload: OperatorQueuePayload) {

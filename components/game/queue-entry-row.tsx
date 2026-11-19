@@ -15,6 +15,7 @@ import { QueuePlayerActionsMenu } from "@/components/game/queue-player-actions-m
 import { UndefeatedBadge } from "@/components/game/undefeated-badge";
 import { Badge } from "@/components/ui/badge";
 import {
+  formatNewBallLabel,
   formatSessionRecordLabel,
   formatSessionRecordWithRankLabel,
   getPlayerLeaderboardRank,
@@ -60,13 +61,16 @@ function SessionRecordBadgeContent({
   losses,
   rank,
   showRank,
+  newBalls,
 }: {
   wins: number;
   losses: number;
   rank?: number | null;
   showRank?: boolean;
+  newBalls?: number;
 }) {
   const recordText = `W${wins}/L${losses}`;
+  const newBallText = formatNewBallLabel(newBalls);
   const showTopRank =
     showRank &&
     canShowSessionRank({ wins, losses }) &&
@@ -83,11 +87,31 @@ function SessionRecordBadgeContent({
         </span>
         <Trophy className="badge-session-record-medal" aria-hidden />
         <span>{rank}</span>
+        {newBallText ? (
+          <>
+            <span className="badge-session-record-sep" aria-hidden>
+              ·
+            </span>
+            <span>{newBallText}</span>
+          </>
+        ) : null}
       </>
     );
   }
 
-  return <span>{recordText}</span>;
+  return (
+    <>
+      <span>{recordText}</span>
+      {newBallText ? (
+        <>
+          <span className="badge-session-record-sep" aria-hidden>
+            ·
+          </span>
+          <span>{newBallText}</span>
+        </>
+      ) : null}
+    </>
+  );
 }
 
 function NextOnCourtSessionRecordBadge({
@@ -95,6 +119,7 @@ function NextOnCourtSessionRecordBadge({
   losses,
   rank,
   showRank = false,
+  newBalls,
   label,
   className,
 }: {
@@ -102,6 +127,7 @@ function NextOnCourtSessionRecordBadge({
   losses?: number;
   rank?: number | null;
   showRank?: boolean;
+  newBalls?: number;
   /** @deprecated Prefer wins/losses/rank for medal rendering. */
   label?: string;
   className?: string;
@@ -112,6 +138,7 @@ function NextOnCourtSessionRecordBadge({
       const winsValue = wins ?? 0;
       const lossesValue = losses ?? 0;
       const recordText = `W${winsValue}/L${lossesValue}`;
+      const newBallLabel = newBalls && newBalls > 0 ? `, ${newBalls} new ball` : "";
       if (
         showRank &&
         canShowSessionRank({ wins: winsValue, losses: lossesValue }) &&
@@ -119,9 +146,9 @@ function NextOnCourtSessionRecordBadge({
         rank >= 1 &&
         rank <= TOP_SESSION_RANK_TO_SHOW
       ) {
-        return `${recordText} - rank ${rank}`;
+        return `${recordText} - rank ${rank}${newBallLabel}`;
       }
-      return recordText;
+      return `${recordText}${newBallLabel}`;
     })();
 
   return (
@@ -137,6 +164,7 @@ function NextOnCourtSessionRecordBadge({
             losses={losses}
             rank={rank}
             showRank={showRank}
+            newBalls={newBalls}
           />
         </span>
       ) : (
@@ -180,6 +208,7 @@ function NextOnCourtStatTiles({
 function QueueEntrySessionStatsRow({
   wins,
   losses,
+  newBalls,
   rank,
   showRank = false,
   sessionRecordLabel,
@@ -189,6 +218,7 @@ function QueueEntrySessionStatsRow({
 }: {
   wins?: number;
   losses?: number;
+  newBalls?: number;
   rank?: number | null;
   showRank?: boolean;
   sessionRecordLabel: string;
@@ -202,6 +232,7 @@ function QueueEntrySessionStatsRow({
       <NextOnCourtSessionRecordBadge
         wins={wins}
         losses={losses}
+        newBalls={newBalls}
         rank={rank}
         showRank={showRank}
         label={sessionRecordLabel}
@@ -229,6 +260,7 @@ function QueueEntryStatusLine({
   lastMatchResult,
   wins,
   losses,
+  newBalls,
   rank,
   showRank = false,
   sessionRecordLabel,
@@ -238,6 +270,7 @@ function QueueEntryStatusLine({
   lastMatchResult: QueueEntryView["lastMatchResult"];
   wins: number;
   losses: number;
+  newBalls?: number;
   rank?: number | null;
   showRank?: boolean;
   sessionRecordLabel: string;
@@ -248,6 +281,7 @@ function QueueEntryStatusLine({
     <NextOnCourtSessionRecordBadge
       wins={wins}
       losses={losses}
+        newBalls={newBalls}
       rank={rank}
       showRank={showRank}
       label={sessionRecordLabel}
@@ -328,6 +362,7 @@ function SharedStatusBadge({
 function QueueSessionStatsBadges({
   wins,
   losses,
+  newBalls,
   rank,
   showLeaderboardRank = false,
   hideRecordOnLargeScreens = false,
@@ -336,6 +371,7 @@ function QueueSessionStatsBadges({
 }: {
   wins: number;
   losses: number;
+  newBalls?: number;
   rank?: number | null;
   showLeaderboardRank?: boolean;
   hideRecordOnLargeScreens?: boolean;
@@ -351,6 +387,7 @@ function QueueSessionStatsBadges({
       <NextOnCourtSessionRecordBadge
         wins={wins}
         losses={losses}
+        newBalls={newBalls}
         rank={rank}
         showRank={showLeaderboardRank}
         className={hideRecordOnLargeScreens ? "xl:hidden" : undefined}
@@ -661,6 +698,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <NextOnCourtSessionRecordBadge
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showRank={showLeaderboardRank}
                   label={sessionRecordLabel}
@@ -679,6 +717,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <NextOnCourtSessionRecordBadge
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showRank={showLeaderboardRank}
                   label={sessionRecordLabel}
@@ -767,6 +806,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <NextOnCourtStatTiles
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
                 />
               ) : null}
             </div>
@@ -790,6 +830,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                     <NextOnCourtSessionRecordBadge
                       wins={sessionStats.wins}
                       losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
                       rank={leaderboardRank}
                       showRank={showLeaderboardRank}
                       label={sessionRecordLabel}
@@ -864,6 +905,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <QueueEntrySessionStatsRow
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showRank={showLeaderboardRank}
                   sessionRecordLabel={sessionRecordLabel}
@@ -876,6 +918,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <QueueEntrySessionStatsRow
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showRank={showLeaderboardRank}
                   sessionRecordLabel={sessionRecordLabel}
@@ -900,6 +943,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                   <NextOnCourtSessionRecordBadge
                     wins={sessionStats.wins}
                     losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
                     rank={leaderboardRank}
                     showRank={showLeaderboardRank}
                     label={sessionRecordLabel}
@@ -920,6 +964,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <QueueSessionStatsBadges
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showLeaderboardRank={showLeaderboardRank}
                   hideRecordOnLargeScreens={inWaitingLine}
@@ -947,6 +992,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
             lastMatchResult={entry.lastMatchResult}
             wins={sessionStats.wins}
             losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
             rank={leaderboardRank}
             showRank={showLeaderboardRank}
             sessionRecordLabel={sessionRecordLabel}
@@ -958,6 +1004,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
             lastMatchResult={entry.lastMatchResult}
             wins={sessionStats.wins}
             losses={sessionStats.losses}
+ newBalls={sessionStats.newBalls}
             rank={leaderboardRank}
             showRank={showLeaderboardRank}
             sessionRecordLabel={sessionRecordLabel}
