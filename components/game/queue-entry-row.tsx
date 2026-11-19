@@ -39,6 +39,7 @@ export type QueueEntryView = {
   gamesPlayed?: number;
   wins?: number;
   losses?: number;
+  newBalls?: number;
   /** First ended-session record with this club owner before this open play. */
   isFirstTimer?: boolean;
   /** Set when a spectator shared this player's stats card. */
@@ -560,6 +561,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
     gamesPlayed: entry.gamesPlayed ?? 0,
     wins: entry.wins ?? 0,
     losses: entry.losses ?? 0,
+    newBalls: entry.newBalls ?? 0,
   };
   const leaderboardRank =
     showLeaderboardRank && leaderboardRankMap
@@ -698,7 +700,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <NextOnCourtSessionRecordBadge
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
+                  newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showRank={showLeaderboardRank}
                   label={sessionRecordLabel}
@@ -717,7 +719,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <NextOnCourtSessionRecordBadge
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
+                  newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showRank={showLeaderboardRank}
                   label={sessionRecordLabel}
@@ -806,7 +808,6 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <NextOnCourtStatTiles
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
                 />
               ) : null}
             </div>
@@ -830,7 +831,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                     <NextOnCourtSessionRecordBadge
                       wins={sessionStats.wins}
                       losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
+                  newBalls={sessionStats.newBalls}
                       rank={leaderboardRank}
                       showRank={showLeaderboardRank}
                       label={sessionRecordLabel}
@@ -905,7 +906,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <QueueEntrySessionStatsRow
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
+                  newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showRank={showLeaderboardRank}
                   sessionRecordLabel={sessionRecordLabel}
@@ -918,7 +919,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <QueueEntrySessionStatsRow
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
+                  newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showRank={showLeaderboardRank}
                   sessionRecordLabel={sessionRecordLabel}
@@ -943,7 +944,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                   <NextOnCourtSessionRecordBadge
                     wins={sessionStats.wins}
                     losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
+                  newBalls={sessionStats.newBalls}
                     rank={leaderboardRank}
                     showRank={showLeaderboardRank}
                     label={sessionRecordLabel}
@@ -964,7 +965,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
                 <QueueSessionStatsBadges
                   wins={sessionStats.wins}
                   losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
+                  newBalls={sessionStats.newBalls}
                   rank={leaderboardRank}
                   showLeaderboardRank={showLeaderboardRank}
                   hideRecordOnLargeScreens={inWaitingLine}
@@ -992,7 +993,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
             lastMatchResult={entry.lastMatchResult}
             wins={sessionStats.wins}
             losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
+                  newBalls={sessionStats.newBalls}
             rank={leaderboardRank}
             showRank={showLeaderboardRank}
             sessionRecordLabel={sessionRecordLabel}
@@ -1004,7 +1005,7 @@ export const QueueEntryRow = memo(function QueueEntryRow({
             lastMatchResult={entry.lastMatchResult}
             wins={sessionStats.wins}
             losses={sessionStats.losses}
- newBalls={sessionStats.newBalls}
+                  newBalls={sessionStats.newBalls}
             rank={leaderboardRank}
             showRank={showLeaderboardRank}
             sessionRecordLabel={sessionRecordLabel}
