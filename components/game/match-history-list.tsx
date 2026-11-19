@@ -448,8 +448,22 @@ export function MatchHistoryList({
                 <MapPin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                 Court {match.courtNumber}
                 {match.shuttlecock ? (
-                  <span className="rounded bg-background px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
-                    {match.shuttlecock === "old" ? "Old shuttle" : "New shuttle"}
+                  <span
+                    className={
+                      match.shuttlecock === "old"
+                        ? "inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300"
+                        : "inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+                    }
+                  >
+                    <span
+                      className={
+                        match.shuttlecock === "old"
+                          ? "size-1.5 rounded-full bg-amber-500"
+                          : "size-1.5 rounded-full bg-emerald-500"
+                      }
+                      aria-hidden
+                    />
+                    {match.shuttlecock === "old" ? "Old ball" : "New ball"}
                   </span>
                 ) : null}
               </span>
