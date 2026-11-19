@@ -1,5 +1,6 @@
 import { PlayerAvatar, PlayerProfileTrigger } from "@/components/game/player-avatar";
-import { formatPlayerTableName } from "@/lib/utils";
+import type * as React from "react";
+import { cn, formatPlayerTableName } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -14,6 +15,25 @@ import { PlayerEndorsementStatusBadge } from "@/components/game/player-endorseme
 import { UndefeatedBadge } from "@/components/game/undefeated-badge";
 import { isSessionUndefeated } from "@/lib/games-played-map";
 
+function MobileStat({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col items-center gap-0.5 px-1">
+      <span className="max-w-full truncate text-[0.6rem] leading-none font-medium text-muted-foreground uppercase">
+        {label}
+      </span>
+      <span className={cn("text-sm font-semibold tabular-nums", className)}>{value}</span>
+    </div>
+  );
+}
+
 export function LeaderboardTable({
   rows,
   endorsementCounts,
@@ -26,7 +46,60 @@ export function LeaderboardTable({
   const showNewBalls = rows.some((row) => (row.newBalls ?? 0) > 0);
 
   return (
-    <div className="leaderboard-table leaderboard-table-wrap overflow-x-auto rounded-lg border border-border">
+    <>
+    <ul className="leaderboard-table-mobile w-full min-w-0 max-w-full divide-y divide-border overflow-hidden rounded-lg border border-border [contain:inline-size] sm:hidden">
+      {rows.map((row, index) => {
+        const playerId = resolveLeaderboardPlayerId(row);
+        const endorsementCount = endorsementCounts?.[playerId] ?? 0;
+        const undefeated = isSessionUndefeated({ wins: row.wins, losses: row.losses });
+        const hasBadges = row.isFirstTimer || undefeated || endorsementCount > 0;
+        return (
+          <li key={row.id} className="flex min-w-0 flex-col gap-2 px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="w-7 shrink-0 text-sm font-semibold tabular-nums">#{index + 1}</span>
+              <PlayerAvatar player={row} />
+              <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                <PlayerProfileTrigger player={row} className="max-w-full truncate font-medium">
+                  <span className="min-w-0 truncate">
+                    {formatPlayerTableName(row.firstName, row.lastName)}
+                  </span>
+                </PlayerProfileTrigger>
+                {hasBadges ? (
+                  <div className="flex flex-wrap items-center gap-1">
+                    {row.isFirstTimer ? <FirstTimerPill /> : null}
+                    {undefeated ? <UndefeatedBadge className="leaderboard-undefeated-badge" /> : null}
+                    {endorsementCount > 0 ? (
+                      <PlayerEndorsementStatusBadge
+                        count={endorsementCount}
+                        onClick={onEndorsementClick ? () => onEndorsementClick(row) : undefined}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div
+              className={cn(
+                "grid divide-x divide-border/60 rounded-md bg-muted/40 py-1.5",
+                showNewBalls ? "grid-cols-6" : "grid-cols-5",
+              )}
+            >
+              <MobileStat
+                label="Wins"
+                value={row.wins}
+                className="text-emerald-600 dark:text-emerald-400"
+              />
+              <MobileStat label="Loss" value={row.losses} />
+              <MobileStat label="Games" value={row.gamesPlayed} />
+              <MobileStat label="Win %" value={`${row.winRate}%`} />
+              <MobileStat label="Streak" value={row.currentStreak} />
+              {showNewBalls ? <MobileStat label="New ball" value={row.newBalls ?? 0} /> : null}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+    <div className="leaderboard-table leaderboard-table-wrap overflow-x-auto rounded-lg border border-border max-sm:hidden">
       <Table>
         <TableHeader>
           <TableRow>
@@ -94,5 +167,6 @@ export function LeaderboardTable({
         </TableBody>
       </Table>
     </div>
+    </>
   );
 }
